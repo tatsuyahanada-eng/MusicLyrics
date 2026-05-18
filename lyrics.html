@@ -5,7 +5,7 @@
   <meta http-equiv="Cache-Control" content="no-store">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Music Lyrics</title>
-  <link rel="stylesheet" href="lyrics.css?v=6">
+  <link rel="stylesheet" href="lyrics.css?v=7">
 </head>
 <body class="ly-body">
 
@@ -52,6 +52,8 @@
 
   <!-- Search -->
   <section class="ly-search-section">
+    <button id="randomPlayBtn" type="button" class="ly-random-btn">🎲 おまかせ再生</button>
+
     <div class="ly-tabs" role="tablist" aria-label="検索モード">
       <button class="ly-tab active" data-mode="song" role="tab" aria-selected="true">🎵 アーティスト + 曲名</button>
       <button class="ly-tab" data-mode="artist" role="tab" aria-selected="false">🔍 アーティストのみ</button>
@@ -103,6 +105,10 @@
 
   <!-- YouTube Player (hidden iframe) -->
   <div id="playerSection" class="ly-player-section" hidden>
+    <div class="ly-player-overlay">
+      <button id="openInYoutubeBtn" type="button" class="ly-player-overlay-btn" title="YouTubeで開く" aria-label="YouTubeで開く">↗</button>
+      <button id="fullscreenBtn"    type="button" class="ly-player-overlay-btn" title="全画面表示"   aria-label="全画面表示">⛶</button>
+    </div>
     <div id="ytPlayer"></div>
   </div>
 
@@ -138,6 +144,6 @@
     </div>
   </div>
 
-  <script src="lyrics.js?v=6"></script>
+  <script src="lyrics.js?v=7"></script>
 </body>
 </html>

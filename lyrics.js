@@ -69,7 +69,8 @@ let elArtist, elTitle, elTitleWrap, elFetchBtn, elSearchHint, elStatus,
     elPlayerSection, elApiKeyInput, elSaveApiKey, elClearApiKey,
     elToggleApiKey, elApiKeyStatus, elCurrentOrigin,
     elApiSetup, elToggleApiSetup,
-    elOffsetDec, elOffsetInc, elOffsetDisplay;
+    elOffsetDec, elOffsetInc, elOffsetDisplay,
+    elRandomPlayBtn, elOpenInYoutubeBtn, elFullscreenBtn;
 
 /* ============================================================
    Bootstrap
@@ -114,6 +115,13 @@ function init() {
   elOffsetDec      = document.getElementById('offsetDecBtn');
   elOffsetInc      = document.getElementById('offsetIncBtn');
   elOffsetDisplay  = document.getElementById('offsetDisplay');
+  elRandomPlayBtn  = document.getElementById('randomPlayBtn');
+  elOpenInYoutubeBtn = document.getElementById('openInYoutubeBtn');
+  elFullscreenBtn  = document.getElementById('fullscreenBtn');
+
+  elRandomPlayBtn.addEventListener('click', handleRandomPlay);
+  elOpenInYoutubeBtn.addEventListener('click', openInYouTube);
+  elFullscreenBtn.addEventListener('click', toggleFullscreen);
 
   elOffsetDec.addEventListener('click',     () => adjustOffset(-0.5));
   elOffsetInc.addEventListener('click',     () => adjustOffset(+0.5));
@@ -199,7 +207,7 @@ window.onYouTubeIframeAPIReady = function () {
   state.ytPlayer = new YT.Player('ytPlayer', {
     width: '100%',
     height: '100%',
-    playerVars: { autoplay: 0, controls: 0, rel: 0, modestbranding: 1 },
+    playerVars: { autoplay: 0, controls: 0, rel: 0, modestbranding: 1, fs: 1, playsinline: 1 },
     events: {
       onReady:       onPlayerReady,
       onStateChange: onPlayerStateChange,
@@ -418,6 +426,131 @@ function loadYtVideo(idx) {
 function playNextInQueue() {
   if (!state.ytQueue.length) return;
   loadYtVideo(state.ytQueueIdx + 1);
+}
+
+/* ============================================================
+   Open current video in new tab / toggle fullscreen
+   ============================================================ */
+function openInYouTube() {
+  if (!state.ytQueue.length) {
+    setStatus('再生中の動画がありません。', 'error');
+    return;
+  }
+  const item = state.ytQueue[state.ytQueueIdx];
+  if (!item) return;
+  const t = state.ytPlayer && state.ytReady
+    ? Math.floor(state.ytPlayer.getCurrentTime() || 0)
+    : 0;
+  const url = `https://www.youtube.com/watch?v=${encodeURIComponent(item.videoId)}${t > 1 ? `&t=${t}s` : ''}`;
+  /* Pause embedded so audio doesn't double up with the new tab */
+  if (state.ytPlayer && state.ytReady) {
+    try { state.ytPlayer.pauseVideo(); } catch (_) {}
+  }
+  window.open(url, '_blank', 'noopener,noreferrer');
+}
+
+function toggleFullscreen() {
+  if (document.fullscreenElement) {
+    document.exitFullscreen();
+    return;
+  }
+  if (!elPlayerSection || elPlayerSection.hidden) {
+    setStatus('再生中の動画がありません。', 'error');
+    return;
+  }
+  const req = elPlayerSection.requestFullscreen
+           || elPlayerSection.webkitRequestFullscreen
+           || elPlayerSection.msRequestFullscreen;
+  if (!req) {
+    setStatus('このブラウザは全画面表示に対応していません。', 'error');
+    return;
+  }
+  req.call(elPlayerSection).catch(err => {
+    setStatus(`全画面化失敗: ${err.message || err}`, 'error');
+  });
+}
+
+/* ============================================================
+   Random YouTube music play
+   ============================================================ */
+const RANDOM_SEEDS = [
+  'J-POP ヒット', 'アニメソング', 'ボカロ 人気', 'シティポップ',
+  'ロック 名曲', 'K-POP ヒット', 'EDM 人気', 'R&B 名曲',
+  'インディー 邦楽', 'ポップス 定番', 'バラード 名曲', 'インスト BGM',
+  '90年代 J-POP', '2000年代 J-POP', 'カバー曲', 'アコースティック',
+];
+
+async function handleRandomPlay() {
+  if (!localStorage.getItem('yt_api_key')) {
+    setStatus('YouTube APIキーを先に設定してください。', 'error');
+    setApiSetupCollapsed(false);
+    return;
+  }
+  setStatus('🎲 ランダムに楽曲を選んでいます...', 'loading');
+  hideSongList();
+  hideYtResults();
+  elRandomPlayBtn.disabled = true;
+
+  try {
+    const seed = RANDOM_SEEDS[Math.floor(Math.random() * RANDOM_SEEDS.length)];
+    const items = await searchYouTube(seed);
+    /* Skip ultra-long compilation videos when possible */
+    const filtered = (items || []).filter(it => !/\b(\d+\s*時間|\d+\s*hours?|mix|メドレー|作業用)\b/i.test(it.title));
+    const pool = filtered.length ? filtered : (items || []);
+    if (!pool.length) {
+      setStatus('結果が見つかりませんでした。もう一度試してください。', 'error');
+      return;
+    }
+    const pick = pool[Math.floor(Math.random() * pool.length)];
+
+    /* Best-effort: guess artist / title from video title for lyrics lookup */
+    const guess = guessArtistTitle(pick.title) || { artist: pick.channel, title: pick.title };
+    state.currentArtist = guess.artist;
+    state.currentTitle  = guess.title;
+    loadOffsetForCurrentSong();
+
+    state.ytQueue    = pool;
+    state.ytQueueIdx = pool.indexOf(pick);
+    state.lyrics     = [];
+    state.lrcLines   = [];
+    state.useLrc     = false;
+    enableTransportControls(true);
+
+    /* Try to fetch lyrics in the background — never blocks playback */
+    fetchLyricsWithFallback(guess.artist, guess.title)
+      .then(raw => {
+        loadLyrics(raw);
+        setStatus(`🎲 ${escapeHTML(pick.title)} — 歌詞も取得しました。`, 'success');
+        /* If video is already playing in plain mode, kick the timer */
+        if (state.ytPlayer && state.ytReady && !state.useLrc && state.lyrics.length) {
+          try {
+            if (state.ytPlayer.getPlayerState() === YT.PlayerState.PLAYING) startLyricsTimer();
+          } catch (_) {}
+        }
+      })
+      .catch(() => { /* lyrics unavailable; ignore silently */ });
+
+    showYtResults(pool);
+    loadYtVideo(state.ytQueueIdx);
+    setStatus(`🎲 ${escapeHTML(seed)}: ${escapeHTML(pick.title)}`, 'success');
+  } catch (err) {
+    setStatus(`ランダム再生に失敗: ${err.message}`, 'error');
+  } finally {
+    elRandomPlayBtn.disabled = false;
+  }
+}
+
+function guessArtistTitle(videoTitle) {
+  /* Strip parentheses content like (Official Video), [MV], 【...】 */
+  const cleaned = videoTitle
+    .replace(/[\(\[【].*?[\)\]】]/g, '')
+    .replace(/\s+/g, ' ')
+    .trim();
+  const parts = cleaned.split(/\s*[-–—｜|／/]\s*/).filter(Boolean);
+  if (parts.length >= 2) {
+    return { artist: parts[0].trim(), title: parts[1].trim() };
+  }
+  return null;
 }
 
 /* ============================================================
