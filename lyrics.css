@@ -756,6 +756,52 @@
   cursor: pointer;
 }
 
+.ly-offset-group {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  background: var(--ly-surface);
+  border: 1px solid var(--ly-border);
+  border-radius: 6px;
+  padding: 2px 4px;
+  flex-shrink: 0;
+}
+
+.ly-offset-btn {
+  background: transparent;
+  border: none;
+  color: var(--ly-text);
+  width: 22px;
+  height: 26px;
+  font-size: 1rem;
+  line-height: 1;
+  cursor: pointer;
+  border-radius: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 700;
+  touch-action: manipulation;
+  transition: background 0.15s;
+}
+
+.ly-offset-btn:hover { background: rgba(124,58,237,0.3); }
+.ly-offset-btn:active { background: rgba(124,58,237,0.5); }
+
+.ly-offset-display {
+  font-size: 0.74rem;
+  color: var(--ly-text);
+  font-variant-numeric: tabular-nums;
+  min-width: 58px;
+  text-align: center;
+  cursor: pointer;
+  user-select: none;
+  white-space: nowrap;
+}
+
+.ly-offset-display:hover { color: var(--ly-primary); }
+.ly-offset-display:focus { outline: 1px solid var(--ly-primary); border-radius: 3px; }
+
 .ly-next-btn {
   padding: 6px 12px;
   background: rgba(236,72,153,0.15);
@@ -827,6 +873,8 @@
   .ly-volume { width: 54px; }
   .ly-duration { display: none; }
   .ly-next-btn { font-size: 0.72rem; padding: 5px 8px; }
+  .ly-offset-display { min-width: 50px; font-size: 0.7rem; }
+  .ly-offset-btn { width: 20px; height: 24px; }
 }
 
 @media (max-width: 380px) {

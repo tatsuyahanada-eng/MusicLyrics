@@ -38,7 +38,9 @@ const state = {
   currentIndex: 0,
   isPlaying: false,
   intervalId: null,
+  startTimeoutId: null,
   speed: 2500,
+  lyricsOffset: 0,  // seconds; +N = lyrics shown N seconds later
 
   ytReady: false,
   ytPlayer: null,
@@ -66,7 +68,8 @@ let elArtist, elTitle, elTitleWrap, elFetchBtn, elSearchHint, elStatus,
     elCloseSongList, elYtResults, elYtResultsInfo, elYtResultCards, elCloseYtResults,
     elPlayerSection, elApiKeyInput, elSaveApiKey, elClearApiKey,
     elToggleApiKey, elApiKeyStatus, elCurrentOrigin,
-    elApiSetup, elToggleApiSetup;
+    elApiSetup, elToggleApiSetup,
+    elOffsetDec, elOffsetInc, elOffsetDisplay;
 
 /* ============================================================
    Bootstrap
@@ -108,6 +111,17 @@ function init() {
   elCurrentOrigin  = document.getElementById('currentOrigin');
   elApiSetup       = document.getElementById('apiSetup');
   elToggleApiSetup = document.getElementById('toggleApiSetup');
+  elOffsetDec      = document.getElementById('offsetDecBtn');
+  elOffsetInc      = document.getElementById('offsetIncBtn');
+  elOffsetDisplay  = document.getElementById('offsetDisplay');
+
+  elOffsetDec.addEventListener('click',     () => adjustOffset(-0.5));
+  elOffsetInc.addEventListener('click',     () => adjustOffset(+0.5));
+  elOffsetDisplay.addEventListener('click', () => resetOffset());
+  elOffsetDisplay.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); resetOffset(); }
+  });
+  updateOffsetDisplay();
 
   if (elCurrentOrigin) elCurrentOrigin.textContent = location.origin || location.href;
 
@@ -260,12 +274,14 @@ function pollProgress() {
    LRC Sync
    ============================================================ */
 function syncLrc(currentSec) {
+  const adjusted = currentSec - state.lyricsOffset;
+  if (adjusted < 0) return; /* before intro ends */
   const lines = state.lrcLines;
-  let idx = 0;
+  let idx = -1;
   for (let i = lines.length - 1; i >= 0; i--) {
-    if (lines[i].time <= currentSec) { idx = i; break; }
+    if (lines[i].time <= adjusted) { idx = i; break; }
   }
-  if (idx !== state.currentIndex) {
+  if (idx >= 0 && idx !== state.currentIndex) {
     state.currentIndex = idx;
     const text = lines[idx].text;
     if (text) displayLine(text);
@@ -273,21 +289,90 @@ function syncLrc(currentSec) {
 }
 
 /* ============================================================
+   Lyrics Offset (per-song timing adjustment)
+   ============================================================ */
+function getOffsetKey() {
+  const a = (state.currentArtist || '').toLowerCase().trim();
+  const t = (state.currentTitle  || '').toLowerCase().trim();
+  if (!a || !t) return null;
+  return `lyrics_offset:${a}|${t}`;
+}
+
+function loadOffsetForCurrentSong() {
+  const key = getOffsetKey();
+  if (!key) { state.lyricsOffset = 0; updateOffsetDisplay(); return; }
+  const saved = localStorage.getItem(key);
+  state.lyricsOffset = saved ? (parseFloat(saved) || 0) : 0;
+  updateOffsetDisplay();
+}
+
+function saveOffsetForCurrentSong() {
+  const key = getOffsetKey();
+  if (!key) return;
+  if (Math.abs(state.lyricsOffset) < 0.05) localStorage.removeItem(key);
+  else localStorage.setItem(key, state.lyricsOffset.toFixed(1));
+}
+
+function adjustOffset(delta) {
+  state.lyricsOffset = Math.round((state.lyricsOffset + delta) * 10) / 10;
+  if (state.lyricsOffset < -60) state.lyricsOffset = -60;
+  if (state.lyricsOffset >  60) state.lyricsOffset =  60;
+  saveOffsetForCurrentSong();
+  updateOffsetDisplay();
+  /* Re-sync immediately so the user sees the change */
+  if (state.useLrc && state.ytPlayer && state.ytReady) {
+    state.currentIndex = -1;
+    syncLrc(state.ytPlayer.getCurrentTime() || 0);
+  }
+}
+
+function resetOffset() {
+  state.lyricsOffset = 0;
+  saveOffsetForCurrentSong();
+  updateOffsetDisplay();
+}
+
+function updateOffsetDisplay() {
+  if (!elOffsetDisplay) return;
+  const v = state.lyricsOffset;
+  const sign = v > 0 ? '+' : (v < 0 ? '−' : '±');
+  elOffsetDisplay.textContent = `歌詞${sign}${Math.abs(v).toFixed(1)}s`;
+}
+
+/* ============================================================
    Lyrics Timer (non-LRC fallback)
    ============================================================ */
 function startLyricsTimer() {
-  if (state.intervalId) return;
+  if (state.intervalId || state.startTimeoutId) return;
+  if (!state.lyrics.length) return;
   state.isPlaying = true;
-  state.intervalId = setInterval(() => {
-    if (state.currentIndex >= state.lyrics.length) state.currentIndex = 0;
-    displayLine(state.lyrics[state.currentIndex++]);
-  }, state.speed);
+
+  const begin = () => {
+    state.startTimeoutId = null;
+    state.intervalId = setInterval(() => {
+      if (state.currentIndex >= state.lyrics.length) state.currentIndex = 0;
+      displayLine(state.lyrics[state.currentIndex++]);
+    }, state.speed);
+  };
+
+  /* For plain mode, treat a positive offset as an intro-skip delay
+     before the first lyric appears. */
+  let delayMs = 0;
+  if (state.ytPlayer && state.ytReady) {
+    const cur = state.ytPlayer.getCurrentTime() || 0;
+    delayMs = Math.max(0, (state.lyricsOffset - cur) * 1000);
+  } else {
+    delayMs = Math.max(0, state.lyricsOffset * 1000);
+  }
+
+  if (delayMs > 0) state.startTimeoutId = setTimeout(begin, delayMs);
+  else begin();
 }
 
 function stopLyricsTimer() {
   state.isPlaying = false;
-  clearInterval(state.intervalId);
-  state.intervalId = null;
+  if (state.intervalId)     { clearInterval(state.intervalId);     state.intervalId     = null; }
+  if (state.startTimeoutId) { clearTimeout(state.startTimeoutId);  state.startTimeoutId = null; }
 }
 
 /* ============================================================
@@ -540,6 +625,7 @@ async function fetchSongsByArtist(artist) {
 async function handleSongSearch(artist, title) {
   state.currentArtist = artist;
   state.currentTitle  = title;
+  loadOffsetForCurrentSong();
 
   setStatus(`「${escapeHTML(title)}」を検索中...`, 'loading');
   elFetchBtn.disabled = true;
@@ -746,6 +832,11 @@ function findNonOverlappingPosition(ew, eh, sw, sh, ignoreEl) {
     bottom: t.offsetTop  + t.offsetHeight,
   }));
 
+  /* Treat the floating YouTube player as an obstacle so lyrics
+     never end up hidden behind it. */
+  const playerRect = getPlayerObstacleRect();
+  if (playerRect) rects.push(playerRect);
+
   const usableH = Math.max(eh + TOKEN_PADDING * 2, sh - TOKEN_PADDING * 2);
   const bandH   = usableH / 3;
   const bands = [];
@@ -790,6 +881,20 @@ function rectsOverlap(a, b, margin) {
     a.bottom + margin < b.top   ||
     a.top    - margin > b.bottom
   );
+}
+
+function getPlayerObstacleRect() {
+  if (!elPlayerSection || elPlayerSection.hidden) return null;
+  const p = elPlayerSection.getBoundingClientRect();
+  const s = elStage.getBoundingClientRect();
+  if (p.width === 0 || p.height === 0) return null;
+  /* Convert viewport-fixed player to stage-local coords */
+  return {
+    left:   p.left   - s.left - 8,
+    top:    p.top    - s.top  - 8,
+    right:  p.right  - s.left + 8,
+    bottom: p.bottom - s.top  + 8,
+  };
 }
 
 function pickBand() {
