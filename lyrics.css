@@ -71,11 +71,73 @@
   gap: 6px;
 }
 
+.ly-api-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
 .ly-api-label {
   font-size: 0.78rem;
   font-weight: 600;
   color: var(--ly-muted);
 }
+
+.ly-api-status {
+  font-size: 0.72rem;
+  font-weight: 600;
+  padding: 3px 8px;
+  border-radius: 999px;
+  border: 1px solid var(--ly-border);
+  white-space: nowrap;
+}
+
+.ly-api-status[data-state="empty"]   { color: #f87171; border-color: rgba(248,113,113,0.35); background: rgba(248,113,113,0.08); }
+.ly-api-status[data-state="saved"]   { color: #fbbf24; border-color: rgba(251,191,36,0.35); background: rgba(251,191,36,0.08); }
+.ly-api-status[data-state="verified"]{ color: #34d399; border-color: rgba(52,211,153,0.35); background: rgba(52,211,153,0.08); }
+.ly-api-status[data-state="invalid"] { color: #f87171; border-color: rgba(248,113,113,0.45); background: rgba(248,113,113,0.12); }
+.ly-api-status[data-state="checking"]{ color: #60a5fa; border-color: rgba(96,165,250,0.35); background: rgba(96,165,250,0.08); }
+
+.ly-api-help {
+  margin-top: 4px;
+  font-size: 0.72rem;
+  color: var(--ly-muted);
+  border: 1px solid var(--ly-border);
+  border-radius: 6px;
+  padding: 4px 10px;
+  background: rgba(0,0,0,0.2);
+}
+
+.ly-api-help[open] { padding-bottom: 8px; }
+
+.ly-api-help summary {
+  cursor: pointer;
+  padding: 4px 0;
+  font-weight: 600;
+  color: var(--ly-text);
+  user-select: none;
+  list-style-position: inside;
+}
+
+.ly-api-help summary:hover { color: var(--ly-primary); }
+
+.ly-api-steps {
+  margin: 6px 0 6px 18px;
+  line-height: 1.7;
+}
+
+.ly-api-steps a { color: #60a5fa; }
+.ly-api-steps code,
+.ly-api-tip code {
+  background: rgba(255,255,255,0.08);
+  padding: 1px 5px;
+  border-radius: 3px;
+  font-size: 0.95em;
+  word-break: break-all;
+}
+
+.ly-api-tip { line-height: 1.6; }
 
 .ly-api-row {
   display: flex;
@@ -111,6 +173,11 @@
 }
 
 .ly-api-note a { color: #60a5fa; }
+
+#toggleApiKey {
+  padding: 7px 10px;
+  min-width: 38px;
+}
 
 /* ---- Search Section ---- */
 .ly-search-section {

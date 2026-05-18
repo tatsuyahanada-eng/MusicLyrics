@@ -5,7 +5,7 @@
   <meta http-equiv="Cache-Control" content="no-store">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Music Lyrics</title>
-  <link rel="stylesheet" href="lyrics.css?v=3">
+  <link rel="stylesheet" href="lyrics.css?v=4">
 </head>
 <body class="ly-body">
 
@@ -19,17 +19,31 @@
   <!-- API Key Setup -->
   <section id="apiSetup" class="ly-api-setup">
     <div class="ly-api-setup-inner">
-      <p class="ly-api-label">YouTube Data API キー（初回のみ設定）</p>
+      <div class="ly-api-header">
+        <p class="ly-api-label">YouTube Data API キー（初回のみ設定）</p>
+        <span id="apiKeyStatus" class="ly-api-status" data-state="empty">✗ 未設定</span>
+      </div>
       <div class="ly-api-row">
         <input id="apiKeyInput" class="ly-input ly-api-input" type="password"
-          placeholder="AIza..." autocomplete="off">
-        <button id="saveApiKey" class="ly-btn ly-btn-sm">保存</button>
+          placeholder="AIza..." autocomplete="off" spellcheck="false">
+        <button id="toggleApiKey" type="button" class="ly-btn ly-btn-sm ly-btn-outline" aria-label="キーの表示を切り替え" title="表示/非表示">👁</button>
+        <button id="saveApiKey" class="ly-btn ly-btn-sm">保存して検証</button>
         <button id="clearApiKey" class="ly-btn ly-btn-sm ly-btn-outline">削除</button>
       </div>
-      <p class="ly-api-note">
-        <a href="https://console.cloud.google.com/" target="_blank" rel="noopener">Google Cloud Console</a>
-        で YouTube Data API v3 を有効にし、APIキーを取得してください（無料枠あり）。
-      </p>
+      <details class="ly-api-help">
+        <summary>APIキーの取得方法とよくあるエラー</summary>
+        <ol class="ly-api-steps">
+          <li><a href="https://console.cloud.google.com/" target="_blank" rel="noopener">Google Cloud Console</a> でプロジェクトを作成</li>
+          <li>「APIとサービス」→「ライブラリ」で <strong>YouTube Data API v3</strong> を検索し<strong>有効化</strong></li>
+          <li>「APIとサービス」→「認証情報」→「認証情報を作成」→「APIキー」を選択</li>
+          <li><code>AIza...</code> で始まるキーをコピーし、上の欄に貼り付けて「保存して検証」</li>
+        </ol>
+        <p class="ly-api-tip">
+          <strong>制限について：</strong> APIキーにHTTPリファラ制限を設定する場合は、このページのURL
+          （<code id="currentOrigin"></code>）を許可リストに追加してください。制限なしでも動作しますが、無料枠を超えた利用を防ぐため
+          1日のクォータ上限を設定することをお勧めします。
+        </p>
+      </details>
     </div>
   </section>
 
@@ -116,6 +130,6 @@
     </div>
   </div>
 
-  <script src="lyrics.js?v=3"></script>
+  <script src="lyrics.js?v=4"></script>
 </body>
 </html>

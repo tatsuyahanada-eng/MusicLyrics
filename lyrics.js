@@ -61,7 +61,8 @@ let elArtist, elTitle, elTitleWrap, elFetchBtn, elSearchHint, elStatus,
     elVolumeSlider, elProgressBar, elSeekBack, elSeekFwd, elNextSongBtn,
     elSongList, elSongListInfo, elSongCards, elPageInfo, elPrevPageBtn, elNextPageBtn,
     elCloseSongList, elYtResults, elYtResultsInfo, elYtResultCards, elCloseYtResults,
-    elPlayerSection, elApiKeyInput, elSaveApiKey, elClearApiKey;
+    elPlayerSection, elApiKeyInput, elSaveApiKey, elClearApiKey,
+    elToggleApiKey, elApiKeyStatus, elCurrentOrigin;
 
 /* ============================================================
    Bootstrap
@@ -98,18 +99,37 @@ function init() {
   elApiKeyInput    = document.getElementById('apiKeyInput');
   elSaveApiKey     = document.getElementById('saveApiKey');
   elClearApiKey    = document.getElementById('clearApiKey');
+  elToggleApiKey   = document.getElementById('toggleApiKey');
+  elApiKeyStatus   = document.getElementById('apiKeyStatus');
+  elCurrentOrigin  = document.getElementById('currentOrigin');
+
+  if (elCurrentOrigin) elCurrentOrigin.textContent = location.origin || location.href;
 
   const saved = localStorage.getItem('yt_api_key');
-  if (saved) elApiKeyInput.value = saved;
+  if (saved) {
+    elApiKeyInput.value = saved;
+    const verified = localStorage.getItem('yt_api_key_verified') === '1';
+    setApiKeyStatus(verified ? 'verified' : 'saved', saved);
+  } else {
+    setApiKeyStatus('empty');
+  }
 
-  elSaveApiKey.addEventListener('click', () => {
-    const k = elApiKeyInput.value.trim();
-    if (k) { localStorage.setItem('yt_api_key', k); setStatus('APIキーを保存しました。', 'success'); }
+  elSaveApiKey.addEventListener('click', saveAndValidateApiKey);
+  elApiKeyInput.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') { e.preventDefault(); saveAndValidateApiKey(); }
+  });
+
+  elToggleApiKey.addEventListener('click', () => {
+    const showing = elApiKeyInput.type === 'text';
+    elApiKeyInput.type = showing ? 'password' : 'text';
+    elToggleApiKey.textContent = showing ? '👁' : '🙈';
   });
 
   elClearApiKey.addEventListener('click', () => {
     localStorage.removeItem('yt_api_key');
+    localStorage.removeItem('yt_api_key_verified');
     elApiKeyInput.value = '';
+    setApiKeyStatus('empty');
     setStatus('APIキーを削除しました。', '');
   });
 
@@ -306,11 +326,96 @@ function playNextInQueue() {
 /* ============================================================
    YouTube Data API search
    ============================================================ */
+const API_KEY_RE = /^AIza[0-9A-Za-z_-]{35}$/;
+
+function setApiKeyStatus(stateName, key) {
+  if (!elApiKeyStatus) return;
+  elApiKeyStatus.dataset.state = stateName;
+  const tail = key ? ` (…${key.slice(-4)})` : '';
+  const labels = {
+    empty:    '✗ 未設定',
+    saved:    '● 保存済み（未検証）' + tail,
+    verified: '✓ 検証済み' + tail,
+    invalid:  '⚠ 無効なキー' + tail,
+    checking: '… 検証中',
+  };
+  elApiKeyStatus.textContent = labels[stateName] || stateName;
+}
+
+async function saveAndValidateApiKey() {
+  const k = elApiKeyInput.value.trim();
+  if (!k) {
+    setStatus('APIキーを入力してください。', 'error');
+    return;
+  }
+  if (!API_KEY_RE.test(k)) {
+    setApiKeyStatus('invalid', k);
+    setStatus('キーの形式が正しくありません。"AIza" で始まる39文字のキーを貼り付けてください。', 'error');
+    return;
+  }
+
+  localStorage.setItem('yt_api_key', k);
+  localStorage.removeItem('yt_api_key_verified');
+  setApiKeyStatus('checking');
+  setStatus('APIキーを検証中...', 'loading');
+  elSaveApiKey.disabled = true;
+
+  try {
+    await testApiKey(k);
+    localStorage.setItem('yt_api_key_verified', '1');
+    setApiKeyStatus('verified', k);
+    setStatus('APIキーは有効です。検索できます。', 'success');
+  } catch (err) {
+    setApiKeyStatus('invalid', k);
+    setStatus(`APIキーの検証に失敗: ${err.message}`, 'error');
+  } finally {
+    elSaveApiKey.disabled = false;
+  }
+}
+
+async function testApiKey(key) {
+  const params = new URLSearchParams({
+    part: 'id', q: 'test', type: 'video', maxResults: '1', key,
+  });
+  const res = await fetchWithTimeout(`${YT_SEARCH}?${params}`, 10000);
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}));
+    throw new Error(interpretYouTubeError(res.status, body));
+  }
+}
+
+function interpretYouTubeError(status, body) {
+  const err   = body.error || {};
+  const items = err.errors || [];
+  const reason = items[0]?.reason || '';
+  const msg    = err.message || `HTTP ${status}`;
+
+  switch (reason) {
+    case 'keyInvalid':
+      return 'キーが無効です。Google Cloud Console で正しいAPIキーを取得してください。';
+    case 'ipRefererBlocked':
+    case 'referrerNotAllowed':
+      return `リファラ制限でブロックされました。Cloud Console でこのURL (${location.origin}) を許可するか、制限を解除してください。`;
+    case 'accessNotConfigured':
+    case 'forbidden':
+      return 'YouTube Data API v3 が有効化されていません。Google Cloud Console で API を有効にしてください。';
+    case 'quotaExceeded':
+    case 'dailyLimitExceeded':
+      return '本日の API クォータを使い切りました。明日まで待つか、Google Cloud Console でクォータを増やしてください。';
+    case 'rateLimitExceeded':
+    case 'userRateLimitExceeded':
+      return 'リクエストが多すぎます。少し時間を置いて再試行してください。';
+    default:
+      return msg;
+  }
+}
+
 async function searchYouTube(query) {
   const key = localStorage.getItem('yt_api_key');
   if (!key) {
-    setStatus('YouTubeのAPIキーが設定されていません。上部の欄に入力して保存してください。', 'error');
-    return null;
+    const e = new Error('YouTubeのAPIキーが未設定です。上部の欄でキーを保存してください。');
+    e.code = 'NO_KEY';
+    throw e;
   }
   const params = new URLSearchParams({
     part: 'snippet', q: query, type: 'video',
@@ -319,8 +424,11 @@ async function searchYouTube(query) {
   const res = await fetchWithTimeout(`${YT_SEARCH}?${params}`, 12000);
   if (!res.ok) {
     const body = await res.json().catch(() => ({}));
-    const msg  = body.error?.message || `HTTP ${res.status}`;
-    throw new Error(`YouTube API エラー: ${msg}`);
+    if (res.status === 400 || res.status === 403) {
+      localStorage.removeItem('yt_api_key_verified');
+      setApiKeyStatus('invalid', key);
+    }
+    throw new Error(interpretYouTubeError(res.status, body));
   }
   const data = await res.json();
   return (data.items || []).map(it => ({
@@ -432,10 +540,13 @@ async function handleSongSearch(artist, title) {
     }
 
     /* YouTube results */
-    if (ytItems.status === 'fulfilled' && ytItems.value && ytItems.value.length) {
-      state.ytQueue    = ytItems.value;
+    const ytErr = ytItems.status === 'rejected' ? ytItems.reason : null;
+    const ytList = ytItems.status === 'fulfilled' ? ytItems.value : null;
+
+    if (ytList && ytList.length) {
+      state.ytQueue    = ytList;
       state.ytQueueIdx = 0;
-      showYtResults(ytItems.value);
+      showYtResults(ytList);
       enableTransportControls(true);
       setStatus(
         lyricsResult.status === 'fulfilled'
@@ -443,15 +554,16 @@ async function handleSongSearch(artist, title) {
           : `歌詞は見つかりませんでした。YouTubeの結果から動画を選んでください。`,
         lyricsResult.status === 'fulfilled' ? 'success' : 'error'
       );
+    } else if (lyricsResult.status === 'fulfilled' && state.lyrics.length) {
+      clearStage();
+      state.currentIndex = 0;
+      elPlayPauseBtn.disabled = false;
+      const reason = ytErr ? `（YouTube: ${ytErr.message}）` : '（YouTube結果なし）';
+      setStatus(`「${escapeHTML(title)}」の歌詞を取得しました${reason}。▶で開始。`, ytErr ? 'error' : 'success');
+    } else if (ytErr) {
+      setStatus(`YouTube検索エラー: ${ytErr.message}`, 'error');
     } else {
-      if (lyricsResult.status === 'fulfilled' && state.lyrics.length) {
-        clearStage();
-        state.currentIndex = 0;
-        elPlayPauseBtn.disabled = false;
-        setStatus(`「${escapeHTML(title)}」の歌詞を取得しました（YouTubeは未設定）。▶で開始。`, 'success');
-      } else {
-        setStatus('歌詞もYouTubeも見つかりませんでした。曲名を変えて試してください。', 'error');
-      }
+      setStatus('歌詞もYouTubeも見つかりませんでした。曲名を変えて試してください。', 'error');
     }
   } catch (err) {
     setStatus(err.message || '取得に失敗しました。', 'error');
