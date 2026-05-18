@@ -10,11 +10,14 @@ const LRCLIB_API  = 'https://lrclib.net/api/search';
 const ITUNES_API  = 'https://itunes.apple.com/search';
 const YT_SEARCH   = 'https://www.googleapis.com/youtube/v3/search';
 
-const SONGS_PER_PAGE    = 15;
-const MAX_VISIBLE_TOKENS = 18;
-const TOKEN_LIFESPAN     = 7000;
-const GRID_COLS          = 3;
-const GRID_ROWS          = 5;
+const SONGS_PER_PAGE     = 15;
+const MAX_VISIBLE_TOKENS = 7;
+const TOKEN_LIFESPAN_LRC   = 4800;
+const TOKEN_LIFESPAN_PLAIN = 6500;
+const TOKEN_FADE_MS      = 900;
+const TOKEN_PADDING      = 12;
+const TOKEN_MARGIN       = 12;
+const PLACEMENT_TRIES    = 30;
 
 const SPEED_OPTIONS = { slow: 4000, normal: 2500, fast: 1500, veryfast: 800 };
 
@@ -52,8 +55,8 @@ const state = {
 const songList = { songs: [], page: 0 };
 let searchMode = 'song';
 
-/* ---- Cell occupation map for overlap prevention ---- */
-const cellMap = new Map(); // key: "col,row" → expiry timestamp
+/* ---- Round-robin band index to spread vertically over time ---- */
+let lastBandIdx = -1;
 
 /* ---- DOM refs ---- */
 let elArtist, elTitle, elTitleWrap, elFetchBtn, elSearchHint, elStatus,
@@ -62,7 +65,8 @@ let elArtist, elTitle, elTitleWrap, elFetchBtn, elSearchHint, elStatus,
     elSongList, elSongListInfo, elSongCards, elPageInfo, elPrevPageBtn, elNextPageBtn,
     elCloseSongList, elYtResults, elYtResultsInfo, elYtResultCards, elCloseYtResults,
     elPlayerSection, elApiKeyInput, elSaveApiKey, elClearApiKey,
-    elToggleApiKey, elApiKeyStatus, elCurrentOrigin;
+    elToggleApiKey, elApiKeyStatus, elCurrentOrigin,
+    elApiSetup, elToggleApiSetup;
 
 /* ============================================================
    Bootstrap
@@ -102,6 +106,8 @@ function init() {
   elToggleApiKey   = document.getElementById('toggleApiKey');
   elApiKeyStatus   = document.getElementById('apiKeyStatus');
   elCurrentOrigin  = document.getElementById('currentOrigin');
+  elApiSetup       = document.getElementById('apiSetup');
+  elToggleApiSetup = document.getElementById('toggleApiSetup');
 
   if (elCurrentOrigin) elCurrentOrigin.textContent = location.origin || location.href;
 
@@ -110,9 +116,14 @@ function init() {
     elApiKeyInput.value = saved;
     const verified = localStorage.getItem('yt_api_key_verified') === '1';
     setApiKeyStatus(verified ? 'verified' : 'saved', saved);
+    if (verified) setApiSetupCollapsed(true);
   } else {
     setApiKeyStatus('empty');
   }
+
+  elToggleApiSetup.addEventListener('click', () => {
+    setApiSetupCollapsed(!elApiSetup.classList.contains('collapsed'));
+  });
 
   elSaveApiKey.addEventListener('click', saveAndValidateApiKey);
   elApiKeyInput.addEventListener('keydown', (e) => {
@@ -130,6 +141,7 @@ function init() {
     localStorage.removeItem('yt_api_key_verified');
     elApiKeyInput.value = '';
     setApiKeyStatus('empty');
+    setApiSetupCollapsed(false);
     setStatus('APIキーを削除しました。', '');
   });
 
@@ -342,6 +354,12 @@ function setApiKeyStatus(stateName, key) {
   elApiKeyStatus.textContent = labels[stateName] || stateName;
 }
 
+function setApiSetupCollapsed(collapsed) {
+  if (!elApiSetup || !elToggleApiSetup) return;
+  elApiSetup.classList.toggle('collapsed', collapsed);
+  elToggleApiSetup.setAttribute('aria-expanded', String(!collapsed));
+}
+
 async function saveAndValidateApiKey() {
   const k = elApiKeyInput.value.trim();
   if (!k) {
@@ -365,9 +383,11 @@ async function saveAndValidateApiKey() {
     localStorage.setItem('yt_api_key_verified', '1');
     setApiKeyStatus('verified', k);
     setStatus('APIキーは有効です。検索できます。', 'success');
+    setApiSetupCollapsed(true);
   } catch (err) {
     setApiKeyStatus('invalid', k);
     setStatus(`APIキーの検証に失敗: ${err.message}`, 'error');
+    setApiSetupCollapsed(false);
   } finally {
     elSaveApiKey.disabled = false;
   }
@@ -661,88 +681,115 @@ function showYtResults(items) {
 function hideYtResults() { elYtResults.hidden = true; }
 
 /* ============================================================
-   Lyric display — grid-based overlap prevention
+   Lyric display — rect collision + vertical band rotation
    ============================================================ */
 function displayLine(text) {
   if (!text || !text.trim()) return;
 
-  const tokens = elStage.querySelectorAll('.lyric-token');
-  if (tokens.length >= MAX_VISIBLE_TOKENS) tokens.forEach(el => el.remove());
+  /* Enforce token cap by removing oldest first */
+  const live = [...elStage.querySelectorAll('.lyric-token:not(.fading)')];
+  if (live.length >= MAX_VISIBLE_TOKENS) {
+    live
+      .sort((a, b) => Number(a.dataset.born || 0) - Number(b.dataset.born || 0))
+      .slice(0, live.length - MAX_VISIBLE_TOKENS + 1)
+      .forEach(fadeOutToken);
+  }
 
   const el = document.createElement('div');
-  el.className   = 'lyric-token';
-  el.textContent = text;
+  el.className     = 'lyric-token';
+  el.textContent   = text;
+  el.dataset.born  = String(Date.now());
 
-  /* Pick font band by weighted random */
   const band = pickBand();
   const size = randomInt(band[0], band[1]);
   el.style.fontSize   = `${size}px`;
   el.style.fontWeight = String(band[2]);
   el.style.opacity    = '0';
-
-  /* Temp off-screen to measure */
-  el.style.left = '-9999px';
-  el.style.top  = '-9999px';
+  el.style.left       = '-9999px';
+  el.style.top        = '-9999px';
   elStage.appendChild(el);
 
   const sw = elStage.clientWidth  || 320;
   const sh = elStage.clientHeight || 200;
-  const ew = el.offsetWidth;
+  const ew = Math.min(el.offsetWidth, sw - TOKEN_PADDING * 2);
   const eh = el.offsetHeight;
 
-  const PAD = 10;
-  const cellW = sw / GRID_COLS;
-  const cellH = sh / GRID_ROWS;
-
-  /* Try each grid cell in shuffled order */
-  const cells = shuffledCells();
-  let placed = false;
-
-  const now = Date.now();
-
-  for (const [col, row] of cells) {
-    const key = `${col},${row}`;
-    if (cellMap.has(key) && cellMap.get(key) > now) continue; /* occupied */
-
-    const cellX = col * cellW;
-    const cellY = row * cellH;
-    const x = clamp(cellX + randomInt(PAD, Math.max(PAD, cellW - ew - PAD)), PAD, sw - ew - PAD);
-    const y = clamp(cellY + randomInt(PAD, Math.max(PAD, cellH - eh - PAD)), PAD, sh - eh - PAD);
-
-    el.style.left = `${x}px`;
-    el.style.top  = `${y}px`;
-    cellMap.set(key, now + TOKEN_LIFESPAN);
-    placed = true;
-    break;
-  }
-
-  if (!placed) {
-    /* All cells busy — place at random, clear oldest cell */
-    const oldest = [...cellMap.entries()].sort((a, b) => a[1] - b[1])[0];
-    if (oldest) cellMap.delete(oldest[0]);
-    el.style.left = `${randomInt(PAD, Math.max(PAD, sw - ew - PAD))}px`;
-    el.style.top  = `${randomInt(PAD, Math.max(PAD, sh - eh - PAD))}px`;
-  }
+  const pos = findNonOverlappingPosition(ew, eh, sw, sh, el);
+  el.style.left = `${pos.x}px`;
+  el.style.top  = `${pos.y}px`;
 
   requestAnimationFrame(() => el.classList.add('visible'));
 
-  setTimeout(() => {
-    el.classList.remove('visible');
-    el.classList.add('fading');
-    setTimeout(() => { if (el.parentNode) el.remove(); }, 900);
-  }, TOKEN_LIFESPAN);
+  const lifespan = state.useLrc ? TOKEN_LIFESPAN_LRC : TOKEN_LIFESPAN_PLAIN;
+  setTimeout(() => fadeOutToken(el), lifespan);
 }
 
-function shuffledCells() {
-  const cells = [];
-  for (let r = 0; r < GRID_ROWS; r++) {
-    for (let c = 0; c < GRID_COLS; c++) cells.push([c, r]);
+function fadeOutToken(el) {
+  if (!el || !el.parentNode || el.classList.contains('fading')) return;
+  el.classList.remove('visible');
+  el.classList.add('fading');
+  setTimeout(() => { if (el.parentNode) el.remove(); }, TOKEN_FADE_MS);
+}
+
+/**
+ * Find a position that doesn't overlap with existing tokens.
+ * Uses 3 vertical bands (top / middle / bottom) cycled round-robin
+ * to ensure vertical spread even when a few lyrics fire quickly.
+ */
+function findNonOverlappingPosition(ew, eh, sw, sh, ignoreEl) {
+  const tokens = [...elStage.querySelectorAll('.lyric-token')]
+    .filter(t => t !== ignoreEl);
+  const rects = tokens.map(t => ({
+    left:   t.offsetLeft,
+    top:    t.offsetTop,
+    right:  t.offsetLeft + t.offsetWidth,
+    bottom: t.offsetTop  + t.offsetHeight,
+  }));
+
+  const usableH = Math.max(eh + TOKEN_PADDING * 2, sh - TOKEN_PADDING * 2);
+  const bandH   = usableH / 3;
+  const bands = [];
+  for (let i = 0; i < 3; i++) {
+    const top    = TOKEN_PADDING + i * bandH;
+    const bottom = TOKEN_PADDING + (i + 1) * bandH - eh;
+    if (bottom > top) bands.push({ top, bottom, idx: i });
   }
-  for (let i = cells.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1));
-    [cells[i], cells[j]] = [cells[j], cells[i]];
+
+  /* Order bands: prefer the one NOT used last, then shuffle others */
+  const ordered = [];
+  const next = (lastBandIdx + 1) % bands.length;
+  if (bands[next]) ordered.push(bands[next]);
+  bands.forEach(b => { if (!ordered.includes(b)) ordered.push(b); });
+
+  for (const b of ordered) {
+    for (let i = 0; i < PLACEMENT_TRIES; i++) {
+      const maxX = Math.max(TOKEN_PADDING, sw - ew - TOKEN_PADDING);
+      const x = randomInt(TOKEN_PADDING, maxX);
+      const y = randomInt(b.top, Math.max(b.top + 1, b.bottom));
+      const rect = { left: x, top: y, right: x + ew, bottom: y + eh };
+      if (!rects.some(r => rectsOverlap(rect, r, TOKEN_MARGIN))) {
+        lastBandIdx = b.idx;
+        return { x, y };
+      }
+    }
   }
-  return cells;
+
+  /* Fallback: clear the most-overlapping existing token, then pick freely */
+  if (tokens.length) fadeOutToken(tokens[0]);
+  lastBandIdx = (lastBandIdx + 1) % 3;
+  return {
+    x: randomInt(TOKEN_PADDING, Math.max(TOKEN_PADDING, sw - ew - TOKEN_PADDING)),
+    y: randomInt(TOKEN_PADDING, Math.max(TOKEN_PADDING, sh - eh - TOKEN_PADDING)),
+  };
+}
+
+function rectsOverlap(a, b, margin) {
+  return !(
+    a.right  + margin < b.left  ||
+    a.left   - margin > b.right ||
+    a.bottom + margin < b.top   ||
+    a.top    - margin > b.bottom
+  );
 }
 
 function pickBand() {
@@ -835,7 +882,7 @@ function enableTransportControls(on) {
 
 function clearStage() {
   elStage.querySelectorAll('.lyric-token').forEach(el => el.remove());
-  cellMap.clear();
+  lastBandIdx = -1;
 }
 
 function updateDurationDisplay() {
