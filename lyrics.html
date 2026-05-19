@@ -13,7 +13,7 @@
   <link rel="icon" href="icon.svg" type="image/svg+xml">
   <link rel="apple-touch-icon" href="icon.svg">
   <title>Music Lyrics</title>
-  <link rel="stylesheet" href="lyrics.css?v=15">
+  <link rel="stylesheet" href="lyrics.css?v=16">
 </head>
 <body class="ly-body">
 
@@ -118,9 +118,22 @@
       <div class="ly-player-video">
         <div id="ytPlayer"></div>
       </div>
+      <div class="ly-player-bars">
+        <div class="ly-bar-row">
+          <input id="progressBar" class="ly-progress ly-audio-progress" type="range" min="0" max="1000" value="0" step="1" aria-label="再生位置">
+          <span id="timer" class="ly-time-inline">00:00</span>
+          <span id="duration" class="ly-time-inline ly-time-muted">/ --:--</span>
+        </div>
+        <div class="ly-bar-row ly-lyrics-bar-row">
+          <span class="ly-bar-label" title="歌詞オフセット">📝</span>
+          <input id="lyricsOffsetBar" class="ly-progress ly-lyrics-progress" type="range" min="-100" max="100" value="0" step="1" aria-label="歌詞オフセット" title="ドラッグで歌詞のタイミング微調整 (-10s 〜 +10s)">
+          <span id="lyricsOffsetDisplay" class="ly-time-inline">±0.0s</span>
+        </div>
+      </div>
       <div class="ly-player-footer">
         <button id="fullscreenBtn"    type="button" class="ly-player-icon-btn" title="カラオケモード（動画＋歌詞のフルスクリーン）" aria-label="カラオケモード">🎬</button>
         <button id="openInYoutubeBtn" type="button" class="ly-player-icon-btn" title="YouTubeで開く" aria-label="YouTubeで開く">↗</button>
+        <button id="prevSongBtn"      type="button" class="ly-player-icon-btn" title="前の曲" aria-label="前の曲" disabled>◀◀</button>
         <button id="nextSongBtn"      type="button" class="ly-next-btn" disabled>次の曲 ▶▶</button>
       </div>
     </div>
@@ -138,8 +151,6 @@
       <button id="seekBackBtn"   class="ly-ctrl-btn" aria-label="-10秒" disabled>⏪</button>
       <button id="playPauseBtn" class="ly-play-btn" aria-label="再生"  disabled>▶</button>
       <button id="seekFwdBtn"    class="ly-ctrl-btn" aria-label="+10秒" disabled>⏩</button>
-      <span   id="timer"        class="ly-timer">00:00</span>
-      <span   id="duration"     class="ly-duration">/ --:--</span>
       <label class="ly-speed-label" for="speedSelect">速度</label>
       <select id="speedSelect" class="ly-speed-select">
         <option value="slow">ゆっくり</option>
@@ -152,11 +163,8 @@
       <label class="ly-vol-label" for="volumeSlider">🔊</label>
       <input  id="volumeSlider" class="ly-volume" type="range" min="0" max="100" value="80">
     </div>
-    <div class="ly-ctrl-bottom">
-      <input id="progressBar" class="ly-progress" type="range" min="0" max="1000" value="0" step="1">
-    </div>
   </div>
 
-  <script src="lyrics.js?v=15"></script>
+  <script src="lyrics.js?v=16"></script>
 </body>
 </html>

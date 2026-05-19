@@ -10,25 +10,17 @@ const LRCLIB_API  = 'https://lrclib.net/api/search';
 const ITUNES_API  = 'https://itunes.apple.com/search';
 const YT_SEARCH   = 'https://www.googleapis.com/youtube/v3/search';
 
-const SONGS_PER_PAGE     = 15;
-const MAX_VISIBLE_TOKENS = 7;
-const TOKEN_LIFESPAN_LRC   = 4800;
-const TOKEN_LIFESPAN_PLAIN = 6500;
-const TOKEN_FADE_MS      = 900;
-const TOKEN_PADDING      = 12;
-const TOKEN_MARGIN       = 12;
-const PLACEMENT_TRIES    = 30;
+const SONGS_PER_PAGE  = 15;
+const PLAIN_HISTORY   = 2;    /* how many past lines to keep in plain mode */
+const STAGE_SLOT_CLASSES = [
+  'ly-line-far-past',
+  'ly-line-past',
+  'ly-line-current',
+  'ly-line-next',
+  'ly-line-far-next',
+];
 
 const SPEED_OPTIONS = { slow: 4000, normal: 2500, fast: 1500, veryfast: 800 };
-
-/* font size bands — [min, max, weight, opacity] */
-const FONT_BANDS = [
-  [14, 20, 400, 0.55],
-  [22, 32, 600, 0.75],
-  [34, 48, 700, 0.90],
-  [52, 78, 800, 1.00],
-];
-const BAND_WEIGHTS = [3, 4, 3, 1]; // relative probability per band (small most common)
 
 /* ---- App state ---- */
 const state = {
@@ -61,18 +53,20 @@ let searchMode = 'artist';
 let artistRandomOriginal = [];   // snapshot of songList.songs at start
 let artistRandomQueue    = [];   // shuffled remaining picks
 
-/* ---- Round-robin band index to spread vertically over time ---- */
-let lastBandIdx = -1;
+/* ---- Lyric Speaker style stacked stage ---- */
+const STAGE_SLOTS = [];  /* 5 div slots: far-past, past, current, next, far-next */
+let plainHistory = [];   /* last few lines shown in plain (non-LRC) mode */
 
 /* ---- DOM refs ---- */
 let elArtist, elTitle, elTitleWrap, elFetchBtn, elSearchHint, elStatus,
     elStage, elPlayPauseBtn, elTimer, elDuration, elSpeedSelect,
-    elVolumeSlider, elProgressBar, elSeekBack, elSeekFwd, elNextSongBtn,
+    elVolumeSlider, elProgressBar, elSeekBack, elSeekFwd, elNextSongBtn, elPrevSongBtn,
     elSongList, elSongListInfo, elSongCards, elPageInfo, elPrevPageBtn, elNextPageBtn,
     elCloseSongList, elYtResults, elYtResultsInfo, elYtResultCards, elCloseYtResults,
     elPlayerSection, elApiKeyInput, elSaveApiKey, elClearApiKey,
     elToggleApiKey, elApiKeyStatus, elCurrentOrigin,
     elApiSetup, elToggleApiSetup,
+    elLyricsOffsetBar, elLyricsOffsetDisplay,
     elLyricsStartBtn, elLyricsResetBtn,
     elRandomPlayBtn, elOpenInYoutubeBtn, elFullscreenBtn,
     elExitKaraokeBtn, elArtistRandomBtn;
@@ -99,6 +93,9 @@ function init() {
   elSeekBack       = document.getElementById('seekBackBtn');
   elSeekFwd        = document.getElementById('seekFwdBtn');
   elNextSongBtn    = document.getElementById('nextSongBtn');
+  elPrevSongBtn    = document.getElementById('prevSongBtn');
+  elLyricsOffsetBar     = document.getElementById('lyricsOffsetBar');
+  elLyricsOffsetDisplay = document.getElementById('lyricsOffsetDisplay');
   elSongList       = document.getElementById('songList');
   elSongListInfo   = document.getElementById('songListInfo');
   elSongCards      = document.getElementById('songCards');
@@ -196,6 +193,25 @@ function init() {
   elSeekBack.addEventListener('click', () => { if (state.ytPlayer && state.ytReady) state.ytPlayer.seekTo(Math.max(0, state.ytPlayer.getCurrentTime() - 10), true); });
   elSeekFwd.addEventListener('click',  () => { if (state.ytPlayer && state.ytReady) state.ytPlayer.seekTo(Math.min(state.ytDuration, state.ytPlayer.getCurrentTime() + 10), true); });
   elNextSongBtn.addEventListener('click', playNextInQueue);
+  elPrevSongBtn.addEventListener('click', playPrevInQueue);
+
+  /* Lyrics offset slider — drag to align lyrics with the song.
+     Range is in deci-seconds (-100..+100 = ±10 s) for fine-grained
+     control alongside the 🎯 歌詞START snap button. */
+  elLyricsOffsetBar.addEventListener('input', () => {
+    const val = Number(elLyricsOffsetBar.value) / 10;
+    state.lyricsOffset = val;
+    updateLyricsOffsetSliderDisplay();
+    if (state.useLrc && state.ytPlayer && state.ytReady) {
+      state.currentIndex = -1;
+      syncLrc(state.ytPlayer.getCurrentTime() || 0);
+    }
+  });
+  elLyricsOffsetBar.addEventListener('change', () => {
+    saveOffsetForCurrentSong();
+    updateLyricsStartUI();
+  });
+
   elPrevPageBtn.addEventListener('click', () => goToPage(songList.page - 1));
   elNextPageBtn.addEventListener('click', () => goToPage(songList.page + 1));
   elCloseSongList.addEventListener('click',  hideSongList);
@@ -294,7 +310,7 @@ function pollProgress() {
    ============================================================ */
 function syncLrc(currentSec) {
   const adjusted = currentSec - state.lyricsOffset;
-  if (adjusted < 0) return; /* before intro ends */
+  if (adjusted < 0) { clearStage(); return; }
   const lines = state.lrcLines;
   let idx = -1;
   for (let i = lines.length - 1; i >= 0; i--) {
@@ -302,8 +318,7 @@ function syncLrc(currentSec) {
   }
   if (idx >= 0 && idx !== state.currentIndex) {
     state.currentIndex = idx;
-    const text = lines[idx].text;
-    if (text) displayLine(text);
+    renderLrcView();
   }
 }
 
@@ -325,6 +340,7 @@ function loadOffsetForCurrentSong() {
     if (saved) state.lyricsOffset = parseFloat(saved) || 0;
   }
   updateLyricsStartUI();
+  updateLyricsOffsetSliderDisplay();
 }
 
 function saveOffsetForCurrentSong() {
@@ -370,6 +386,7 @@ function lyricsStartHere() {
 
   saveOffsetForCurrentSong();
   updateLyricsStartUI();
+  updateLyricsOffsetSliderDisplay();
   flashLyricsStartBtn();
 }
 
@@ -388,6 +405,7 @@ function resetLyricsStart() {
     }
   }
   updateLyricsStartUI();
+  updateLyricsOffsetSliderDisplay();
   setStatus('歌詞タイミングをリセットしました。', '');
 }
 
@@ -493,9 +511,21 @@ function playNextInQueue() {
   loadYtVideo(state.ytQueueIdx + 1);
 }
 
+function playPrevInQueue() {
+  if (artistRandomMode) {
+    playPrevInArtistRandom();
+    return;
+  }
+  if (!state.ytQueue.length) return;
+  loadYtVideo(state.ytQueueIdx - 1);
+}
+
 /* ============================================================
    Artist random play (loop through current artist's songs)
    ============================================================ */
+let artistRandomHistory = [];  /* songs already played (oldest first) */
+let artistRandomFuture  = [];  /* songs we backed away from (next-to-pop first) */
+
 function toggleArtistRandomPlay() {
   if (artistRandomMode) {
     stopArtistRandomPlay();
@@ -515,29 +545,60 @@ function startArtistRandomPlay() {
      more popular / well-known songs */
   const pool = songList.songs.slice(0, Math.min(30, songList.songs.length));
   artistRandomOriginal = pool;
-  artistRandomQueue   = shuffleArray([...pool]);
-  artistRandomMode    = true;
+  artistRandomQueue    = shuffleArray([...pool]);
+  artistRandomHistory  = [];
+  artistRandomFuture   = [];
+  artistRandomMode     = true;
   updateArtistRandomUI();
   setStatus(`🎲 ${escapeHTML(songList.songs[0]?.artist || '')} のおすすめ${pool.length}曲をランダム再生中`, 'success');
-  playNextInArtistRandom();
+  /* First pick — don't put the pre-random song into the back history */
+  playNextInArtistRandom(true);
 }
 
 function stopArtistRandomPlay() {
-  artistRandomMode    = false;
-  artistRandomQueue   = [];
+  artistRandomMode     = false;
+  artistRandomQueue    = [];
   artistRandomOriginal = [];
+  artistRandomHistory  = [];
+  artistRandomFuture   = [];
   updateArtistRandomUI();
 }
 
-function playNextInArtistRandom() {
+function playNextInArtistRandom(skipHistory = false) {
   if (!artistRandomMode) return;
-  if (!artistRandomQueue.length) {
-    if (!artistRandomOriginal.length) { stopArtistRandomPlay(); return; }
-    artistRandomQueue = shuffleArray([...artistRandomOriginal]);
+  /* Push current song to history so 前の曲 can return to it.
+     skipHistory is set on the very first pick so the song that
+     was playing before random mode isn't treated as random history. */
+  if (!skipHistory && state.currentArtist && state.currentTitle) {
+    artistRandomHistory.push({ artist: state.currentArtist, title: state.currentTitle });
+    if (artistRandomHistory.length > 50) artistRandomHistory.shift();
   }
-  const next = artistRandomQueue.shift();
+  let next;
+  if (artistRandomFuture.length) {
+    /* Re-step into a song we previously backed out of */
+    next = artistRandomFuture.pop();
+  } else {
+    if (!artistRandomQueue.length) {
+      if (!artistRandomOriginal.length) { stopArtistRandomPlay(); return; }
+      artistRandomQueue = shuffleArray([...artistRandomOriginal]);
+    }
+    next = artistRandomQueue.shift();
+  }
   if (!next) { stopArtistRandomPlay(); return; }
   handleSongSearch(next.artist, next.title);
+}
+
+function playPrevInArtistRandom() {
+  if (!artistRandomMode || !artistRandomHistory.length) {
+    setStatus('戻れる曲がありません。', 'error');
+    return;
+  }
+  /* Stash the current song so 次の曲 can return to it */
+  if (state.currentArtist && state.currentTitle) {
+    artistRandomFuture.push({ artist: state.currentArtist, title: state.currentTitle });
+  }
+  const prev = artistRandomHistory.pop();
+  handleSongSearch(prev.artist, prev.title);
 }
 
 function updateArtistRandomUI() {
@@ -1151,169 +1212,69 @@ function hideYtResults() { elYtResults.hidden = true; }
 /* ============================================================
    Lyric display — rect collision + vertical band rotation
    ============================================================ */
-function displayLine(text) {
-  if (!text || !text.trim()) return;
-  const trimmed = text.trim();
-
-  /* Dedup: if the same line is already on screen and not yet
-     fading, don't spawn another copy (e.g. consecutive
-     identical chorus lines in an LRC file) */
-  const live = [...elStage.querySelectorAll('.lyric-token:not(.fading)')];
-  if (live.some(t => t.textContent === trimmed)) return;
-
-  /* Enforce token cap by removing oldest first */
-  if (live.length >= MAX_VISIBLE_TOKENS) {
-    live
-      .sort((a, b) => Number(a.dataset.born || 0) - Number(b.dataset.born || 0))
-      .slice(0, live.length - MAX_VISIBLE_TOKENS + 1)
-      .forEach(fadeOutToken);
-  }
-
-  const sw = elStage.clientWidth  || 320;
-  const sh = elStage.clientHeight || 200;
-  const maxW = Math.max(120, sw - TOKEN_PADDING * 2);
-  const maxH = Math.max(60,  sh - TOKEN_PADDING * 2);
-
-  /* Scale the font band down on narrow viewports so multi-line
-     lyrics still have room to fit without being clipped */
-  const widthScale = Math.max(0.4, Math.min(1, sw / 720));
-
-  const el = document.createElement('div');
-  el.className     = 'lyric-token';
-  el.textContent   = trimmed;
-  el.dataset.born  = String(Date.now());
-
-  const band = pickBand();
-  let size = randomInt(
-    Math.max(12, Math.round(band[0] * widthScale)),
-    Math.max(14, Math.round(band[1] * widthScale))
-  );
-  el.style.fontSize   = `${size}px`;
-  el.style.fontWeight = String(band[2]);
-  el.style.maxWidth   = `${maxW}px`;
-  el.style.opacity    = '0';
-  el.style.left       = '-9999px';
-  el.style.top        = '-9999px';
-  elStage.appendChild(el);
-
-  /* If the wrapped text is still taller than the stage, shrink
-     the font until it fits (or we hit a sensible floor) */
-  let eh = el.offsetHeight;
-  let ew = el.offsetWidth;
-  let safety = 10;
-  while ((eh > maxH || ew > maxW) && size > 12 && safety-- > 0) {
-    size = Math.max(12, Math.floor(size * 0.85));
-    el.style.fontSize = `${size}px`;
-    eh = el.offsetHeight;
-    ew = el.offsetWidth;
-  }
-  ew = Math.min(ew, maxW);
-
-  const pos = findNonOverlappingPosition(ew, eh, sw, sh, el);
-  el.style.left = `${pos.x}px`;
-  el.style.top  = `${pos.y}px`;
-
-  requestAnimationFrame(() => el.classList.add('visible'));
-
-  const lifespan = state.useLrc ? TOKEN_LIFESPAN_LRC : TOKEN_LIFESPAN_PLAIN;
-  setTimeout(() => fadeOutToken(el), lifespan);
+function ensureStageSlots() {
+  if (STAGE_SLOTS.length === 5 && elStage.contains(STAGE_SLOTS[0])) return;
+  STAGE_SLOTS.length = 0;
+  elStage.innerHTML = '';
+  STAGE_SLOT_CLASSES.forEach(cls => {
+    const el = document.createElement('div');
+    el.className = `ly-line ${cls}`;
+    elStage.appendChild(el);
+    STAGE_SLOTS.push(el);
+  });
 }
 
-function fadeOutToken(el) {
-  if (!el || !el.parentNode || el.classList.contains('fading')) return;
-  el.classList.remove('visible');
-  el.classList.add('fading');
-  setTimeout(() => { if (el.parentNode) el.remove(); }, TOKEN_FADE_MS);
-}
-
-/**
- * Find a position that doesn't overlap with existing tokens.
- * Uses 3 vertical bands (top / middle / bottom) cycled round-robin
- * to ensure vertical spread even when a few lyrics fire quickly.
- */
-function findNonOverlappingPosition(ew, eh, sw, sh, ignoreEl) {
-  const tokens = [...elStage.querySelectorAll('.lyric-token')]
-    .filter(t => t !== ignoreEl);
-  const rects = tokens.map(t => ({
-    left:   t.offsetLeft,
-    top:    t.offsetTop,
-    right:  t.offsetLeft + t.offsetWidth,
-    bottom: t.offsetTop  + t.offsetHeight,
-  }));
-
-  /* Treat the floating YouTube player as an obstacle so lyrics
-     never end up hidden behind it. */
-  const playerRect = getPlayerObstacleRect();
-  if (playerRect) rects.push(playerRect);
-
-  const usableH = Math.max(eh + TOKEN_PADDING * 2, sh - TOKEN_PADDING * 2);
-  const bandH   = usableH / 3;
-  const bands = [];
-  for (let i = 0; i < 3; i++) {
-    const top    = TOKEN_PADDING + i * bandH;
-    const bottom = TOKEN_PADDING + (i + 1) * bandH - eh;
-    if (bottom > top) bands.push({ top, bottom, idx: i });
-  }
-
-  /* Order bands: prefer the one NOT used last, then shuffle others */
-  const ordered = [];
-  const next = (lastBandIdx + 1) % bands.length;
-  if (bands[next]) ordered.push(bands[next]);
-  bands.forEach(b => { if (!ordered.includes(b)) ordered.push(b); });
-
-  for (const b of ordered) {
-    for (let i = 0; i < PLACEMENT_TRIES; i++) {
-      const maxX = Math.max(TOKEN_PADDING, sw - ew - TOKEN_PADDING);
-      const x = randomInt(TOKEN_PADDING, maxX);
-      const y = randomInt(b.top, Math.max(b.top + 1, b.bottom));
-      const rect = { left: x, top: y, right: x + ew, bottom: y + eh };
-      if (!rects.some(r => rectsOverlap(rect, r, TOKEN_MARGIN))) {
-        lastBandIdx = b.idx;
-        return { x, y };
+/** Update the 5 vertical slots. animateCurrent triggers the
+ *  fade-in animation on the centre line whenever its text
+ *  actually changes. */
+function renderLyricStage(prevLines, current, nextLines, animateCurrent = true) {
+  ensureStageSlots();
+  const texts = [
+    (prevLines[1] || '').trim(),   /* far past (older) */
+    (prevLines[0] || '').trim(),   /* past (recent) */
+    (current     || '').trim(),    /* current */
+    (nextLines[0] || '').trim(),   /* next */
+    (nextLines[1] || '').trim(),   /* far next */
+  ];
+  for (let i = 0; i < 5; i++) {
+    const slot = STAGE_SLOTS[i];
+    if (slot.textContent !== texts[i]) {
+      slot.textContent = texts[i];
+      if (i === 2 && animateCurrent && texts[i]) {
+        slot.classList.remove('enter');
+        /* force reflow so the animation restarts */
+        void slot.offsetWidth;
+        slot.classList.add('enter');
       }
     }
   }
-
-  /* Fallback: clear the most-overlapping existing token, then pick freely */
-  if (tokens.length) fadeOutToken(tokens[0]);
-  lastBandIdx = (lastBandIdx + 1) % 3;
-  return {
-    x: randomInt(TOKEN_PADDING, Math.max(TOKEN_PADDING, sw - ew - TOKEN_PADDING)),
-    y: randomInt(TOKEN_PADDING, Math.max(TOKEN_PADDING, sh - eh - TOKEN_PADDING)),
-  };
 }
 
-function rectsOverlap(a, b, margin) {
-  return !(
-    a.right  + margin < b.left  ||
-    a.left   - margin > b.right ||
-    a.bottom + margin < b.top   ||
-    a.top    - margin > b.bottom
+/** Re-paint the LRC view based on state.currentIndex */
+function renderLrcView() {
+  const idx = state.currentIndex;
+  if (idx < 0 || !state.lrcLines.length) { clearStage(); return; }
+  const lines = state.lrcLines.map(l => l.text);
+  renderLyricStage(
+    [lines[idx - 1], lines[idx - 2]],
+    lines[idx],
+    [lines[idx + 1], lines[idx + 2]]
   );
 }
 
-function getPlayerObstacleRect() {
-  if (!elPlayerSection || elPlayerSection.hidden) return null;
-  const p = elPlayerSection.getBoundingClientRect();
-  const s = elStage.getBoundingClientRect();
-  if (p.width === 0 || p.height === 0) return null;
-  /* Convert viewport-fixed player to stage-local coords */
-  return {
-    left:   p.left   - s.left - 8,
-    top:    p.top    - s.top  - 8,
-    right:  p.right  - s.left + 8,
-    bottom: p.bottom - s.top  + 8,
-  };
-}
-
-function pickBand() {
-  const total = BAND_WEIGHTS.reduce((a, b) => a + b, 0);
-  let r = Math.random() * total;
-  for (let i = 0; i < BAND_WEIGHTS.length; i++) {
-    r -= BAND_WEIGHTS[i];
-    if (r <= 0) return FONT_BANDS[i];
-  }
-  return FONT_BANDS[FONT_BANDS.length - 1];
+/** Plain-mode (no LRC timestamps): push a new line and re-render
+ *  the stack using the last few shown lines as history. */
+function displayLine(text) {
+  if (!text || !text.trim()) return;
+  const trimmed = text.trim();
+  if (plainHistory[0] === trimmed) return; /* skip repeat */
+  plainHistory.unshift(trimmed);
+  if (plainHistory.length > PLAIN_HISTORY + 1) plainHistory.length = PLAIN_HISTORY + 1;
+  renderLyricStage(
+    [plainHistory[1], plainHistory[2]],
+    plainHistory[0],
+    []
+  );
 }
 
 /* ============================================================
@@ -1392,11 +1353,28 @@ function enableTransportControls(on) {
   elSeekBack.disabled     = !on;
   elSeekFwd.disabled      = !on;
   elNextSongBtn.disabled  = !on;
+  if (elPrevSongBtn) elPrevSongBtn.disabled = !on;
+}
+
+function updateLyricsOffsetSliderDisplay() {
+  if (!elLyricsOffsetBar || !elLyricsOffsetDisplay) return;
+  const v = state.lyricsOffset || 0;
+  /* Slider value = deci-seconds; clamp to slider range */
+  const sliderVal = Math.max(-100, Math.min(100, Math.round(v * 10)));
+  if (Number(elLyricsOffsetBar.value) !== sliderVal) {
+    elLyricsOffsetBar.value = String(sliderVal);
+  }
+  const sign = v > 0 ? '+' : (v < 0 ? '−' : '±');
+  elLyricsOffsetDisplay.textContent = `${sign}${Math.abs(v).toFixed(1)}s`;
 }
 
 function clearStage() {
-  elStage.querySelectorAll('.lyric-token').forEach(el => el.remove());
-  lastBandIdx = -1;
+  ensureStageSlots();
+  STAGE_SLOTS.forEach(s => {
+    s.textContent = '';
+    s.classList.remove('enter');
+  });
+  plainHistory = [];
 }
 
 function updateDurationDisplay() {
