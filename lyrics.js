@@ -408,6 +408,10 @@ function flashLyricsStartBtn() {
    Lyrics Timer (non-LRC fallback)
    ============================================================ */
 function startLyricsTimer() {
+  /* LRC mode is driven by pollProgress / syncLrc; running the
+     fixed-interval plain timer alongside it would double up the
+     same lines on screen. Bail out here. */
+  if (state.useLrc) return;
   if (state.intervalId || state.startTimeoutId) return;
   if (!state.lyrics.length) return;
   state.isPlaying = true;
@@ -1149,9 +1153,15 @@ function hideYtResults() { elYtResults.hidden = true; }
    ============================================================ */
 function displayLine(text) {
   if (!text || !text.trim()) return;
+  const trimmed = text.trim();
+
+  /* Dedup: if the same line is already on screen and not yet
+     fading, don't spawn another copy (e.g. consecutive
+     identical chorus lines in an LRC file) */
+  const live = [...elStage.querySelectorAll('.lyric-token:not(.fading)')];
+  if (live.some(t => t.textContent === trimmed)) return;
 
   /* Enforce token cap by removing oldest first */
-  const live = [...elStage.querySelectorAll('.lyric-token:not(.fading)')];
   if (live.length >= MAX_VISIBLE_TOKENS) {
     live
       .sort((a, b) => Number(a.dataset.born || 0) - Number(b.dataset.born || 0))
@@ -1161,7 +1171,7 @@ function displayLine(text) {
 
   const el = document.createElement('div');
   el.className     = 'lyric-token';
-  el.textContent   = text;
+  el.textContent   = trimmed;
   el.dataset.born  = String(Date.now());
 
   const band = pickBand();
