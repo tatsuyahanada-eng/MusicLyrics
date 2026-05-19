@@ -1,0 +1,19 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <defs>
+    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#7c3aed"/>
+      <stop offset="100%" stop-color="#ec4899"/>
+    </linearGradient>
+  </defs>
+  <!-- Solid background fills the whole tile so Android adaptive
+       icons crop cleanly -->
+  <rect width="512" height="512" fill="url(#bg)"/>
+  <!-- Music notes are scaled down to stay inside the 80% safe zone -->
+  <g fill="#ffffff" transform="translate(80 80) scale(0.7)">
+    <rect x="200" y="120" width="20" height="240" rx="4"/>
+    <rect x="338" y="92"  width="20" height="240" rx="4"/>
+    <path d="M 200 120 L 358 92 L 358 138 L 200 166 Z"/>
+    <ellipse cx="180" cy="370" rx="52" ry="38" transform="rotate(-22 180 370)"/>
+    <ellipse cx="318" cy="342" rx="52" ry="38" transform="rotate(-22 318 342)"/>
+  </g>
+</svg>

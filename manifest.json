@@ -1,0 +1,27 @@
+{
+  "name": "Music Lyrics",
+  "short_name": "Music Lyrics",
+  "description": "YouTube同期の歌詞ビューワー（LRC対応・カラオケモード）",
+  "lang": "ja",
+  "start_url": "./lyrics.html",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#0d0d14",
+  "theme_color": "#7c3aed",
+  "icons": [
+    {
+      "src": "icon.svg",
+      "sizes": "192x192 512x512 any",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    },
+    {
+      "src": "icon-maskable.svg",
+      "sizes": "192x192 512x512 any",
+      "type": "image/svg+xml",
+      "purpose": "maskable"
+    }
+  ],
+  "categories": ["music", "entertainment"]
+}

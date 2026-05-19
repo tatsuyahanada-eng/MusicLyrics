@@ -1421,3 +1421,12 @@ if (document.readyState === 'loading') {
 } else {
   init();
 }
+
+/* ---- PWA: register service worker for offline app-shell ---- */
+if ('serviceWorker' in navigator && (location.protocol === 'https:' || location.hostname === 'localhost')) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker
+      .register('sw.js')
+      .catch(err => console.warn('Service worker registration failed:', err));
+  });
+}
