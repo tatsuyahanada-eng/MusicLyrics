@@ -506,10 +506,15 @@ function startArtistRandomPlay() {
     setStatus('アーティストの曲リストがありません。先に検索してください。', 'error');
     return;
   }
-  artistRandomOriginal = [...songList.songs];
-  artistRandomQueue   = shuffleArray([...artistRandomOriginal]);
+  /* Use iTunes' top-relevance 30 (already deduped) as a
+     "recommended" pool — these tend to be the artist's
+     more popular / well-known songs */
+  const pool = songList.songs.slice(0, Math.min(30, songList.songs.length));
+  artistRandomOriginal = pool;
+  artistRandomQueue   = shuffleArray([...pool]);
   artistRandomMode    = true;
   updateArtistRandomUI();
+  setStatus(`🎲 ${escapeHTML(songList.songs[0]?.artist || '')} のおすすめ${pool.length}曲をランダム再生中`, 'success');
   playNextInArtistRandom();
 }
 
@@ -706,7 +711,7 @@ async function handleRandomPlay() {
     })
     .catch(() => { /* lyrics unavailable */ });
 
-  showYtResults(finalPool);
+  showYtResults(finalPool, false);
   loadYtVideo(state.ytQueueIdx);
   setStatus(`🎲 ${source}より: ${escapeHTML(pick.title)}`, 'success');
   elRandomPlayBtn.disabled = false;
@@ -930,18 +935,39 @@ async function fetchSongsByArtist(artist) {
   const res  = await fetchWithTimeout(url, 10000);
   if (!res.ok) throw new Error(`iTunes API エラー (HTTP ${res.status})`);
   const data = await res.json();
-  return (data.results || []).filter(r => r.trackName).map(r => ({
-    artist:     r.artistName     || artist,
-    title:      r.trackName      || '',
-    album:      r.collectionName || '',
-    durationMs: r.trackTimeMillis || 0,
-  }));
+
+  const target = artist.toLowerCase().trim();
+  const all = (data.results || [])
+    .filter(r => r.trackName && r.artistName)
+    /* keep only songs whose artist actually matches the query both ways
+       (so "Mr.Children" search doesn't pull in random covers) */
+    .filter(r => {
+      const a = r.artistName.toLowerCase();
+      return a.includes(target) || target.includes(a);
+    })
+    .map(r => ({
+      artist:     r.artistName,
+      title:      r.trackName,
+      album:      r.collectionName || '',
+      durationMs: r.trackTimeMillis || 0,
+    }));
+
+  /* Dedupe by normalised title — iTunes returns the same song
+     multiple times across different albums / remasters */
+  const seen = new Set();
+  return all.filter(s => {
+    const key = (s.title || '').toLowerCase().replace(/\s+/g, ' ').trim();
+    if (!key || seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
 }
 
 /* ============================================================
    Song search (lyrics + YouTube)
    ============================================================ */
-async function handleSongSearch(artist, title) {
+async function handleSongSearch(artist, title, opts = {}) {
+  const autoplay = opts.autoplay !== false; /* default true */
   state.currentArtist = artist;
   state.currentTitle  = title;
   loadOffsetForCurrentSong();
@@ -971,14 +997,24 @@ async function handleSongSearch(artist, title) {
     if (ytList && ytList.length) {
       state.ytQueue    = ytList;
       state.ytQueueIdx = 0;
-      showYtResults(ytList);
+      showYtResults(ytList, !autoplay);
       enableTransportControls(true);
-      setStatus(
-        lyricsResult.status === 'fulfilled'
-          ? `「${escapeHTML(title)}」の歌詞を取得しました。動画を選んで再生してください。`
-          : `歌詞は見つかりませんでした。YouTubeの結果から動画を選んでください。`,
-        lyricsResult.status === 'fulfilled' ? 'success' : 'error'
-      );
+      if (autoplay) {
+        loadYtVideo(0);
+        setStatus(
+          lyricsResult.status === 'fulfilled'
+            ? `▶ ${escapeHTML(title)}（歌詞あり）`
+            : `▶ ${escapeHTML(title)}（歌詞なし）`,
+          lyricsResult.status === 'fulfilled' ? 'success' : 'error'
+        );
+      } else {
+        setStatus(
+          lyricsResult.status === 'fulfilled'
+            ? `「${escapeHTML(title)}」の歌詞を取得しました。動画を選んで再生してください。`
+            : `歌詞は見つかりませんでした。YouTubeの結果から動画を選んでください。`,
+          lyricsResult.status === 'fulfilled' ? 'success' : 'error'
+        );
+      }
     } else if (lyricsResult.status === 'fulfilled' && state.lyrics.length) {
       clearStage();
       state.currentIndex = 0;
@@ -1065,7 +1101,7 @@ function goToPage(page) {
 /* ============================================================
    YouTube Results UI
    ============================================================ */
-function showYtResults(items) {
+function showYtResults(items, scroll = true) {
   elYtResultsInfo.textContent = `YouTube 検索結果 ${items.length} 件`;
   elYtResultCards.innerHTML   = '';
 
@@ -1087,7 +1123,7 @@ function showYtResults(items) {
   });
 
   elYtResults.hidden = false;
-  elYtResults.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  if (scroll) elYtResults.scrollIntoView({ behavior: 'smooth', block: 'start' });
 }
 
 function hideYtResults() { elYtResults.hidden = true; }

@@ -5,7 +5,7 @@
   <meta http-equiv="Cache-Control" content="no-store">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Music Lyrics</title>
-  <link rel="stylesheet" href="lyrics.css?v=10">
+  <link rel="stylesheet" href="lyrics.css?v=11">
 </head>
 <body class="ly-body">
 
@@ -107,15 +107,13 @@
   <!-- YouTube Player + Lyrics Stage (wrapped together for karaoke fullscreen) -->
   <main id="karaokeArea" class="ly-karaoke-area">
     <div id="playerSection" class="ly-player-section" hidden>
-      <div class="ly-player-overlay">
-        <button id="openInYoutubeBtn" type="button" class="ly-player-overlay-btn" title="YouTubeで開く" aria-label="YouTubeで開く">↗</button>
-        <button id="fullscreenBtn"    type="button" class="ly-player-overlay-btn" title="カラオケモード（動画＋歌詞 フルスクリーン）" aria-label="カラオケモード">🎬</button>
-      </div>
       <div class="ly-player-video">
         <div id="ytPlayer"></div>
       </div>
       <div class="ly-player-footer">
-        <button id="nextSongBtn" type="button" class="ly-next-btn" disabled>次の曲 ▶▶</button>
+        <button id="fullscreenBtn"    type="button" class="ly-player-icon-btn" title="カラオケモード（動画＋歌詞のフルスクリーン）" aria-label="カラオケモード">🎬</button>
+        <button id="openInYoutubeBtn" type="button" class="ly-player-icon-btn" title="YouTubeで開く" aria-label="YouTubeで開く">↗</button>
+        <button id="nextSongBtn"      type="button" class="ly-next-btn" disabled>次の曲 ▶▶</button>
       </div>
     </div>
 
@@ -151,6 +149,6 @@
     </div>
   </div>
 
-  <script src="lyrics.js?v=10"></script>
+  <script src="lyrics.js?v=11"></script>
 </body>
 </html>
