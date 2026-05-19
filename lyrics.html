@@ -5,7 +5,7 @@
   <meta http-equiv="Cache-Control" content="no-store">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Music Lyrics</title>
-  <link rel="stylesheet" href="lyrics.css?v=7">
+  <link rel="stylesheet" href="lyrics.css?v=8">
 </head>
 <body class="ly-body">
 
@@ -130,11 +130,8 @@
         <option value="fast">速い</option>
         <option value="veryfast">最速</option>
       </select>
-      <div class="ly-offset-group" title="歌詞表示タイミングのズレを調整（曲ごとに保存）">
-        <button id="offsetDecBtn" type="button" class="ly-offset-btn" aria-label="歌詞を早める">−</button>
-        <span id="offsetDisplay" class="ly-offset-display" tabindex="0" role="button" aria-label="クリックでリセット">歌詞±0.0s</span>
-        <button id="offsetIncBtn" type="button" class="ly-offset-btn" aria-label="歌詞を遅らせる">+</button>
-      </div>
+      <button id="lyricsStartBtn" type="button" class="ly-lyrics-start-btn" title="今この瞬間を歌詞の開始点にする（曲ごとに保存）">🎯 歌詞START</button>
+      <button id="lyricsResetBtn" type="button" class="ly-lyrics-reset-btn" title="歌詞タイミングをリセット" hidden>↺</button>
       <label class="ly-vol-label" for="volumeSlider">🔊</label>
       <input  id="volumeSlider" class="ly-volume" type="range" min="0" max="100" value="80">
       <button id="nextSongBtn"  class="ly-next-btn" disabled>次の曲 ▶▶</button>
@@ -144,6 +141,6 @@
     </div>
   </div>
 
-  <script src="lyrics.js?v=7"></script>
+  <script src="lyrics.js?v=8"></script>
 </body>
 </html>

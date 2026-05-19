@@ -69,7 +69,7 @@ let elArtist, elTitle, elTitleWrap, elFetchBtn, elSearchHint, elStatus,
     elPlayerSection, elApiKeyInput, elSaveApiKey, elClearApiKey,
     elToggleApiKey, elApiKeyStatus, elCurrentOrigin,
     elApiSetup, elToggleApiSetup,
-    elOffsetDec, elOffsetInc, elOffsetDisplay,
+    elLyricsStartBtn, elLyricsResetBtn,
     elRandomPlayBtn, elOpenInYoutubeBtn, elFullscreenBtn;
 
 /* ============================================================
@@ -112,24 +112,19 @@ function init() {
   elCurrentOrigin  = document.getElementById('currentOrigin');
   elApiSetup       = document.getElementById('apiSetup');
   elToggleApiSetup = document.getElementById('toggleApiSetup');
-  elOffsetDec      = document.getElementById('offsetDecBtn');
-  elOffsetInc      = document.getElementById('offsetIncBtn');
-  elOffsetDisplay  = document.getElementById('offsetDisplay');
+  elLyricsStartBtn = document.getElementById('lyricsStartBtn');
+  elLyricsResetBtn = document.getElementById('lyricsResetBtn');
   elRandomPlayBtn  = document.getElementById('randomPlayBtn');
   elOpenInYoutubeBtn = document.getElementById('openInYoutubeBtn');
   elFullscreenBtn  = document.getElementById('fullscreenBtn');
 
+  elLyricsStartBtn.addEventListener('click', lyricsStartHere);
+  elLyricsResetBtn.addEventListener('click', resetLyricsStart);
   elRandomPlayBtn.addEventListener('click', handleRandomPlay);
   elOpenInYoutubeBtn.addEventListener('click', openInYouTube);
   elFullscreenBtn.addEventListener('click', toggleFullscreen);
 
-  elOffsetDec.addEventListener('click',     () => adjustOffset(-0.5));
-  elOffsetInc.addEventListener('click',     () => adjustOffset(+0.5));
-  elOffsetDisplay.addEventListener('click', () => resetOffset());
-  elOffsetDisplay.addEventListener('keydown', (e) => {
-    if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); resetOffset(); }
-  });
-  updateOffsetDisplay();
+  updateLyricsStartUI();
 
   if (elCurrentOrigin) elCurrentOrigin.textContent = location.origin || location.href;
 
@@ -297,7 +292,7 @@ function syncLrc(currentSec) {
 }
 
 /* ============================================================
-   Lyrics Offset (per-song timing adjustment)
+   Lyrics START (snap-to-now offset, per-song)
    ============================================================ */
 function getOffsetKey() {
   const a = (state.currentArtist || '').toLowerCase().trim();
@@ -308,43 +303,86 @@ function getOffsetKey() {
 
 function loadOffsetForCurrentSong() {
   const key = getOffsetKey();
-  if (!key) { state.lyricsOffset = 0; updateOffsetDisplay(); return; }
-  const saved = localStorage.getItem(key);
-  state.lyricsOffset = saved ? (parseFloat(saved) || 0) : 0;
-  updateOffsetDisplay();
+  state.lyricsOffset = 0;
+  if (key) {
+    const saved = localStorage.getItem(key);
+    if (saved) state.lyricsOffset = parseFloat(saved) || 0;
+  }
+  updateLyricsStartUI();
 }
 
 function saveOffsetForCurrentSong() {
   const key = getOffsetKey();
   if (!key) return;
   if (Math.abs(state.lyricsOffset) < 0.05) localStorage.removeItem(key);
-  else localStorage.setItem(key, state.lyricsOffset.toFixed(1));
+  else localStorage.setItem(key, state.lyricsOffset.toFixed(2));
 }
 
-function adjustOffset(delta) {
-  state.lyricsOffset = Math.round((state.lyricsOffset + delta) * 10) / 10;
-  if (state.lyricsOffset < -60) state.lyricsOffset = -60;
-  if (state.lyricsOffset >  60) state.lyricsOffset =  60;
-  saveOffsetForCurrentSong();
-  updateOffsetDisplay();
-  /* Re-sync immediately so the user sees the change */
-  if (state.useLrc && state.ytPlayer && state.ytReady) {
-    state.currentIndex = -1;
-    syncLrc(state.ytPlayer.getCurrentTime() || 0);
+/**
+ * Mark the current playback moment as the lyrics start point.
+ * - LRC mode: offset so that the first LRC line appears at the
+ *   current player time.
+ * - Plain mode: offset = current time (timer cycles from line 0
+ *   starting now).
+ */
+function lyricsStartHere() {
+  if (!state.ytPlayer || !state.ytReady) {
+    setStatus('動画を再生してから「歌詞START」を押してください。', 'error');
+    return;
   }
+  if (!state.lyrics.length) {
+    setStatus('この曲には歌詞がありません。', 'error');
+    return;
+  }
+  const cur = state.ytPlayer.getCurrentTime() || 0;
+
+  if (state.useLrc && state.lrcLines.length) {
+    state.lyricsOffset = Math.round((cur - state.lrcLines[0].time) * 100) / 100;
+    state.currentIndex = -1;
+    syncLrc(cur);
+  } else {
+    state.lyricsOffset = Math.round(cur * 100) / 100;
+    state.currentIndex = 0;
+    stopLyricsTimer();
+    try {
+      if (state.ytPlayer.getPlayerState() === YT.PlayerState.PLAYING) startLyricsTimer();
+    } catch (_) {}
+  }
+
+  saveOffsetForCurrentSong();
+  updateLyricsStartUI();
+  flashLyricsStartBtn();
 }
 
-function resetOffset() {
+function resetLyricsStart() {
   state.lyricsOffset = 0;
   saveOffsetForCurrentSong();
-  updateOffsetDisplay();
+  state.currentIndex = state.useLrc ? -1 : 0;
+  if (state.ytPlayer && state.ytReady) {
+    if (state.useLrc) {
+      syncLrc(state.ytPlayer.getCurrentTime() || 0);
+    } else {
+      stopLyricsTimer();
+      try {
+        if (state.ytPlayer.getPlayerState() === YT.PlayerState.PLAYING) startLyricsTimer();
+      } catch (_) {}
+    }
+  }
+  updateLyricsStartUI();
+  setStatus('歌詞タイミングをリセットしました。', '');
 }
 
-function updateOffsetDisplay() {
-  if (!elOffsetDisplay) return;
-  const v = state.lyricsOffset;
-  const sign = v > 0 ? '+' : (v < 0 ? '−' : '±');
-  elOffsetDisplay.textContent = `歌詞${sign}${Math.abs(v).toFixed(1)}s`;
+function updateLyricsStartUI() {
+  if (!elLyricsStartBtn || !elLyricsResetBtn) return;
+  const isSet = Math.abs(state.lyricsOffset) >= 0.05;
+  elLyricsStartBtn.classList.toggle('active', isSet);
+  elLyricsResetBtn.hidden = !isSet;
+}
+
+function flashLyricsStartBtn() {
+  if (!elLyricsStartBtn) return;
+  elLyricsStartBtn.classList.add('flash');
+  setTimeout(() => elLyricsStartBtn.classList.remove('flash'), 700);
 }
 
 /* ============================================================
@@ -643,9 +681,20 @@ function interpretYouTubeError(status, body) {
     case 'rateLimitExceeded':
     case 'userRateLimitExceeded':
       return 'リクエストが多すぎます。少し時間を置いて再試行してください。';
-    default:
-      return msg;
   }
+
+  /* Message-based fallback patterns */
+  if (/API keys are not supported/i.test(msg)) {
+    return 'APIキーがサービスアカウントにバインドされています。Cloud Console →「認証情報」→ 該当キーを編集 →「サービスアカウントを介して API 呼び出しを認証する」のチェックを外して保存してください。';
+  }
+  if (/API key not valid/i.test(msg)) {
+    return 'APIキーが無効です。コピーミスがないか確認し、Cloud Console で再発行してください。';
+  }
+  if (/has not been used|disabled|consumer/i.test(msg)) {
+    return 'YouTube Data API v3 が有効化されていません。Cloud Console の「ライブラリ」で有効にしてください（数分かかる場合あり）。';
+  }
+
+  return msg;
 }
 
 async function searchYouTube(query) {

@@ -831,51 +831,72 @@
   cursor: pointer;
 }
 
-.ly-offset-group {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  background: var(--ly-surface);
-  border: 1px solid var(--ly-border);
+.ly-lyrics-start-btn {
+  padding: 6px 12px;
+  background: rgba(124,58,237,0.18);
+  border: 1px solid rgba(124,58,237,0.55);
+  color: #c4b5fd;
   border-radius: 6px;
-  padding: 2px 4px;
+  font-size: 0.8rem;
+  font-weight: 700;
+  cursor: pointer;
+  white-space: nowrap;
   flex-shrink: 0;
+  min-height: 32px;
+  letter-spacing: 0.02em;
+  transition: background 0.15s, color 0.15s, border-color 0.15s, transform 0.15s;
+  touch-action: manipulation;
 }
 
-.ly-offset-btn {
+.ly-lyrics-start-btn:hover {
+  background: var(--ly-primary);
+  border-color: var(--ly-primary);
+  color: #fff;
+}
+
+.ly-lyrics-start-btn:active { transform: scale(0.96); }
+
+.ly-lyrics-start-btn.flash {
+  background: #34d399;
+  border-color: #34d399;
+  color: #064e3b;
+  animation: ly-start-flash 0.7s ease;
+}
+
+@keyframes ly-start-flash {
+  0%   { transform: scale(1); }
+  30%  { transform: scale(1.08); }
+  100% { transform: scale(1); }
+}
+
+.ly-lyrics-start-btn.active {
+  background: rgba(52,211,153,0.18);
+  border-color: rgba(52,211,153,0.55);
+  color: #6ee7b7;
+}
+
+.ly-lyrics-reset-btn {
+  width: 30px;
+  height: 30px;
   background: transparent;
-  border: none;
-  color: var(--ly-text);
-  width: 22px;
-  height: 26px;
-  font-size: 1rem;
+  color: var(--ly-muted);
+  border: 1px solid var(--ly-border);
+  border-radius: 6px;
+  font-size: 0.95rem;
   line-height: 1;
   cursor: pointer;
-  border-radius: 4px;
+  flex-shrink: 0;
   display: flex;
   align-items: center;
   justify-content: center;
-  font-weight: 700;
   touch-action: manipulation;
-  transition: background 0.15s;
+  transition: color 0.15s, border-color 0.15s;
 }
 
-.ly-offset-btn:hover { background: rgba(124,58,237,0.3); }
-.ly-offset-btn:active { background: rgba(124,58,237,0.5); }
-
-.ly-offset-display {
-  font-size: 0.74rem;
-  color: var(--ly-text);
-  font-variant-numeric: tabular-nums;
-  min-width: 58px;
-  text-align: center;
-  cursor: pointer;
-  user-select: none;
-  white-space: nowrap;
+.ly-lyrics-reset-btn:hover {
+  color: #f87171;
+  border-color: #f87171;
 }
-
-.ly-offset-display:hover { color: var(--ly-primary); }
-.ly-offset-display:focus { outline: 1px solid var(--ly-primary); border-radius: 3px; }
 
 .ly-next-btn {
   padding: 6px 12px;
@@ -950,8 +971,8 @@
   .ly-volume { width: 54px; }
   .ly-duration { display: none; }
   .ly-next-btn { font-size: 0.72rem; padding: 5px 8px; }
-  .ly-offset-display { min-width: 50px; font-size: 0.7rem; }
-  .ly-offset-btn { width: 20px; height: 24px; }
+  .ly-lyrics-start-btn { font-size: 0.72rem; padding: 5px 8px; }
+  .ly-lyrics-reset-btn { width: 26px; height: 26px; font-size: 0.85rem; }
 }
 
 @media (max-width: 380px) {
