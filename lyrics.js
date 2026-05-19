@@ -70,7 +70,8 @@ let elArtist, elTitle, elTitleWrap, elFetchBtn, elSearchHint, elStatus,
     elToggleApiKey, elApiKeyStatus, elCurrentOrigin,
     elApiSetup, elToggleApiSetup,
     elLyricsStartBtn, elLyricsResetBtn,
-    elRandomPlayBtn, elOpenInYoutubeBtn, elFullscreenBtn;
+    elRandomPlayBtn, elOpenInYoutubeBtn, elFullscreenBtn,
+    elAutoKaraokeChk, elExitKaraokeBtn;
 
 /* ============================================================
    Bootstrap
@@ -117,12 +118,27 @@ function init() {
   elRandomPlayBtn  = document.getElementById('randomPlayBtn');
   elOpenInYoutubeBtn = document.getElementById('openInYoutubeBtn');
   elFullscreenBtn  = document.getElementById('fullscreenBtn');
+  elAutoKaraokeChk = document.getElementById('autoKaraokeChk');
+  elExitKaraokeBtn = document.getElementById('exitKaraokeBtn');
+
+  /* Restore auto-karaoke preference */
+  const autoSaved = localStorage.getItem('auto_karaoke');
+  if (autoSaved !== null) elAutoKaraokeChk.checked = autoSaved === '1';
+  elAutoKaraokeChk.addEventListener('change', () => {
+    localStorage.setItem('auto_karaoke', elAutoKaraokeChk.checked ? '1' : '0');
+  });
 
   elLyricsStartBtn.addEventListener('click', lyricsStartHere);
   elLyricsResetBtn.addEventListener('click', resetLyricsStart);
   elRandomPlayBtn.addEventListener('click', handleRandomPlay);
   elOpenInYoutubeBtn.addEventListener('click', openInYouTube);
-  elFullscreenBtn.addEventListener('click', toggleFullscreen);
+  elFullscreenBtn.addEventListener('click', enterKaraokeMode);
+  elExitKaraokeBtn.addEventListener('click', exitKaraokeMode);
+
+  /* Keep karaoke class in sync with actual fullscreen state */
+  document.addEventListener('fullscreenchange', () => {
+    if (!document.fullscreenElement) document.body.classList.remove('karaoke-mode');
+  });
 
   updateLyricsStartUI();
 
@@ -487,25 +503,38 @@ function openInYouTube() {
   window.open(url, '_blank', 'noopener,noreferrer');
 }
 
-function toggleFullscreen() {
-  if (document.fullscreenElement) {
-    document.exitFullscreen();
-    return;
-  }
-  if (!elPlayerSection || elPlayerSection.hidden) {
-    setStatus('再生中の動画がありません。', 'error');
-    return;
-  }
-  const req = elPlayerSection.requestFullscreen
-           || elPlayerSection.webkitRequestFullscreen
-           || elPlayerSection.msRequestFullscreen;
+/**
+ * Enter karaoke fullscreen: video on top (50vh), lyrics below.
+ * Must be called from a user-gesture context (e.g. click handler).
+ */
+function enterKaraokeMode() {
+  if (document.body.classList.contains('karaoke-mode') && document.fullscreenElement) return;
+  document.body.classList.add('karaoke-mode');
+  const req = document.documentElement.requestFullscreen
+           || document.documentElement.webkitRequestFullscreen
+           || document.documentElement.msRequestFullscreen;
   if (!req) {
     setStatus('このブラウザは全画面表示に対応していません。', 'error');
     return;
   }
-  req.call(elPlayerSection).catch(err => {
-    setStatus(`全画面化失敗: ${err.message || err}`, 'error');
+  Promise.resolve(req.call(document.documentElement)).catch(err => {
+    /* Fullscreen rejected (no user gesture). Karaoke layout still visible. */
+    console.warn('Fullscreen request rejected:', err);
   });
+}
+
+function exitKaraokeMode() {
+  document.body.classList.remove('karaoke-mode');
+  if (document.fullscreenElement && document.exitFullscreen) {
+    document.exitFullscreen().catch(() => {});
+  }
+}
+
+/** Auto-enter karaoke when the user explicitly selects a song,
+ *  if the preference is enabled. Must be called inside the
+ *  user gesture (synchronously from the click handler). */
+function maybeEnterKaraoke() {
+  if (elAutoKaraokeChk && elAutoKaraokeChk.checked) enterKaraokeMode();
 }
 
 /* ============================================================
@@ -518,64 +547,109 @@ const RANDOM_SEEDS = [
   '90年代 J-POP', '2000年代 J-POP', 'カバー曲', 'アコースティック',
 ];
 
+async function fetchTopMusicChart(regionCode) {
+  const key = localStorage.getItem('yt_api_key');
+  if (!key) throw new Error('APIキー未設定');
+  const params = new URLSearchParams({
+    part: 'snippet',
+    chart: 'mostPopular',
+    videoCategoryId: '10',   /* Music */
+    regionCode: regionCode || 'JP',
+    maxResults: '25',
+    key,
+  });
+  const url = `https://www.googleapis.com/youtube/v3/videos?${params}`;
+  const res = await fetchWithTimeout(url, 12000);
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}));
+    throw new Error(interpretYouTubeError(res.status, body));
+  }
+  const data = await res.json();
+  return (data.items || []).map(it => ({
+    videoId: it.id,
+    title:   it.snippet.title,
+    channel: it.snippet.channelTitle,
+    thumb:   it.snippet.thumbnails?.default?.url || '',
+  }));
+}
+
 async function handleRandomPlay() {
   if (!localStorage.getItem('yt_api_key')) {
     setStatus('YouTube APIキーを先に設定してください。', 'error');
     setApiSetupCollapsed(false);
     return;
   }
-  setStatus('🎲 ランダムに楽曲を選んでいます...', 'loading');
+
+  /* Auto-enter karaoke while we still have the user gesture */
+  maybeEnterKaraoke();
+
+  setStatus('🎲 人気上位から楽曲を選んでいます...', 'loading');
   hideSongList();
   hideYtResults();
   elRandomPlayBtn.disabled = true;
 
+  let pool = [];
+  let source = 'チャート';
   try {
-    const seed = RANDOM_SEEDS[Math.floor(Math.random() * RANDOM_SEEDS.length)];
-    const items = await searchYouTube(seed);
-    /* Skip ultra-long compilation videos when possible */
-    const filtered = (items || []).filter(it => !/\b(\d+\s*時間|\d+\s*hours?|mix|メドレー|作業用)\b/i.test(it.title));
-    const pool = filtered.length ? filtered : (items || []);
-    if (!pool.length) {
-      setStatus('結果が見つかりませんでした。もう一度試してください。', 'error');
+    /* Preferred: YouTube most-popular music chart for Japan */
+    pool = await fetchTopMusicChart('JP');
+  } catch (err) {
+    /* Fall back to seed-based search if the chart endpoint fails */
+    console.warn('Chart failed, falling back to seed search:', err);
+    try {
+      const seed = RANDOM_SEEDS[Math.floor(Math.random() * RANDOM_SEEDS.length)];
+      pool = await searchYouTube(seed);
+      source = `「${seed}」検索`;
+    } catch (err2) {
+      setStatus(`ランダム再生に失敗: ${err2.message}`, 'error');
+      elRandomPlayBtn.disabled = false;
       return;
     }
-    const pick = pool[Math.floor(Math.random() * pool.length)];
-
-    /* Best-effort: guess artist / title from video title for lyrics lookup */
-    const guess = guessArtistTitle(pick.title) || { artist: pick.channel, title: pick.title };
-    state.currentArtist = guess.artist;
-    state.currentTitle  = guess.title;
-    loadOffsetForCurrentSong();
-
-    state.ytQueue    = pool;
-    state.ytQueueIdx = pool.indexOf(pick);
-    state.lyrics     = [];
-    state.lrcLines   = [];
-    state.useLrc     = false;
-    enableTransportControls(true);
-
-    /* Try to fetch lyrics in the background — never blocks playback */
-    fetchLyricsWithFallback(guess.artist, guess.title)
-      .then(raw => {
-        loadLyrics(raw);
-        setStatus(`🎲 ${escapeHTML(pick.title)} — 歌詞も取得しました。`, 'success');
-        /* If video is already playing in plain mode, kick the timer */
-        if (state.ytPlayer && state.ytReady && !state.useLrc && state.lyrics.length) {
-          try {
-            if (state.ytPlayer.getPlayerState() === YT.PlayerState.PLAYING) startLyricsTimer();
-          } catch (_) {}
-        }
-      })
-      .catch(() => { /* lyrics unavailable; ignore silently */ });
-
-    showYtResults(pool);
-    loadYtVideo(state.ytQueueIdx);
-    setStatus(`🎲 ${escapeHTML(seed)}: ${escapeHTML(pick.title)}`, 'success');
-  } catch (err) {
-    setStatus(`ランダム再生に失敗: ${err.message}`, 'error');
-  } finally {
-    elRandomPlayBtn.disabled = false;
   }
+
+  /* Skip ultra-long compilation / mix videos when possible */
+  const filtered = (pool || []).filter(it =>
+    !/\b(\d+\s*時間|\d+\s*hours?|mix|メドレー|作業用|睡眠|playlist|プレイリスト)\b/i.test(it.title)
+  );
+  const finalPool = filtered.length ? filtered : (pool || []);
+  if (!finalPool.length) {
+    setStatus('結果が見つかりませんでした。もう一度試してください。', 'error');
+    elRandomPlayBtn.disabled = false;
+    return;
+  }
+
+  /* Pick from the top 10 for a "popular but varied" feel */
+  const topSlice = finalPool.slice(0, Math.min(10, finalPool.length));
+  const pick = topSlice[Math.floor(Math.random() * topSlice.length)];
+
+  const guess = guessArtistTitle(pick.title) || { artist: pick.channel, title: pick.title };
+  state.currentArtist = guess.artist;
+  state.currentTitle  = guess.title;
+  loadOffsetForCurrentSong();
+
+  state.ytQueue    = finalPool;
+  state.ytQueueIdx = finalPool.indexOf(pick);
+  state.lyrics     = [];
+  state.lrcLines   = [];
+  state.useLrc     = false;
+  enableTransportControls(true);
+
+  fetchLyricsWithFallback(guess.artist, guess.title)
+    .then(raw => {
+      loadLyrics(raw);
+      setStatus(`🎲 ${escapeHTML(pick.title)} — 歌詞も取得しました。`, 'success');
+      if (state.ytPlayer && state.ytReady && !state.useLrc && state.lyrics.length) {
+        try {
+          if (state.ytPlayer.getPlayerState() === YT.PlayerState.PLAYING) startLyricsTimer();
+        } catch (_) {}
+      }
+    })
+    .catch(() => { /* lyrics unavailable */ });
+
+  showYtResults(finalPool);
+  loadYtVideo(state.ytQueueIdx);
+  setStatus(`🎲 ${source}より: ${escapeHTML(pick.title)}`, 'success');
+  elRandomPlayBtn.disabled = false;
 }
 
 function guessArtistTitle(videoTitle) {
@@ -908,7 +982,11 @@ function renderSongListPage() {
     card.innerHTML   =
       `<span class="ly-song-title">${escapeHTML(song.title)}</span>` +
       `<span class="ly-song-meta">${escapeHTML(parts.join(' · '))}</span>`;
-    card.addEventListener('click', () => { hideSongList(); handleSongSearch(song.artist, song.title); });
+    card.addEventListener('click', () => {
+      maybeEnterKaraoke();
+      hideSongList();
+      handleSongSearch(song.artist, song.title);
+    });
     elSongCards.appendChild(card);
   });
 }
@@ -938,7 +1016,11 @@ function showYtResults(items) {
         `<span class="ly-yt-card-title">${escapeHTML(item.title)}</span>` +
         `<span class="ly-yt-card-channel">${escapeHTML(item.channel)}</span>` +
       `</div>`;
-    card.addEventListener('click', () => { hideYtResults(); loadYtVideo(idx); });
+    card.addEventListener('click', () => {
+      maybeEnterKaraoke();
+      hideYtResults();
+      loadYtVideo(idx);
+    });
     elYtResultCards.appendChild(card);
   });
 

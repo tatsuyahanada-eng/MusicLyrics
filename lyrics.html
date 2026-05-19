@@ -5,7 +5,7 @@
   <meta http-equiv="Cache-Control" content="no-store">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Music Lyrics</title>
-  <link rel="stylesheet" href="lyrics.css?v=8">
+  <link rel="stylesheet" href="lyrics.css?v=9">
 </head>
 <body class="ly-body">
 
@@ -52,7 +52,11 @@
 
   <!-- Search -->
   <section class="ly-search-section">
-    <button id="randomPlayBtn" type="button" class="ly-random-btn">🎲 おまかせ再生</button>
+    <button id="randomPlayBtn" type="button" class="ly-random-btn">🎲 おまかせ再生（人気上位）</button>
+    <label class="ly-auto-karaoke">
+      <input id="autoKaraokeChk" type="checkbox" checked>
+      <span>🎬 曲選択時にカラオケモードで再生（動画上＋歌詞下のフルスクリーン）</span>
+    </label>
 
     <div class="ly-tabs" role="tablist" aria-label="検索モード">
       <button class="ly-tab active" data-mode="song" role="tab" aria-selected="true">🎵 アーティスト + 曲名</button>
@@ -103,17 +107,22 @@
     </div>
   </section>
 
-  <!-- YouTube Player (hidden iframe) -->
-  <div id="playerSection" class="ly-player-section" hidden>
-    <div class="ly-player-overlay">
-      <button id="openInYoutubeBtn" type="button" class="ly-player-overlay-btn" title="YouTubeで開く" aria-label="YouTubeで開く">↗</button>
-      <button id="fullscreenBtn"    type="button" class="ly-player-overlay-btn" title="全画面表示"   aria-label="全画面表示">⛶</button>
+  <!-- YouTube Player + Lyrics Stage (wrapped together for karaoke fullscreen) -->
+  <main id="karaokeArea" class="ly-karaoke-area">
+    <div id="playerSection" class="ly-player-section" hidden>
+      <div class="ly-player-overlay">
+        <button id="openInYoutubeBtn" type="button" class="ly-player-overlay-btn" title="YouTubeで開く" aria-label="YouTubeで開く">↗</button>
+        <button id="fullscreenBtn"    type="button" class="ly-player-overlay-btn" title="カラオケモード（動画＋歌詞 フルスクリーン）" aria-label="カラオケモード">🎬</button>
+      </div>
+      <div id="ytPlayer"></div>
     </div>
-    <div id="ytPlayer"></div>
-  </div>
 
-  <!-- Lyrics Stage -->
-  <div id="stage" role="region" aria-label="歌詞表示エリア"></div>
+    <!-- Lyrics Stage -->
+    <div id="stage" role="region" aria-label="歌詞表示エリア"></div>
+
+    <!-- Exit-karaoke button (only visible in karaoke mode) -->
+    <button id="exitKaraokeBtn" type="button" class="ly-exit-karaoke-btn" aria-label="カラオケモードを終了" hidden>✕ カラオケ終了</button>
+  </main>
 
   <!-- Control Bar -->
   <div id="controlBar" class="ly-control-bar">
@@ -141,6 +150,6 @@
     </div>
   </div>
 
-  <script src="lyrics.js?v=8"></script>
+  <script src="lyrics.js?v=9"></script>
 </body>
 </html>
