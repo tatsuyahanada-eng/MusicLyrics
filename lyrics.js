@@ -930,32 +930,48 @@ async function handleArtistSearch(artist) {
   }
 }
 
+/* Strip spacing/punctuation/case so "SUPER BEAVER",
+   "superbeaver", "Super-Beaver" all collapse to "superbeaver" */
+function normalizeArtistName(s) {
+  return (s || '')
+    .toLowerCase()
+    .replace(/[\s.\-_'"`’()&,!?・·]+/g, '')
+    .trim();
+}
+
 async function fetchSongsByArtist(artist) {
   const url = `${ITUNES_API}?term=${encodeURIComponent(artist)}&entity=song&limit=100&country=jp`;
   const res  = await fetchWithTimeout(url, 10000);
   if (!res.ok) throw new Error(`iTunes API エラー (HTTP ${res.status})`);
   const data = await res.json();
 
-  const target = artist.toLowerCase().trim();
-  const all = (data.results || [])
-    .filter(r => r.trackName && r.artistName)
-    /* keep only songs whose artist actually matches the query both ways
-       (so "Mr.Children" search doesn't pull in random covers) */
-    .filter(r => {
-      const a = r.artistName.toLowerCase();
-      return a.includes(target) || target.includes(a);
-    })
-    .map(r => ({
-      artist:     r.artistName,
-      title:      r.trackName,
-      album:      r.collectionName || '',
-      durationMs: r.trackTimeMillis || 0,
-    }));
+  const raw = (data.results || []).filter(r => r.trackName && r.artistName);
+  if (!raw.length) return [];
+
+  /* Try to keep only songs whose artist actually matches the query
+     (helps random play stay on-artist), but fall back to the full
+     list if the filter is too aggressive */
+  const target = normalizeArtistName(artist);
+  let matching = raw;
+  if (target) {
+    const filtered = raw.filter(r => {
+      const a = normalizeArtistName(r.artistName);
+      return a && (a.includes(target) || target.includes(a));
+    });
+    if (filtered.length) matching = filtered;
+  }
+
+  const mapped = matching.map(r => ({
+    artist:     r.artistName,
+    title:      r.trackName,
+    album:      r.collectionName || '',
+    durationMs: r.trackTimeMillis || 0,
+  }));
 
   /* Dedupe by normalised title — iTunes returns the same song
      multiple times across different albums / remasters */
   const seen = new Set();
-  return all.filter(s => {
+  return mapped.filter(s => {
     const key = (s.title || '').toLowerCase().replace(/\s+/g, ' ').trim();
     if (!key || seen.has(key)) return false;
     seen.add(key);
