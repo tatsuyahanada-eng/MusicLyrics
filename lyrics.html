@@ -5,7 +5,7 @@
   <meta http-equiv="Cache-Control" content="no-store">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Music Lyrics</title>
-  <link rel="stylesheet" href="lyrics.css?v=9">
+  <link rel="stylesheet" href="lyrics.css?v=10">
 </head>
 <body class="ly-body">
 
@@ -53,28 +53,24 @@
   <!-- Search -->
   <section class="ly-search-section">
     <button id="randomPlayBtn" type="button" class="ly-random-btn">🎲 おまかせ再生（人気上位）</button>
-    <label class="ly-auto-karaoke">
-      <input id="autoKaraokeChk" type="checkbox" checked>
-      <span>🎬 曲選択時にカラオケモードで再生（動画上＋歌詞下のフルスクリーン）</span>
-    </label>
 
     <div class="ly-tabs" role="tablist" aria-label="検索モード">
-      <button class="ly-tab active" data-mode="song" role="tab" aria-selected="true">🎵 アーティスト + 曲名</button>
-      <button class="ly-tab" data-mode="artist" role="tab" aria-selected="false">🔍 アーティストのみ</button>
+      <button class="ly-tab active" data-mode="artist" role="tab" aria-selected="true">🔍 アーティストのみ</button>
+      <button class="ly-tab" data-mode="song" role="tab" aria-selected="false">🎵 アーティスト + 曲名</button>
     </div>
 
     <form id="searchForm" class="ly-search-form">
       <div class="ly-input-row">
         <input id="artistInput" class="ly-input" type="text"
           placeholder="アーティスト名（日本語OK）" autocomplete="off" required>
-        <div id="titleWrap" class="ly-title-wrap">
+        <div id="titleWrap" class="ly-title-wrap" hidden>
           <input id="titleInput" class="ly-input" type="text"
             placeholder="曲名（日本語OK）" autocomplete="off">
         </div>
-        <button id="fetchBtn" type="submit" class="ly-btn">歌詞を取得</button>
+        <button id="fetchBtn" type="submit" class="ly-btn">アーティストを検索</button>
       </div>
       <p id="searchHint" class="ly-hint">
-        YouTube で楽曲を検索し、歌詞と一緒に楽しめます。
+        アーティスト名を入力して曲リストを表示。曲をタップして再生。
       </p>
     </form>
     <div id="status" class="ly-status" aria-live="polite"></div>
@@ -85,6 +81,7 @@
     <div class="ly-song-list-inner">
       <div class="ly-song-list-header">
         <span id="songListInfo" class="ly-song-list-info"></span>
+        <button id="artistRandomBtn" type="button" class="ly-artist-random-btn">🎲 このアーティストでランダム再生</button>
         <button id="closeSongList" class="ly-close-btn" aria-label="リストを閉じる">✕ 閉じる</button>
       </div>
       <div id="songCards" class="ly-song-cards"></div>
@@ -114,7 +111,12 @@
         <button id="openInYoutubeBtn" type="button" class="ly-player-overlay-btn" title="YouTubeで開く" aria-label="YouTubeで開く">↗</button>
         <button id="fullscreenBtn"    type="button" class="ly-player-overlay-btn" title="カラオケモード（動画＋歌詞 フルスクリーン）" aria-label="カラオケモード">🎬</button>
       </div>
-      <div id="ytPlayer"></div>
+      <div class="ly-player-video">
+        <div id="ytPlayer"></div>
+      </div>
+      <div class="ly-player-footer">
+        <button id="nextSongBtn" type="button" class="ly-next-btn" disabled>次の曲 ▶▶</button>
+      </div>
     </div>
 
     <!-- Lyrics Stage -->
@@ -143,13 +145,12 @@
       <button id="lyricsResetBtn" type="button" class="ly-lyrics-reset-btn" title="歌詞タイミングをリセット" hidden>↺</button>
       <label class="ly-vol-label" for="volumeSlider">🔊</label>
       <input  id="volumeSlider" class="ly-volume" type="range" min="0" max="100" value="80">
-      <button id="nextSongBtn"  class="ly-next-btn" disabled>次の曲 ▶▶</button>
     </div>
     <div class="ly-ctrl-bottom">
       <input id="progressBar" class="ly-progress" type="range" min="0" max="1000" value="0" step="1">
     </div>
   </div>
 
-  <script src="lyrics.js?v=9"></script>
+  <script src="lyrics.js?v=10"></script>
 </body>
 </html>

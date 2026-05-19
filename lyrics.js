@@ -55,7 +55,11 @@ const state = {
 };
 
 const songList = { songs: [], page: 0 };
-let searchMode = 'song';
+let searchMode = 'artist';
+
+/* Artist random-play state */
+let artistRandomOriginal = [];   // snapshot of songList.songs at start
+let artistRandomQueue    = [];   // shuffled remaining picks
 
 /* ---- Round-robin band index to spread vertically over time ---- */
 let lastBandIdx = -1;
@@ -71,7 +75,9 @@ let elArtist, elTitle, elTitleWrap, elFetchBtn, elSearchHint, elStatus,
     elApiSetup, elToggleApiSetup,
     elLyricsStartBtn, elLyricsResetBtn,
     elRandomPlayBtn, elOpenInYoutubeBtn, elFullscreenBtn,
-    elAutoKaraokeChk, elExitKaraokeBtn;
+    elExitKaraokeBtn, elArtistRandomBtn;
+
+let artistRandomMode = false;
 
 /* ============================================================
    Bootstrap
@@ -118,19 +124,13 @@ function init() {
   elRandomPlayBtn  = document.getElementById('randomPlayBtn');
   elOpenInYoutubeBtn = document.getElementById('openInYoutubeBtn');
   elFullscreenBtn  = document.getElementById('fullscreenBtn');
-  elAutoKaraokeChk = document.getElementById('autoKaraokeChk');
   elExitKaraokeBtn = document.getElementById('exitKaraokeBtn');
-
-  /* Restore auto-karaoke preference */
-  const autoSaved = localStorage.getItem('auto_karaoke');
-  if (autoSaved !== null) elAutoKaraokeChk.checked = autoSaved === '1';
-  elAutoKaraokeChk.addEventListener('change', () => {
-    localStorage.setItem('auto_karaoke', elAutoKaraokeChk.checked ? '1' : '0');
-  });
+  elArtistRandomBtn = document.getElementById('artistRandomBtn');
 
   elLyricsStartBtn.addEventListener('click', lyricsStartHere);
   elLyricsResetBtn.addEventListener('click', resetLyricsStart);
   elRandomPlayBtn.addEventListener('click', handleRandomPlay);
+  elArtistRandomBtn.addEventListener('click', toggleArtistRandomPlay);
   elOpenInYoutubeBtn.addEventListener('click', openInYouTube);
   elFullscreenBtn.addEventListener('click', enterKaraokeMode);
   elExitKaraokeBtn.addEventListener('click', exitKaraokeMode);
@@ -352,6 +352,9 @@ function lyricsStartHere() {
   }
   const cur = state.ytPlayer.getCurrentTime() || 0;
 
+  /* Wipe whatever is on screen so the new starting point is unambiguous */
+  clearStage();
+
   if (state.useLrc && state.lrcLines.length) {
     state.lyricsOffset = Math.round((cur - state.lrcLines[0].time) * 100) / 100;
     state.currentIndex = -1;
@@ -478,8 +481,73 @@ function loadYtVideo(idx) {
 }
 
 function playNextInQueue() {
+  if (artistRandomMode) {
+    playNextInArtistRandom();
+    return;
+  }
   if (!state.ytQueue.length) return;
   loadYtVideo(state.ytQueueIdx + 1);
+}
+
+/* ============================================================
+   Artist random play (loop through current artist's songs)
+   ============================================================ */
+function toggleArtistRandomPlay() {
+  if (artistRandomMode) {
+    stopArtistRandomPlay();
+    setStatus('アーティストのランダム再生を停止しました。', '');
+  } else {
+    startArtistRandomPlay();
+  }
+}
+
+function startArtistRandomPlay() {
+  if (!songList.songs.length) {
+    setStatus('アーティストの曲リストがありません。先に検索してください。', 'error');
+    return;
+  }
+  artistRandomOriginal = [...songList.songs];
+  artistRandomQueue   = shuffleArray([...artistRandomOriginal]);
+  artistRandomMode    = true;
+  updateArtistRandomUI();
+  playNextInArtistRandom();
+}
+
+function stopArtistRandomPlay() {
+  artistRandomMode    = false;
+  artistRandomQueue   = [];
+  artistRandomOriginal = [];
+  updateArtistRandomUI();
+}
+
+function playNextInArtistRandom() {
+  if (!artistRandomMode) return;
+  if (!artistRandomQueue.length) {
+    if (!artistRandomOriginal.length) { stopArtistRandomPlay(); return; }
+    artistRandomQueue = shuffleArray([...artistRandomOriginal]);
+  }
+  const next = artistRandomQueue.shift();
+  if (!next) { stopArtistRandomPlay(); return; }
+  handleSongSearch(next.artist, next.title);
+}
+
+function updateArtistRandomUI() {
+  if (!elArtistRandomBtn) return;
+  elArtistRandomBtn.classList.toggle('active', artistRandomMode);
+  elArtistRandomBtn.textContent = artistRandomMode
+    ? '⏹ ランダム再生を停止'
+    : '🎲 このアーティストでランダム再生';
+  if (elNextSongBtn) {
+    elNextSongBtn.textContent = artistRandomMode ? '🎲 次の曲 ▶▶' : '次の曲 ▶▶';
+  }
+}
+
+function shuffleArray(arr) {
+  for (let i = arr.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [arr[i], arr[j]] = [arr[j], arr[i]];
+  }
+  return arr;
 }
 
 /* ============================================================
@@ -530,13 +598,6 @@ function exitKaraokeMode() {
   }
 }
 
-/** Auto-enter karaoke when the user explicitly selects a song,
- *  if the preference is enabled. Must be called inside the
- *  user gesture (synchronously from the click handler). */
-function maybeEnterKaraoke() {
-  if (elAutoKaraokeChk && elAutoKaraokeChk.checked) enterKaraokeMode();
-}
-
 /* ============================================================
    Random YouTube music play
    ============================================================ */
@@ -580,8 +641,7 @@ async function handleRandomPlay() {
     return;
   }
 
-  /* Auto-enter karaoke while we still have the user gesture */
-  maybeEnterKaraoke();
+  stopArtistRandomPlay();
 
   setStatus('🎲 人気上位から楽曲を選んでいます...', 'loading');
   hideSongList();
@@ -805,6 +865,7 @@ async function searchYouTube(query) {
    ============================================================ */
 function handleModeSwitch(mode) {
   searchMode = mode;
+  stopArtistRandomPlay();
   document.querySelectorAll('.ly-tab').forEach(tab => {
     const a = tab.dataset.mode === mode;
     tab.classList.toggle('active', a);
@@ -829,6 +890,7 @@ function handleModeSwitch(mode) {
    ============================================================ */
 async function handleFetch(e) {
   e.preventDefault();
+  stopArtistRandomPlay();
   const artist = elArtist.value.trim();
   if (!artist) return;
 
@@ -845,6 +907,7 @@ async function handleFetch(e) {
    Artist search (iTunes)
    ============================================================ */
 async function handleArtistSearch(artist) {
+  stopArtistRandomPlay();
   setStatus(`「${escapeHTML(artist)}」の楽曲を検索中...`, 'loading');
   elFetchBtn.disabled = true;
   hideSongList();
@@ -983,7 +1046,7 @@ function renderSongListPage() {
       `<span class="ly-song-title">${escapeHTML(song.title)}</span>` +
       `<span class="ly-song-meta">${escapeHTML(parts.join(' · '))}</span>`;
     card.addEventListener('click', () => {
-      maybeEnterKaraoke();
+      stopArtistRandomPlay();
       hideSongList();
       handleSongSearch(song.artist, song.title);
     });
@@ -1017,7 +1080,6 @@ function showYtResults(items) {
         `<span class="ly-yt-card-channel">${escapeHTML(item.channel)}</span>` +
       `</div>`;
     card.addEventListener('click', () => {
-      maybeEnterKaraoke();
       hideYtResults();
       loadYtVideo(idx);
     });

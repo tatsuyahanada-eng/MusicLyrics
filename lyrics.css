@@ -373,6 +373,8 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
+  gap: 8px;
+  flex-wrap: wrap;
   padding: 10px 16px 8px;
   position: sticky;
   top: 0;
@@ -571,16 +573,43 @@
   bottom: var(--ly-control-h);
   right: 16px;
   width: 360px;
-  height: 203px;
+  height: 240px;
   border-radius: 8px;
   overflow: hidden;
   box-shadow: 0 8px 24px rgba(0,0,0,0.6);
   z-index: 90;
   border: 1px solid var(--ly-border);
   background: #000;
+  display: flex;
+  flex-direction: column;
 }
 
-.ly-player-section #ytPlayer { width: 100%; height: 100%; }
+.ly-player-video {
+  flex: 1;
+  min-height: 0;
+  position: relative;
+}
+
+.ly-player-video #ytPlayer { width: 100%; height: 100%; }
+
+.ly-player-footer {
+  flex-shrink: 0;
+  background: rgba(0,0,0,0.85);
+  border-top: 1px solid rgba(255,255,255,0.1);
+  padding: 4px 6px;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+.ly-player-footer .ly-next-btn {
+  margin-left: 0;
+  width: 100%;
+  max-width: 280px;
+  text-align: center;
+  padding: 6px 10px;
+  font-size: 0.82rem;
+}
 
 .ly-player-section:fullscreen {
   width: 100vw;
@@ -656,24 +685,29 @@
 .ly-random-btn:active { transform: scale(0.98); }
 .ly-random-btn:disabled { opacity: 0.55; cursor: wait; filter: grayscale(0.3); }
 
-/* ---- Auto-karaoke checkbox ---- */
-.ly-auto-karaoke {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 6px 10px;
-  margin-bottom: 10px;
-  background: rgba(124,58,237,0.08);
-  border: 1px solid rgba(124,58,237,0.25);
-  border-radius: 8px;
-  font-size: 0.82rem;
-  color: var(--ly-text);
+/* ---- Artist Random Play Button ---- */
+.ly-artist-random-btn {
+  padding: 6px 12px;
+  background: linear-gradient(135deg, rgba(236,72,153,0.25) 0%, rgba(124,58,237,0.25) 100%);
+  border: 1px solid rgba(236,72,153,0.5);
+  color: #f9a8d4;
+  font-size: 0.78rem;
+  font-weight: 700;
+  border-radius: 6px;
   cursor: pointer;
-  user-select: none;
+  white-space: nowrap;
+  touch-action: manipulation;
+  min-height: 32px;
+  transition: background 0.15s, transform 0.1s;
 }
 
-.ly-auto-karaoke input { width: 16px; height: 16px; accent-color: var(--ly-primary); cursor: pointer; flex-shrink: 0; }
-.ly-auto-karaoke span { line-height: 1.4; }
+.ly-artist-random-btn:hover { filter: brightness(1.15); }
+.ly-artist-random-btn:active { transform: scale(0.97); }
+.ly-artist-random-btn.active {
+  background: linear-gradient(135deg, #ec4899 0%, #7c3aed 100%);
+  color: #fff;
+  border-color: #ec4899;
+}
 
 /* ---- Karaoke Mode (fullscreen split layout) ---- */
 .ly-karaoke-area {
