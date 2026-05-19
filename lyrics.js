@@ -1169,24 +1169,45 @@ function displayLine(text) {
       .forEach(fadeOutToken);
   }
 
+  const sw = elStage.clientWidth  || 320;
+  const sh = elStage.clientHeight || 200;
+  const maxW = Math.max(120, sw - TOKEN_PADDING * 2);
+  const maxH = Math.max(60,  sh - TOKEN_PADDING * 2);
+
+  /* Scale the font band down on narrow viewports so multi-line
+     lyrics still have room to fit without being clipped */
+  const widthScale = Math.max(0.4, Math.min(1, sw / 720));
+
   const el = document.createElement('div');
   el.className     = 'lyric-token';
   el.textContent   = trimmed;
   el.dataset.born  = String(Date.now());
 
   const band = pickBand();
-  const size = randomInt(band[0], band[1]);
+  let size = randomInt(
+    Math.max(12, Math.round(band[0] * widthScale)),
+    Math.max(14, Math.round(band[1] * widthScale))
+  );
   el.style.fontSize   = `${size}px`;
   el.style.fontWeight = String(band[2]);
+  el.style.maxWidth   = `${maxW}px`;
   el.style.opacity    = '0';
   el.style.left       = '-9999px';
   el.style.top        = '-9999px';
   elStage.appendChild(el);
 
-  const sw = elStage.clientWidth  || 320;
-  const sh = elStage.clientHeight || 200;
-  const ew = Math.min(el.offsetWidth, sw - TOKEN_PADDING * 2);
-  const eh = el.offsetHeight;
+  /* If the wrapped text is still taller than the stage, shrink
+     the font until it fits (or we hit a sensible floor) */
+  let eh = el.offsetHeight;
+  let ew = el.offsetWidth;
+  let safety = 10;
+  while ((eh > maxH || ew > maxW) && size > 12 && safety-- > 0) {
+    size = Math.max(12, Math.floor(size * 0.85));
+    el.style.fontSize = `${size}px`;
+    eh = el.offsetHeight;
+    ew = el.offsetWidth;
+  }
+  ew = Math.min(ew, maxW);
 
   const pos = findNonOverlappingPosition(ew, eh, sw, sh, el);
   el.style.left = `${pos.x}px`;

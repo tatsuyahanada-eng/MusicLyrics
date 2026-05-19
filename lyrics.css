@@ -766,14 +766,16 @@ body.karaoke-mode .ly-exit-karaoke-btn:hover {
   position: absolute;
   pointer-events: none;
   user-select: none;
-  white-space: nowrap;
+  white-space: normal;
+  overflow-wrap: break-word;
+  word-break: normal;
+  line-break: loose;
+  text-align: center;
   font-weight: 700;
   letter-spacing: 0.03em;
+  line-height: 1.22;
   text-shadow: 0 2px 12px rgba(0, 0, 0, 0.8), 0 0 40px rgba(255,255,255,0.08);
   opacity: 0;
-  max-width: 92%;
-  overflow: hidden;
-  text-overflow: ellipsis;
   color: #ffffff;
   transition: none;
 }
