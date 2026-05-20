@@ -1,11 +1,11 @@
 /* Music Lyrics — service worker (app-shell cache) */
-const CACHE = 'music-lyrics-v21';
+const CACHE = 'music-lyrics-v22';
 const SHELL = [
   './',
   './lyrics.html',
-  './lyrics.css?v=21',
-  './lyrics.js?v=21',
-  './config.js?v=21',
+  './lyrics.css?v=22',
+  './lyrics.js?v=22',
+  './config.js?v=22',
   './manifest.json',
   './icon.svg',
   './icon-maskable.svg',
@@ -34,6 +34,23 @@ self.addEventListener('fetch', e => {
      network so they get fresh data. */
   if (url.origin !== self.location.origin) return;
 
+  /* Network-first for the HTML document so version bumps show up
+     immediately instead of being pinned to a cached old page.
+     Falls back to cache when offline. */
+  if (req.mode === 'navigate' || req.destination === 'document') {
+    e.respondWith(
+      fetch(req)
+        .then(res => {
+          const clone = res.clone();
+          caches.open(CACHE).then(c => c.put(req, clone));
+          return res;
+        })
+        .catch(() => caches.match(req).then(c => c || caches.match('./lyrics.html')))
+    );
+    return;
+  }
+
+  /* Cache-first for the versioned assets (css/js/config/icons) */
   e.respondWith(
     caches.match(req).then(cached => {
       const network = fetch(req)

@@ -867,7 +867,10 @@ body.karaoke-mode .ly-exit-karaoke-btn:active { transform: scale(0.96); }
   z-index: 0;
 }
 
-#stage:fullscreen .ly-fx,
+/* Use body classes (set by JS) rather than :fullscreen so a
+   browser that doesn't understand :fullscreen can't invalidate
+   the whole rule. Separate rules per selector for safety. */
+body.lyrics-fs   #stage .ly-fx { display: block; }
 body.karaoke-mode #stage .ly-fx { display: block; }
 
 .ly-ripple {
@@ -877,21 +880,21 @@ body.karaoke-mode #stage .ly-fx { display: block; }
   width: 34vmin;
   height: 34vmin;
   margin: -17vmin 0 0 -17vmin;
-  border: 2px solid rgba(124,58,237,0.35);
+  border: 3px solid rgba(139,92,246,0.55);
   border-radius: 50%;
   opacity: 0;
   will-change: transform, opacity;
-  animation: ly-ripple 8s linear infinite;
+  animation: ly-ripple 7s linear infinite;
 }
 
-.ly-ripple:nth-child(2) { animation-delay: 2s;   border-color: rgba(236,72,153,0.30); }
-.ly-ripple:nth-child(3) { animation-delay: 4s;   border-color: rgba(96,165,250,0.28); }
-.ly-ripple:nth-child(4) { animation-delay: 6s;   border-color: rgba(52,211,153,0.24); }
+.ly-ripple:nth-child(2) { animation-delay: 1.75s; border-color: rgba(236,72,153,0.5); }
+.ly-ripple:nth-child(3) { animation-delay: 3.5s;  border-color: rgba(96,165,250,0.48); }
+.ly-ripple:nth-child(4) { animation-delay: 5.25s; border-color: rgba(52,211,153,0.42); }
 
 @keyframes ly-ripple {
-  0%   { transform: scale(0.25); opacity: 0; }
-  12%  { opacity: 0.7; }
-  100% { transform: scale(3.4); opacity: 0; }
+  0%   { transform: scale(0.2);  opacity: 0; }
+  10%  { opacity: 0.9; }
+  100% { transform: scale(3.6);  opacity: 0; }
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -913,16 +916,17 @@ body.karaoke-mode #stage .ly-fx { display: block; }
   z-index: 1;
 }
 
-/* Lyrics-only fullscreen: only the stage is shown; make it shine */
-#stage:fullscreen {
+/* Lyrics-only fullscreen: only the stage is shown; make it shine.
+   Driven by body.lyrics-fs (set in JS) for cross-browser safety. */
+body.lyrics-fs #stage {
   background: linear-gradient(180deg, #0d0d14 0%, #1a1a2e 100%);
 }
-#stage:fullscreen .ly-now-playing { font-size: 1rem; padding-top: 18px; }
-#stage:fullscreen .ly-line-current { font-size: clamp(2.2rem, 7.5vw, 5rem); }
-#stage:fullscreen .ly-line-past,
-#stage:fullscreen .ly-line-next { font-size: clamp(1.1rem, 3vw, 1.9rem); }
-#stage:fullscreen .ly-line-far-past,
-#stage:fullscreen .ly-line-far-next { font-size: clamp(0.9rem, 2vw, 1.35rem); }
+body.lyrics-fs #stage .ly-now-playing { font-size: 1rem; padding-top: 18px; }
+body.lyrics-fs #stage .ly-line-current { font-size: clamp(2.2rem, 7.5vw, 5rem); }
+body.lyrics-fs #stage .ly-line-past,
+body.lyrics-fs #stage .ly-line-next { font-size: clamp(1.1rem, 3vw, 1.9rem); }
+body.lyrics-fs #stage .ly-line-far-past,
+body.lyrics-fs #stage .ly-line-far-next { font-size: clamp(0.9rem, 2vw, 1.35rem); }
 
 /* Shrink button inside the stage (lyrics-only fullscreen) */
 .ly-stage-exit-btn { display: none; }
