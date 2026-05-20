@@ -49,10 +49,6 @@ const state = {
 const songList = { songs: [], page: 0 };
 let searchMode = 'artist';
 
-/* Artist random-play state */
-let artistRandomOriginal = [];   // snapshot of songList.songs at start
-let artistRandomQueue    = [];   // shuffled remaining picks
-
 /* ---- Lyric Speaker style stacked stage ---- */
 const STAGE_SLOTS = [];  /* 5 div slots: far-past, past, current, next, far-next */
 let plainHistory = [];   /* last few lines shown in plain (non-LRC) mode */
@@ -70,8 +66,6 @@ let elArtist, elTitle, elTitleWrap, elFetchBtn, elSearchHint, elStatus,
     elLyricsStartBtn, elLyricsResetBtn,
     elRandomPlayBtn, elOpenInYoutubeBtn, elFullscreenBtn,
     elExitKaraokeBtn, elArtistRandomBtn;
-
-let artistRandomMode = false;
 
 /* ============================================================
    Bootstrap
@@ -363,7 +357,9 @@ function lyricsStartHere() {
     return;
   }
   if (!state.lyrics.length) {
-    setStatus('この曲には歌詞がありません。', 'error');
+    /* No lyrics for this track — show it both as a status and on the stage */
+    setStatus('歌詞なし', 'error');
+    showStageMessage('歌詞なし');
     return;
   }
   const cur = state.ytPlayer.getCurrentTime() || 0;
@@ -503,8 +499,8 @@ function loadYtVideo(idx) {
 }
 
 function playNextInQueue() {
-  if (artistRandomMode) {
-    playNextInArtistRandom();
+  if (shuffleActive) {
+    playNextInShuffle();
     return;
   }
   if (!state.ytQueue.length) return;
@@ -512,8 +508,8 @@ function playNextInQueue() {
 }
 
 function playPrevInQueue() {
-  if (artistRandomMode) {
-    playPrevInArtistRandom();
+  if (shuffleActive) {
+    playPrevInShuffle();
     return;
   }
   if (!state.ytQueue.length) return;
@@ -521,14 +517,83 @@ function playPrevInQueue() {
 }
 
 /* ============================================================
-   Artist random play (loop through current artist's songs)
+   Shuffle play — used by both the artist "ランダム再生" and the
+   chart "おまかせ再生". Walks a pool of {artist,title} with full
+   back/forward history.
    ============================================================ */
-let artistRandomHistory = [];  /* songs already played (oldest first) */
-let artistRandomFuture  = [];  /* songs we backed away from (next-to-pop first) */
+let shuffleActive  = false;
+let shuffleKind    = null;   /* 'artist' | 'chart' */
+let shuffleSource  = [];     /* full pool */
+let shuffleQueue   = [];     /* shuffled, not-yet-played */
+let shuffleHistory = [];     /* played songs (oldest first) */
+let shuffleFuture  = [];     /* songs backed away from (next-to-pop first) */
 
+function startShufflePlay(songs, kind, statusMsg) {
+  if (!songs || !songs.length) {
+    setStatus('再生できる曲がありません。', 'error');
+    return false;
+  }
+  shuffleSource  = songs.slice();
+  shuffleQueue   = shuffleArray(songs.slice());
+  shuffleHistory = [];
+  shuffleFuture  = [];
+  shuffleActive  = true;
+  shuffleKind    = kind;
+  updateShuffleUI();
+  if (statusMsg) setStatus(statusMsg, 'success');
+  playNextInShuffle(true);
+  return true;
+}
+
+function stopShufflePlay() {
+  shuffleActive  = false;
+  shuffleKind    = null;
+  shuffleSource  = [];
+  shuffleQueue   = [];
+  shuffleHistory = [];
+  shuffleFuture  = [];
+  updateShuffleUI();
+}
+
+function playNextInShuffle(skipHistory = false) {
+  if (!shuffleActive) return;
+  /* Push current song to history so 前の曲 can return to it.
+     skipHistory is set on the very first pick so the song that
+     was playing before shuffle isn't treated as shuffle history. */
+  if (!skipHistory && state.currentArtist && state.currentTitle) {
+    shuffleHistory.push({ artist: state.currentArtist, title: state.currentTitle });
+    if (shuffleHistory.length > 80) shuffleHistory.shift();
+  }
+  let next;
+  if (shuffleFuture.length) {
+    next = shuffleFuture.pop();
+  } else {
+    if (!shuffleQueue.length) {
+      if (!shuffleSource.length) { stopShufflePlay(); return; }
+      shuffleQueue = shuffleArray(shuffleSource.slice());
+    }
+    next = shuffleQueue.shift();
+  }
+  if (!next) { stopShufflePlay(); return; }
+  handleSongSearch(next.artist, next.title, { autoplay: true });
+}
+
+function playPrevInShuffle() {
+  if (!shuffleActive || !shuffleHistory.length) {
+    setStatus('戻れる曲がありません。', 'error');
+    return;
+  }
+  if (state.currentArtist && state.currentTitle) {
+    shuffleFuture.push({ artist: state.currentArtist, title: state.currentTitle });
+  }
+  const prev = shuffleHistory.pop();
+  handleSongSearch(prev.artist, prev.title, { autoplay: true });
+}
+
+/* ---- Artist random play (top 30 of the iTunes list) ---- */
 function toggleArtistRandomPlay() {
-  if (artistRandomMode) {
-    stopArtistRandomPlay();
+  if (shuffleActive && shuffleKind === 'artist') {
+    stopShufflePlay();
     setStatus('アーティストのランダム再生を停止しました。', '');
   } else {
     startArtistRandomPlay();
@@ -540,75 +605,30 @@ function startArtistRandomPlay() {
     setStatus('アーティストの曲リストがありません。先に検索してください。', 'error');
     return;
   }
-  /* Use iTunes' top-relevance 30 (already deduped) as a
-     "recommended" pool — these tend to be the artist's
-     more popular / well-known songs */
   const pool = songList.songs.slice(0, Math.min(30, songList.songs.length));
-  artistRandomOriginal = pool;
-  artistRandomQueue    = shuffleArray([...pool]);
-  artistRandomHistory  = [];
-  artistRandomFuture   = [];
-  artistRandomMode     = true;
-  updateArtistRandomUI();
-  setStatus(`🎲 ${escapeHTML(songList.songs[0]?.artist || '')} のおすすめ${pool.length}曲をランダム再生中`, 'success');
-  /* First pick — don't put the pre-random song into the back history */
-  playNextInArtistRandom(true);
+  startShufflePlay(
+    pool, 'artist',
+    `🎲 ${escapeHTML(songList.songs[0]?.artist || '')} のおすすめ${pool.length}曲をランダム再生中`
+  );
 }
 
-function stopArtistRandomPlay() {
-  artistRandomMode     = false;
-  artistRandomQueue    = [];
-  artistRandomOriginal = [];
-  artistRandomHistory  = [];
-  artistRandomFuture   = [];
-  updateArtistRandomUI();
-}
-
-function playNextInArtistRandom(skipHistory = false) {
-  if (!artistRandomMode) return;
-  /* Push current song to history so 前の曲 can return to it.
-     skipHistory is set on the very first pick so the song that
-     was playing before random mode isn't treated as random history. */
-  if (!skipHistory && state.currentArtist && state.currentTitle) {
-    artistRandomHistory.push({ artist: state.currentArtist, title: state.currentTitle });
-    if (artistRandomHistory.length > 50) artistRandomHistory.shift();
+function updateShuffleUI() {
+  if (elArtistRandomBtn) {
+    const isArtist = shuffleActive && shuffleKind === 'artist';
+    elArtistRandomBtn.classList.toggle('active', isArtist);
+    elArtistRandomBtn.textContent = isArtist
+      ? '⏹ ランダム再生を停止'
+      : '🎲 このアーティストでランダム再生';
   }
-  let next;
-  if (artistRandomFuture.length) {
-    /* Re-step into a song we previously backed out of */
-    next = artistRandomFuture.pop();
-  } else {
-    if (!artistRandomQueue.length) {
-      if (!artistRandomOriginal.length) { stopArtistRandomPlay(); return; }
-      artistRandomQueue = shuffleArray([...artistRandomOriginal]);
-    }
-    next = artistRandomQueue.shift();
+  if (elRandomPlayBtn) {
+    const isChart = shuffleActive && shuffleKind === 'chart';
+    elRandomPlayBtn.classList.toggle('active', isChart);
+    elRandomPlayBtn.textContent = isChart
+      ? '⏹ おまかせ再生を停止'
+      : '🎲 おまかせ再生（人気ランキング）';
   }
-  if (!next) { stopArtistRandomPlay(); return; }
-  handleSongSearch(next.artist, next.title);
-}
-
-function playPrevInArtistRandom() {
-  if (!artistRandomMode || !artistRandomHistory.length) {
-    setStatus('戻れる曲がありません。', 'error');
-    return;
-  }
-  /* Stash the current song so 次の曲 can return to it */
-  if (state.currentArtist && state.currentTitle) {
-    artistRandomFuture.push({ artist: state.currentArtist, title: state.currentTitle });
-  }
-  const prev = artistRandomHistory.pop();
-  handleSongSearch(prev.artist, prev.title);
-}
-
-function updateArtistRandomUI() {
-  if (!elArtistRandomBtn) return;
-  elArtistRandomBtn.classList.toggle('active', artistRandomMode);
-  elArtistRandomBtn.textContent = artistRandomMode
-    ? '⏹ ランダム再生を停止'
-    : '🎲 このアーティストでランダム再生';
   if (elNextSongBtn) {
-    elNextSongBtn.textContent = artistRandomMode ? '🎲 次の曲 ▶▶' : '次の曲 ▶▶';
+    elNextSongBtn.textContent = shuffleActive ? '🎲 次の曲 ▶▶' : '次の曲 ▶▶';
   }
 }
 
@@ -669,130 +689,60 @@ function exitKaraokeMode() {
 }
 
 /* ============================================================
-   Random YouTube music play
+   おまかせ再生 — Apple Music Japan の人気チャート(トップ100)から
+   曲名+アーティストを取得してシャッフル再生する。
+   ※オリコンは公開APIが無いため、CORS対応の Apple Music RSS を
+     ランキングソースとして利用。
    ============================================================ */
-const RANDOM_SEEDS = [
-  'J-POP ヒット', 'アニメソング', 'ボカロ 人気', 'シティポップ',
-  'ロック 名曲', 'K-POP ヒット', 'EDM 人気', 'R&B 名曲',
-  'インディー 邦楽', 'ポップス 定番', 'バラード 名曲', 'インスト BGM',
-  '90年代 J-POP', '2000年代 J-POP', 'カバー曲', 'アコースティック',
-];
+const TOP_CHART_URL = 'https://rss.applemarketingtools.com/api/v2/jp/music/most-played/100/songs.json';
+let topChartCache = null;
 
-async function fetchTopMusicChart(regionCode) {
-  const key = localStorage.getItem('yt_api_key');
-  if (!key) throw new Error('APIキー未設定');
-  const params = new URLSearchParams({
-    part: 'snippet',
-    chart: 'mostPopular',
-    videoCategoryId: '10',   /* Music */
-    regionCode: regionCode || 'JP',
-    maxResults: '25',
-    key,
-  });
-  const url = `https://www.googleapis.com/youtube/v3/videos?${params}`;
-  const res = await fetchWithTimeout(url, 12000);
-  if (!res.ok) {
-    const body = await res.json().catch(() => ({}));
-    throw new Error(interpretYouTubeError(res.status, body));
-  }
+async function fetchTopChartSongs() {
+  const res = await fetchWithTimeout(TOP_CHART_URL, 12000);
+  if (!res.ok) throw new Error(`ランキング取得エラー (HTTP ${res.status})`);
   const data = await res.json();
-  return (data.items || []).map(it => ({
-    videoId: it.id,
-    title:   it.snippet.title,
-    channel: it.snippet.channelTitle,
-    thumb:   it.snippet.thumbnails?.default?.url || '',
-  }));
+  const results = (data && data.feed && data.feed.results) || [];
+  return results
+    .map(r => ({ artist: (r.artistName || '').trim(), title: (r.name || '').trim() }))
+    .filter(s => s.artist && s.title);
 }
 
 async function handleRandomPlay() {
+  /* Toggle off if a chart shuffle is already running */
+  if (shuffleActive && shuffleKind === 'chart') {
+    stopShufflePlay();
+    setStatus('おまかせ再生を停止しました。', '');
+    return;
+  }
   if (!localStorage.getItem('yt_api_key')) {
     setStatus('YouTube APIキーを先に設定してください。', 'error');
     setApiSetupCollapsed(false);
     return;
   }
 
-  stopArtistRandomPlay();
-
-  setStatus('🎲 人気上位から楽曲を選んでいます...', 'loading');
+  stopShufflePlay();
+  setStatus('🎲 人気ランキングを取得しています...', 'loading');
   hideSongList();
   hideYtResults();
   elRandomPlayBtn.disabled = true;
 
-  let pool = [];
-  let source = 'チャート';
   try {
-    /* Preferred: YouTube most-popular music chart for Japan */
-    pool = await fetchTopMusicChart('JP');
-  } catch (err) {
-    /* Fall back to seed-based search if the chart endpoint fails */
-    console.warn('Chart failed, falling back to seed search:', err);
-    try {
-      const seed = RANDOM_SEEDS[Math.floor(Math.random() * RANDOM_SEEDS.length)];
-      pool = await searchYouTube(seed);
-      source = `「${seed}」検索`;
-    } catch (err2) {
-      setStatus(`ランダム再生に失敗: ${err2.message}`, 'error');
-      elRandomPlayBtn.disabled = false;
+    if (!topChartCache || !topChartCache.length) {
+      topChartCache = await fetchTopChartSongs();
+    }
+    if (!topChartCache.length) {
+      setStatus('ランキングを取得できませんでした。', 'error');
       return;
     }
-  }
-
-  /* Skip ultra-long compilation / mix videos when possible */
-  const filtered = (pool || []).filter(it =>
-    !/\b(\d+\s*時間|\d+\s*hours?|mix|メドレー|作業用|睡眠|playlist|プレイリスト)\b/i.test(it.title)
-  );
-  const finalPool = filtered.length ? filtered : (pool || []);
-  if (!finalPool.length) {
-    setStatus('結果が見つかりませんでした。もう一度試してください。', 'error');
+    startShufflePlay(
+      topChartCache, 'chart',
+      `🎲 人気ランキング上位${topChartCache.length}曲からおまかせ再生中`
+    );
+  } catch (err) {
+    setStatus(`おまかせ再生に失敗: ${err.message}`, 'error');
+  } finally {
     elRandomPlayBtn.disabled = false;
-    return;
   }
-
-  /* Pick from the top 10 for a "popular but varied" feel */
-  const topSlice = finalPool.slice(0, Math.min(10, finalPool.length));
-  const pick = topSlice[Math.floor(Math.random() * topSlice.length)];
-
-  const guess = guessArtistTitle(pick.title) || { artist: pick.channel, title: pick.title };
-  state.currentArtist = guess.artist;
-  state.currentTitle  = guess.title;
-  loadOffsetForCurrentSong();
-
-  state.ytQueue    = finalPool;
-  state.ytQueueIdx = finalPool.indexOf(pick);
-  state.lyrics     = [];
-  state.lrcLines   = [];
-  state.useLrc     = false;
-  enableTransportControls(true);
-
-  fetchLyricsWithFallback(guess.artist, guess.title)
-    .then(raw => {
-      loadLyrics(raw);
-      setStatus(`🎲 ${escapeHTML(pick.title)} — 歌詞も取得しました。`, 'success');
-      if (state.ytPlayer && state.ytReady && !state.useLrc && state.lyrics.length) {
-        try {
-          if (state.ytPlayer.getPlayerState() === YT.PlayerState.PLAYING) startLyricsTimer();
-        } catch (_) {}
-      }
-    })
-    .catch(() => { /* lyrics unavailable */ });
-
-  showYtResults(finalPool, false);
-  loadYtVideo(state.ytQueueIdx);
-  setStatus(`🎲 ${source}より: ${escapeHTML(pick.title)}`, 'success');
-  elRandomPlayBtn.disabled = false;
-}
-
-function guessArtistTitle(videoTitle) {
-  /* Strip parentheses content like (Official Video), [MV], 【...】 */
-  const cleaned = videoTitle
-    .replace(/[\(\[【].*?[\)\]】]/g, '')
-    .replace(/\s+/g, ' ')
-    .trim();
-  const parts = cleaned.split(/\s*[-–—｜|／/]\s*/).filter(Boolean);
-  if (parts.length >= 2) {
-    return { artist: parts[0].trim(), title: parts[1].trim() };
-  }
-  return null;
 }
 
 /* ============================================================
@@ -935,7 +885,7 @@ async function searchYouTube(query) {
    ============================================================ */
 function handleModeSwitch(mode) {
   searchMode = mode;
-  stopArtistRandomPlay();
+  stopShufflePlay();
   document.querySelectorAll('.ly-tab').forEach(tab => {
     const a = tab.dataset.mode === mode;
     tab.classList.toggle('active', a);
@@ -960,7 +910,7 @@ function handleModeSwitch(mode) {
    ============================================================ */
 async function handleFetch(e) {
   e.preventDefault();
-  stopArtistRandomPlay();
+  stopShufflePlay();
   const artist = elArtist.value.trim();
   if (!artist) return;
 
@@ -977,7 +927,7 @@ async function handleFetch(e) {
    Artist search (iTunes)
    ============================================================ */
 async function handleArtistSearch(artist) {
-  stopArtistRandomPlay();
+  stopShufflePlay();
   setStatus(`「${escapeHTML(artist)}」の楽曲を検索中...`, 'loading');
   elFetchBtn.disabled = true;
   hideSongList();
@@ -1163,7 +1113,7 @@ function renderSongListPage() {
       `<span class="ly-song-title">${escapeHTML(song.title)}</span>` +
       `<span class="ly-song-meta">${escapeHTML(parts.join(' · '))}</span>`;
     card.addEventListener('click', () => {
-      stopArtistRandomPlay();
+      stopShufflePlay();
       hideSongList();
       handleSongSearch(song.artist, song.title);
     });
@@ -1248,6 +1198,17 @@ function renderLyricStage(prevLines, current, nextLines, animateCurrent = true) 
       }
     }
   }
+}
+
+/** Show a one-off message (e.g. "歌詞なし") in the centre slot */
+function showStageMessage(msg) {
+  ensureStageSlots();
+  STAGE_SLOTS.forEach((s, i) => {
+    s.textContent = (i === 2) ? msg : '';
+    s.classList.remove('enter');
+  });
+  void STAGE_SLOTS[2].offsetWidth;
+  STAGE_SLOTS[2].classList.add('enter');
 }
 
 /** Re-paint the LRC view based on state.currentIndex */
