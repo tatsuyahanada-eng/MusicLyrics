@@ -877,24 +877,27 @@ body.karaoke-mode #stage .ly-fx { display: block; }
   position: absolute;
   left: 50%;
   top: 50%;
-  width: 34vmin;
-  height: 34vmin;
-  margin: -17vmin 0 0 -17vmin;
-  border: 3px solid rgba(139,92,246,0.55);
+  width: 22vmin;
+  height: 22vmin;
+  border: 1.5px solid rgba(139,92,246,0.26);
   border-radius: 50%;
   opacity: 0;
   will-change: transform, opacity;
-  animation: ly-ripple 7s linear infinite;
+  animation: ly-ripple 9s ease-out infinite;
 }
 
-.ly-ripple:nth-child(2) { animation-delay: 1.75s; border-color: rgba(236,72,153,0.5); }
-.ly-ripple:nth-child(3) { animation-delay: 3.5s;  border-color: rgba(96,165,250,0.48); }
-.ly-ripple:nth-child(4) { animation-delay: 5.25s; border-color: rgba(52,211,153,0.42); }
+/* Scatter the ripples across the stage from their own origins */
+.ly-ripple:nth-child(1) { left: 22%; top: 30%; width: 24vmin; height: 24vmin; border-color: rgba(139,92,246,0.26); animation-delay: 0s;   }
+.ly-ripple:nth-child(2) { left: 80%; top: 24%; width: 18vmin; height: 18vmin; border-color: rgba(236,72,153,0.22); animation-delay: 1.5s; }
+.ly-ripple:nth-child(3) { left: 32%; top: 74%; width: 26vmin; height: 26vmin; border-color: rgba(96,165,250,0.22); animation-delay: 3s;   }
+.ly-ripple:nth-child(4) { left: 84%; top: 68%; width: 20vmin; height: 20vmin; border-color: rgba(52,211,153,0.20); animation-delay: 4.5s; }
+.ly-ripple:nth-child(5) { left: 13%; top: 56%; width: 16vmin; height: 16vmin; border-color: rgba(168,139,250,0.22); animation-delay: 6s;   }
+.ly-ripple:nth-child(6) { left: 62%; top: 86%; width: 22vmin; height: 22vmin; border-color: rgba(244,114,182,0.18); animation-delay: 7.5s; }
 
 @keyframes ly-ripple {
-  0%   { transform: scale(0.2);  opacity: 0; }
-  10%  { opacity: 0.9; }
-  100% { transform: scale(3.6);  opacity: 0; }
+  0%   { transform: translate(-50%, -50%) scale(0.2); opacity: 0; }
+  14%  { opacity: 0.4; }
+  100% { transform: translate(-50%, -50%) scale(2.3); opacity: 0; }
 }
 
 @media (prefers-reduced-motion: reduce) {
