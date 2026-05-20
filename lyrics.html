@@ -13,7 +13,7 @@
   <link rel="icon" href="icon.svg" type="image/svg+xml">
   <link rel="apple-touch-icon" href="icon.svg">
   <title>Music Lyrics</title>
-  <link rel="stylesheet" href="lyrics.css?v=20">
+  <link rel="stylesheet" href="lyrics.css?v=21">
 </head>
 <body class="ly-body">
 
@@ -141,6 +141,12 @@
 
     <!-- Lyrics Stage -->
     <div id="stage" role="region" aria-label="歌詞表示エリア">
+      <div class="ly-fx" aria-hidden="true">
+        <span class="ly-ripple"></span>
+        <span class="ly-ripple"></span>
+        <span class="ly-ripple"></span>
+        <span class="ly-ripple"></span>
+      </div>
       <div id="nowPlaying" class="ly-now-playing"></div>
       <div id="lyricStack" class="ly-lyric-stack"></div>
       <button id="stageExitBtn" type="button" class="ly-stage-exit-btn" aria-label="縮小して戻す">🔽 縮小して戻す</button>
@@ -170,7 +176,7 @@
     </div>
   </div>
 
-  <script src="config.js?v=20"></script>
-  <script src="lyrics.js?v=20"></script>
+  <script src="config.js?v=21"></script>
+  <script src="lyrics.js?v=21"></script>
 </body>
 </html>

@@ -1310,6 +1310,11 @@ function setNowPlayingTitle(artist, title) {
   }
 }
 
+/* Directional entrance variants cycled in fullscreen for a more
+   "Lyric Speaker" feel (up / zoom / left / down / right). */
+const ENTER_DIRS = ['dir-up', 'dir-zoom', 'dir-left', 'dir-down', 'dir-right'];
+let enterDirIdx = 0;
+
 /** Update the 5 vertical slots. animateCurrent triggers the
  *  fade-in animation on the centre line whenever its text
  *  actually changes. */
@@ -1327,10 +1332,15 @@ function renderLyricStage(prevLines, current, nextLines, animateCurrent = true) 
     if (slot.textContent !== texts[i]) {
       slot.textContent = texts[i];
       if (i === 2 && animateCurrent && texts[i]) {
-        slot.classList.remove('enter');
+        slot.classList.remove('enter', ...ENTER_DIRS);
         /* force reflow so the animation restarts */
         void slot.offsetWidth;
         slot.classList.add('enter');
+        /* In fullscreen, vary the entrance direction each line */
+        if (document.fullscreenElement) {
+          slot.classList.add(ENTER_DIRS[enterDirIdx % ENTER_DIRS.length]);
+          enterDirIdx++;
+        }
       }
     }
   }
