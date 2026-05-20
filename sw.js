@@ -1,10 +1,10 @@
 /* Music Lyrics — service worker (app-shell cache) */
-const CACHE = 'music-lyrics-v17';
+const CACHE = 'music-lyrics-v18';
 const SHELL = [
   './',
   './lyrics.html',
-  './lyrics.css?v=17',
-  './lyrics.js?v=17',
+  './lyrics.css?v=18',
+  './lyrics.js?v=18',
   './manifest.json',
   './icon.svg',
   './icon-maskable.svg',

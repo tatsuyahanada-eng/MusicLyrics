@@ -689,21 +689,55 @@ function exitKaraokeMode() {
 }
 
 /* ============================================================
-   おまかせ再生 — Apple Music Japan の人気チャート(トップ100)から
-   曲名+アーティストを取得してシャッフル再生する。
-   ※オリコンは公開APIが無いため、CORS対応の Apple Music RSS を
-     ランキングソースとして利用。
+   おまかせ再生 — iTunes(Apple Music)Japan の人気チャート
+   (トップ曲)から 曲名+アーティストを取得してシャッフル再生。
+   ※オリコンは公開APIが無いため、CORS対応の itunes.apple.com の
+     RSS フィードをランキングソースとして利用（検索APIと同ドメイン）。
    ============================================================ */
-const TOP_CHART_URL = 'https://rss.applemarketingtools.com/api/v2/jp/music/most-played/100/songs.json';
+const TOP_CHART_URL = 'https://itunes.apple.com/jp/rss/topsongs/limit=100/json';
 let topChartCache = null;
+
+/* Fallback list of well-known JP songs, used only if the chart
+   feed can't be fetched, so おまかせ never hard-fails. */
+const FALLBACK_CHART = [
+  { artist: 'YOASOBI', title: '夜に駆ける' },
+  { artist: '米津玄師', title: 'Lemon' },
+  { artist: 'Official髭男dism', title: 'Pretender' },
+  { artist: 'あいみょん', title: 'マリーゴールド' },
+  { artist: 'King Gnu', title: '白日' },
+  { artist: 'LiSA', title: '紅蓮華' },
+  { artist: 'Mrs. GREEN APPLE', title: '青と夏' },
+  { artist: 'back number', title: '高嶺の花子さん' },
+  { artist: 'SUPER BEAVER', title: '美しい日' },
+  { artist: 'Vaundy', title: '怪獣の花唄' },
+  { artist: 'Ado', title: 'うっせぇわ' },
+  { artist: '優里', title: 'ドライフラワー' },
+  { artist: 'Aimer', title: '残響散歌' },
+  { artist: '緑黄色社会', title: 'Mela!' },
+  { artist: 'スピッツ', title: '空も飛べるはず' },
+  { artist: 'Mr.Children', title: '終わりなき旅' },
+  { artist: 'B\'z', title: 'ultra soul' },
+  { artist: 'サザンオールスターズ', title: 'TSUNAMI' },
+  { artist: '宇多田ヒカル', title: 'First Love' },
+  { artist: '中島みゆき', title: '糸' },
+  { artist: 'いきものがかり', title: 'ありがとう' },
+  { artist: 'RADWIMPS', title: '前前前世' },
+  { artist: 'ヨルシカ', title: '花に亡霊' },
+  { artist: 'Saucy Dog', title: 'シンデレラボーイ' },
+  { artist: '藤井 風', title: '死ぬのがいいわ' },
+];
 
 async function fetchTopChartSongs() {
   const res = await fetchWithTimeout(TOP_CHART_URL, 12000);
   if (!res.ok) throw new Error(`ランキング取得エラー (HTTP ${res.status})`);
   const data = await res.json();
-  const results = (data && data.feed && data.feed.results) || [];
-  return results
-    .map(r => ({ artist: (r.artistName || '').trim(), title: (r.name || '').trim() }))
+  let entries = (data && data.feed && data.feed.entry) || [];
+  if (!Array.isArray(entries)) entries = [entries];
+  return entries
+    .map(e => ({
+      artist: (e && e['im:artist'] && e['im:artist'].label || '').trim(),
+      title:  (e && e['im:name']   && e['im:name'].label   || '').trim(),
+    }))
     .filter(s => s.artist && s.title);
 }
 
@@ -728,15 +762,19 @@ async function handleRandomPlay() {
 
   try {
     if (!topChartCache || !topChartCache.length) {
-      topChartCache = await fetchTopChartSongs();
+      try {
+        topChartCache = await fetchTopChartSongs();
+      } catch (e) {
+        /* Network/CORS issue — fall back to the curated list */
+        console.warn('Chart fetch failed, using fallback list:', e);
+        topChartCache = FALLBACK_CHART.slice();
+      }
     }
-    if (!topChartCache.length) {
-      setStatus('ランキングを取得できませんでした。', 'error');
-      return;
-    }
+    if (!topChartCache.length) topChartCache = FALLBACK_CHART.slice();
+
     startShufflePlay(
       topChartCache, 'chart',
-      `🎲 人気ランキング上位${topChartCache.length}曲からおまかせ再生中`
+      `🎲 人気曲${topChartCache.length}曲からおまかせ再生中`
     );
   } catch (err) {
     setStatus(`おまかせ再生に失敗: ${err.message}`, 'error');
