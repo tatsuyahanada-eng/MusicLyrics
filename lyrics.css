@@ -795,7 +795,9 @@ body.karaoke-mode #stage {
   border-top: 1px solid var(--ly-border);
 }
 
-body.karaoke-mode .ly-exit-karaoke-btn {
+body.karaoke-mode .ly-exit-karaoke-btn { display: none; }
+
+body.karaoke-mode.fs-controls-visible .ly-exit-karaoke-btn {
   display: inline-flex;
   position: fixed;
   top: 14px;
@@ -834,10 +836,75 @@ body.karaoke-mode .ly-exit-karaoke-btn:active { transform: scale(0.96); }
     var(--ly-bg);
   display: flex;
   flex-direction: column;
+}
+
+/* Now-playing song title (small, top of stage) */
+.ly-now-playing {
+  flex-shrink: 0;
+  text-align: center;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--ly-muted);
+  padding: 10px 14px 4px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  opacity: 0;
+  transition: opacity 0.3s;
+}
+
+.ly-now-playing.visible { opacity: 1; }
+
+/* Lyric stack — fills the rest, centred */
+.ly-lyric-stack {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
   justify-content: center;
   align-items: center;
-  padding: 18px 14px;
   gap: 6px;
+  padding: 6px 14px 16px;
+  overflow: hidden;
+}
+
+/* Lyrics-only fullscreen: only the stage is shown; make it shine */
+#stage:fullscreen {
+  background: linear-gradient(180deg, #0d0d14 0%, #1a1a2e 100%);
+}
+#stage:fullscreen .ly-now-playing { font-size: 1rem; padding-top: 18px; }
+#stage:fullscreen .ly-line-current { font-size: clamp(2.2rem, 7.5vw, 5rem); }
+#stage:fullscreen .ly-line-past,
+#stage:fullscreen .ly-line-next { font-size: clamp(1.1rem, 3vw, 1.9rem); }
+#stage:fullscreen .ly-line-far-past,
+#stage:fullscreen .ly-line-far-next { font-size: clamp(0.9rem, 2vw, 1.35rem); }
+
+/* Shrink button inside the stage (lyrics-only fullscreen) */
+.ly-stage-exit-btn { display: none; }
+
+body.lyrics-fs.fs-controls-visible .ly-stage-exit-btn {
+  display: inline-flex;
+  position: fixed;
+  top: 14px;
+  right: 14px;
+  z-index: 130;
+  background: rgba(124,58,237,0.9);
+  color: #fff;
+  border: 1px solid rgba(255,255,255,0.55);
+  padding: 9px 16px;
+  border-radius: 999px;
+  font-size: 0.9rem;
+  font-weight: 700;
+  cursor: pointer;
+  backdrop-filter: blur(6px);
+  box-shadow: 0 4px 14px rgba(0,0,0,0.5);
+  align-items: center;
+  touch-action: manipulation;
+}
+
+body.lyrics-fs.fs-controls-visible .ly-stage-exit-btn:hover {
+  background: #ec4899;
+  border-color: #ec4899;
 }
 
 .ly-line {
@@ -1165,6 +1232,9 @@ body.karaoke-mode .ly-exit-karaoke-btn:active { transform: scale(0.96); }
   .ly-time-inline { font-size: 0.68rem; min-width: 32px; }
   .ly-lyrics-bar-row .ly-time-inline { min-width: 38px; }
   .ly-player-overlay-btn { width: 28px; height: 28px; font-size: 0.85rem; }
+  .ly-player-icon-btn { width: 30px; height: 30px; font-size: 0.85rem; }
+  .ly-player-footer { gap: 3px; padding: 5px 4px; }
+  .ly-player-footer .ly-next-btn { font-size: 0.74rem; padding: 6px 4px; }
   .ly-random-btn { font-size: 0.92rem; padding: 10px 14px; min-height: 44px; }
 
   .ly-ctrl-top { gap: 6px; }

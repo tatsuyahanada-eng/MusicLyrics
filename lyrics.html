@@ -13,7 +13,7 @@
   <link rel="icon" href="icon.svg" type="image/svg+xml">
   <link rel="apple-touch-icon" href="icon.svg">
   <title>Music Lyrics</title>
-  <link rel="stylesheet" href="lyrics.css?v=19">
+  <link rel="stylesheet" href="lyrics.css?v=20">
 </head>
 <body class="ly-body">
 
@@ -132,6 +132,7 @@
       </div>
       <div class="ly-player-footer">
         <button id="fullscreenBtn"    type="button" class="ly-player-icon-btn" title="カラオケモード（動画＋歌詞のフルスクリーン）" aria-label="カラオケモード">🎬</button>
+        <button id="lyricsFsBtn"      type="button" class="ly-player-icon-btn" title="歌詞だけを全画面表示" aria-label="歌詞のみ全画面">📃</button>
         <button id="openInYoutubeBtn" type="button" class="ly-player-icon-btn" title="YouTubeで開く" aria-label="YouTubeで開く">↗</button>
         <button id="prevSongBtn"      type="button" class="ly-player-icon-btn" title="前の曲" aria-label="前の曲" disabled>◀◀</button>
         <button id="nextSongBtn"      type="button" class="ly-next-btn" disabled>次の曲 ▶▶</button>
@@ -139,7 +140,11 @@
     </div>
 
     <!-- Lyrics Stage -->
-    <div id="stage" role="region" aria-label="歌詞表示エリア"></div>
+    <div id="stage" role="region" aria-label="歌詞表示エリア">
+      <div id="nowPlaying" class="ly-now-playing"></div>
+      <div id="lyricStack" class="ly-lyric-stack"></div>
+      <button id="stageExitBtn" type="button" class="ly-stage-exit-btn" aria-label="縮小して戻す">🔽 縮小して戻す</button>
+    </div>
 
     <!-- Exit-karaoke button (only visible in karaoke mode) -->
     <button id="exitKaraokeBtn" type="button" class="ly-exit-karaoke-btn" aria-label="元のサイズに戻す">🔽 縮小して戻す</button>
@@ -165,7 +170,7 @@
     </div>
   </div>
 
-  <script src="config.js?v=19"></script>
-  <script src="lyrics.js?v=19"></script>
+  <script src="config.js?v=20"></script>
+  <script src="lyrics.js?v=20"></script>
 </body>
 </html>

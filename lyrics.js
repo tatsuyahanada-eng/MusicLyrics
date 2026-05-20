@@ -65,7 +65,8 @@ let elArtist, elTitle, elTitleWrap, elFetchBtn, elSearchHint, elStatus,
     elLyricsOffsetBar, elLyricsOffsetDisplay,
     elLyricsStartBtn, elLyricsResetBtn,
     elRandomPlayBtn, elOpenInYoutubeBtn, elFullscreenBtn,
-    elExitKaraokeBtn, elArtistRandomBtn;
+    elExitKaraokeBtn, elArtistRandomBtn,
+    elNowPlaying, elLyricStack, elStageExitBtn, elLyricsFsBtn;
 
 /* ============================================================
    API key access — a site-wide key set in config.js takes
@@ -92,6 +93,9 @@ function init() {
   elSearchHint     = document.getElementById('searchHint');
   elStatus         = document.getElementById('status');
   elStage          = document.getElementById('stage');
+  elNowPlaying     = document.getElementById('nowPlaying');
+  elLyricStack     = document.getElementById('lyricStack');
+  elStageExitBtn   = document.getElementById('stageExitBtn');
   elPlayPauseBtn   = document.getElementById('playPauseBtn');
   elTimer          = document.getElementById('timer');
   elDuration       = document.getElementById('duration');
@@ -129,6 +133,7 @@ function init() {
   elRandomPlayBtn  = document.getElementById('randomPlayBtn');
   elOpenInYoutubeBtn = document.getElementById('openInYoutubeBtn');
   elFullscreenBtn  = document.getElementById('fullscreenBtn');
+  elLyricsFsBtn    = document.getElementById('lyricsFsBtn');
   elExitKaraokeBtn = document.getElementById('exitKaraokeBtn');
   elArtistRandomBtn = document.getElementById('artistRandomBtn');
 
@@ -138,11 +143,21 @@ function init() {
   elArtistRandomBtn.addEventListener('click', toggleArtistRandomPlay);
   elOpenInYoutubeBtn.addEventListener('click', openInYouTube);
   elFullscreenBtn.addEventListener('click', enterKaraokeMode);
+  elLyricsFsBtn.addEventListener('click', enterLyricsFullscreen);
   elExitKaraokeBtn.addEventListener('click', exitKaraokeMode);
+  elStageExitBtn.addEventListener('click', () => {
+    if (document.exitFullscreen) document.exitFullscreen().catch(() => {});
+  });
 
-  /* Keep karaoke class in sync with actual fullscreen state */
+  /* Keep fullscreen body classes & auto-hiding controls in sync */
   document.addEventListener('fullscreenchange', () => {
-    if (!document.fullscreenElement) document.body.classList.remove('karaoke-mode');
+    if (!document.fullscreenElement) {
+      document.body.classList.remove('karaoke-mode');
+      document.body.classList.remove('lyrics-fs');
+      teardownFsControls();
+    } else {
+      setupFsControls();
+    }
   });
 
   updateLyricsStartUI();
@@ -708,6 +723,54 @@ function exitKaraokeMode() {
   }
 }
 
+/**
+ * Lyrics-only fullscreen: fullscreen just the stage so only the
+ * title + lyrics show. The video iframe stays in the DOM (audio
+ * keeps playing) but isn't part of the fullscreen view.
+ */
+function enterLyricsFullscreen() {
+  if (!elStage) return;
+  const req = elStage.requestFullscreen
+           || elStage.webkitRequestFullscreen
+           || elStage.msRequestFullscreen;
+  if (!req) {
+    setStatus('このブラウザは全画面表示に対応していません。', 'error');
+    return;
+  }
+  document.body.classList.add('lyrics-fs');
+  Promise.resolve(req.call(elStage)).catch(err => {
+    document.body.classList.remove('lyrics-fs');
+    setStatus(`全画面化に失敗: ${err.message || err}`, 'error');
+  });
+}
+
+/* ---- Auto-hiding fullscreen controls (shrink button) ---- */
+let fsHideTimer = null;
+const FS_ACTIVITY_EVENTS = ['mousemove', 'pointerdown', 'touchstart', 'keydown'];
+
+function setupFsControls() {
+  pokeFsControls();
+  FS_ACTIVITY_EVENTS.forEach(ev =>
+    document.addEventListener(ev, pokeFsControls, { passive: true })
+  );
+}
+
+function teardownFsControls() {
+  FS_ACTIVITY_EVENTS.forEach(ev => document.removeEventListener(ev, pokeFsControls));
+  clearTimeout(fsHideTimer);
+  document.body.classList.remove('fs-controls-visible');
+}
+
+/* Show the shrink button, then fade it out after a few seconds
+   of no mouse/touch activity. */
+function pokeFsControls() {
+  document.body.classList.add('fs-controls-visible');
+  clearTimeout(fsHideTimer);
+  fsHideTimer = setTimeout(() => {
+    document.body.classList.remove('fs-controls-visible');
+  }, 2800);
+}
+
 /* ============================================================
    おまかせ再生 — iTunes(Apple Music)Japan の人気チャート
    (トップ曲)から 曲名+アーティストを取得してシャッフル再生。
@@ -1060,6 +1123,7 @@ async function handleSongSearch(artist, title, opts = {}) {
   state.currentArtist = artist;
   state.currentTitle  = title;
   loadOffsetForCurrentSong();
+  setNowPlayingTitle(artist, title);
 
   setStatus(`「${escapeHTML(title)}」を検索中...`, 'loading');
   elFetchBtn.disabled = true;
@@ -1221,15 +1285,29 @@ function hideYtResults() { elYtResults.hidden = true; }
    Lyric display — rect collision + vertical band rotation
    ============================================================ */
 function ensureStageSlots() {
-  if (STAGE_SLOTS.length === 5 && elStage.contains(STAGE_SLOTS[0])) return;
+  if (STAGE_SLOTS.length === 5 && elLyricStack && elLyricStack.contains(STAGE_SLOTS[0])) return;
   STAGE_SLOTS.length = 0;
-  elStage.innerHTML = '';
+  elLyricStack.innerHTML = '';
   STAGE_SLOT_CLASSES.forEach(cls => {
     const el = document.createElement('div');
     el.className = `ly-line ${cls}`;
-    elStage.appendChild(el);
+    elLyricStack.appendChild(el);
     STAGE_SLOTS.push(el);
   });
+}
+
+/** Set the small now-playing title above the lyrics */
+function setNowPlayingTitle(artist, title) {
+  if (!elNowPlaying) return;
+  const t = (title || '').trim();
+  const a = (artist || '').trim();
+  if (t) {
+    elNowPlaying.textContent = a ? `♪ ${t} — ${a}` : `♪ ${t}`;
+    elNowPlaying.classList.add('visible');
+  } else {
+    elNowPlaying.textContent = '';
+    elNowPlaying.classList.remove('visible');
+  }
 }
 
 /** Update the 5 vertical slots. animateCurrent triggers the
