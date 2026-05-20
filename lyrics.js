@@ -145,8 +145,13 @@ function init() {
   elFullscreenBtn.addEventListener('click', enterKaraokeMode);
   elLyricsFsBtn.addEventListener('click', enterLyricsFullscreen);
   elExitKaraokeBtn.addEventListener('click', exitKaraokeMode);
-  elStageExitBtn.addEventListener('click', () => {
-    if (document.exitFullscreen) document.exitFullscreen().catch(() => {});
+  elStageExitBtn.addEventListener('click', exitLyricsFullscreen);
+
+  /* Esc to leave the maximized view even when not in real fullscreen */
+  document.addEventListener('keydown', (e) => {
+    if (e.key !== 'Escape') return;
+    if (document.body.classList.contains('lyrics-fs')) exitLyricsFullscreen();
+    else if (document.body.classList.contains('karaoke-mode')) exitKaraokeMode();
   });
 
   /* Keep fullscreen body classes & auto-hiding controls in sync */
@@ -696,52 +701,60 @@ function openInYouTube() {
   window.open(url, '_blank', 'noopener,noreferrer');
 }
 
-/**
- * Enter karaoke fullscreen: video on top (50vh), lyrics below.
- * Must be called from a user-gesture context (e.g. click handler).
- */
-function enterKaraokeMode() {
-  if (document.body.classList.contains('karaoke-mode') && document.fullscreenElement) return;
-  document.body.classList.add('karaoke-mode');
-  const req = document.documentElement.requestFullscreen
-           || document.documentElement.webkitRequestFullscreen
-           || document.documentElement.msRequestFullscreen;
-  if (!req) {
-    setStatus('このブラウザは全画面表示に対応していません。', 'error');
-    return;
-  }
-  Promise.resolve(req.call(document.documentElement)).catch(err => {
-    /* Fullscreen rejected (no user gesture). Karaoke layout still visible. */
-    console.warn('Fullscreen request rejected:', err);
-  });
+/* Best-effort native fullscreen. Works on desktop/Android; iOS
+   Safari ignores it for non-video elements — that's fine because
+   the maximized look is driven by CSS body classes, not the
+   Fullscreen API. */
+function tryRequestFullscreen(el) {
+  const req = el && (el.requestFullscreen || el.webkitRequestFullscreen || el.msRequestFullscreen);
+  if (!req) return;
+  try { Promise.resolve(req.call(el)).catch(() => {}); } catch (_) {}
 }
 
-function exitKaraokeMode() {
-  document.body.classList.remove('karaoke-mode');
+function tryExitFullscreen() {
   if (document.fullscreenElement && document.exitFullscreen) {
     document.exitFullscreen().catch(() => {});
   }
 }
 
 /**
- * Lyrics-only fullscreen: fullscreen just the stage so only the
- * title + lyrics show. The video iframe stays in the DOM (audio
- * keeps playing) but isn't part of the fullscreen view.
+ * Karaoke mode: video on top (50vh), lyrics below. The maximized
+ * layout is a CSS overlay (body.karaoke-mode), so it works even
+ * where the Fullscreen API is unavailable; we still request real
+ * fullscreen as an enhancement.
+ */
+function enterKaraokeMode() {
+  if (document.body.classList.contains('karaoke-mode')) return;
+  document.body.classList.remove('lyrics-fs');
+  document.body.classList.add('karaoke-mode');
+  setupFsControls();
+  tryRequestFullscreen(document.documentElement);
+}
+
+function exitKaraokeMode() {
+  document.body.classList.remove('karaoke-mode');
+  teardownFsControls();
+  tryExitFullscreen();
+}
+
+/**
+ * Lyrics-only mode: show just the title + lyrics, covering the
+ * viewport via a CSS overlay (body.lyrics-fs). The video iframe
+ * stays in the DOM so audio keeps playing.
  */
 function enterLyricsFullscreen() {
   if (!elStage) return;
-  const req = elStage.requestFullscreen
-           || elStage.webkitRequestFullscreen
-           || elStage.msRequestFullscreen;
-  if (!req) {
-    setStatus('このブラウザは全画面表示に対応していません。', 'error');
-    return;
-  }
+  if (document.body.classList.contains('lyrics-fs')) return;
+  document.body.classList.remove('karaoke-mode');
   document.body.classList.add('lyrics-fs');
-  Promise.resolve(req.call(elStage)).catch(err => {
-    document.body.classList.remove('lyrics-fs');
-    setStatus(`全画面化に失敗: ${err.message || err}`, 'error');
-  });
+  setupFsControls();
+  tryRequestFullscreen(elStage);
+}
+
+function exitLyricsFullscreen() {
+  document.body.classList.remove('lyrics-fs');
+  teardownFsControls();
+  tryExitFullscreen();
 }
 
 /* ---- Auto-hiding fullscreen controls (shrink button) ---- */
@@ -749,6 +762,8 @@ let fsHideTimer = null;
 const FS_ACTIVITY_EVENTS = ['mousemove', 'pointerdown', 'touchstart', 'keydown'];
 
 function setupFsControls() {
+  /* idempotent: drop any existing listeners before re-adding */
+  FS_ACTIVITY_EVENTS.forEach(ev => document.removeEventListener(ev, pokeFsControls));
   pokeFsControls();
   FS_ACTIVITY_EVENTS.forEach(ev =>
     document.addEventListener(ev, pokeFsControls, { passive: true })
