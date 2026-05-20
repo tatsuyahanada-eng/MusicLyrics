@@ -68,6 +68,20 @@ let elArtist, elTitle, elTitleWrap, elFetchBtn, elSearchHint, elStatus,
     elExitKaraokeBtn, elArtistRandomBtn;
 
 /* ============================================================
+   API key access — a site-wide key set in config.js takes
+   priority over a per-user key in localStorage.
+   ============================================================ */
+function getBuiltinKey() {
+  try {
+    return (window.MUSIC_LYRICS_CONFIG && window.MUSIC_LYRICS_CONFIG.YT_API_KEY || '').trim();
+  } catch (_) { return ''; }
+}
+
+function getApiKey() {
+  return getBuiltinKey() || localStorage.getItem('yt_api_key') || '';
+}
+
+/* ============================================================
    Bootstrap
    ============================================================ */
 function init() {
@@ -135,14 +149,20 @@ function init() {
 
   if (elCurrentOrigin) elCurrentOrigin.textContent = location.origin || location.href;
 
-  const saved = localStorage.getItem('yt_api_key');
-  if (saved) {
-    elApiKeyInput.value = saved;
-    const verified = localStorage.getItem('yt_api_key_verified') === '1';
-    setApiKeyStatus(verified ? 'verified' : 'saved', saved);
-    if (verified) setApiSetupCollapsed(true);
+  /* A site-wide key in config.js takes over: hide the whole
+     API-key panel so end users never see or enter a key. */
+  if (getBuiltinKey()) {
+    if (elApiSetup) elApiSetup.hidden = true;
   } else {
-    setApiKeyStatus('empty');
+    const saved = localStorage.getItem('yt_api_key');
+    if (saved) {
+      elApiKeyInput.value = saved;
+      const verified = localStorage.getItem('yt_api_key_verified') === '1';
+      setApiKeyStatus(verified ? 'verified' : 'saved', saved);
+      if (verified) setApiSetupCollapsed(true);
+    } else {
+      setApiKeyStatus('empty');
+    }
   }
 
   elToggleApiSetup.addEventListener('click', () => {
@@ -748,7 +768,7 @@ async function handleRandomPlay() {
     setStatus('おまかせ再生を停止しました。', '');
     return;
   }
-  if (!localStorage.getItem('yt_api_key')) {
+  if (!getApiKey()) {
     setStatus('YouTube APIキーを先に設定してください。', 'error');
     setApiSetupCollapsed(false);
     return;
@@ -890,7 +910,7 @@ function interpretYouTubeError(status, body) {
 }
 
 async function searchYouTube(query) {
-  const key = localStorage.getItem('yt_api_key');
+  const key = getApiKey();
   if (!key) {
     const e = new Error('YouTubeのAPIキーが未設定です。上部の欄でキーを保存してください。');
     e.code = 'NO_KEY';
@@ -903,7 +923,7 @@ async function searchYouTube(query) {
   const res = await fetchWithTimeout(`${YT_SEARCH}?${params}`, 12000);
   if (!res.ok) {
     const body = await res.json().catch(() => ({}));
-    if (res.status === 400 || res.status === 403) {
+    if ((res.status === 400 || res.status === 403) && !getBuiltinKey()) {
       localStorage.removeItem('yt_api_key_verified');
       setApiKeyStatus('invalid', key);
     }
