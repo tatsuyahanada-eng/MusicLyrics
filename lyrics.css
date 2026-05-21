@@ -658,35 +658,76 @@
 
 .ly-lyrics-bar-row .ly-time-inline { color: #f9a8d4; min-width: 48px; }
 
-/* ---- Lyrics offset nudge buttons ---- */
+/* ---- Lyrics offset nudge buttons (small) ---- */
 .ly-offset-step {
-  flex: 1;
-  min-width: 0;
-  padding: 7px 8px;
+  flex: 0 0 auto;
+  padding: 4px 10px;
   background: rgba(236,72,153,0.14);
   border: 1px solid rgba(236,72,153,0.4);
   color: #f9a8d4;
   border-radius: 6px;
-  font-size: 0.78rem;
+  font-size: 0.72rem;
   font-weight: 700;
   cursor: pointer;
   white-space: nowrap;
   touch-action: manipulation;
-  min-height: 34px;
+  min-height: 28px;
   transition: background 0.12s, transform 0.08s;
 }
 .ly-offset-step:hover { background: rgba(236,72,153,0.28); }
 .ly-offset-step:active { transform: scale(0.95); }
 
 .ly-offset-val {
-  font-size: 0.82rem;
+  flex: 1;
+  font-size: 0.8rem;
   font-variant-numeric: tabular-nums;
   color: #f9a8d4;
-  min-width: 54px;
   text-align: center;
   font-weight: 700;
-  flex-shrink: 0;
 }
+
+/* ---- Mini buttons on the lyrics stage (歌詞START / style) ---- */
+.ly-stage-controls {
+  position: absolute;
+  top: 6px;
+  right: 8px;
+  z-index: 5;
+  display: flex;
+  gap: 5px;
+  align-items: center;
+}
+
+.ly-mini-btn {
+  padding: 4px 8px;
+  font-size: 0.7rem;
+  font-weight: 700;
+  background: rgba(0,0,0,0.45);
+  border: 1px solid rgba(255,255,255,0.25);
+  color: #e2e8f0;
+  border-radius: 6px;
+  cursor: pointer;
+  white-space: nowrap;
+  backdrop-filter: blur(4px);
+  touch-action: manipulation;
+  min-height: 28px;
+  transition: background 0.15s, border-color 0.15s, transform 0.1s;
+}
+.ly-mini-btn:hover { background: rgba(124,58,237,0.6); border-color: var(--ly-primary); }
+.ly-mini-btn:active { transform: scale(0.94); }
+.ly-mini-btn.active { background: rgba(52,211,153,0.35); border-color: #34d399; color: #6ee7b7; }
+.ly-mini-btn.flash { animation: ly-mini-flash 0.7s ease; }
+
+@keyframes ly-mini-flash {
+  0%   { transform: scale(1); }
+  30%  { transform: scale(1.12); background: #34d399; color: #064e3b; border-color: #34d399; }
+  100% { transform: scale(1); }
+}
+
+/* Auto-hide the stage controls in fullscreen, like the exit btn */
+body.lyrics-fs .ly-stage-controls,
+body.karaoke-mode .ly-stage-controls { opacity: 0; pointer-events: none; transition: opacity 0.3s; }
+body.lyrics-fs.fs-controls-visible .ly-stage-controls,
+body.karaoke-mode.fs-controls-visible .ly-stage-controls { opacity: 1; pointer-events: auto; }
 
 /* ---- Display style toggle button ---- */
 .ly-style-toggle {
@@ -853,7 +894,7 @@ body.karaoke-mode.fs-controls-visible .ly-exit-karaoke-btn {
   display: inline-flex;
   position: fixed;
   top: 14px;
-  right: 14px;
+  left: 14px;
   z-index: 120;
   background: rgba(124,58,237,0.9);
   color: #fff;
@@ -931,25 +972,25 @@ body.karaoke-mode #stage .ly-fx { display: block; }
   top: 50%;
   width: 22vmin;
   height: 22vmin;
-  border: 2px solid rgba(139,92,246,0.5);
+  border: 2.5px solid rgba(139,92,246,0.7);
   border-radius: 50%;
-  box-shadow: 0 0 18px rgba(139,92,246,0.25);
+  box-shadow: 0 0 26px rgba(139,92,246,0.4);
   opacity: 0;
   will-change: transform, opacity;
-  animation: ly-ripple 8s ease-out infinite;
+  animation: ly-ripple 7.5s ease-out infinite;
 }
 
 /* Scatter the ripples across the stage from their own origins */
-.ly-ripple:nth-child(1) { left: 22%; top: 30%; width: 24vmin; height: 24vmin; border-color: rgba(139,92,246,0.5);  box-shadow: 0 0 18px rgba(139,92,246,0.25); animation-delay: 0s;   }
-.ly-ripple:nth-child(2) { left: 80%; top: 24%; width: 18vmin; height: 18vmin; border-color: rgba(236,72,153,0.45); box-shadow: 0 0 18px rgba(236,72,153,0.22); animation-delay: 1.3s; }
-.ly-ripple:nth-child(3) { left: 32%; top: 74%; width: 26vmin; height: 26vmin; border-color: rgba(96,165,250,0.45); box-shadow: 0 0 18px rgba(96,165,250,0.22); animation-delay: 2.6s; }
-.ly-ripple:nth-child(4) { left: 84%; top: 68%; width: 20vmin; height: 20vmin; border-color: rgba(52,211,153,0.42); box-shadow: 0 0 18px rgba(52,211,153,0.2);  animation-delay: 3.9s; }
-.ly-ripple:nth-child(5) { left: 13%; top: 56%; width: 16vmin; height: 16vmin; border-color: rgba(168,139,250,0.45); box-shadow: 0 0 18px rgba(168,139,250,0.22); animation-delay: 5.2s; }
-.ly-ripple:nth-child(6) { left: 62%; top: 86%; width: 22vmin; height: 22vmin; border-color: rgba(244,114,182,0.4);  box-shadow: 0 0 18px rgba(244,114,182,0.2);  animation-delay: 6.5s; }
+.ly-ripple:nth-child(1) { left: 22%; top: 30%; width: 24vmin; height: 24vmin; border-color: rgba(139,92,246,0.7);  box-shadow: 0 0 26px rgba(139,92,246,0.4);  animation-delay: 0s;   }
+.ly-ripple:nth-child(2) { left: 80%; top: 24%; width: 18vmin; height: 18vmin; border-color: rgba(236,72,153,0.65); box-shadow: 0 0 26px rgba(236,72,153,0.38); animation-delay: 1.3s; }
+.ly-ripple:nth-child(3) { left: 32%; top: 74%; width: 26vmin; height: 26vmin; border-color: rgba(96,165,250,0.62); box-shadow: 0 0 26px rgba(96,165,250,0.36); animation-delay: 2.6s; }
+.ly-ripple:nth-child(4) { left: 84%; top: 68%; width: 20vmin; height: 20vmin; border-color: rgba(52,211,153,0.58); box-shadow: 0 0 26px rgba(52,211,153,0.34); animation-delay: 3.9s; }
+.ly-ripple:nth-child(5) { left: 13%; top: 56%; width: 16vmin; height: 16vmin; border-color: rgba(168,139,250,0.62); box-shadow: 0 0 26px rgba(168,139,250,0.36); animation-delay: 5.2s; }
+.ly-ripple:nth-child(6) { left: 62%; top: 86%; width: 22vmin; height: 22vmin; border-color: rgba(244,114,182,0.55); box-shadow: 0 0 26px rgba(244,114,182,0.32); animation-delay: 6.5s; }
 
 @keyframes ly-ripple {
   0%   { transform: translate(-50%, -50%) scale(0.2); opacity: 0; }
-  15%  { opacity: 0.6; }
+  15%  { opacity: 0.85; }
   100% { transform: translate(-50%, -50%) scale(2.3); opacity: 0; }
 }
 
@@ -1033,7 +1074,7 @@ body.lyrics-fs.fs-controls-visible .ly-stage-exit-btn {
   display: inline-flex;
   position: fixed;
   top: 14px;
-  right: 14px;
+  left: 14px;
   z-index: 130;
   background: rgba(124,58,237,0.9);
   color: #fff;

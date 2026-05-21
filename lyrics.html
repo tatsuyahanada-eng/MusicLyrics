@@ -13,7 +13,7 @@
   <link rel="icon" href="icon.svg" type="image/svg+xml">
   <link rel="apple-touch-icon" href="icon.svg">
   <title>Music Lyrics</title>
-  <link rel="stylesheet" href="lyrics.css?v=25">
+  <link rel="stylesheet" href="lyrics.css?v=26">
 </head>
 <body class="ly-body">
 
@@ -126,9 +126,9 @@
         </div>
         <div class="ly-bar-row ly-lyrics-bar-row">
           <span class="ly-bar-label" title="歌詞のタイミング調整">📝</span>
-          <button id="offsetEarlierBtn" type="button" class="ly-offset-step" title="歌詞を早める（0.3秒）">◀ 早める</button>
+          <button id="offsetLaterBtn" type="button" class="ly-offset-step" title="歌詞を遅らせる（0.3秒）">遅らせる</button>
           <span id="lyricsOffsetDisplay" class="ly-offset-val">±0.0s</span>
-          <button id="offsetLaterBtn" type="button" class="ly-offset-step" title="歌詞を遅らせる（0.3秒）">遅らせる ▶</button>
+          <button id="offsetEarlierBtn" type="button" class="ly-offset-step" title="歌詞を早める（0.3秒）">早める</button>
         </div>
       </div>
       <div class="ly-player-footer">
@@ -151,6 +151,11 @@
         <span class="ly-ripple"></span>
       </div>
       <div id="nowPlaying" class="ly-now-playing"></div>
+      <div class="ly-stage-controls">
+        <button id="lyricsStartBtn" type="button" class="ly-mini-btn" title="今この瞬間を歌詞の開始点にする（曲ごとに保存）">🎯START</button>
+        <button id="lyricsResetBtn" type="button" class="ly-mini-btn" title="歌詞タイミングをリセット" hidden>↺</button>
+        <button id="styleToggleBtn" type="button" class="ly-mini-btn" title="表示スタイル切替（スタック ↔ ランダム）">🎨ランダム</button>
+      </div>
       <div id="lyricStack" class="ly-lyric-stack"></div>
       <div id="scatterLayer" class="ly-scatter-layer" aria-hidden="true"></div>
       <button id="stageExitBtn" type="button" class="ly-stage-exit-btn" aria-label="縮小して戻す">🔽 縮小して戻す</button>
@@ -166,22 +171,12 @@
       <button id="seekBackBtn"   class="ly-ctrl-btn" aria-label="-10秒" disabled>⏪</button>
       <button id="playPauseBtn" class="ly-play-btn" aria-label="再生"  disabled>▶</button>
       <button id="seekFwdBtn"    class="ly-ctrl-btn" aria-label="+10秒" disabled>⏩</button>
-      <label class="ly-speed-label" for="speedSelect">速度</label>
-      <select id="speedSelect" class="ly-speed-select">
-        <option value="slow">ゆっくり</option>
-        <option value="normal" selected>普通</option>
-        <option value="fast">速い</option>
-        <option value="veryfast">最速</option>
-      </select>
-      <button id="lyricsStartBtn" type="button" class="ly-lyrics-start-btn" title="今この瞬間を歌詞の開始点にする（曲ごとに保存）">🎯 歌詞START</button>
-      <button id="lyricsResetBtn" type="button" class="ly-lyrics-reset-btn" title="歌詞タイミングをリセット" hidden>↺</button>
-      <button id="styleToggleBtn" type="button" class="ly-style-toggle" title="歌詞の表示スタイルを切替（スタック ↔ ちらし）">🎨 ちらし</button>
       <label class="ly-vol-label" for="volumeSlider">🔊</label>
       <input  id="volumeSlider" class="ly-volume" type="range" min="0" max="100" value="80">
     </div>
   </div>
 
-  <script src="config.js?v=25"></script>
-  <script src="lyrics.js?v=25"></script>
+  <script src="config.js?v=26"></script>
+  <script src="lyrics.js?v=26"></script>
 </body>
 </html>

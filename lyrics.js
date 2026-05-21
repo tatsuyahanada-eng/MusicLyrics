@@ -55,7 +55,7 @@ let plainHistory = [];   /* last few lines shown in plain (non-LRC) mode */
 
 /* ---- DOM refs ---- */
 let elArtist, elTitle, elTitleWrap, elFetchBtn, elSearchHint, elStatus,
-    elStage, elPlayPauseBtn, elTimer, elDuration, elSpeedSelect,
+    elStage, elPlayPauseBtn, elTimer, elDuration,
     elVolumeSlider, elProgressBar, elSeekBack, elSeekFwd, elNextSongBtn, elPrevSongBtn,
     elSongList, elSongListInfo, elSongCards, elPageInfo, elPrevPageBtn, elNextPageBtn,
     elCloseSongList, elYtResults, elYtResultsInfo, elYtResultCards, elCloseYtResults,
@@ -102,7 +102,6 @@ function init() {
   elPlayPauseBtn   = document.getElementById('playPauseBtn');
   elTimer          = document.getElementById('timer');
   elDuration       = document.getElementById('duration');
-  elSpeedSelect    = document.getElementById('speedSelect');
   elVolumeSlider   = document.getElementById('volumeSlider');
   elProgressBar    = document.getElementById('progressBar');
   elSeekBack       = document.getElementById('seekBackBtn');
@@ -224,7 +223,6 @@ function init() {
 
   document.getElementById('searchForm').addEventListener('submit', handleFetch);
   elPlayPauseBtn.addEventListener('click', togglePlayPause);
-  elSpeedSelect.addEventListener('change', () => { state.speed = SPEED_OPTIONS[elSpeedSelect.value] || 2500; });
   elVolumeSlider.addEventListener('input', () => {
     if (state.ytPlayer && state.ytReady) state.ytPlayer.setVolume(Number(elVolumeSlider.value));
   });
@@ -1527,7 +1525,7 @@ function applyLyricStyle() {
   if (elStyleToggleBtn) {
     const scatter = lyricStyle === 'scatter';
     elStyleToggleBtn.classList.toggle('active', scatter);
-    elStyleToggleBtn.textContent = scatter ? '🎨 ちらし' : '🎨 スタック';
+    elStyleToggleBtn.textContent = scatter ? '🎨ランダム' : '🎨スタック';
   }
 }
 
@@ -1557,11 +1555,21 @@ function spawnScatterToken(text) {
   const scale = Math.max(0.5, Math.min(1.1, sw / 720));
   const vertical = sh > 260 && Math.random() < 0.4; /* ~40% vertical when tall enough */
   if (vertical) el.classList.add('vertical');
-  const size = randomInt(Math.round(20 * scale), Math.round(46 * scale));
+  let size = randomInt(Math.round(20 * scale), Math.round(46 * scale));
   el.style.fontSize = `${size}px`;
   el.style.left = '-9999px';
   el.style.top  = '-9999px';
   elScatterLayer.appendChild(el);
+
+  /* Shrink so the token fits the stage — important for vertical
+     (縦書き) lines that would otherwise run off the bottom. */
+  const maxW = sw - 16;
+  const maxH = sh - 46;            /* leave room under the title */
+  let guard = 14;
+  while ((el.offsetHeight > maxH || el.offsetWidth > maxW) && size > 11 && guard-- > 0) {
+    size = Math.max(11, Math.floor(size * 0.86));
+    el.style.fontSize = `${size}px`;
+  }
 
   const pos = findScatterPosition(el);
   el.style.left = `${pos.x}px`;
