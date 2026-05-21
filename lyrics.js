@@ -62,11 +62,13 @@ let elArtist, elTitle, elTitleWrap, elFetchBtn, elSearchHint, elStatus,
     elPlayerSection, elApiKeyInput, elSaveApiKey, elClearApiKey,
     elToggleApiKey, elApiKeyStatus, elCurrentOrigin,
     elApiSetup, elToggleApiSetup,
-    elLyricsOffsetBar, elLyricsOffsetDisplay,
-    elLyricsStartBtn, elLyricsResetBtn,
+    elLyricsOffsetDisplay, elOffsetEarlierBtn, elOffsetLaterBtn,
+    elLyricsStartBtn, elLyricsResetBtn, elStyleToggleBtn,
     elRandomPlayBtn, elOpenInYoutubeBtn, elFullscreenBtn,
     elExitKaraokeBtn, elArtistRandomBtn,
-    elNowPlaying, elLyricStack, elStageExitBtn, elLyricsFsBtn;
+    elNowPlaying, elLyricStack, elScatterLayer, elStageExitBtn, elLyricsFsBtn;
+
+let lyricStyle = 'stack';   /* 'stack' | 'scatter' */
 
 /* ============================================================
    API key access — a site-wide key set in config.js takes
@@ -95,6 +97,7 @@ function init() {
   elStage          = document.getElementById('stage');
   elNowPlaying     = document.getElementById('nowPlaying');
   elLyricStack     = document.getElementById('lyricStack');
+  elScatterLayer   = document.getElementById('scatterLayer');
   elStageExitBtn   = document.getElementById('stageExitBtn');
   elPlayPauseBtn   = document.getElementById('playPauseBtn');
   elTimer          = document.getElementById('timer');
@@ -106,8 +109,10 @@ function init() {
   elSeekFwd        = document.getElementById('seekFwdBtn');
   elNextSongBtn    = document.getElementById('nextSongBtn');
   elPrevSongBtn    = document.getElementById('prevSongBtn');
-  elLyricsOffsetBar     = document.getElementById('lyricsOffsetBar');
   elLyricsOffsetDisplay = document.getElementById('lyricsOffsetDisplay');
+  elOffsetEarlierBtn = document.getElementById('offsetEarlierBtn');
+  elOffsetLaterBtn   = document.getElementById('offsetLaterBtn');
+  elStyleToggleBtn   = document.getElementById('styleToggleBtn');
   elSongList       = document.getElementById('songList');
   elSongListInfo   = document.getElementById('songListInfo');
   elSongCards      = document.getElementById('songCards');
@@ -166,6 +171,10 @@ function init() {
   });
 
   updateLyricsStartUI();
+
+  /* Restore saved lyric display style (stack / scatter) */
+  lyricStyle = localStorage.getItem('lyric_style') === 'scatter' ? 'scatter' : 'stack';
+  applyLyricStyle();
 
   if (elCurrentOrigin) elCurrentOrigin.textContent = location.origin || location.href;
 
@@ -229,22 +238,14 @@ function init() {
   elNextSongBtn.addEventListener('click', playNextInQueue);
   elPrevSongBtn.addEventListener('click', playPrevInQueue);
 
-  /* Lyrics offset slider — drag to align lyrics with the song.
-     Range is in deci-seconds (-100..+100 = ±10 s) for fine-grained
-     control alongside the 🎯 歌詞START snap button. */
-  elLyricsOffsetBar.addEventListener('input', () => {
-    const val = Number(elLyricsOffsetBar.value) / 10;
-    state.lyricsOffset = val;
-    updateLyricsOffsetSliderDisplay();
-    if (state.useLrc && state.ytPlayer && state.ytReady) {
-      state.currentIndex = -1;
-      syncLrc(state.ytPlayer.getCurrentTime() || 0);
-    }
-  });
-  elLyricsOffsetBar.addEventListener('change', () => {
-    saveOffsetForCurrentSong();
-    updateLyricsStartUI();
-  });
+  /* Lyrics offset nudge buttons — easier than dragging a slider.
+     Each tap shifts the lyrics timing by 0.3 s; pair with the
+     🎯 歌詞START snap button for big jumps. */
+  elOffsetEarlierBtn.addEventListener('click', () => adjustOffsetBy(-0.3));
+  elOffsetLaterBtn.addEventListener('click',   () => adjustOffsetBy(+0.3));
+
+  /* Lyric display style toggle (stack <-> scatter) */
+  elStyleToggleBtn.addEventListener('click', toggleLyricStyle);
 
   elPrevPageBtn.addEventListener('click', () => goToPage(songList.page - 1));
   elNextPageBtn.addEventListener('click', () => goToPage(songList.page + 1));
@@ -1375,8 +1376,12 @@ function showStageMessage(msg) {
 /** Re-paint the LRC view based on state.currentIndex */
 function renderLrcView() {
   const idx = state.currentIndex;
-  if (idx < 0 || !state.lrcLines.length) { clearStage(); return; }
+  if (idx < 0 || !state.lrcLines.length) { return; }
   const lines = state.lrcLines.map(l => l.text);
+  if (lyricStyle === 'scatter') {
+    spawnScatterToken(lines[idx]);
+    return;
+  }
   renderLyricStage(
     [lines[idx - 1], lines[idx - 2]],
     lines[idx],
@@ -1392,6 +1397,10 @@ function displayLine(text) {
   if (plainHistory[0] === trimmed) return; /* skip repeat */
   plainHistory.unshift(trimmed);
   if (plainHistory.length > PLAIN_HISTORY + 1) plainHistory.length = PLAIN_HISTORY + 1;
+  if (lyricStyle === 'scatter') {
+    spawnScatterToken(trimmed);
+    return;
+  }
   renderLyricStage(
     [plainHistory[1], plainHistory[2]],
     plainHistory[0],
@@ -1479,15 +1488,125 @@ function enableTransportControls(on) {
 }
 
 function updateLyricsOffsetSliderDisplay() {
-  if (!elLyricsOffsetBar || !elLyricsOffsetDisplay) return;
+  if (!elLyricsOffsetDisplay) return;
   const v = state.lyricsOffset || 0;
-  /* Slider value = deci-seconds; clamp to slider range */
-  const sliderVal = Math.max(-100, Math.min(100, Math.round(v * 10)));
-  if (Number(elLyricsOffsetBar.value) !== sliderVal) {
-    elLyricsOffsetBar.value = String(sliderVal);
-  }
   const sign = v > 0 ? '+' : (v < 0 ? '−' : '±');
   elLyricsOffsetDisplay.textContent = `${sign}${Math.abs(v).toFixed(1)}s`;
+}
+
+/** Nudge the lyrics timing by delta seconds (offset buttons) */
+function adjustOffsetBy(delta) {
+  state.lyricsOffset = Math.round((state.lyricsOffset + delta) * 10) / 10;
+  state.lyricsOffset = Math.max(-60, Math.min(60, state.lyricsOffset));
+  saveOffsetForCurrentSong();
+  updateLyricsOffsetSliderDisplay();
+  updateLyricsStartUI();
+  if (state.useLrc && state.ytPlayer && state.ytReady) {
+    state.currentIndex = -1;
+    syncLrc(state.ytPlayer.getCurrentTime() || 0);
+  }
+}
+
+/* ============================================================
+   Lyric display style (stack <-> scatter)
+   ============================================================ */
+function toggleLyricStyle() {
+  lyricStyle = (lyricStyle === 'scatter') ? 'stack' : 'scatter';
+  localStorage.setItem('lyric_style', lyricStyle);
+  applyLyricStyle();
+  /* Repaint current line in the new style */
+  clearStage();
+  if (state.useLrc) {
+    state.currentIndex = -1;
+    if (state.ytPlayer && state.ytReady) syncLrc(state.ytPlayer.getCurrentTime() || 0);
+  }
+}
+
+function applyLyricStyle() {
+  document.body.classList.toggle('lyric-scatter', lyricStyle === 'scatter');
+  if (elStyleToggleBtn) {
+    const scatter = lyricStyle === 'scatter';
+    elStyleToggleBtn.classList.toggle('active', scatter);
+    elStyleToggleBtn.textContent = scatter ? '🎨 ちらし' : '🎨 スタック';
+  }
+}
+
+/* ---- Scatter tokens: random h/v orientation, size, no overlap ---- */
+const SCATTER_MAX  = 6;
+const SCATTER_LIFE = 6500;
+
+function spawnScatterToken(text) {
+  if (!elScatterLayer || !text || !text.trim()) return;
+  const trimmed = text.trim();
+  const live = [...elScatterLayer.querySelectorAll('.ly-scatter-token:not(.out)')];
+  if (live.some(t => t.dataset.text === trimmed)) return; /* dedup */
+
+  if (live.length >= SCATTER_MAX) {
+    live.sort((a, b) => Number(a.dataset.born || 0) - Number(b.dataset.born || 0));
+    fadeOutScatter(live[0]);
+  }
+
+  const el = document.createElement('div');
+  el.className     = 'ly-scatter-token';
+  el.textContent   = trimmed;
+  el.dataset.text  = trimmed;
+  el.dataset.born  = String(Date.now());
+
+  const sw = elScatterLayer.clientWidth  || 320;
+  const sh = elScatterLayer.clientHeight || 200;
+  const scale = Math.max(0.5, Math.min(1.1, sw / 720));
+  const vertical = sh > 260 && Math.random() < 0.4; /* ~40% vertical when tall enough */
+  if (vertical) el.classList.add('vertical');
+  const size = randomInt(Math.round(20 * scale), Math.round(46 * scale));
+  el.style.fontSize = `${size}px`;
+  el.style.left = '-9999px';
+  el.style.top  = '-9999px';
+  elScatterLayer.appendChild(el);
+
+  const pos = findScatterPosition(el);
+  el.style.left = `${pos.x}px`;
+  el.style.top  = `${pos.y}px`;
+
+  requestAnimationFrame(() => el.classList.add('in'));
+  setTimeout(() => fadeOutScatter(el), SCATTER_LIFE);
+}
+
+function findScatterPosition(el) {
+  const sw = elScatterLayer.clientWidth  || 320;
+  const sh = elScatterLayer.clientHeight || 200;
+  const ew = Math.min(el.offsetWidth,  sw - 16);
+  const eh = Math.min(el.offsetHeight, sh - 16);
+  const PAD = 10;
+  const TOP_AVOID = 38; /* keep clear of the now-playing title */
+  const rects = [...elScatterLayer.querySelectorAll('.ly-scatter-token')]
+    .filter(t => t !== el)
+    .map(t => ({ left: t.offsetLeft, top: t.offsetTop, right: t.offsetLeft + t.offsetWidth, bottom: t.offsetTop + t.offsetHeight }));
+
+  for (let i = 0; i < 40; i++) {
+    const x = randomInt(PAD, Math.max(PAD, sw - ew - PAD));
+    const y = randomInt(TOP_AVOID, Math.max(TOP_AVOID, sh - eh - PAD));
+    const r = { left: x, top: y, right: x + ew, bottom: y + eh };
+    const hit = rects.some(o => !(
+      r.right + 12 < o.left || r.left - 12 > o.right ||
+      r.bottom + 12 < o.top || r.top - 12 > o.bottom
+    ));
+    if (!hit) return { x, y };
+  }
+  /* fallback: drop the oldest and place freely */
+  const oldest = [...elScatterLayer.querySelectorAll('.ly-scatter-token')]
+    .sort((a, b) => Number(a.dataset.born || 0) - Number(b.dataset.born || 0))[0];
+  if (oldest && oldest !== el) fadeOutScatter(oldest);
+  return {
+    x: randomInt(PAD, Math.max(PAD, sw - ew - PAD)),
+    y: randomInt(TOP_AVOID, Math.max(TOP_AVOID, sh - eh - PAD)),
+  };
+}
+
+function fadeOutScatter(el) {
+  if (!el || el.classList.contains('out')) return;
+  el.classList.remove('in');
+  el.classList.add('out');
+  setTimeout(() => { if (el.parentNode) el.remove(); }, 650);
 }
 
 function clearStage() {
@@ -1496,6 +1615,7 @@ function clearStage() {
     s.textContent = '';
     s.classList.remove('enter');
   });
+  if (elScatterLayer) elScatterLayer.innerHTML = '';
   plainHistory = [];
 }
 

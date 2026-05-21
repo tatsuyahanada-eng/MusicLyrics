@@ -658,6 +658,58 @@
 
 .ly-lyrics-bar-row .ly-time-inline { color: #f9a8d4; min-width: 48px; }
 
+/* ---- Lyrics offset nudge buttons ---- */
+.ly-offset-step {
+  flex: 1;
+  min-width: 0;
+  padding: 7px 8px;
+  background: rgba(236,72,153,0.14);
+  border: 1px solid rgba(236,72,153,0.4);
+  color: #f9a8d4;
+  border-radius: 6px;
+  font-size: 0.78rem;
+  font-weight: 700;
+  cursor: pointer;
+  white-space: nowrap;
+  touch-action: manipulation;
+  min-height: 34px;
+  transition: background 0.12s, transform 0.08s;
+}
+.ly-offset-step:hover { background: rgba(236,72,153,0.28); }
+.ly-offset-step:active { transform: scale(0.95); }
+
+.ly-offset-val {
+  font-size: 0.82rem;
+  font-variant-numeric: tabular-nums;
+  color: #f9a8d4;
+  min-width: 54px;
+  text-align: center;
+  font-weight: 700;
+  flex-shrink: 0;
+}
+
+/* ---- Display style toggle button ---- */
+.ly-style-toggle {
+  padding: 6px 10px;
+  background: var(--ly-surface);
+  border: 1px solid var(--ly-border);
+  color: var(--ly-muted);
+  border-radius: 6px;
+  font-size: 0.78rem;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+  flex-shrink: 0;
+  min-height: 32px;
+  touch-action: manipulation;
+  transition: all 0.15s;
+}
+.ly-style-toggle.active {
+  background: rgba(124,58,237,0.25);
+  border-color: var(--ly-primary);
+  color: #c4b5fd;
+}
+
 .ly-player-footer {
   flex-shrink: 0;
   background: rgba(0,0,0,0.88);
@@ -919,6 +971,45 @@ body.karaoke-mode #stage .ly-fx { display: block; }
   position: relative;
   z-index: 1;
 }
+
+/* ---- Scatter display (random h/v, varied size, no overlap) ---- */
+.ly-scatter-layer {
+  display: none;
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  pointer-events: none;
+  z-index: 1;
+}
+
+body.lyric-scatter .ly-scatter-layer { display: block; }
+body.lyric-scatter .ly-lyric-stack  { display: none; }
+
+.ly-scatter-token {
+  position: absolute;
+  font-weight: 700;
+  color: #ffffff;
+  letter-spacing: 0.02em;
+  line-height: 1.2;
+  text-shadow: 0 2px 14px rgba(0,0,0,0.7), 0 0 26px rgba(124,58,237,0.4);
+  white-space: nowrap;
+  max-width: 92%;
+  opacity: 0;
+  transform: scale(0.85);
+  transition: opacity 0.6s ease, transform 0.6s cubic-bezier(0.22,1,0.36,1);
+  will-change: opacity, transform;
+}
+
+.ly-scatter-token.vertical {
+  writing-mode: vertical-rl;
+  text-orientation: upright;
+  white-space: nowrap;
+  max-width: none;
+  max-height: 88%;
+}
+
+.ly-scatter-token.in  { opacity: 1; transform: scale(1); }
+.ly-scatter-token.out { opacity: 0; transform: scale(0.94); }
 
 /* Lyrics-only mode: cover the whole viewport as a CSS overlay so
    it works even where the Fullscreen API is unavailable (iOS). */
@@ -1338,6 +1429,9 @@ body.lyrics-fs.fs-controls-visible .ly-stage-exit-btn:hover {
   .ly-next-btn { font-size: 0.72rem; padding: 5px 8px; }
   .ly-lyrics-start-btn { font-size: 0.72rem; padding: 5px 8px; }
   .ly-lyrics-reset-btn { width: 26px; height: 26px; font-size: 0.85rem; }
+  .ly-style-toggle { font-size: 0.72rem; padding: 5px 7px; }
+  .ly-offset-step { font-size: 0.72rem; padding: 6px 5px; }
+  .ly-offset-val { min-width: 46px; font-size: 0.76rem; }
 }
 
 @media (max-width: 380px) {

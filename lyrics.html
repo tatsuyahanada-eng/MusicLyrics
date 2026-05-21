@@ -13,7 +13,7 @@
   <link rel="icon" href="icon.svg" type="image/svg+xml">
   <link rel="apple-touch-icon" href="icon.svg">
   <title>Music Lyrics</title>
-  <link rel="stylesheet" href="lyrics.css?v=24">
+  <link rel="stylesheet" href="lyrics.css?v=25">
 </head>
 <body class="ly-body">
 
@@ -125,9 +125,10 @@
           <span id="duration" class="ly-time-inline ly-time-muted">/ --:--</span>
         </div>
         <div class="ly-bar-row ly-lyrics-bar-row">
-          <span class="ly-bar-label" title="歌詞オフセット">📝</span>
-          <input id="lyricsOffsetBar" class="ly-progress ly-lyrics-progress" type="range" min="-100" max="100" value="0" step="1" aria-label="歌詞オフセット" title="ドラッグで歌詞のタイミング微調整 (-10s 〜 +10s)">
-          <span id="lyricsOffsetDisplay" class="ly-time-inline">±0.0s</span>
+          <span class="ly-bar-label" title="歌詞のタイミング調整">📝</span>
+          <button id="offsetEarlierBtn" type="button" class="ly-offset-step" title="歌詞を早める（0.3秒）">◀ 早める</button>
+          <span id="lyricsOffsetDisplay" class="ly-offset-val">±0.0s</span>
+          <button id="offsetLaterBtn" type="button" class="ly-offset-step" title="歌詞を遅らせる（0.3秒）">遅らせる ▶</button>
         </div>
       </div>
       <div class="ly-player-footer">
@@ -151,6 +152,7 @@
       </div>
       <div id="nowPlaying" class="ly-now-playing"></div>
       <div id="lyricStack" class="ly-lyric-stack"></div>
+      <div id="scatterLayer" class="ly-scatter-layer" aria-hidden="true"></div>
       <button id="stageExitBtn" type="button" class="ly-stage-exit-btn" aria-label="縮小して戻す">🔽 縮小して戻す</button>
     </div>
 
@@ -173,12 +175,13 @@
       </select>
       <button id="lyricsStartBtn" type="button" class="ly-lyrics-start-btn" title="今この瞬間を歌詞の開始点にする（曲ごとに保存）">🎯 歌詞START</button>
       <button id="lyricsResetBtn" type="button" class="ly-lyrics-reset-btn" title="歌詞タイミングをリセット" hidden>↺</button>
+      <button id="styleToggleBtn" type="button" class="ly-style-toggle" title="歌詞の表示スタイルを切替（スタック ↔ ちらし）">🎨 ちらし</button>
       <label class="ly-vol-label" for="volumeSlider">🔊</label>
       <input  id="volumeSlider" class="ly-volume" type="range" min="0" max="100" value="80">
     </div>
   </div>
 
-  <script src="config.js?v=24"></script>
-  <script src="lyrics.js?v=24"></script>
+  <script src="config.js?v=25"></script>
+  <script src="lyrics.js?v=25"></script>
 </body>
 </html>
