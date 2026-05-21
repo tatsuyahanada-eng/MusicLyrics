@@ -1543,10 +1543,14 @@ function applyLyricStyle() {
 }
 
 /* ============================================================
-   Background FX themes (rings / aurora / stars / beams)
+   Background FX themes (rings / stars / streaks / bokeh)
    ============================================================ */
-const FX_THEMES = ['rings', 'aurora', 'stars', 'beams'];
-const FX_LABELS = { rings: '✨リング', aurora: '✨オーロラ', stars: '✨スター', beams: '✨ビーム' };
+const FX_THEMES = ['rings', 'stars', 'streaks', 'bokeh'];
+const FX_LABELS = { rings: '✨リング', stars: '✨スター', streaks: '✨流星', bokeh: '✨玉ボケ' };
+const BOKEH_TINTS = [
+  'rgba(167,139,250,0.45)', 'rgba(244,114,182,0.42)',
+  'rgba(96,165,250,0.42)',  'rgba(52,211,153,0.38)',
+];
 
 function cycleFxTheme() {
   const i = FX_THEMES.indexOf(fxTheme);
@@ -1565,9 +1569,6 @@ function buildFx() {
   if (fxTheme === 'rings') {
     for (let i = 0; i < 6; i++) elFx.appendChild(mkEl('span', 'ly-ripple'));
 
-  } else if (fxTheme === 'aurora') {
-    for (let i = 0; i < 4; i++) elFx.appendChild(mkEl('div', 'ly-blob'));
-
   } else if (fxTheme === 'stars') {
     for (let i = 0; i < 30; i++) {
       const p = mkEl('span', 'ly-particle');
@@ -1581,9 +1582,31 @@ function buildFx() {
       elFx.appendChild(p);
     }
 
-  } else if (fxTheme === 'beams') {
-    elFx.appendChild(mkEl('div', 'ly-beams'));
-    elFx.appendChild(mkEl('div', 'ly-beams b2'));
+  } else if (fxTheme === 'streaks') {
+    for (let i = 0; i < 12; i++) {
+      const s = mkEl('span', 'ly-streak');
+      s.style.left  = (Math.random() * 90 - 10).toFixed(1) + '%';
+      s.style.top   = (Math.random() * 70 - 20).toFixed(1) + '%';
+      s.style.width = (18 + Math.random() * 26).toFixed(1) + 'vmin';
+      s.style.animationDuration = (2.2 + Math.random() * 2.6).toFixed(2) + 's';
+      s.style.animationDelay    = (Math.random() * 4).toFixed(2) + 's';
+      elFx.appendChild(s);
+    }
+
+  } else if (fxTheme === 'bokeh') {
+    for (let i = 0; i < 16; i++) {
+      const b = mkEl('span', 'ly-bokeh');
+      const sz = (4 + Math.random() * 12).toFixed(1);
+      const tint = BOKEH_TINTS[i % BOKEH_TINTS.length];
+      b.style.left   = (Math.random() * 100).toFixed(1) + '%';
+      b.style.top    = (Math.random() * 100).toFixed(1) + '%';
+      b.style.width  = sz + 'vmin';
+      b.style.height = sz + 'vmin';
+      b.style.background = `radial-gradient(circle, rgba(255,255,255,0.55), ${tint} 45%, transparent 70%)`;
+      b.style.animationDuration = (7 + Math.random() * 7).toFixed(2) + 's';
+      b.style.animationDelay    = (Math.random() * 7).toFixed(2) + 's';
+      elFx.appendChild(b);
+    }
   }
 }
 

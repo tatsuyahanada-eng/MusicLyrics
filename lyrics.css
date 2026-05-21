@@ -997,27 +997,6 @@ body.song-active .ly-fx { display: block; }
   100% { transform: translate(-50%, -50%) scale(2.4); opacity: 0; } /* rest (gap) */
 }
 
-/* ---- FX theme: aurora (drifting blurred colour blobs) ---- */
-.ly-blob {
-  position: absolute;
-  width: 60vmin;
-  height: 60vmin;
-  border-radius: 50%;
-  filter: blur(48px);
-  opacity: 0.45;
-  mix-blend-mode: screen;
-  will-change: transform;
-}
-.ly-blob:nth-child(1) { left: -12%; top: -14%; background: radial-gradient(circle, rgba(139,92,246,0.9), transparent 70%); animation: ly-blob-a 15s ease-in-out infinite; }
-.ly-blob:nth-child(2) { right: -14%; top: 6%;  background: radial-gradient(circle, rgba(236,72,153,0.85), transparent 70%); animation: ly-blob-b 19s ease-in-out infinite; }
-.ly-blob:nth-child(3) { left: 8%; bottom: -18%; background: radial-gradient(circle, rgba(96,165,250,0.85), transparent 70%); animation: ly-blob-c 17s ease-in-out infinite; }
-.ly-blob:nth-child(4) { right: 2%; bottom: -12%; background: radial-gradient(circle, rgba(52,211,153,0.8), transparent 70%); animation: ly-blob-d 21s ease-in-out infinite; }
-
-@keyframes ly-blob-a { 0%,100%{ transform: translate(0,0) scale(1); } 50%{ transform: translate(22vmin,16vmin) scale(1.2); } }
-@keyframes ly-blob-b { 0%,100%{ transform: translate(0,0) scale(1.1); } 50%{ transform: translate(-18vmin,20vmin) scale(0.9); } }
-@keyframes ly-blob-c { 0%,100%{ transform: translate(0,0) scale(1); } 50%{ transform: translate(16vmin,-18vmin) scale(1.25); } }
-@keyframes ly-blob-d { 0%,100%{ transform: translate(0,0) scale(1.15); } 50%{ transform: translate(-20vmin,-14vmin) scale(0.95); } }
-
 /* ---- FX theme: stars (twinkling particles) ---- */
 .ly-particle {
   position: absolute;
@@ -1035,29 +1014,44 @@ body.song-active .ly-fx { display: block; }
   50%      { opacity: 0.95; transform: translateY(-7px) scale(1); }
 }
 
-/* ---- FX theme: beams (rotating rays of light) ---- */
-.ly-beams {
+/* ---- FX theme: streaks (diagonal shooting light) ---- */
+.ly-streak {
   position: absolute;
-  left: 50%;
-  top: 50%;
-  width: 220vmax;
-  height: 220vmax;
-  margin: -110vmax 0 0 -110vmax;
-  background: repeating-conic-gradient(from 0deg at 50% 50%,
-    rgba(139,92,246,0.16) 0deg 7deg,
-    transparent 7deg 30deg);
-  opacity: 0.7;
-  will-change: transform;
-  animation: ly-beams-spin 26s linear infinite;
+  height: 2px;
+  border-radius: 2px;
+  background: linear-gradient(90deg, transparent, rgba(196,181,253,0.95), rgba(255,255,255,0.9), transparent);
+  filter: drop-shadow(0 0 6px rgba(139,92,246,0.9));
+  opacity: 0;
+  will-change: transform, opacity;
+  animation-name: ly-streak;
+  animation-timing-function: cubic-bezier(0.4, 0, 0.6, 1);
+  animation-iteration-count: infinite;
 }
-.ly-beams.b2 {
-  background: repeating-conic-gradient(from 15deg at 50% 50%,
-    rgba(236,72,153,0.13) 0deg 5deg,
-    transparent 5deg 26deg);
-  animation: ly-beams-spin-rev 34s linear infinite;
+@keyframes ly-streak {
+  0%   { opacity: 0;    transform: translate(-22vmin, -22vmin) rotate(45deg); }
+  12%  { opacity: 0.95; }
+  85%  { opacity: 0.6; }
+  100% { opacity: 0;    transform: translate(82vmin, 82vmin) rotate(45deg); }
 }
-@keyframes ly-beams-spin     { to { transform: rotate(360deg); } }
-@keyframes ly-beams-spin-rev { to { transform: rotate(-360deg); } }
+
+/* ---- FX theme: bokeh (soft floating out-of-focus orbs) ---- */
+.ly-bokeh {
+  position: absolute;
+  border-radius: 50%;
+  filter: blur(2px);
+  opacity: 0;
+  mix-blend-mode: screen;
+  will-change: transform, opacity;
+  animation-name: ly-bokeh-float;
+  animation-timing-function: ease-in-out;
+  animation-iteration-count: infinite;
+}
+@keyframes ly-bokeh-float {
+  0%   { opacity: 0;    transform: translateY(12vh) scale(0.8); }
+  30%  { opacity: 0.6; }
+  70%  { opacity: 0.5; }
+  100% { opacity: 0;    transform: translateY(-14vh) scale(1.15); }
+}
 
 
 /* Lyric stack — fills the rest, centred */
