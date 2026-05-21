@@ -1,0 +1,27 @@
+# ============================================================
+#  Music Lyrics — Basic 認証（特定ユーザーのみアクセス許可）
+#  ユーザー名: Hanada / パスワード: Password
+# ============================================================
+#
+#  ※ AuthUserFile はサーバー上の .htpasswd の「絶対パス」を
+#    指定する必要があります。下の行を、実際のパスに書き換えて
+#    ください。例:
+#       AuthUserFile /home/あなたのユーザー名/public_html/.htpasswd
+#    パスが分からない場合は、サーバーの管理画面やFTPの
+#    ルート表示で確認するか、ホスティング業者に確認してください。
+#
+#  Apache 2.4 以降を想定しています（多くの共有サーバーが該当）。
+#  Nginx / GitHub Pages / Netlify / Vercel など Apache 以外の
+#  ホスティングでは .htaccess は無効です（その場合は別の方法が
+#  必要なので教えてください）。
+# ============================================================
+
+AuthType Basic
+AuthName "Music Lyrics - ログインが必要です"
+AuthUserFile /path/to/.htpasswd
+Require valid-user
+
+# 認証情報ファイル自体は外部から読めないようにブロック
+<FilesMatch "^\.ht">
+    Require all denied
+</FilesMatch>
