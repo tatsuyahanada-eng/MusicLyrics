@@ -530,6 +530,7 @@ function loadYtVideo(idx) {
   stopLyricsTimer();
   stopProgressPoll();
   elPlayerSection.hidden = false;
+  document.body.classList.add('song-active'); /* enables ambient ripples */
   if (state.ytReady) {
     state.ytPlayer.loadVideoById(item.videoId);
     state.ytPlayer.setVolume(Number(elVolumeSlider.value));

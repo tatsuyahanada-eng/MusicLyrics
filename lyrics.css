@@ -950,7 +950,7 @@ body.karaoke-mode .ly-exit-karaoke-btn:active { transform: scale(0.96); }
 
 .ly-now-playing.visible { opacity: 1; }
 
-/* ---- Ambient ripple FX (only shown in fullscreen / karaoke) ---- */
+/* ---- Ambient ripple FX ---- */
 .ly-fx {
   display: none;
   position: absolute;
@@ -960,11 +960,10 @@ body.karaoke-mode .ly-exit-karaoke-btn:active { transform: scale(0.96); }
   z-index: 0;
 }
 
-/* Use body classes (set by JS) rather than :fullscreen so a
-   browser that doesn't understand :fullscreen can't invalidate
-   the whole rule. Separate rules per selector for safety. */
-body.lyrics-fs   #stage .ly-fx { display: block; }
-body.karaoke-mode #stage .ly-fx { display: block; }
+/* Show the ripples whenever a song is loaded — in the normal
+   embedded view AND in fullscreen/karaoke. (body.song-active is
+   added by loadYtVideo.) */
+body.song-active .ly-fx { display: block; }
 
 .ly-ripple {
   position: absolute;
@@ -995,7 +994,8 @@ body.karaoke-mode #stage .ly-fx { display: block; }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .ly-ripple { animation: none; display: none; }
+  /* keep the rings visible (no motion) instead of hiding them */
+  .ly-ripple { animation: none; opacity: 0.3; transform: translate(-50%, -50%) scale(1.5); }
 }
 
 /* Lyric stack — fills the rest, centred */
