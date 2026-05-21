@@ -66,9 +66,11 @@ let elArtist, elTitle, elTitleWrap, elFetchBtn, elSearchHint, elStatus,
     elLyricsStartBtn, elLyricsResetBtn, elStyleToggleBtn,
     elRandomPlayBtn, elOpenInYoutubeBtn, elFullscreenBtn,
     elExitKaraokeBtn, elArtistRandomBtn,
-    elNowPlaying, elLyricStack, elScatterLayer, elStageExitBtn, elLyricsFsBtn;
+    elNowPlaying, elLyricStack, elScatterLayer, elStageExitBtn, elLyricsFsBtn,
+    elFx, elFxThemeBtn;
 
 let lyricStyle = 'stack';   /* 'stack' | 'scatter' */
+let fxTheme = 'rings';      /* 'rings' | 'aurora' | 'stars' | 'beams' */
 
 /* ============================================================
    API key access — a site-wide key set in config.js takes
@@ -98,6 +100,7 @@ function init() {
   elNowPlaying     = document.getElementById('nowPlaying');
   elLyricStack     = document.getElementById('lyricStack');
   elScatterLayer   = document.getElementById('scatterLayer');
+  elFx             = document.getElementById('lyricFx');
   elStageExitBtn   = document.getElementById('stageExitBtn');
   elPlayPauseBtn   = document.getElementById('playPauseBtn');
   elTimer          = document.getElementById('timer');
@@ -112,6 +115,7 @@ function init() {
   elOffsetEarlierBtn = document.getElementById('offsetEarlierBtn');
   elOffsetLaterBtn   = document.getElementById('offsetLaterBtn');
   elStyleToggleBtn   = document.getElementById('styleToggleBtn');
+  elFxThemeBtn       = document.getElementById('fxThemeBtn');
   elSongList       = document.getElementById('songList');
   elSongListInfo   = document.getElementById('songListInfo');
   elSongCards      = document.getElementById('songCards');
@@ -174,6 +178,11 @@ function init() {
   /* Restore saved lyric display style (stack / scatter) */
   lyricStyle = localStorage.getItem('lyric_style') === 'scatter' ? 'scatter' : 'stack';
   applyLyricStyle();
+
+  /* Restore saved background FX theme */
+  const savedFx = localStorage.getItem('fx_theme');
+  fxTheme = FX_THEMES.includes(savedFx) ? savedFx : 'rings';
+  buildFx();
 
   if (elCurrentOrigin) elCurrentOrigin.textContent = location.origin || location.href;
 
@@ -244,6 +253,9 @@ function init() {
 
   /* Lyric display style toggle (stack <-> scatter) */
   elStyleToggleBtn.addEventListener('click', toggleLyricStyle);
+
+  /* Background FX theme cycle (rings / aurora / stars / beams) */
+  elFxThemeBtn.addEventListener('click', cycleFxTheme);
 
   elPrevPageBtn.addEventListener('click', () => goToPage(songList.page - 1));
   elNextPageBtn.addEventListener('click', () => goToPage(songList.page + 1));
@@ -1528,6 +1540,57 @@ function applyLyricStyle() {
     elStyleToggleBtn.classList.toggle('active', scatter);
     elStyleToggleBtn.textContent = scatter ? '🎨ランダム' : '🎨スタック';
   }
+}
+
+/* ============================================================
+   Background FX themes (rings / aurora / stars / beams)
+   ============================================================ */
+const FX_THEMES = ['rings', 'aurora', 'stars', 'beams'];
+const FX_LABELS = { rings: '✨リング', aurora: '✨オーロラ', stars: '✨スター', beams: '✨ビーム' };
+
+function cycleFxTheme() {
+  const i = FX_THEMES.indexOf(fxTheme);
+  fxTheme = FX_THEMES[(i + 1) % FX_THEMES.length];
+  localStorage.setItem('fx_theme', fxTheme);
+  buildFx();
+}
+
+/* Populate the .ly-fx layer with the elements for the active theme */
+function buildFx() {
+  if (!elFx) return;
+  elFx.innerHTML = '';
+  elFx.dataset.theme = fxTheme;
+  if (elFxThemeBtn) elFxThemeBtn.textContent = FX_LABELS[fxTheme] || '✨';
+
+  if (fxTheme === 'rings') {
+    for (let i = 0; i < 6; i++) elFx.appendChild(mkEl('span', 'ly-ripple'));
+
+  } else if (fxTheme === 'aurora') {
+    for (let i = 0; i < 4; i++) elFx.appendChild(mkEl('div', 'ly-blob'));
+
+  } else if (fxTheme === 'stars') {
+    for (let i = 0; i < 30; i++) {
+      const p = mkEl('span', 'ly-particle');
+      const sz = (2 + Math.random() * 5).toFixed(1);
+      p.style.left   = (Math.random() * 100).toFixed(1) + '%';
+      p.style.top    = (Math.random() * 100).toFixed(1) + '%';
+      p.style.width  = sz + 'px';
+      p.style.height = sz + 'px';
+      p.style.animationDuration = (2.5 + Math.random() * 4).toFixed(2) + 's';
+      p.style.animationDelay    = (Math.random() * 5).toFixed(2) + 's';
+      elFx.appendChild(p);
+    }
+
+  } else if (fxTheme === 'beams') {
+    elFx.appendChild(mkEl('div', 'ly-beams'));
+    elFx.appendChild(mkEl('div', 'ly-beams b2'));
+  }
+}
+
+function mkEl(tag, className) {
+  const el = document.createElement(tag);
+  el.className = className;
+  return el;
 }
 
 /* ---- Scatter tokens: random h/v orientation, size, no overlap ---- */

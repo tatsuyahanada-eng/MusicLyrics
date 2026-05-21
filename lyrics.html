@@ -13,7 +13,7 @@
   <link rel="icon" href="icon.svg" type="image/svg+xml">
   <link rel="apple-touch-icon" href="icon.svg">
   <title>Music Lyrics</title>
-  <link rel="stylesheet" href="lyrics.css?v=29">
+  <link rel="stylesheet" href="lyrics.css?v=30">
 </head>
 <body class="ly-body">
 
@@ -142,18 +142,12 @@
 
     <!-- Lyrics Stage -->
     <div id="stage" role="region" aria-label="歌詞表示エリア">
-      <div class="ly-fx" aria-hidden="true">
-        <span class="ly-ripple"></span>
-        <span class="ly-ripple"></span>
-        <span class="ly-ripple"></span>
-        <span class="ly-ripple"></span>
-        <span class="ly-ripple"></span>
-        <span class="ly-ripple"></span>
-      </div>
+      <div id="lyricFx" class="ly-fx" aria-hidden="true"></div>
       <div id="nowPlaying" class="ly-now-playing"></div>
       <div class="ly-stage-controls">
         <button id="lyricsStartBtn" type="button" class="ly-mini-btn" title="今この瞬間を歌詞の開始点にする（曲ごとに保存）">🎯START</button>
         <button id="lyricsResetBtn" type="button" class="ly-mini-btn" title="歌詞タイミングをリセット" hidden>↺</button>
+        <button id="fxThemeBtn" type="button" class="ly-mini-btn" title="背景エフェクトを切替">✨リング</button>
         <button id="styleToggleBtn" type="button" class="ly-mini-btn" title="表示スタイル切替（スタック ↔ ランダム）">🎨ランダム</button>
       </div>
       <div id="lyricStack" class="ly-lyric-stack"></div>
@@ -176,7 +170,7 @@
     </div>
   </div>
 
-  <script src="config.js?v=29"></script>
-  <script src="lyrics.js?v=29"></script>
+  <script src="config.js?v=30"></script>
+  <script src="lyrics.js?v=30"></script>
 </body>
 </html>
