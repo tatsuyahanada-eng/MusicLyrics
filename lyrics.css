@@ -976,21 +976,25 @@ body.song-active .ly-fx { display: block; }
   box-shadow: 0 0 26px rgba(139,92,246,0.4);
   opacity: 0;
   will-change: transform, opacity;
-  animation: ly-ripple 7.5s ease-out infinite;
+  /* Each ring pops in, expands & fades, then stays invisible for
+     a beat before the cycle repeats — a clear appear / disappear. */
+  animation: ly-ripple 7s ease-out infinite;
 }
 
-/* Scatter the ripples across the stage from their own origins */
+/* Scatter the ripples across the stage from their own origins,
+   with uneven delays so they blink in and out independently */
 .ly-ripple:nth-child(1) { left: 22%; top: 30%; width: 24vmin; height: 24vmin; border-color: rgba(139,92,246,0.7);  box-shadow: 0 0 26px rgba(139,92,246,0.4);  animation-delay: 0s;   }
-.ly-ripple:nth-child(2) { left: 80%; top: 24%; width: 18vmin; height: 18vmin; border-color: rgba(236,72,153,0.65); box-shadow: 0 0 26px rgba(236,72,153,0.38); animation-delay: 1.3s; }
-.ly-ripple:nth-child(3) { left: 32%; top: 74%; width: 26vmin; height: 26vmin; border-color: rgba(96,165,250,0.62); box-shadow: 0 0 26px rgba(96,165,250,0.36); animation-delay: 2.6s; }
-.ly-ripple:nth-child(4) { left: 84%; top: 68%; width: 20vmin; height: 20vmin; border-color: rgba(52,211,153,0.58); box-shadow: 0 0 26px rgba(52,211,153,0.34); animation-delay: 3.9s; }
-.ly-ripple:nth-child(5) { left: 13%; top: 56%; width: 16vmin; height: 16vmin; border-color: rgba(168,139,250,0.62); box-shadow: 0 0 26px rgba(168,139,250,0.36); animation-delay: 5.2s; }
-.ly-ripple:nth-child(6) { left: 62%; top: 86%; width: 22vmin; height: 22vmin; border-color: rgba(244,114,182,0.55); box-shadow: 0 0 26px rgba(244,114,182,0.32); animation-delay: 6.5s; }
+.ly-ripple:nth-child(2) { left: 80%; top: 24%; width: 18vmin; height: 18vmin; border-color: rgba(236,72,153,0.65); box-shadow: 0 0 26px rgba(236,72,153,0.38); animation-delay: 0.9s; }
+.ly-ripple:nth-child(3) { left: 32%; top: 74%; width: 26vmin; height: 26vmin; border-color: rgba(96,165,250,0.62); box-shadow: 0 0 26px rgba(96,165,250,0.36); animation-delay: 2.3s; }
+.ly-ripple:nth-child(4) { left: 84%; top: 68%; width: 20vmin; height: 20vmin; border-color: rgba(52,211,153,0.58); box-shadow: 0 0 26px rgba(52,211,153,0.34); animation-delay: 3.4s; }
+.ly-ripple:nth-child(5) { left: 13%; top: 56%; width: 16vmin; height: 16vmin; border-color: rgba(168,139,250,0.62); box-shadow: 0 0 26px rgba(168,139,250,0.36); animation-delay: 4.6s; }
+.ly-ripple:nth-child(6) { left: 62%; top: 86%; width: 22vmin; height: 22vmin; border-color: rgba(244,114,182,0.55); box-shadow: 0 0 26px rgba(244,114,182,0.32); animation-delay: 5.6s; }
 
 @keyframes ly-ripple {
-  0%   { transform: translate(-50%, -50%) scale(0.2); opacity: 0; }
-  15%  { opacity: 0.85; }
-  100% { transform: translate(-50%, -50%) scale(2.3); opacity: 0; }
+  0%   { transform: translate(-50%, -50%) scale(0.15); opacity: 0; }
+  10%  { opacity: 0.9; }                                  /* pop in */
+  50%  { transform: translate(-50%, -50%) scale(2.4); opacity: 0; } /* expand & vanish */
+  100% { transform: translate(-50%, -50%) scale(2.4); opacity: 0; } /* rest (gap) */
 }
 
 @media (prefers-reduced-motion: reduce) {
