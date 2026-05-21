@@ -997,10 +997,6 @@ body.song-active .ly-fx { display: block; }
   100% { transform: translate(-50%, -50%) scale(2.4); opacity: 0; } /* rest (gap) */
 }
 
-@media (prefers-reduced-motion: reduce) {
-  /* keep the rings visible (no motion) instead of hiding them */
-  .ly-ripple { animation: none; opacity: 0.3; transform: translate(-50%, -50%) scale(1.5); }
-}
 
 /* Lyric stack — fills the rest, centred */
 .ly-lyric-stack {
@@ -1182,14 +1178,6 @@ body.lyrics-fs.fs-controls-visible .ly-stage-exit-btn:hover {
   100% { opacity: 1; transform: scale(1); filter: blur(0); }
 }
 
-@media (prefers-reduced-motion: reduce) {
-  .ly-line-current.enter,
-  .ly-line-current.enter.dir-up,
-  .ly-line-current.enter.dir-down,
-  .ly-line-current.enter.dir-left,
-  .ly-line-current.enter.dir-right,
-  .ly-line-current.enter.dir-zoom { animation: none; }
-}
 
 /* ---- Control Bar ---- */
 .ly-control-bar {
