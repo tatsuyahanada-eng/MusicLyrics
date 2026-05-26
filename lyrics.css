@@ -658,32 +658,42 @@
 
 .ly-lyrics-bar-row .ly-time-inline { color: #f9a8d4; min-width: 48px; }
 
-/* ---- Lyrics offset nudge buttons (small) ---- */
-.ly-offset-step {
-  flex: 0 0 auto;
-  padding: 4px 10px;
-  background: rgba(236,72,153,0.14);
-  border: 1px solid rgba(236,72,153,0.4);
-  color: #f9a8d4;
-  border-radius: 6px;
+/* Lyrics-offset slider: taller track + bigger thumb = easier drag */
+.ly-lyrics-progress {
+  height: 8px;
+  border-radius: 4px;
+  background: linear-gradient(90deg, rgba(96,165,250,0.35), rgba(255,255,255,0.18) 50%, rgba(236,72,153,0.4));
+}
+.ly-lyrics-progress::-webkit-slider-thumb {
+  width: 22px;
+  height: 22px;
+  border: 3px solid #fff;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.55);
+}
+.ly-lyrics-progress::-moz-range-thumb {
+  width: 22px; height: 22px;
+  background: #ec4899;
+  border: 3px solid #fff;
+  border-radius: 50%;
+}
+
+.ly-offset-end {
   font-size: 0.72rem;
   font-weight: 700;
-  cursor: pointer;
-  white-space: nowrap;
-  touch-action: manipulation;
-  min-height: 28px;
-  transition: background 0.12s, transform 0.08s;
+  color: #f9a8d4;
+  flex-shrink: 0;
+  width: 14px;
+  text-align: center;
 }
-.ly-offset-step:hover { background: rgba(236,72,153,0.28); }
-.ly-offset-step:active { transform: scale(0.95); }
 
 .ly-offset-val {
-  flex: 1;
   font-size: 0.8rem;
   font-variant-numeric: tabular-nums;
   color: #f9a8d4;
-  text-align: center;
+  text-align: right;
   font-weight: 700;
+  flex-shrink: 0;
+  min-width: 48px;
 }
 
 /* ---- Mini buttons on the lyrics stage (歌詞START / style) ---- */
@@ -1034,23 +1044,23 @@ body.song-active .ly-fx { display: block; }
   100% { opacity: 0;    transform: translate(82vmin, 82vmin) rotate(45deg); }
 }
 
-/* ---- FX theme: bokeh (soft floating out-of-focus orbs) ---- */
-.ly-bokeh {
+/* ---- FX theme: notes (floating music-note glyphs) ---- */
+.ly-note {
   position: absolute;
-  border-radius: 50%;
-  filter: blur(2px);
+  line-height: 1;
+  text-shadow: 0 0 14px rgba(139,92,246,0.7);
   opacity: 0;
-  mix-blend-mode: screen;
+  user-select: none;
   will-change: transform, opacity;
-  animation-name: ly-bokeh-float;
+  animation-name: ly-note-float;
   animation-timing-function: ease-in-out;
   animation-iteration-count: infinite;
 }
-@keyframes ly-bokeh-float {
-  0%   { opacity: 0;    transform: translateY(12vh) scale(0.8); }
-  30%  { opacity: 0.6; }
-  70%  { opacity: 0.5; }
-  100% { opacity: 0;    transform: translateY(-14vh) scale(1.15); }
+@keyframes ly-note-float {
+  0%   { opacity: 0;    transform: translateY(14vh) rotate(-14deg); }
+  20%  { opacity: 0.9; }
+  80%  { opacity: 0.7; }
+  100% { opacity: 0;    transform: translateY(-20vh) rotate(14deg); }
 }
 
 
@@ -1084,13 +1094,17 @@ body.lyric-scatter .ly-lyric-stack  { display: none; }
 
 .ly-scatter-token {
   position: absolute;
-  font-weight: 700;
+  font-weight: 800;
   color: #ffffff;
   letter-spacing: 0.02em;
-  line-height: 1.2;
-  text-shadow: 0 2px 14px rgba(0,0,0,0.7), 0 0 26px rgba(124,58,237,0.4);
-  white-space: nowrap;
-  max-width: 92%;
+  line-height: 1.18;
+  text-align: center;
+  text-shadow: 0 2px 14px rgba(0,0,0,0.7), 0 0 26px rgba(124,58,237,0.45);
+  /* horizontal lines may wrap so the text can stay large */
+  white-space: normal;
+  overflow-wrap: break-word;
+  word-break: normal;
+  max-width: 74%;
   opacity: 0;
   transform: scale(0.85);
   transition: opacity 0.6s ease, transform 0.6s cubic-bezier(0.22,1,0.36,1);
@@ -1102,7 +1116,7 @@ body.lyric-scatter .ly-lyric-stack  { display: none; }
   text-orientation: upright;
   white-space: nowrap;
   max-width: none;
-  max-height: 88%;
+  max-height: 86%;
 }
 
 .ly-scatter-token.in  { opacity: 1; transform: scale(1); }
@@ -1519,8 +1533,7 @@ body.lyrics-fs.fs-controls-visible .ly-stage-exit-btn:hover {
   .ly-lyrics-start-btn { font-size: 0.72rem; padding: 5px 8px; }
   .ly-lyrics-reset-btn { width: 26px; height: 26px; font-size: 0.85rem; }
   .ly-style-toggle { font-size: 0.72rem; padding: 5px 7px; }
-  .ly-offset-step { font-size: 0.72rem; padding: 6px 5px; }
-  .ly-offset-val { min-width: 46px; font-size: 0.76rem; }
+  .ly-offset-val { min-width: 44px; font-size: 0.74rem; }
 }
 
 @media (max-width: 380px) {

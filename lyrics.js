@@ -62,7 +62,7 @@ let elArtist, elTitle, elTitleWrap, elFetchBtn, elSearchHint, elStatus,
     elPlayerSection, elApiKeyInput, elSaveApiKey, elClearApiKey,
     elToggleApiKey, elApiKeyStatus, elCurrentOrigin,
     elApiSetup, elToggleApiSetup,
-    elLyricsOffsetDisplay, elOffsetEarlierBtn, elOffsetLaterBtn,
+    elLyricsOffsetBar, elLyricsOffsetDisplay,
     elLyricsStartBtn, elLyricsResetBtn, elStyleToggleBtn,
     elRandomPlayBtn, elOpenInYoutubeBtn, elFullscreenBtn,
     elExitKaraokeBtn, elArtistRandomBtn,
@@ -111,9 +111,8 @@ function init() {
   elSeekFwd        = document.getElementById('seekFwdBtn');
   elNextSongBtn    = document.getElementById('nextSongBtn');
   elPrevSongBtn    = document.getElementById('prevSongBtn');
+  elLyricsOffsetBar     = document.getElementById('lyricsOffsetBar');
   elLyricsOffsetDisplay = document.getElementById('lyricsOffsetDisplay');
-  elOffsetEarlierBtn = document.getElementById('offsetEarlierBtn');
-  elOffsetLaterBtn   = document.getElementById('offsetLaterBtn');
   elStyleToggleBtn   = document.getElementById('styleToggleBtn');
   elFxThemeBtn       = document.getElementById('fxThemeBtn');
   elSongList       = document.getElementById('songList');
@@ -245,16 +244,26 @@ function init() {
   elNextSongBtn.addEventListener('click', playNextInQueue);
   elPrevSongBtn.addEventListener('click', playPrevInQueue);
 
-  /* Lyrics offset nudge buttons — easier than dragging a slider.
-     Each tap shifts the lyrics timing by 0.3 s; pair with the
-     🎯 歌詞START snap button for big jumps. */
-  elOffsetEarlierBtn.addEventListener('click', () => adjustOffsetBy(-0.3));
-  elOffsetLaterBtn.addEventListener('click',   () => adjustOffsetBy(+0.3));
+  /* Lyrics offset slider — drag left to play lyrics earlier,
+     right to play them later (deci-seconds, ±10 s). Pairs with
+     the 🎯 歌詞START snap button for big jumps. */
+  elLyricsOffsetBar.addEventListener('input', () => {
+    state.lyricsOffset = Number(elLyricsOffsetBar.value) / 10;
+    updateLyricsOffsetSliderDisplay();
+    if (state.useLrc && state.ytPlayer && state.ytReady) {
+      state.currentIndex = -1;
+      syncLrc(state.ytPlayer.getCurrentTime() || 0);
+    }
+  });
+  elLyricsOffsetBar.addEventListener('change', () => {
+    saveOffsetForCurrentSong();
+    updateLyricsStartUI();
+  });
 
   /* Lyric display style toggle (stack <-> scatter) */
   elStyleToggleBtn.addEventListener('click', toggleLyricStyle);
 
-  /* Background FX theme cycle (rings / aurora / stars / beams) */
+  /* Background FX theme cycle */
   elFxThemeBtn.addEventListener('click', cycleFxTheme);
 
   elPrevPageBtn.addEventListener('click', () => goToPage(songList.page - 1));
@@ -1499,22 +1508,14 @@ function enableTransportControls(on) {
 }
 
 function updateLyricsOffsetSliderDisplay() {
-  if (!elLyricsOffsetDisplay) return;
   const v = state.lyricsOffset || 0;
-  const sign = v > 0 ? '+' : (v < 0 ? '−' : '±');
-  elLyricsOffsetDisplay.textContent = `${sign}${Math.abs(v).toFixed(1)}s`;
-}
-
-/** Nudge the lyrics timing by delta seconds (offset buttons) */
-function adjustOffsetBy(delta) {
-  state.lyricsOffset = Math.round((state.lyricsOffset + delta) * 10) / 10;
-  state.lyricsOffset = Math.max(-60, Math.min(60, state.lyricsOffset));
-  saveOffsetForCurrentSong();
-  updateLyricsOffsetSliderDisplay();
-  updateLyricsStartUI();
-  if (state.useLrc && state.ytPlayer && state.ytReady) {
-    state.currentIndex = -1;
-    syncLrc(state.ytPlayer.getCurrentTime() || 0);
+  if (elLyricsOffsetBar) {
+    const sliderVal = Math.max(-100, Math.min(100, Math.round(v * 10)));
+    if (Number(elLyricsOffsetBar.value) !== sliderVal) elLyricsOffsetBar.value = String(sliderVal);
+  }
+  if (elLyricsOffsetDisplay) {
+    const sign = v > 0 ? '+' : (v < 0 ? '−' : '±');
+    elLyricsOffsetDisplay.textContent = `${sign}${Math.abs(v).toFixed(1)}s`;
   }
 }
 
@@ -1543,13 +1544,14 @@ function applyLyricStyle() {
 }
 
 /* ============================================================
-   Background FX themes (rings / stars / streaks / bokeh)
+   Background FX themes (rings / stars / streaks / notes)
    ============================================================ */
-const FX_THEMES = ['rings', 'stars', 'streaks', 'bokeh'];
-const FX_LABELS = { rings: '✨リング', stars: '✨スター', streaks: '✨流星', bokeh: '✨玉ボケ' };
-const BOKEH_TINTS = [
-  'rgba(167,139,250,0.45)', 'rgba(244,114,182,0.42)',
-  'rgba(96,165,250,0.42)',  'rgba(52,211,153,0.38)',
+const FX_THEMES = ['rings', 'stars', 'streaks', 'notes'];
+const FX_LABELS = { rings: '✨リング', stars: '✨スター', streaks: '✨流星', notes: '✨音符' };
+const NOTE_GLYPHS = ['♪', '♫', '♬', '♩', '𝄞'];
+const NOTE_TINTS = [
+  'rgba(196,181,253,0.85)', 'rgba(249,168,212,0.82)',
+  'rgba(147,197,253,0.82)', 'rgba(110,231,183,0.78)',
 ];
 
 function cycleFxTheme() {
@@ -1593,19 +1595,17 @@ function buildFx() {
       elFx.appendChild(s);
     }
 
-  } else if (fxTheme === 'bokeh') {
-    for (let i = 0; i < 16; i++) {
-      const b = mkEl('span', 'ly-bokeh');
-      const sz = (4 + Math.random() * 12).toFixed(1);
-      const tint = BOKEH_TINTS[i % BOKEH_TINTS.length];
-      b.style.left   = (Math.random() * 100).toFixed(1) + '%';
-      b.style.top    = (Math.random() * 100).toFixed(1) + '%';
-      b.style.width  = sz + 'vmin';
-      b.style.height = sz + 'vmin';
-      b.style.background = `radial-gradient(circle, rgba(255,255,255,0.55), ${tint} 45%, transparent 70%)`;
-      b.style.animationDuration = (7 + Math.random() * 7).toFixed(2) + 's';
-      b.style.animationDelay    = (Math.random() * 7).toFixed(2) + 's';
-      elFx.appendChild(b);
+  } else if (fxTheme === 'notes') {
+    for (let i = 0; i < 13; i++) {
+      const n = mkEl('span', 'ly-note');
+      n.textContent = NOTE_GLYPHS[Math.floor(Math.random() * NOTE_GLYPHS.length)];
+      n.style.left      = (Math.random() * 96).toFixed(1) + '%';
+      n.style.top       = (Math.random() * 100).toFixed(1) + '%';
+      n.style.fontSize  = (3 + Math.random() * 5).toFixed(1) + 'vmin';
+      n.style.color     = NOTE_TINTS[i % NOTE_TINTS.length];
+      n.style.animationDuration = (6 + Math.random() * 6).toFixed(2) + 's';
+      n.style.animationDelay    = (Math.random() * 6).toFixed(2) + 's';
+      elFx.appendChild(n);
     }
   }
 }
@@ -1639,22 +1639,23 @@ function spawnScatterToken(text) {
 
   const sw = elScatterLayer.clientWidth  || 320;
   const sh = elScatterLayer.clientHeight || 200;
-  const scale = Math.max(0.5, Math.min(1.1, sw / 720));
+  const scale = Math.max(0.62, Math.min(1.25, sw / 680));
   const vertical = sh > 260 && Math.random() < 0.4; /* ~40% vertical when tall enough */
   if (vertical) el.classList.add('vertical');
-  let size = randomInt(Math.round(20 * scale), Math.round(46 * scale));
+  /* Bigger text; horizontal lines may wrap (handled in CSS) */
+  let size = randomInt(Math.round(30 * scale), Math.round(66 * scale));
   el.style.fontSize = `${size}px`;
   el.style.left = '-9999px';
   el.style.top  = '-9999px';
   elScatterLayer.appendChild(el);
 
-  /* Shrink so the token fits the stage — important for vertical
-     (縦書き) lines that would otherwise run off the bottom. */
+  /* Shrink only if it still doesn't fit after wrapping (keeps text big).
+     Vertical lines can't wrap, so they rely on this to fit the height. */
   const maxW = sw - 16;
   const maxH = sh - 46;            /* leave room under the title */
-  let guard = 14;
-  while ((el.offsetHeight > maxH || el.offsetWidth > maxW) && size > 11 && guard-- > 0) {
-    size = Math.max(11, Math.floor(size * 0.86));
+  let guard = 16;
+  while ((el.offsetHeight > maxH || el.offsetWidth > maxW) && size > 13 && guard-- > 0) {
+    size = Math.max(13, Math.floor(size * 0.88));
     el.style.fontSize = `${size}px`;
   }
 
