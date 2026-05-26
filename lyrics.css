@@ -697,15 +697,22 @@
 }
 
 /* ---- Mini buttons on the lyrics stage (歌詞START / style) ---- */
+/* Pinned to the bottom of the stage so they never collide with
+   the song title at the top. */
 .ly-stage-controls {
   position: absolute;
-  top: 6px;
+  bottom: 8px;
   right: 8px;
+  left: 8px;
   z-index: 5;
   display: flex;
   gap: 5px;
   align-items: center;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  pointer-events: none;
 }
+.ly-stage-controls > * { pointer-events: auto; }
 
 .ly-mini-btn {
   padding: 4px 8px;
