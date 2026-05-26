@@ -13,7 +13,7 @@
   <link rel="icon" href="icon.svg" type="image/svg+xml">
   <link rel="apple-touch-icon" href="icon.svg">
   <title>Music Lyrics</title>
-  <link rel="stylesheet" href="lyrics.css?v=32">
+  <link rel="stylesheet" href="lyrics.css?v=33">
 </head>
 <body class="ly-body">
 
@@ -126,9 +126,9 @@
         </div>
         <div class="ly-bar-row ly-lyrics-bar-row">
           <span class="ly-bar-label" title="歌詞のタイミング">📝</span>
-          <span class="ly-offset-end">早</span>
-          <input id="lyricsOffsetBar" class="ly-progress ly-lyrics-progress" type="range" min="-100" max="100" value="0" step="1" aria-label="歌詞のタイミング" title="左=早める / 右=遅らせる（±10秒）">
           <span class="ly-offset-end">遅</span>
+          <input id="lyricsOffsetBar" class="ly-progress ly-lyrics-progress" type="range" min="-100" max="100" value="0" step="1" aria-label="歌詞のタイミング" title="左=遅らせる / 右=早める（±10秒）">
+          <span class="ly-offset-end">早</span>
           <span id="lyricsOffsetDisplay" class="ly-offset-val">±0.0s</span>
         </div>
       </div>
@@ -171,7 +171,7 @@
     </div>
   </div>
 
-  <script src="config.js?v=32"></script>
-  <script src="lyrics.js?v=32"></script>
+  <script src="config.js?v=33"></script>
+  <script src="lyrics.js?v=33"></script>
 </body>
 </html>

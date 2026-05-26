@@ -1044,23 +1044,27 @@ body.song-active .ly-fx { display: block; }
   100% { opacity: 0;    transform: translate(82vmin, 82vmin) rotate(45deg); }
 }
 
-/* ---- FX theme: notes (floating music-note glyphs) ---- */
-.ly-note {
+/* ---- FX theme: circles (assorted circle shapes drifting) ---- */
+.ly-circle {
   position: absolute;
-  line-height: 1;
-  text-shadow: 0 0 14px rgba(139,92,246,0.7);
+  border-radius: 50%;
   opacity: 0;
-  user-select: none;
   will-change: transform, opacity;
-  animation-name: ly-note-float;
+  animation-name: ly-circle-float;
   animation-timing-function: ease-in-out;
   animation-iteration-count: infinite;
 }
-@keyframes ly-note-float {
-  0%   { opacity: 0;    transform: translateY(14vh) rotate(-14deg); }
-  20%  { opacity: 0.9; }
-  80%  { opacity: 0.7; }
-  100% { opacity: 0;    transform: translateY(-20vh) rotate(14deg); }
+.ly-circle.fill   { filter: blur(0.5px); }
+.ly-circle.ring   { border: 2px solid; background: transparent; }
+.ly-circle.thick  { border: 6px solid; background: transparent; }
+.ly-circle.dashed { border: 2.5px dashed; background: transparent; }
+.ly-circle.double { border: 2px solid; background: transparent; }
+
+@keyframes ly-circle-float {
+  0%   { opacity: 0;   transform: translateY(9vh) scale(0.7) rotate(0deg); }
+  25%  { opacity: 0.8; }
+  75%  { opacity: 0.65; }
+  100% { opacity: 0;   transform: translateY(-11vh) scale(1.15) rotate(40deg); }
 }
 
 

@@ -244,11 +244,12 @@ function init() {
   elNextSongBtn.addEventListener('click', playNextInQueue);
   elPrevSongBtn.addEventListener('click', playPrevInQueue);
 
-  /* Lyrics offset slider — drag left to play lyrics earlier,
-     right to play them later (deci-seconds, ±10 s). Pairs with
-     the 🎯 歌詞START snap button for big jumps. */
+  /* Lyrics offset slider — drag LEFT to play lyrics later,
+     RIGHT to play them earlier (deci-seconds, ±10 s). The value
+     is inverted vs. the offset so the slider matches the 遅/早
+     end labels. Pairs with the 🎯 歌詞START snap button. */
   elLyricsOffsetBar.addEventListener('input', () => {
-    state.lyricsOffset = Number(elLyricsOffsetBar.value) / 10;
+    state.lyricsOffset = -Number(elLyricsOffsetBar.value) / 10;
     updateLyricsOffsetSliderDisplay();
     if (state.useLrc && state.ytPlayer && state.ytReady) {
       state.currentIndex = -1;
@@ -666,10 +667,13 @@ function startArtistRandomPlay() {
     setStatus('アーティストの曲リストがありません。先に検索してください。', 'error');
     return;
   }
-  const pool = songList.songs.slice(0, Math.min(30, songList.songs.length));
+  /* Use the whole fetched (deduped) catalogue, not just the top
+     few, so the shuffle has real variety instead of always
+     surfacing the same popular tracks. */
+  const pool = songList.songs.slice();
   startShufflePlay(
     pool, 'artist',
-    `🎲 ${escapeHTML(songList.songs[0]?.artist || '')} のおすすめ${pool.length}曲をランダム再生中`
+    `🎲 ${escapeHTML(songList.songs[0]?.artist || '')} の${pool.length}曲からランダム再生中`
   );
 }
 
@@ -1510,7 +1514,8 @@ function enableTransportControls(on) {
 function updateLyricsOffsetSliderDisplay() {
   const v = state.lyricsOffset || 0;
   if (elLyricsOffsetBar) {
-    const sliderVal = Math.max(-100, Math.min(100, Math.round(v * 10)));
+    /* slider is inverted: left = later (+), right = earlier (-) */
+    const sliderVal = Math.max(-100, Math.min(100, Math.round(-v * 10)));
     if (Number(elLyricsOffsetBar.value) !== sliderVal) elLyricsOffsetBar.value = String(sliderVal);
   }
   if (elLyricsOffsetDisplay) {
@@ -1544,14 +1549,15 @@ function applyLyricStyle() {
 }
 
 /* ============================================================
-   Background FX themes (rings / stars / streaks / notes)
+   Background FX themes (rings / stars / streaks / circles)
    ============================================================ */
-const FX_THEMES = ['rings', 'stars', 'streaks', 'notes'];
-const FX_LABELS = { rings: '✨リング', stars: '✨スター', streaks: '✨流星', notes: '✨音符' };
-const NOTE_GLYPHS = ['♪', '♫', '♬', '♩', '𝄞'];
-const NOTE_TINTS = [
-  'rgba(196,181,253,0.85)', 'rgba(249,168,212,0.82)',
-  'rgba(147,197,253,0.82)', 'rgba(110,231,183,0.78)',
+const FX_THEMES = ['rings', 'stars', 'streaks', 'circles'];
+const FX_LABELS = { rings: '✨リング', stars: '✨スター', streaks: '✨流星', circles: '✨サークル' };
+const CIRCLE_SHAPES = ['fill', 'ring', 'thick', 'dashed', 'double'];
+const CIRCLE_TINTS = [
+  'rgba(167,139,250,0.9)', 'rgba(244,114,182,0.88)',
+  'rgba(96,165,250,0.88)', 'rgba(52,211,153,0.82)',
+  'rgba(251,191,36,0.82)',
 ];
 
 function cycleFxTheme() {
@@ -1595,17 +1601,25 @@ function buildFx() {
       elFx.appendChild(s);
     }
 
-  } else if (fxTheme === 'notes') {
-    for (let i = 0; i < 13; i++) {
-      const n = mkEl('span', 'ly-note');
-      n.textContent = NOTE_GLYPHS[Math.floor(Math.random() * NOTE_GLYPHS.length)];
-      n.style.left      = (Math.random() * 96).toFixed(1) + '%';
-      n.style.top       = (Math.random() * 100).toFixed(1) + '%';
-      n.style.fontSize  = (3 + Math.random() * 5).toFixed(1) + 'vmin';
-      n.style.color     = NOTE_TINTS[i % NOTE_TINTS.length];
-      n.style.animationDuration = (6 + Math.random() * 6).toFixed(2) + 's';
-      n.style.animationDelay    = (Math.random() * 6).toFixed(2) + 's';
-      elFx.appendChild(n);
+  } else if (fxTheme === 'circles') {
+    for (let i = 0; i < 16; i++) {
+      const shape = CIRCLE_SHAPES[Math.floor(Math.random() * CIRCLE_SHAPES.length)];
+      const tint  = CIRCLE_TINTS[i % CIRCLE_TINTS.length];
+      const c = mkEl('span', `ly-circle ${shape}`);
+      const sz = (5 + Math.random() * 14).toFixed(1);
+      c.style.left   = (Math.random() * 100).toFixed(1) + '%';
+      c.style.top    = (Math.random() * 100).toFixed(1) + '%';
+      c.style.width  = sz + 'vmin';
+      c.style.height = sz + 'vmin';
+      if (shape === 'fill') {
+        c.style.background = `radial-gradient(circle, ${tint}, transparent 70%)`;
+      } else {
+        c.style.borderColor = tint;
+        if (shape === 'double') c.style.boxShadow = `0 0 0 6px ${tint.replace(/[\d.]+\)$/, '0.4)')} inset`;
+      }
+      c.style.animationDuration = (6 + Math.random() * 7).toFixed(2) + 's';
+      c.style.animationDelay    = (Math.random() * 7).toFixed(2) + 's';
+      elFx.appendChild(c);
     }
   }
 }
