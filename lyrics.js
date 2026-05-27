@@ -63,6 +63,7 @@ let elArtist, elTitle, elTitleWrap, elFetchBtn, elSearchHint, elStatus,
     elToggleApiKey, elApiKeyStatus, elCurrentOrigin,
     elApiSetup, elToggleApiSetup,
     elLyricsOffsetBar, elLyricsOffsetDisplay,
+    elLyricsOffsetBarFs, elLyricsOffsetDisplayFs,
     elLyricsStartBtn, elLyricsResetBtn, elStyleToggleBtn,
     elRandomPlayBtn, elOpenInYoutubeBtn, elFullscreenBtn,
     elExitKaraokeBtn, elArtistRandomBtn,
@@ -113,6 +114,8 @@ function init() {
   elPrevSongBtn    = document.getElementById('prevSongBtn');
   elLyricsOffsetBar     = document.getElementById('lyricsOffsetBar');
   elLyricsOffsetDisplay = document.getElementById('lyricsOffsetDisplay');
+  elLyricsOffsetBarFs     = document.getElementById('lyricsOffsetBarFs');
+  elLyricsOffsetDisplayFs = document.getElementById('lyricsOffsetDisplayFs');
   elStyleToggleBtn   = document.getElementById('styleToggleBtn');
   elFxThemeBtn       = document.getElementById('fxThemeBtn');
   elSongList       = document.getElementById('songList');
@@ -244,21 +247,23 @@ function init() {
   elNextSongBtn.addEventListener('click', playNextInQueue);
   elPrevSongBtn.addEventListener('click', playPrevInQueue);
 
-  /* Lyrics offset slider — drag LEFT to play lyrics later,
-     RIGHT to play them earlier (deci-seconds, ±10 s). The value
-     is inverted vs. the offset so the slider matches the 遅/早
-     end labels. Pairs with the 🎯 歌詞START snap button. */
-  elLyricsOffsetBar.addEventListener('input', () => {
-    state.lyricsOffset = -Number(elLyricsOffsetBar.value) / 10;
-    updateLyricsOffsetSliderDisplay();
-    if (state.useLrc && state.ytPlayer && state.ytReady) {
-      state.currentIndex = -1;
-      syncLrc(state.ytPlayer.getCurrentTime() || 0);
-    }
-  });
-  elLyricsOffsetBar.addEventListener('change', () => {
-    saveOffsetForCurrentSong();
-    updateLyricsStartUI();
+  /* Lyrics offset sliders — drag LEFT to play lyrics later,
+     RIGHT to play earlier (±10 s). One lives under the video, a
+     second copy appears in fullscreen. Both share the logic. */
+  [elLyricsOffsetBar, elLyricsOffsetBarFs].forEach(bar => {
+    if (!bar) return;
+    bar.addEventListener('input', () => {
+      state.lyricsOffset = -Number(bar.value) / 10;
+      updateLyricsOffsetSliderDisplay();
+      if (state.useLrc && state.ytPlayer && state.ytReady) {
+        state.currentIndex = -1;
+        syncLrc(state.ytPlayer.getCurrentTime() || 0);
+      }
+    });
+    bar.addEventListener('change', () => {
+      saveOffsetForCurrentSong();
+      updateLyricsStartUI();
+    });
   });
 
   /* Lyric display style toggle (stack <-> scatter) */
@@ -1513,15 +1518,15 @@ function enableTransportControls(on) {
 
 function updateLyricsOffsetSliderDisplay() {
   const v = state.lyricsOffset || 0;
-  if (elLyricsOffsetBar) {
-    /* slider is inverted: left = later (+), right = earlier (-) */
-    const sliderVal = Math.max(-100, Math.min(100, Math.round(-v * 10)));
-    if (Number(elLyricsOffsetBar.value) !== sliderVal) elLyricsOffsetBar.value = String(sliderVal);
-  }
-  if (elLyricsOffsetDisplay) {
-    const sign = v > 0 ? '+' : (v < 0 ? '−' : '±');
-    elLyricsOffsetDisplay.textContent = `${sign}${Math.abs(v).toFixed(1)}s`;
-  }
+  /* slider is inverted: left = later (+), right = earlier (-) */
+  const sliderVal = Math.max(-100, Math.min(100, Math.round(-v * 10)));
+  [elLyricsOffsetBar, elLyricsOffsetBarFs].forEach(bar => {
+    if (bar && Number(bar.value) !== sliderVal) bar.value = String(sliderVal);
+  });
+  const sign = v > 0 ? '+' : (v < 0 ? '−' : '±');
+  const txt = `${sign}${Math.abs(v).toFixed(1)}s`;
+  if (elLyricsOffsetDisplay)   elLyricsOffsetDisplay.textContent = txt;
+  if (elLyricsOffsetDisplayFs) elLyricsOffsetDisplayFs.textContent = txt;
 }
 
 /* ============================================================
@@ -1630,8 +1635,9 @@ function mkEl(tag, className) {
 }
 
 /* ---- Scatter tokens: random h/v orientation, size, no overlap ---- */
-const SCATTER_MAX  = 6;
+const SCATTER_MAX  = 4;
 const SCATTER_LIFE = 6500;
+const SCATTER_GAP  = 18;   /* min px gap between scatter tokens */
 
 function spawnScatterToken(text) {
   if (!elScatterLayer || !text || !text.trim()) return;
@@ -1691,13 +1697,13 @@ function findScatterPosition(el) {
     .filter(t => t !== el)
     .map(t => ({ left: t.offsetLeft, top: t.offsetTop, right: t.offsetLeft + t.offsetWidth, bottom: t.offsetTop + t.offsetHeight }));
 
-  for (let i = 0; i < 40; i++) {
+  for (let i = 0; i < 60; i++) {
     const x = randomInt(PAD, Math.max(PAD, sw - ew - PAD));
     const y = randomInt(TOP_AVOID, Math.max(TOP_AVOID, sh - eh - PAD));
     const r = { left: x, top: y, right: x + ew, bottom: y + eh };
     const hit = rects.some(o => !(
-      r.right + 12 < o.left || r.left - 12 > o.right ||
-      r.bottom + 12 < o.top || r.top - 12 > o.bottom
+      r.right + SCATTER_GAP < o.left || r.left - SCATTER_GAP > o.right ||
+      r.bottom + SCATTER_GAP < o.top || r.top - SCATTER_GAP > o.bottom
     ));
     if (!hit) return { x, y };
   }

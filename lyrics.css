@@ -1120,9 +1120,33 @@ body.lyric-scatter .ly-lyric-stack  { display: none; }
 .ly-scatter-token.vertical {
   writing-mode: vertical-rl;
   text-orientation: upright;
-  white-space: nowrap;
-  max-width: none;
-  max-height: 86%;
+  /* allow wrapping into extra columns so long vertical lines
+     don't run off the bottom of the screen */
+  white-space: normal;
+  overflow-wrap: anywhere;
+  max-width: 70%;
+  max-height: 76%;
+}
+
+/* ---- Fullscreen lyrics-offset bar (shown with auto-hide ctrls) ---- */
+.ly-fs-offset { display: none; }
+body.lyrics-fs.fs-controls-visible .ly-fs-offset,
+body.karaoke-mode.fs-controls-visible .ly-fs-offset {
+  display: flex;
+  position: absolute;
+  left: 16px;
+  right: 16px;
+  bottom: 52px;
+  z-index: 6;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 14px;
+  background: rgba(0,0,0,0.55);
+  border: 1px solid rgba(255,255,255,0.18);
+  border-radius: 999px;
+  backdrop-filter: blur(8px);
+  max-width: 560px;
+  margin: 0 auto;
 }
 
 .ly-scatter-token.in  { opacity: 1; transform: scale(1); }
