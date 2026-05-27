@@ -1051,27 +1051,22 @@ body.song-active .ly-fx { display: block; }
   100% { opacity: 0;    transform: translate(82vmin, 82vmin) rotate(45deg); }
 }
 
-/* ---- FX theme: circles (assorted circle shapes drifting) ---- */
-.ly-circle {
+/* ---- FX theme: squares (rectangle version of the rings) ---- */
+.ly-square {
   position: absolute;
-  border-radius: 50%;
+  border: 2.5px solid rgba(139,92,246,0.7);
+  background: transparent;
   opacity: 0;
   will-change: transform, opacity;
-  animation-name: ly-circle-float;
-  animation-timing-function: ease-in-out;
+  animation-name: ly-square;
+  animation-timing-function: ease-out;
   animation-iteration-count: infinite;
 }
-.ly-circle.fill   { filter: blur(0.5px); }
-.ly-circle.ring   { border: 2px solid; background: transparent; }
-.ly-circle.thick  { border: 6px solid; background: transparent; }
-.ly-circle.dashed { border: 2.5px dashed; background: transparent; }
-.ly-circle.double { border: 2px solid; background: transparent; }
-
-@keyframes ly-circle-float {
-  0%   { opacity: 0;   transform: translateY(9vh) scale(0.7) rotate(0deg); }
-  25%  { opacity: 0.8; }
-  75%  { opacity: 0.65; }
-  100% { opacity: 0;   transform: translateY(-11vh) scale(1.15) rotate(40deg); }
+@keyframes ly-square {
+  0%   { transform: translate(-50%, -50%) scale(0.15) rotate(var(--rot, 0deg)); opacity: 0; }
+  10%  { opacity: 0.85; }                                                       /* pop in */
+  50%  { transform: translate(-50%, -50%) scale(2.3) rotate(var(--rot, 0deg)); opacity: 0; } /* expand & vanish */
+  100% { transform: translate(-50%, -50%) scale(2.3) rotate(var(--rot, 0deg)); opacity: 0; } /* rest (gap) */
 }
 
 

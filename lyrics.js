@@ -1549,15 +1549,14 @@ function applyLyricStyle() {
 }
 
 /* ============================================================
-   Background FX themes (rings / stars / streaks / circles)
+   Background FX themes (rings / stars / streaks / squares)
    ============================================================ */
-const FX_THEMES = ['rings', 'stars', 'streaks', 'circles'];
-const FX_LABELS = { rings: '✨リング', stars: '✨スター', streaks: '✨流星', circles: '✨サークル' };
-const CIRCLE_SHAPES = ['fill', 'ring', 'thick', 'dashed', 'double'];
-const CIRCLE_TINTS = [
-  'rgba(167,139,250,0.9)', 'rgba(244,114,182,0.88)',
-  'rgba(96,165,250,0.88)', 'rgba(52,211,153,0.82)',
-  'rgba(251,191,36,0.82)',
+const FX_THEMES = ['rings', 'stars', 'streaks', 'squares'];
+const FX_LABELS = { rings: '✨リング', stars: '✨スター', streaks: '✨流星', squares: '✨スクエア' };
+const SQUARE_TINTS = [
+  'rgba(167,139,250,0.85)', 'rgba(244,114,182,0.82)',
+  'rgba(96,165,250,0.82)', 'rgba(52,211,153,0.78)',
+  'rgba(251,191,36,0.78)',
 ];
 
 function cycleFxTheme() {
@@ -1601,25 +1600,25 @@ function buildFx() {
       elFx.appendChild(s);
     }
 
-  } else if (fxTheme === 'circles') {
-    for (let i = 0; i < 16; i++) {
-      const shape = CIRCLE_SHAPES[Math.floor(Math.random() * CIRCLE_SHAPES.length)];
-      const tint  = CIRCLE_TINTS[i % CIRCLE_TINTS.length];
-      const c = mkEl('span', `ly-circle ${shape}`);
-      const sz = (5 + Math.random() * 14).toFixed(1);
-      c.style.left   = (Math.random() * 100).toFixed(1) + '%';
-      c.style.top    = (Math.random() * 100).toFixed(1) + '%';
-      c.style.width  = sz + 'vmin';
-      c.style.height = sz + 'vmin';
-      if (shape === 'fill') {
-        c.style.background = `radial-gradient(circle, ${tint}, transparent 70%)`;
-      } else {
-        c.style.borderColor = tint;
-        if (shape === 'double') c.style.boxShadow = `0 0 0 6px ${tint.replace(/[\d.]+\)$/, '0.4)')} inset`;
-      }
-      c.style.animationDuration = (6 + Math.random() * 7).toFixed(2) + 's';
-      c.style.animationDelay    = (Math.random() * 7).toFixed(2) + 's';
-      elFx.appendChild(c);
+  } else if (fxTheme === 'squares') {
+    /* Square/rectangle version of the rings: scattered outlined
+       shapes that pop in, expand & fade with a gap, in assorted
+       aspect ratios and tilts. */
+    for (let i = 0; i < 8; i++) {
+      const sq = mkEl('span', 'ly-square');
+      const w  = 12 + Math.random() * 18;      /* vmin */
+      const ar = 0.5 + Math.random() * 1.3;    /* aspect ratio */
+      const tint = SQUARE_TINTS[i % SQUARE_TINTS.length];
+      sq.style.left   = (10 + Math.random() * 80).toFixed(1) + '%';
+      sq.style.top    = (14 + Math.random() * 68).toFixed(1) + '%';
+      sq.style.width  = w.toFixed(1) + 'vmin';
+      sq.style.height = (w * ar).toFixed(1) + 'vmin';
+      sq.style.borderColor = tint;
+      sq.style.boxShadow = `0 0 22px ${tint.replace(/[\d.]+\)$/, '0.3)')}`;
+      sq.style.setProperty('--rot', (Math.random() * 60 - 30).toFixed(0) + 'deg');
+      sq.style.animationDuration = (6.5 + Math.random() * 2).toFixed(2) + 's';
+      sq.style.animationDelay    = (i * 0.8).toFixed(2) + 's';
+      elFx.appendChild(sq);
     }
   }
 }
