@@ -1,0 +1,332 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>交通費計算（移動距離）</title>
+  <style>
+    :root {
+      --bg: #0f1115;
+      --panel: #1a1d24;
+      --panel-2: #232730;
+      --line: #2e333d;
+      --text: #e7e9ee;
+      --muted: #9aa1ad;
+      --accent: #4c8dff;
+      --accent-d: #3a6fd1;
+      --ok: #36c08a;
+      --danger: #e2607a;
+      --radius: 10px;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: system-ui, "Hiragino Kaku Gothic ProN", "Yu Gothic", Meiryo, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      line-height: 1.6;
+    }
+    .wrap { max-width: 880px; margin: 0 auto; padding: 24px 16px 80px; }
+    header h1 { font-size: 22px; margin: 0 0 6px; }
+    header p { color: var(--muted); margin: 0 0 20px; font-size: 14px; }
+
+    .panel {
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      padding: 16px;
+      margin-bottom: 16px;
+    }
+    .panel h2 { font-size: 15px; margin: 0 0 12px; }
+
+    label { font-size: 13px; color: var(--muted); display: block; margin-bottom: 4px; }
+    input, button {
+      font-family: inherit;
+      font-size: 14px;
+    }
+    input[type="text"], input[type="number"] {
+      width: 100%;
+      padding: 9px 10px;
+      background: var(--panel-2);
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      color: var(--text);
+      outline: none;
+    }
+    input:focus { border-color: var(--accent); }
+
+    .price-row { display: flex; align-items: flex-end; gap: 10px; flex-wrap: wrap; }
+    .price-row .field { max-width: 200px; }
+    .unit { color: var(--muted); font-size: 13px; padding-bottom: 9px; }
+
+    .btn {
+      padding: 9px 14px;
+      background: var(--accent);
+      color: #fff;
+      border: none;
+      border-radius: 8px;
+      cursor: pointer;
+      white-space: nowrap;
+    }
+    .btn:hover { background: var(--accent-d); }
+    .btn-outline {
+      background: transparent;
+      border: 1px solid var(--line);
+      color: var(--text);
+    }
+    .btn-outline:hover { border-color: var(--accent); }
+    .btn-sm { padding: 7px 10px; font-size: 13px; }
+    .btn:disabled { opacity: .5; cursor: not-allowed; }
+
+    .row {
+      display: grid;
+      grid-template-columns: 88px 1fr auto;
+      gap: 8px;
+      align-items: start;
+      padding: 10px 0;
+      border-top: 1px solid var(--line);
+    }
+    .row:first-of-type { border-top: none; }
+    .row .badge {
+      font-size: 12px;
+      font-weight: 600;
+      padding: 9px 6px 0 0;
+      color: var(--muted);
+    }
+    .row .badge.base { color: var(--accent); }
+    .row .addr-wrap { display: flex; flex-direction: column; gap: 6px; }
+    .coords { display: flex; gap: 6px; }
+    .coords input { font-size: 12px; padding: 6px 8px; }
+    .row .row-actions { display: flex; flex-direction: column; gap: 6px; }
+    .geo-status { font-size: 11px; color: var(--muted); min-height: 14px; }
+    .geo-status.ok { color: var(--ok); }
+    .geo-status.err { color: var(--danger); }
+
+    .add-row { margin-top: 12px; }
+    .hint { font-size: 12px; color: var(--muted); margin-top: 10px; }
+
+    .results table { width: 100%; border-collapse: collapse; margin-top: 4px; }
+    .results th, .results td {
+      text-align: left;
+      padding: 8px 6px;
+      border-bottom: 1px solid var(--line);
+      font-size: 14px;
+    }
+    .results th { color: var(--muted); font-weight: 500; font-size: 12px; }
+    .results td.num { text-align: right; font-variant-numeric: tabular-nums; }
+    .total-line {
+      display: flex;
+      justify-content: space-between;
+      align-items: baseline;
+      margin-top: 14px;
+      padding-top: 14px;
+      border-top: 2px solid var(--line);
+    }
+    .total-line .amount { font-size: 26px; font-weight: 700; color: var(--ok); }
+    .total-line .sub { color: var(--muted); font-size: 13px; }
+    .empty { color: var(--muted); font-size: 14px; }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <header>
+      <h1>交通費計算（移動距離）</h1>
+      <p>現在地を基点に、複数拠点への移動距離と交通費を計算するサンプルです。</p>
+    </header>
+
+    <!-- 距離単価 -->
+    <section class="panel">
+      <h2>距離単価</h2>
+      <div class="price-row">
+        <div class="field">
+          <label for="unitPrice">1kmあたりの単価</label>
+          <input id="unitPrice" type="number" min="0" step="1" value="14">
+        </div>
+        <span class="unit">円 / km（デフォルト 14円）</span>
+      </div>
+    </section>
+
+    <!-- 拠点入力 -->
+    <section class="panel">
+      <h2>移動ルート（基点を含めて最大10件）</h2>
+      <div id="rows"></div>
+      <button id="addRow" class="btn btn-outline btn-sm add-row">＋ 拠点を追加</button>
+      <p class="hint">
+        住所や場所名を入力して「座標」を押すと位置を取得します（OpenStreetMap・APIキー不要）。<br>
+        緯度・経度は手入力もできます。基点は「現在地を取得」で自動入力できます。
+      </p>
+    </section>
+
+    <button id="calcBtn" class="btn">交通費を計算する</button>
+
+    <!-- 結果 -->
+    <section class="panel results" id="resultPanel" style="margin-top:16px;">
+      <h2>計算結果</h2>
+      <div id="resultBody"><p class="empty">「交通費を計算する」を押すと、区間ごとの距離と金額が表示されます。</p></div>
+    </section>
+
+    <p class="hint">
+      ※ 距離は2地点間の直線距離（ハバーサイン計算）です。実際の道路距離とは異なります。
+      正確な走行距離が必要な場合は、ルート検索API（Google Directions / OSRM 等）への差し替えが可能です。
+    </p>
+  </div>
+
+  <script>
+    const MAX_ROWS = 10;
+    const rowsEl = document.getElementById('rows');
+    let rowId = 0;
+
+    function createRow(isBase) {
+      const id = rowId++;
+      const row = document.createElement('div');
+      row.className = 'row';
+      row.dataset.id = id;
+      row.innerHTML = `
+        <div class="badge ${isBase ? 'base' : ''}"></div>
+        <div class="addr-wrap">
+          <input type="text" class="addr" placeholder="${isBase ? '基点の住所・場所名' : '住所・場所名（例: 東京駅）'}" autocomplete="off">
+          <div class="coords">
+            <input type="number" class="lat" placeholder="緯度" step="any">
+            <input type="number" class="lng" placeholder="経度" step="any">
+          </div>
+          <div class="geo-status"></div>
+        </div>
+        <div class="row-actions">
+          ${isBase
+            ? '<button class="btn btn-outline btn-sm geo-current">現在地を取得</button>'
+            : ''}
+          <button class="btn btn-outline btn-sm geo-search">座標</button>
+          ${isBase ? '' : '<button class="btn btn-outline btn-sm remove">削除</button>'}
+        </div>
+      `;
+      rowsEl.appendChild(row);
+
+      row.querySelector('.geo-search').addEventListener('click', () => geocodeRow(row));
+      const removeBtn = row.querySelector('.remove');
+      if (removeBtn) removeBtn.addEventListener('click', () => { row.remove(); renumber(); });
+      const curBtn = row.querySelector('.geo-current');
+      if (curBtn) curBtn.addEventListener('click', () => useCurrentLocation(row));
+
+      renumber();
+      return row;
+    }
+
+    function renumber() {
+      const rows = [...rowsEl.querySelectorAll('.row')];
+      rows.forEach((row, i) => {
+        const badge = row.querySelector('.badge');
+        badge.textContent = i === 0 ? '基点' : `拠点${i}`;
+      });
+      document.getElementById('addRow').disabled = rows.length >= MAX_ROWS;
+    }
+
+    function setStatus(row, msg, type) {
+      const el = row.querySelector('.geo-status');
+      el.textContent = msg || '';
+      el.className = 'geo-status' + (type ? ' ' + type : '');
+    }
+
+    async function geocodeRow(row) {
+      const q = row.querySelector('.addr').value.trim();
+      if (!q) { setStatus(row, '住所を入力してください', 'err'); return; }
+      setStatus(row, '検索中…');
+      try {
+        const url = 'https://nominatim.openstreetmap.org/search?format=jsonv2&limit=1&accept-language=ja&q='
+          + encodeURIComponent(q);
+        const res = await fetch(url, { headers: { 'Accept': 'application/json' } });
+        if (!res.ok) throw new Error('HTTP ' + res.status);
+        const data = await res.json();
+        if (!data.length) { setStatus(row, '場所が見つかりませんでした', 'err'); return; }
+        row.querySelector('.lat').value = parseFloat(data[0].lat).toFixed(6);
+        row.querySelector('.lng').value = parseFloat(data[0].lon).toFixed(6);
+        setStatus(row, '取得しました: ' + data[0].display_name, 'ok');
+      } catch (e) {
+        setStatus(row, '取得に失敗しました（緯度・経度を手入力してください）', 'err');
+      }
+    }
+
+    function useCurrentLocation(row) {
+      if (!navigator.geolocation) { setStatus(row, 'この端末では位置情報を利用できません', 'err'); return; }
+      setStatus(row, '現在地を取得中…');
+      navigator.geolocation.getCurrentPosition(
+        (pos) => {
+          row.querySelector('.lat').value = pos.coords.latitude.toFixed(6);
+          row.querySelector('.lng').value = pos.coords.longitude.toFixed(6);
+          if (!row.querySelector('.addr').value.trim()) row.querySelector('.addr').value = '現在地';
+          setStatus(row, '現在地を取得しました', 'ok');
+        },
+        (err) => setStatus(row, '現在地の取得に失敗しました: ' + err.message, 'err'),
+        { enableHighAccuracy: true, timeout: 10000 }
+      );
+    }
+
+    function toRad(d) { return d * Math.PI / 180; }
+    function haversineKm(a, b) {
+      const R = 6371;
+      const dLat = toRad(b.lat - a.lat);
+      const dLng = toRad(b.lng - a.lng);
+      const s = Math.sin(dLat / 2) ** 2
+        + Math.cos(toRad(a.lat)) * Math.cos(toRad(b.lat)) * Math.sin(dLng / 2) ** 2;
+      return 2 * R * Math.asin(Math.sqrt(s));
+    }
+
+    function collectPoints() {
+      return [...rowsEl.querySelectorAll('.row')].map((row, i) => {
+        const lat = parseFloat(row.querySelector('.lat').value);
+        const lng = parseFloat(row.querySelector('.lng').value);
+        const name = row.querySelector('.addr').value.trim() || (i === 0 ? '基点' : `拠点${i}`);
+        return { name, lat, lng, valid: Number.isFinite(lat) && Number.isFinite(lng) };
+      });
+    }
+
+    function calculate() {
+      const price = parseFloat(document.getElementById('unitPrice').value) || 0;
+      const points = collectPoints().filter(p => p.valid);
+      const body = document.getElementById('resultBody');
+
+      if (points.length < 2) {
+        body.innerHTML = '<p class="empty">有効な座標を持つ地点が2つ以上必要です（住所検索または緯度・経度を入力してください）。</p>';
+        return;
+      }
+
+      let totalKm = 0;
+      let rowsHtml = '';
+      for (let i = 1; i < points.length; i++) {
+        const km = haversineKm(points[i - 1], points[i]);
+        const cost = km * price;
+        totalKm += km;
+        rowsHtml += `<tr>
+          <td>${escapeHtml(points[i - 1].name)} → ${escapeHtml(points[i].name)}</td>
+          <td class="num">${km.toFixed(2)} km</td>
+          <td class="num">${Math.round(cost).toLocaleString()} 円</td>
+        </tr>`;
+      }
+      const totalCost = Math.round(totalKm * price);
+
+      body.innerHTML = `
+        <table>
+          <thead><tr><th>区間</th><th class="num">距離</th><th class="num">金額</th></tr></thead>
+          <tbody>${rowsHtml}</tbody>
+        </table>
+        <div class="total-line">
+          <span class="sub">合計距離 ${totalKm.toFixed(2)} km × ${price.toLocaleString()} 円/km</span>
+          <span class="amount">${totalCost.toLocaleString()} 円</span>
+        </div>`;
+    }
+
+    function escapeHtml(s) {
+      return s.replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+    }
+
+    document.getElementById('addRow').addEventListener('click', () => {
+      if (rowsEl.querySelectorAll('.row').length < MAX_ROWS) createRow(false);
+    });
+    document.getElementById('calcBtn').addEventListener('click', calculate);
+
+    // 初期表示: 基点 + 拠点1, 拠点2
+    createRow(true);
+    createRow(false);
+    createRow(false);
+  </script>
+</body>
+</html>
