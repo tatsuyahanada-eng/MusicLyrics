@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>交通費計算（移動距離）</title>
+  <title>J-COM案件 車両移動経費請求書</title>
   <style>
     :root {
       --bg: #0f1115;
@@ -26,7 +26,7 @@
       color: var(--text);
       line-height: 1.6;
     }
-    .wrap { max-width: 880px; margin: 0 auto; padding: 24px 16px 80px; }
+    .wrap { max-width: 960px; margin: 0 auto; padding: 24px 16px 80px; }
     header h1 { font-size: 22px; margin: 0 0 6px; }
     header p { color: var(--muted); margin: 0 0 20px; font-size: 14px; }
 
@@ -37,14 +37,12 @@
       padding: 16px;
       margin-bottom: 16px;
     }
-    .panel h2 { font-size: 15px; margin: 0 0 12px; }
+    .panel h2 { font-size: 15px; margin: 0 0 14px; }
 
     label { font-size: 13px; color: var(--muted); display: block; margin-bottom: 4px; }
-    input, button {
+    input {
       font-family: inherit;
       font-size: 14px;
-    }
-    input[type="text"], input[type="number"] {
       width: 100%;
       padding: 9px 10px;
       background: var(--panel-2);
@@ -54,279 +52,240 @@
       outline: none;
     }
     input:focus { border-color: var(--accent); }
+    input.num { text-align: right; font-variant-numeric: tabular-nums; }
 
-    .price-row { display: flex; align-items: flex-end; gap: 10px; flex-wrap: wrap; }
-    .price-row .field { max-width: 200px; }
-    .unit { color: var(--muted); font-size: 13px; padding-bottom: 9px; }
+    .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px 16px; }
+    .grid2 .full { grid-column: 1 / -1; }
+    @media (max-width: 620px) { .grid2 { grid-template-columns: 1fr; } }
+
+    .visit-row { display: grid; grid-template-columns: 70px 1fr; gap: 8px; align-items: center; margin-bottom: 8px; }
+    .visit-row .vlabel { font-size: 13px; color: var(--muted); }
+
+    table { width: 100%; border-collapse: collapse; }
+    th, td { padding: 7px 6px; border-bottom: 1px solid var(--line); font-size: 13px; vertical-align: middle; }
+    th { color: var(--muted); font-weight: 500; text-align: left; }
+    th.num, td.num { text-align: right; }
+    td .rlabel { color: var(--muted); white-space: nowrap; }
+    td input { padding: 7px 8px; }
+    .unit-cell { color: var(--muted); white-space: nowrap; padding-left: 4px; }
+    .table-scroll { overflow-x: auto; }
 
     .btn {
-      padding: 9px 14px;
-      background: var(--accent);
-      color: #fff;
-      border: none;
-      border-radius: 8px;
-      cursor: pointer;
-      white-space: nowrap;
+      padding: 9px 14px; background: var(--accent); color: #fff;
+      border: none; border-radius: 8px; cursor: pointer; white-space: nowrap; font-size: 14px;
     }
     .btn:hover { background: var(--accent-d); }
-    .btn-outline {
-      background: transparent;
-      border: 1px solid var(--line);
-      color: var(--text);
-    }
+    .btn-outline { background: transparent; border: 1px solid var(--line); color: var(--text); }
     .btn-outline:hover { border-color: var(--accent); }
     .btn-sm { padding: 7px 10px; font-size: 13px; }
-    .btn:disabled { opacity: .5; cursor: not-allowed; }
 
-    .row {
-      display: grid;
-      grid-template-columns: 88px 1fr auto;
-      gap: 8px;
-      align-items: start;
-      padding: 10px 0;
-      border-top: 1px solid var(--line);
-    }
-    .row:first-of-type { border-top: none; }
-    .row .badge {
-      font-size: 12px;
-      font-weight: 600;
-      padding: 9px 6px 0 0;
-      color: var(--muted);
-    }
-    .row .badge.base { color: var(--accent); }
-    .row .addr-wrap { display: flex; flex-direction: column; gap: 6px; }
-    .coords { display: flex; gap: 6px; }
-    .coords input { font-size: 12px; padding: 6px 8px; }
-    .row .row-actions { display: flex; flex-direction: column; gap: 6px; }
-    .geo-status { font-size: 11px; color: var(--muted); min-height: 14px; }
+    .dist-row { display: flex; align-items: flex-end; gap: 10px; flex-wrap: wrap; }
+    .dist-row .field { max-width: 220px; }
+    .unit { color: var(--muted); font-size: 13px; padding-bottom: 9px; }
+    .geo-status { font-size: 12px; color: var(--muted); margin-top: 10px; min-height: 16px; }
     .geo-status.ok { color: var(--ok); }
     .geo-status.err { color: var(--danger); }
 
-    .add-row { margin-top: 12px; }
+    .summary .line { display: flex; justify-content: space-between; align-items: baseline; padding: 8px 0; border-bottom: 1px solid var(--line); }
+    .summary .line .lbl { color: var(--muted); font-size: 14px; }
+    .summary .line .val { font-variant-numeric: tabular-nums; font-size: 16px; }
+    .summary .total { padding-top: 14px; margin-top: 6px; border-bottom: none; }
+    .summary .total .lbl { color: var(--text); font-size: 16px; font-weight: 600; }
+    .summary .total .val { color: var(--ok); font-size: 28px; font-weight: 700; }
     .hint { font-size: 12px; color: var(--muted); margin-top: 10px; }
-
-    .results table { width: 100%; border-collapse: collapse; margin-top: 4px; }
-    .results th, .results td {
-      text-align: left;
-      padding: 8px 6px;
-      border-bottom: 1px solid var(--line);
-      font-size: 14px;
-    }
-    .results th { color: var(--muted); font-weight: 500; font-size: 12px; }
-    .results td.num { text-align: right; font-variant-numeric: tabular-nums; }
-    .total-line {
-      display: flex;
-      justify-content: space-between;
-      align-items: baseline;
-      margin-top: 14px;
-      padding-top: 14px;
-      border-top: 2px solid var(--line);
-    }
-    .total-line .amount { font-size: 26px; font-weight: 700; color: var(--ok); }
-    .total-line .sub { color: var(--muted); font-size: 13px; }
-    .empty { color: var(--muted); font-size: 14px; }
   </style>
 </head>
 <body>
   <div class="wrap">
     <header>
-      <h1>交通費計算（移動距離）</h1>
-      <p>現在地を基点に、複数拠点への移動距離と交通費を計算するサンプルです。</p>
+      <h1>J-COM案件 車両移動経費請求書</h1>
+      <p>基点から各訪問先への移動経費（ガソリン代・有料道路・駐車場）を入力し、請求総額を計算します。</p>
     </header>
 
-    <!-- 距離単価 -->
+    <!-- 基本情報 -->
     <section class="panel">
-      <h2>距離単価</h2>
-      <div class="price-row">
-        <div class="field">
-          <label for="unitPrice">1kmあたりの単価</label>
-          <input id="unitPrice" type="number" min="0" step="1" value="14">
+      <h2>基本情報</h2>
+      <div class="grid2">
+        <div>
+          <label for="workDate">稼働日</label>
+          <input id="workDate" type="date">
         </div>
-        <span class="unit">円 / km（デフォルト 14円）</span>
+        <div>
+          <label for="mngNo">管理番号</label>
+          <input id="mngNo" type="text" placeholder="（空白可）">
+        </div>
+        <div>
+          <label for="staffId">スタッフID</label>
+          <input id="staffId" type="text" placeholder="（空白可）">
+        </div>
+        <div>
+          <label for="unitPrice">距離単価（円/km）</label>
+          <input id="unitPrice" class="num" type="number" min="0" step="1" value="14">
+        </div>
+        <div class="full">
+          <label for="baseAddr">基点住所</label>
+          <input id="baseAddr" type="text" placeholder="例: 埼玉県越谷市東大沢1-22-4">
+        </div>
       </div>
     </section>
 
-    <!-- 拠点入力 -->
+    <!-- 訪問先 -->
     <section class="panel">
-      <h2>移動ルート（基点を含めて最大10件）</h2>
-      <div id="rows"></div>
-      <button id="addRow" class="btn btn-outline btn-sm add-row">＋ 拠点を追加</button>
-      <p class="hint">
-        住所や場所名を入力して「座標」を押すと位置を取得します（OpenStreetMap・APIキー不要）。<br>
-        緯度・経度は手入力もできます。基点は「現在地を取得」で自動入力できます。
-      </p>
+      <h2>訪問先（最大7件）</h2>
+      <div id="visits"></div>
+      <button id="autoDist" class="btn btn-outline btn-sm" type="button">住所から総移動距離を自動計算</button>
+      <div id="geoStatus" class="geo-status"></div>
     </section>
 
-    <button id="calcBtn" class="btn">交通費を計算する</button>
-
-    <!-- 結果 -->
-    <section class="panel results" id="resultPanel" style="margin-top:16px;">
-      <h2>計算結果</h2>
-      <div id="resultBody"><p class="empty">「交通費を計算する」を押すと、区間ごとの距離と金額が表示されます。</p></div>
+    <!-- ルート（有料道路） -->
+    <section class="panel">
+      <h2>ルート（有料道路）</h2>
+      <div class="table-scroll">
+        <table id="tollTable">
+          <thead>
+            <tr><th style="width:90px;">ルート</th><th>有料道路</th><th>区間</th><th class="num" style="width:130px;">費用</th><th></th></tr>
+          </thead>
+          <tbody></tbody>
+        </table>
+      </div>
     </section>
 
-    <p class="hint">
-      ※ 距離は2地点間の直線距離（ハバーサイン計算）です。実際の道路距離とは異なります。
-      正確な走行距離が必要な場合は、ルート検索API（Google Directions / OSRM 等）への差し替えが可能です。
-    </p>
+    <!-- 駐車場 -->
+    <section class="panel">
+      <h2>駐車場</h2>
+      <div class="table-scroll">
+        <table id="parkTable">
+          <thead>
+            <tr><th style="width:90px;">訪問先</th><th>駐車場</th><th>パーキング名</th><th class="num" style="width:130px;">費用</th><th></th></tr>
+          </thead>
+          <tbody></tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- 総移動距離 -->
+    <section class="panel">
+      <h2>総移動距離</h2>
+      <div class="dist-row">
+        <div class="field">
+          <label for="totalKm">総移動距離</label>
+          <input id="totalKm" class="num" type="number" min="0" step="0.1" placeholder="0">
+        </div>
+        <span class="unit">km</span>
+      </div>
+      <p class="hint">「住所から総移動距離を自動計算」で概算を入力できます（直線距離・参考値）。実走行距離は手入力で上書きしてください。</p>
+    </section>
+
+    <!-- 請求額 -->
+    <section class="panel summary">
+      <h2>【請求額】</h2>
+      <div class="line"><span class="lbl">ガソリン代（単価 × 総移動距離）</span><span class="val" id="sumGas">0 円</span></div>
+      <div class="line"><span class="lbl">有料道路</span><span class="val" id="sumToll">0 円</span></div>
+      <div class="line"><span class="lbl">駐車場</span><span class="val" id="sumPark">0 円</span></div>
+      <div class="line total"><span class="lbl">請求総額</span><span class="val" id="sumTotal">0 円</span></div>
+    </section>
   </div>
 
   <script>
-    const MAX_ROWS = 10;
-    const rowsEl = document.getElementById('rows');
-    let rowId = 0;
+    const VISITS = 7;
+    const TOLL_LEGS = ['基点→1','1→2','2→3','3→4','4→5','5→6','6→7','7→8'];
 
-    function createRow(isBase) {
-      const id = rowId++;
+    // 訪問先入力
+    const visitsEl = document.getElementById('visits');
+    for (let i = 1; i <= VISITS; i++) {
       const row = document.createElement('div');
-      row.className = 'row';
-      row.dataset.id = id;
-      row.innerHTML = `
-        <div class="badge ${isBase ? 'base' : ''}"></div>
-        <div class="addr-wrap">
-          <input type="text" class="addr" placeholder="${isBase ? '基点の住所・場所名' : '住所・場所名（例: 東京駅）'}" autocomplete="off">
-          <div class="coords">
-            <input type="number" class="lat" placeholder="緯度" step="any">
-            <input type="number" class="lng" placeholder="経度" step="any">
-          </div>
-          <div class="geo-status"></div>
-        </div>
-        <div class="row-actions">
-          ${isBase
-            ? '<button class="btn btn-outline btn-sm geo-current">現在地を取得</button>'
-            : ''}
-          <button class="btn btn-outline btn-sm geo-search">座標</button>
-          ${isBase ? '' : '<button class="btn btn-outline btn-sm remove">削除</button>'}
-        </div>
-      `;
-      rowsEl.appendChild(row);
-
-      row.querySelector('.geo-search').addEventListener('click', () => geocodeRow(row));
-      const removeBtn = row.querySelector('.remove');
-      if (removeBtn) removeBtn.addEventListener('click', () => { row.remove(); renumber(); });
-      const curBtn = row.querySelector('.geo-current');
-      if (curBtn) curBtn.addEventListener('click', () => useCurrentLocation(row));
-
-      renumber();
-      return row;
+      row.className = 'visit-row';
+      row.innerHTML = `<span class="vlabel">訪問先${i}</span>`
+        + `<input type="text" class="visit-addr" data-i="${i}" placeholder="住所・場所名（空白可）" autocomplete="off">`;
+      visitsEl.appendChild(row);
     }
 
-    function renumber() {
-      const rows = [...rowsEl.querySelectorAll('.row')];
-      rows.forEach((row, i) => {
-        const badge = row.querySelector('.badge');
-        badge.textContent = i === 0 ? '基点' : `拠点${i}`;
-      });
-      document.getElementById('addRow').disabled = rows.length >= MAX_ROWS;
+    // ルート（有料道路）テーブル
+    const tollBody = document.querySelector('#tollTable tbody');
+    TOLL_LEGS.forEach(leg => {
+      const tr = document.createElement('tr');
+      tr.innerHTML = `
+        <td><span class="rlabel">${leg}</span></td>
+        <td><input type="text" placeholder="例: 首都高速"></td>
+        <td><input type="text" placeholder="例: 三郷IC→箱崎"></td>
+        <td class="num"><input type="number" class="cost toll-cost" min="0" step="1" placeholder="0"></td>
+        <td class="unit-cell">円</td>`;
+      tollBody.appendChild(tr);
+    });
+
+    // 駐車場テーブル
+    const parkBody = document.querySelector('#parkTable tbody');
+    for (let i = 1; i <= VISITS; i++) {
+      const tr = document.createElement('tr');
+      tr.innerHTML = `
+        <td><span class="rlabel">訪問先${i}</span></td>
+        <td><input type="text" placeholder="（空白可）"></td>
+        <td><input type="text" placeholder="パーキング名（空白可）"></td>
+        <td class="num"><input type="number" class="cost park-cost" min="0" step="1" placeholder="0"></td>
+        <td class="unit-cell">円</td>`;
+      parkBody.appendChild(tr);
     }
 
-    function setStatus(row, msg, type) {
-      const el = row.querySelector('.geo-status');
-      el.textContent = msg || '';
-      el.className = 'geo-status' + (type ? ' ' + type : '');
-    }
+    // 計算
+    const yen = n => Math.round(n).toLocaleString() + ' 円';
+    const sumInputs = sel => [...document.querySelectorAll(sel)]
+      .reduce((s, el) => s + (parseFloat(el.value) || 0), 0);
 
-    async function geocodeRow(row) {
-      const q = row.querySelector('.addr').value.trim();
-      if (!q) { setStatus(row, '住所を入力してください', 'err'); return; }
-      setStatus(row, '検索中…');
-      try {
-        const url = 'https://nominatim.openstreetmap.org/search?format=jsonv2&limit=1&accept-language=ja&q='
-          + encodeURIComponent(q);
-        const res = await fetch(url, { headers: { 'Accept': 'application/json' } });
-        if (!res.ok) throw new Error('HTTP ' + res.status);
-        const data = await res.json();
-        if (!data.length) { setStatus(row, '場所が見つかりませんでした', 'err'); return; }
-        row.querySelector('.lat').value = parseFloat(data[0].lat).toFixed(6);
-        row.querySelector('.lng').value = parseFloat(data[0].lon).toFixed(6);
-        setStatus(row, '取得しました: ' + data[0].display_name, 'ok');
-      } catch (e) {
-        setStatus(row, '取得に失敗しました（緯度・経度を手入力してください）', 'err');
-      }
+    function recalc() {
+      const price = parseFloat(document.getElementById('unitPrice').value) || 0;
+      const km = parseFloat(document.getElementById('totalKm').value) || 0;
+      const gas = price * km;
+      const toll = sumInputs('.toll-cost');
+      const park = sumInputs('.park-cost');
+      document.getElementById('sumGas').textContent = yen(gas);
+      document.getElementById('sumToll').textContent = yen(toll);
+      document.getElementById('sumPark').textContent = yen(park);
+      document.getElementById('sumTotal').textContent = yen(gas + toll + park);
     }
+    document.addEventListener('input', recalc);
+    recalc();
 
-    function useCurrentLocation(row) {
-      if (!navigator.geolocation) { setStatus(row, 'この端末では位置情報を利用できません', 'err'); return; }
-      setStatus(row, '現在地を取得中…');
-      navigator.geolocation.getCurrentPosition(
-        (pos) => {
-          row.querySelector('.lat').value = pos.coords.latitude.toFixed(6);
-          row.querySelector('.lng').value = pos.coords.longitude.toFixed(6);
-          if (!row.querySelector('.addr').value.trim()) row.querySelector('.addr').value = '現在地';
-          setStatus(row, '現在地を取得しました', 'ok');
-        },
-        (err) => setStatus(row, '現在地の取得に失敗しました: ' + err.message, 'err'),
-        { enableHighAccuracy: true, timeout: 10000 }
-      );
-    }
-
+    // 住所からの距離自動計算（OpenStreetMap / 直線距離・参考値）
     function toRad(d) { return d * Math.PI / 180; }
     function haversineKm(a, b) {
       const R = 6371;
-      const dLat = toRad(b.lat - a.lat);
-      const dLng = toRad(b.lng - a.lng);
+      const dLat = toRad(b.lat - a.lat), dLng = toRad(b.lng - a.lng);
       const s = Math.sin(dLat / 2) ** 2
         + Math.cos(toRad(a.lat)) * Math.cos(toRad(b.lat)) * Math.sin(dLng / 2) ** 2;
       return 2 * R * Math.asin(Math.sqrt(s));
     }
-
-    function collectPoints() {
-      return [...rowsEl.querySelectorAll('.row')].map((row, i) => {
-        const lat = parseFloat(row.querySelector('.lat').value);
-        const lng = parseFloat(row.querySelector('.lng').value);
-        const name = row.querySelector('.addr').value.trim() || (i === 0 ? '基点' : `拠点${i}`);
-        return { name, lat, lng, valid: Number.isFinite(lat) && Number.isFinite(lng) };
-      });
+    async function geocode(q) {
+      const url = 'https://nominatim.openstreetmap.org/search?format=jsonv2&limit=1&accept-language=ja&q='
+        + encodeURIComponent(q);
+      const res = await fetch(url, { headers: { 'Accept': 'application/json' } });
+      if (!res.ok) throw new Error('HTTP ' + res.status);
+      const data = await res.json();
+      if (!data.length) throw new Error('not found: ' + q);
+      return { lat: parseFloat(data[0].lat), lng: parseFloat(data[0].lon) };
     }
+    const sleep = ms => new Promise(r => setTimeout(r, ms));
 
-    function calculate() {
-      const price = parseFloat(document.getElementById('unitPrice').value) || 0;
-      const points = collectPoints().filter(p => p.valid);
-      const body = document.getElementById('resultBody');
-
-      if (points.length < 2) {
-        body.innerHTML = '<p class="empty">有効な座標を持つ地点が2つ以上必要です（住所検索または緯度・経度を入力してください）。</p>';
-        return;
+    document.getElementById('autoDist').addEventListener('click', async () => {
+      const status = document.getElementById('geoStatus');
+      const addrs = [document.getElementById('baseAddr').value.trim(),
+        ...[...document.querySelectorAll('.visit-addr')].map(el => el.value.trim())]
+        .filter(Boolean);
+      if (addrs.length < 2) { status.textContent = '基点住所と訪問先を2件以上入力してください'; status.className = 'geo-status err'; return; }
+      status.textContent = '位置情報を取得中…'; status.className = 'geo-status';
+      try {
+        const pts = [];
+        for (const a of addrs) { pts.push(await geocode(a)); await sleep(1100); }
+        let total = 0;
+        for (let i = 1; i < pts.length; i++) total += haversineKm(pts[i - 1], pts[i]);
+        document.getElementById('totalKm').value = total.toFixed(1);
+        recalc();
+        status.textContent = `総移動距離（直線距離・参考値）: 約 ${total.toFixed(1)} km`;
+        status.className = 'geo-status ok';
+      } catch (e) {
+        status.textContent = '取得に失敗しました。総移動距離を手入力してください（' + e.message + '）';
+        status.className = 'geo-status err';
       }
-
-      let totalKm = 0;
-      let rowsHtml = '';
-      for (let i = 1; i < points.length; i++) {
-        const km = haversineKm(points[i - 1], points[i]);
-        const cost = km * price;
-        totalKm += km;
-        rowsHtml += `<tr>
-          <td>${escapeHtml(points[i - 1].name)} → ${escapeHtml(points[i].name)}</td>
-          <td class="num">${km.toFixed(2)} km</td>
-          <td class="num">${Math.round(cost).toLocaleString()} 円</td>
-        </tr>`;
-      }
-      const totalCost = Math.round(totalKm * price);
-
-      body.innerHTML = `
-        <table>
-          <thead><tr><th>区間</th><th class="num">距離</th><th class="num">金額</th></tr></thead>
-          <tbody>${rowsHtml}</tbody>
-        </table>
-        <div class="total-line">
-          <span class="sub">合計距離 ${totalKm.toFixed(2)} km × ${price.toLocaleString()} 円/km</span>
-          <span class="amount">${totalCost.toLocaleString()} 円</span>
-        </div>`;
-    }
-
-    function escapeHtml(s) {
-      return s.replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
-    }
-
-    document.getElementById('addRow').addEventListener('click', () => {
-      if (rowsEl.querySelectorAll('.row').length < MAX_ROWS) createRow(false);
     });
-    document.getElementById('calcBtn').addEventListener('click', calculate);
-
-    // 初期表示: 基点 + 拠点1, 拠点2
-    createRow(true);
-    createRow(false);
-    createRow(false);
   </script>
 </body>
 </html>
