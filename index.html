@@ -54,6 +54,7 @@
     }
     input:focus { border-color: var(--accent); }
     input.num { text-align: right; font-variant-numeric: tabular-nums; }
+    input::placeholder { color: #b3c0cf; }
 
     .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px 16px; }
     .grid2 .full { grid-column: 1 / -1; }
@@ -119,11 +120,11 @@
         </div>
         <div>
           <label for="mngNo">管理番号</label>
-          <input id="mngNo" type="text">
+          <input id="mngNo" type="text" placeholder="省略可">
         </div>
         <div>
           <label for="staffId">スタッフID</label>
-          <input id="staffId" type="text">
+          <input id="staffId" type="text" placeholder="省略可">
         </div>
         <div>
           <label for="unitPrice">距離単価（円/km）</label>
@@ -255,6 +256,13 @@
     }
     document.addEventListener('input', recalc);
     recalc();
+
+    // 稼働日のデフォルトを当日に設定
+    (() => {
+      const d = new Date();
+      const today = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+      document.getElementById('workDate').value = today;
+    })();
 
     // 住所からの距離自動計算（OpenStreetMap / 直線距離・参考値）
     function toRad(d) { return d * Math.PI / 180; }
