@@ -258,16 +258,59 @@
         + Math.cos(toRad(a.lat)) * Math.cos(toRad(b.lat)) * Math.sin(dLng / 2) ** 2;
       return 2 * R * Math.asin(Math.sqrt(s));
     }
-    async function geocode(q) {
-      const url = 'https://nominatim.openstreetmap.org/search?format=jsonv2&limit=1&accept-language=ja&q='
-        + encodeURIComponent(q);
-      const res = await fetch(url, { headers: { 'Accept': 'application/json' } });
-      if (!res.ok) throw new Error('HTTP ' + res.status);
-      const data = await res.json();
-      if (!data.length) throw new Error('not found: ' + q);
-      return { lat: parseFloat(data[0].lat), lng: parseFloat(data[0].lon) };
-    }
     const sleep = ms => new Promise(r => setTimeout(r, ms));
+
+    // 住所を段階的に簡略化した候補（番地→丁目→町名）を返す
+    function addrVariants(q) {
+      const variants = [q];
+      let s = q;
+      while (true) {
+        const next = s.replace(/[-－‐]\s*[0-9０-９]+\s*$/, '').trim();
+        if (next !== s && next.length > 2) { variants.push(next); s = next; } else break;
+      }
+      const town = q.replace(/[0-9０-９\-－‐\s]+$/, '').trim();
+      if (town.length > 2 && !variants.includes(town)) variants.push(town);
+      return variants;
+    }
+
+    // 国土地理院（GSI）ジオコーダー：日本の住所に強い・APIキー不要
+    async function geocodeGSI(q) {
+      try {
+        const res = await fetch('https://msearch.gsi.go.jp/address-search/AddressSearch?q=' + encodeURIComponent(q));
+        if (!res.ok) return null;
+        const data = await res.json();
+        if (!Array.isArray(data) || !data.length || !data[0].geometry) return null;
+        const [lng, lat] = data[0].geometry.coordinates;
+        if (!Number.isFinite(lat) || !Number.isFinite(lng)) return null;
+        return { lat, lng };
+      } catch (e) { return null; }
+    }
+    // OpenStreetMap（Nominatim）フォールバック
+    async function geocodeOSM(q) {
+      try {
+        const url = 'https://nominatim.openstreetmap.org/search?format=jsonv2&limit=1&countrycodes=jp&accept-language=ja&q='
+          + encodeURIComponent(q);
+        const res = await fetch(url, { headers: { 'Accept': 'application/json' } });
+        if (!res.ok) return null;
+        const data = await res.json();
+        if (!data.length) return null;
+        return { lat: parseFloat(data[0].lat), lng: parseFloat(data[0].lon) };
+      } catch (e) { return null; }
+    }
+    // 1住所をジオコーディング（GSI→OSMの順、住所を簡略化しながら再試行）
+    async function geocodeOne(q) {
+      const variants = addrVariants(q);
+      for (const v of variants) {
+        const g = await geocodeGSI(v);
+        if (g) return g;
+      }
+      for (const v of variants) {
+        const g = await geocodeOSM(v);
+        if (g) return g;
+        await sleep(1000);
+      }
+      return null;
+    }
 
     document.getElementById('autoDist').addEventListener('click', async () => {
       const status = document.getElementById('geoStatus');
@@ -276,19 +319,26 @@
         .filter(Boolean);
       if (addrs.length < 2) { status.textContent = '基点住所と訪問先を2件以上入力してください'; status.className = 'geo-status err'; return; }
       status.textContent = '位置情報を取得中…'; status.className = 'geo-status';
-      try {
-        const pts = [];
-        for (const a of addrs) { pts.push(await geocode(a)); await sleep(1100); }
-        let total = 0;
-        for (let i = 1; i < pts.length; i++) total += haversineKm(pts[i - 1], pts[i]);
-        document.getElementById('totalKm').value = total.toFixed(1);
-        recalc();
-        status.textContent = `総移動距離（直線距離・参考値）: 約 ${total.toFixed(1)} km`;
-        status.className = 'geo-status ok';
-      } catch (e) {
-        status.textContent = '取得に失敗しました。総移動距離を手入力してください（' + e.message + '）';
-        status.className = 'geo-status err';
+
+      const pts = [], failed = [];
+      for (const a of addrs) {
+        const g = await geocodeOne(a);
+        if (g) pts.push(g); else failed.push(a);
+        await sleep(300);
       }
+      if (pts.length < 2) {
+        status.textContent = '住所から位置を取得できませんでした。総移動距離を手入力してください。';
+        status.className = 'geo-status err';
+        return;
+      }
+      let total = 0;
+      for (let i = 1; i < pts.length; i++) total += haversineKm(pts[i - 1], pts[i]);
+      document.getElementById('totalKm').value = total.toFixed(1);
+      recalc();
+      let msg = `総移動距離（直線距離・参考値）: 約 ${total.toFixed(1)} km`;
+      if (failed.length) msg += ` ／ 未取得 ${failed.length}件（${failed.join(' / ')}）は手入力で補正してください`;
+      status.textContent = msg;
+      status.className = failed.length ? 'geo-status' : 'geo-status ok';
     });
 
     /* ---------- Excelエクスポート（ライブラリ不要・純JSで .xlsx 生成） ---------- */
