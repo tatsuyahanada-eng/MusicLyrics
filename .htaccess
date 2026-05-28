@@ -1,0 +1,10 @@
+# Basic認証によるアクセス制限
+AuthType Basic
+AuthName "RouteSearch - Login Required"
+
+# ↓ サーバー上の .htpasswd の「絶対パス」に書き換えてください。
+#   例: /home/youraccount/public_html/RouteSearch/.htpasswd
+#   サーバーの絶対パスは、サーバー上に <?php echo __DIR__; ?> を置くなどで確認できます。
+AuthUserFile /path/to/RouteSearch/.htpasswd
+
+Require valid-user
