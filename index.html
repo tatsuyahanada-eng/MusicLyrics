@@ -86,6 +86,12 @@
     .geo-status { font-size: 12px; color: var(--muted); margin-top: 10px; min-height: 16px; }
     .geo-status.ok { color: var(--ok); }
     .geo-status.err { color: var(--danger); }
+    .leg-result { margin-top: 12px; }
+    .leg-result table { width: 100%; max-width: 480px; border-collapse: collapse; }
+    .leg-result td { padding: 6px 8px; border-bottom: 1px solid var(--line); font-size: 13px; }
+    .leg-result td.num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+    .leg-result .leg-total td { font-weight: 700; color: var(--text); border-bottom: none; border-top: 2px solid var(--line); }
+    .leg-result .leg-total td.num { color: var(--ok); }
 
     .summary .line { display: flex; justify-content: space-between; align-items: baseline; padding: 8px 0; border-bottom: 1px solid var(--line); }
     .summary .line .lbl { color: var(--muted); font-size: 14px; }
@@ -136,6 +142,7 @@
       <div id="visits"></div>
       <button id="autoDist" class="btn btn-outline btn-sm" type="button">住所から総移動距離を自動計算</button>
       <div id="geoStatus" class="geo-status"></div>
+      <div id="legResult" class="leg-result"></div>
     </section>
 
     <!-- ルート（有料道路） -->
@@ -314,29 +321,36 @@
 
     document.getElementById('autoDist').addEventListener('click', async () => {
       const status = document.getElementById('geoStatus');
-      const addrs = [document.getElementById('baseAddr').value.trim(),
-        ...[...document.querySelectorAll('.visit-addr')].map(el => el.value.trim())]
-        .filter(Boolean);
-      if (addrs.length < 2) { status.textContent = '基点住所と訪問先を2件以上入力してください'; status.className = 'geo-status err'; return; }
+      const legBox = document.getElementById('legResult');
+      legBox.innerHTML = '';
+      const entries = [{ label: '基点', addr: document.getElementById('baseAddr').value.trim() },
+        ...[...document.querySelectorAll('.visit-addr')].map((el, i) => ({ label: '訪問先' + (i + 1), addr: el.value.trim() }))]
+        .filter(e => e.addr);
+      if (entries.length < 2) { status.textContent = '基点住所と訪問先を2件以上入力してください'; status.className = 'geo-status err'; return; }
       status.textContent = '位置情報を取得中…'; status.className = 'geo-status';
 
-      const pts = [], failed = [];
-      for (const a of addrs) {
-        const g = await geocodeOne(a);
-        if (g) pts.push(g); else failed.push(a);
+      const resolved = [], failed = [];
+      for (const e of entries) {
+        const g = await geocodeOne(e.addr);
+        if (g) resolved.push({ label: e.label, pt: g }); else failed.push(e.label);
         await sleep(300);
       }
-      if (pts.length < 2) {
+      if (resolved.length < 2) {
         status.textContent = '住所から位置を取得できませんでした。総移動距離を手入力してください。';
         status.className = 'geo-status err';
         return;
       }
-      let total = 0;
-      for (let i = 1; i < pts.length; i++) total += haversineKm(pts[i - 1], pts[i]);
+      let total = 0, rows = '';
+      for (let i = 1; i < resolved.length; i++) {
+        const km = haversineKm(resolved[i - 1].pt, resolved[i].pt);
+        total += km;
+        rows += `<tr><td>${resolved[i - 1].label} → ${resolved[i].label}</td><td class="num">${km.toFixed(1)} km</td></tr>`;
+      }
       document.getElementById('totalKm').value = total.toFixed(1);
       recalc();
-      let msg = `総移動距離（直線距離・参考値）: 約 ${total.toFixed(1)} km`;
-      if (failed.length) msg += ` ／ 未取得 ${failed.length}件（${failed.join(' / ')}）は手入力で補正してください`;
+      legBox.innerHTML = `<table>${rows}<tr class="leg-total"><td>総移動距離</td><td class="num">${total.toFixed(1)} km</td></tr></table>`;
+      let msg = '区間ごとの距離を表示しました（直線距離・参考値）。';
+      if (failed.length) msg += ` 未取得: ${failed.join(' / ')}（手入力で補正してください）`;
       status.textContent = msg;
       status.className = failed.length ? 'geo-status' : 'geo-status ok';
     });
