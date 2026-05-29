@@ -1,0 +1,219 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>せどりチェッカー</title>
+  <link rel="stylesheet" href="style.css">
+  <!-- ZXing バーコードスキャナー -->
+  <script src="https://unpkg.com/@zxing/library@0.20.0/umd/index.min.js"></script>
+</head>
+<body>
+  <div id="app">
+
+    <!-- ヘッダー -->
+    <header class="header">
+      <h1>📦 せどりチェッカー</h1>
+      <p class="subtitle">バーコードで即座に利益チェック</p>
+    </header>
+
+    <!-- スキャンセクション -->
+    <section class="scan-section card">
+      <div class="scan-tabs">
+        <button class="tab-btn active" data-tab="camera">📷 カメラ</button>
+        <button class="tab-btn" data-tab="manual">✏️ 手入力</button>
+        <button class="tab-btn" data-tab="history">📋 履歴</button>
+      </div>
+
+      <!-- カメラスキャン -->
+      <div id="tab-camera" class="tab-content active">
+        <div class="camera-container">
+          <video id="video" playsinline autoplay></video>
+          <div class="scan-overlay">
+            <div class="scan-frame">
+              <div class="corner tl"></div>
+              <div class="corner tr"></div>
+              <div class="corner bl"></div>
+              <div class="corner br"></div>
+              <div class="scan-line"></div>
+            </div>
+            <p class="scan-hint">バーコードをフレーム内に合わせてください</p>
+          </div>
+        </div>
+        <button id="startScanBtn" class="btn btn-primary btn-full">
+          📷 スキャン開始
+        </button>
+        <button id="stopScanBtn" class="btn btn-secondary btn-full" style="display:none">
+          ⏹️ スキャン停止
+        </button>
+        <p id="scanStatus" class="scan-status"></p>
+      </div>
+
+      <!-- 手動入力 -->
+      <div id="tab-manual" class="tab-content">
+        <div class="input-group">
+          <label>JANコード / ISBNを入力</label>
+          <div class="input-row">
+            <input type="tel" id="janInput" placeholder="例: 4901234567890" maxlength="14">
+            <button id="searchBtn" class="btn btn-primary">検索</button>
+          </div>
+        </div>
+        <div class="sample-codes">
+          <p class="label-sm">サンプル（タップで入力）：</p>
+          <div class="chip-list">
+            <span class="chip" data-code="4901777043706">コカコーラ</span>
+            <span class="chip" data-code="9784101010014">文庫本</span>
+            <span class="chip" data-code="4549660567158">家電</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- 検索履歴 -->
+      <div id="tab-history" class="tab-content">
+        <div id="historyList" class="history-list">
+          <p class="empty-msg">まだ検索履歴がありません</p>
+        </div>
+        <button id="clearHistoryBtn" class="btn btn-danger btn-sm" style="display:none">
+          🗑️ 履歴を削除
+        </button>
+      </div>
+    </section>
+
+    <!-- 検索中ローディング -->
+    <div id="loadingCard" class="card loading-card" style="display:none">
+      <div class="spinner"></div>
+      <p>価格情報を取得中...</p>
+    </div>
+
+    <!-- 結果セクション -->
+    <section id="resultSection" style="display:none">
+
+      <!-- 商品情報 -->
+      <div class="card product-card">
+        <div class="product-header">
+          <img id="productImage" src="" alt="" style="display:none">
+          <div class="product-info">
+            <h2 id="productTitle">商品名</h2>
+            <p id="productBrand" class="brand"></p>
+            <span id="productCategory" class="badge"></span>
+          </div>
+        </div>
+        <p id="janDisplay" class="jan-code"></p>
+      </div>
+
+      <!-- 価格比較 -->
+      <div class="card">
+        <h3 class="section-title">💰 販売価格比較</h3>
+        <div id="priceList" class="price-list"></div>
+        <div class="external-links">
+          <a id="mercariLink" href="#" target="_blank" class="ext-btn mercari">
+            <img src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3C/svg%3E" alt="">
+            メルカリで確認
+          </a>
+          <a id="yahooLink" href="#" target="_blank" class="ext-btn yahoo">
+            ヤフオクで確認
+          </a>
+        </div>
+      </div>
+
+      <!-- 仕入れ価格・利益計算 -->
+      <div class="card profit-card">
+        <h3 class="section-title">📊 利益計算</h3>
+
+        <div class="calc-grid">
+          <div class="input-group">
+            <label>仕入れ価格 (円)</label>
+            <input type="number" id="buyPriceInput" placeholder="0" min="0">
+          </div>
+          <div class="input-group">
+            <label>販売予定価格 (円)</label>
+            <input type="number" id="salePriceInput" placeholder="0" min="0">
+          </div>
+        </div>
+
+        <div class="calc-options">
+          <div class="input-group">
+            <label>販売プラットフォーム</label>
+            <select id="platformSelect">
+              <option value="amazon">Amazon (FBA)</option>
+              <option value="mercari">メルカリ</option>
+            </select>
+          </div>
+          <div class="input-group" id="categoryGroup">
+            <label>カテゴリ</label>
+            <select id="categorySelect">
+              <option value="default">その他</option>
+              <option value="books">書籍</option>
+              <option value="electronics">家電・電子機器</option>
+              <option value="toys">おもちゃ</option>
+              <option value="clothing">衣類</option>
+              <option value="home">ホーム・キッチン</option>
+            </select>
+          </div>
+          <div class="input-group" id="fbaSizeGroup">
+            <label>FBAサイズ</label>
+            <select id="fbaSizeSelect">
+              <option value="small">小型 (~210円)</option>
+              <option value="medium">中型 (~310円)</option>
+            </select>
+          </div>
+          <div class="input-group">
+            <label>送料 (円) ※自己発送時</label>
+            <input type="number" id="shippingInput" placeholder="0" min="0">
+          </div>
+        </div>
+
+        <button id="calcBtn" class="btn btn-success btn-full">利益を計算する</button>
+
+        <!-- 計算結果 -->
+        <div id="profitResult" style="display:none">
+          <div id="profitSummary" class="profit-summary"></div>
+          <div class="fee-breakdown">
+            <h4>手数料内訳</h4>
+            <div id="feeDetails" class="fee-table"></div>
+          </div>
+        </div>
+      </div>
+
+    </section>
+
+    <!-- モック警告バナー -->
+    <div id="mockBanner" class="mock-banner" style="display:none">
+      ⚠️ デモモード：実際のAmazon価格は表示されていません。
+      <a href="#setup">設定方法</a>
+    </div>
+
+    <!-- フッター -->
+    <footer class="footer">
+      <p>せどりチェッカー v1.0 | <a href="#" id="setupLink">API設定</a></p>
+    </footer>
+
+    <!-- API設定モーダル -->
+    <div id="setupModal" class="modal" style="display:none">
+      <div class="modal-content">
+        <button class="modal-close" id="closeModal">✕</button>
+        <h3>Amazon PA-API 設定方法</h3>
+        <ol>
+          <li>
+            <a href="https://affiliate.amazon.co.jp/" target="_blank">Amazonアソシエイト</a>
+            に登録（無料）
+          </li>
+          <li>アソシエイトIDを取得後、<strong>PA-APIアクセス申請</strong>（売上3件以上必要）</li>
+          <li>
+            サーバーの <code>.env</code> ファイルに以下を設定：
+            <pre>AMAZON_ACCESS_KEY=xxx
+AMAZON_SECRET_KEY=xxx
+AMAZON_PARTNER_TAG=your-tag-22</pre>
+          </li>
+          <li><code>npm start</code> でサーバーを再起動</li>
+        </ol>
+        <p class="note">※ メルカリ・ヤフオクは外部リンクで価格確認できます（APIなし）</p>
+      </div>
+    </div>
+    <div id="modalOverlay" class="modal-overlay" style="display:none"></div>
+
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>
