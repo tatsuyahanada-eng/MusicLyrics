@@ -55,8 +55,8 @@ function lookupBarcode($janCode) {
         ];
     }
 
-    // 書籍 (ISBN)
-    if (str_starts_with($janCode, '978') || str_starts_with($janCode, '979')) {
+    // 書籍 (ISBN) - str_starts_with は PHP8以上のため substr で代替
+    if (substr($janCode, 0, 3) === '978' || substr($janCode, 0, 3) === '979') {
         $url  = "https://openlibrary.org/api/books?bibkeys=ISBN:{$janCode}&format=json&jscmd=data";
         $data = httpGet($url);
         $key  = "ISBN:{$janCode}";

@@ -46,12 +46,15 @@ async function startScan() {
 
     await state.codeReader.decodeFromVideoDevice(null, videoEl, (result, err) => {
       if (result) {
-        const code = result.getText();
-        if (/^\d{8,14}$/.test(code)) {
+        const raw  = result.getText();
+        const code = normalizeCode(raw);
+        if (code) {
           stopScan();
           vibrate();
           $('scanStatus').textContent = `✅ 読み取り成功: ${code}`;
           searchByCode(code);
+        } else if (raw) {
+          $('scanStatus').textContent = `スキャン中... (認識: ${raw})`;
         }
       }
     });
@@ -89,11 +92,13 @@ $('stopScanBtn').addEventListener('click', stopScan);
 
 /* ─── 手動入力 ─────────────────────────────────────────────────────────────── */
 $('searchBtn').addEventListener('click', () => {
-  const code = $('janInput').value.trim();
-  if (!/^\d{8,14}$/.test(code)) {
-    alert('8〜14桁の数字を入力してください');
+  const raw  = $('janInput').value.trim();
+  const code = normalizeCode(raw);
+  if (!code) {
+    alert('有効なJANコード・ISBNを入力してください（例: 9784088820002）');
     return;
   }
+  $('janInput').value = code;
   searchByCode(code);
 });
 
@@ -358,6 +363,17 @@ function closeModal() {
 }
 
 /* ─── ユーティリティ ────────────────────────────────────────────────────────── */
+
+// バーコード文字列を正規化して純粋な数字列に変換。無効なら null を返す。
+function normalizeCode(raw) {
+  if (!raw) return null;
+  // ハイフン・スペース・ダッシュ類を除去 (ZXingがISBNをハイフン付きで返す場合がある)
+  const digits = raw.replace(/[\s\-–—]/g, '');
+  // ISBN-10: 末尾が X の場合は無効（13桁ISBNに変換が必要だが入力ミス扱いにする）
+  if (/^\d{8,14}$/.test(digits)) return digits;
+  return null;
+}
+
 function fmt(n) {
   return Number(n).toLocaleString('ja-JP');
 }
