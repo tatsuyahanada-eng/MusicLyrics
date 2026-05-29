@@ -214,7 +214,8 @@ $('platformSelect').addEventListener('change', () => {
   const isMercari = $('platformSelect').value === 'mercari';
   $('categoryGroup').style.display = isMercari ? 'none' : '';
   $('fbaSizeGroup').style.display = isMercari ? 'none' : '';
-  $('shippingInput').parentElement.style.display = isMercari ? 'none' : '';
+  const shippingLabel = $('shippingInput').previousElementSibling;
+  shippingLabel.textContent = isMercari ? '配送料 (円)' : '配送料 (円) ※自己発送時';
 });
 
 $('calcBtn').addEventListener('click', async () => {
@@ -280,10 +281,9 @@ function renderProfitResult(data) {
   } else {
     addRow('メルカリ販売手数料(10%)', -fees.sellingFee);
     addRow('決済手数料(2.5%)', -fees.paymentFee);
-    addRow('配送料(概算)', -fees.shippingEstimate);
+    const shippingLabel = shippingCost > 0 ? '配送料' : '配送料(概算)';
+    addRow(shippingLabel, -fees.shippingEstimate);
   }
-
-  if (shippingCost > 0) addRow('送料(自己負担)', -shippingCost);
   addRow('合計手数料', -(fees.total), false);
   addRow(`利益: ${isProfit ? '✅' : '❌'}`, profit, true);
 

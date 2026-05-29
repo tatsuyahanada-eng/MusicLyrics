@@ -162,10 +162,10 @@ function calcAmazonFees(salePrice, category = 'default', fbaSize = 'small') {
   return { referralFee, fbaFee, closingFee, total };
 }
 
-function calcMercariFeees(salePrice) {
+function calcMercariFeees(salePrice, shippingCost = null) {
   const sellingFee = Math.ceil(salePrice * 0.10);
   const paymentFee = Math.ceil(salePrice * 0.025);
-  const shippingEstimate = 210; // ネコポス想定
+  const shippingEstimate = shippingCost !== null ? shippingCost : 210;
   const total = sellingFee + paymentFee + shippingEstimate;
   return { sellingFee, paymentFee, shippingEstimate, total };
 }
@@ -218,8 +218,9 @@ app.post('/api/calculate', (req, res) => {
     fees = calcAmazonFees(sale, category || 'default', fbaSize || 'small');
     profit = sale - buy - fees.total - shipping;
   } else {
-    fees = calcMercariFeees(sale);
-    profit = sale - buy - fees.total - shipping;
+    const mercariShipping = shippingCost ? Number(shippingCost) : null;
+    fees = calcMercariFeees(sale, mercariShipping);
+    profit = sale - buy - fees.total;
   }
 
   roi = buy > 0 ? Math.round((profit / buy) * 100) : 0;
