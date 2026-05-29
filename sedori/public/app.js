@@ -114,7 +114,7 @@ async function searchByCode(janCode) {
   hideResult();
 
   try {
-    const res = await fetch(`/api/search/${janCode}`);
+    const res = await fetch(`api.php?action=search&jan=${encodeURIComponent(janCode)}`);
     if (!res.ok) throw new Error(await res.text());
     const data = await res.json();
 
@@ -228,7 +228,7 @@ $('calcBtn').addEventListener('click', async () => {
   }
 
   try {
-    const res = await fetch('/api/calculate', {
+    const res = await fetch('api.php?action=calculate', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
