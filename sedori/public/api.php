@@ -25,9 +25,9 @@ function handleSearch($janCode) {
     }
 
     $productInfo = lookupBarcode($janCode);
-    $amazon      = getMockAmazonData($janCode); // PA-API未設定時はモック
-
-    $productName = $productInfo['name'] ?? ($amazon[0]['title'] ?? $janCode);
+    $productName = $productInfo['name'] ?? null;
+    $amazon      = getMockAmazonData($janCode, $productName); // PA-API未設定時はモック
+    $productName = $productName ?? $janCode;
 
     echo json_encode([
         'janCode'        => $janCode,
@@ -38,67 +38,154 @@ function handleSearch($janCode) {
     ], JSON_UNESCAPED_UNICODE);
 }
 
-// ─── Open Food Facts & Open Library ───────────────────────────────────────────
+// ─── 商品情報検索（複数DBを順番に試す） ──────────────────────────────────────
 function lookupBarcode($janCode) {
-    // 食品・日用品
-    $url  = "https://world.openfoodfacts.org/api/v0/product/{$janCode}.json";
-    $data = httpGet($url);
-    if ($data && ($data['status'] ?? 0) === 1) {
-        $p = $data['product'];
-        return [
-            'name'     => $p['product_name_ja'] ?? $p['product_name'] ?? null,
-            'brand'    => $p['brands'] ?? null,
-            'imageUrl' => $p['image_url'] ?? null,
-            'category' => isset($p['categories_tags'][0])
-                          ? str_replace('en:', '', $p['categories_tags'][0]) : null,
-            'source'   => 'openfoodfacts',
-        ];
+    $isIsbn = (substr($janCode, 0, 3) === '978' || substr($janCode, 0, 3) === '979');
+
+    // 書籍・マンガは書籍DB優先
+    if ($isIsbn) {
+        $result = lookupGoogleBooks($janCode)
+               ?? lookupNdl($janCode);
+        if ($result) return $result;
     }
 
-    // 書籍 (ISBN) - str_starts_with は PHP8以上のため substr で代替
-    if (substr($janCode, 0, 3) === '978' || substr($janCode, 0, 3) === '979') {
-        $url  = "https://openlibrary.org/api/books?bibkeys=ISBN:{$janCode}&format=json&jscmd=data";
-        $data = httpGet($url);
-        $key  = "ISBN:{$janCode}";
-        if ($data && isset($data[$key])) {
-            $book = $data[$key];
-            return [
-                'name'     => $book['title'] ?? null,
-                'brand'    => $book['authors'][0]['name'] ?? null,
-                'imageUrl' => $book['cover']['medium'] ?? null,
-                'category' => 'books',
-                'source'   => 'openlibrary',
-            ];
-        }
+    // 食品・日用品: Open Food Facts (日本語対応)
+    $result = lookupOpenFoodFacts($janCode);
+    if ($result) return $result;
+
+    // 書籍でISBN非対応フォーマットの場合もGoogle Booksで試す
+    if (!$isIsbn) {
+        $result = lookupGoogleBooks($janCode);
+        if ($result) return $result;
     }
 
     return null;
 }
 
+// Google Books API（無料・APIキー不要・日本語書籍に強い）
+function lookupGoogleBooks($isbn) {
+    $url  = "https://www.googleapis.com/books/v1/volumes?q=isbn:{$isbn}&maxResults=1";
+    $data = httpGet($url);
+    if (!$data || ($data['totalItems'] ?? 0) === 0) return null;
+
+    $info = $data['items'][0]['volumeInfo'] ?? [];
+    $title = $info['title'] ?? null;
+    if (!$title) return null;
+
+    // サブタイトルがあれば結合
+    if (!empty($info['subtitle'])) {
+        $title .= ' ' . $info['subtitle'];
+    }
+
+    $imageLinks = $info['imageLinks'] ?? [];
+    $imageUrl   = $imageLinks['thumbnail'] ?? $imageLinks['smallThumbnail'] ?? null;
+    // httpsに統一
+    if ($imageUrl) $imageUrl = str_replace('http://', 'https://', $imageUrl);
+
+    return [
+        'name'     => $title,
+        'brand'    => implode(', ', $info['authors'] ?? []) ?: null,
+        'imageUrl' => $imageUrl,
+        'category' => 'books',
+        'source'   => 'googlebooks',
+    ];
+}
+
+// 国立国会図書館サーチAPI（日本語書籍・マンガ・雑誌に強い）
+function lookupNdl($isbn) {
+    $url  = "https://iss.ndl.go.jp/api/opensearch?isbn={$isbn}&cnt=1";
+    $xml  = httpGetRaw($url);
+    if (!$xml) return null;
+
+    // libxml エラーを抑制しつつパース
+    libxml_use_internal_errors(true);
+    $doc = simplexml_load_string($xml);
+    libxml_clear_errors();
+    if (!$doc) return null;
+
+    $ns   = $doc->getNamespaces(true);
+    $ch   = $doc->channel ?? null;
+    if (!$ch) return null;
+
+    $item = $ch->item ?? null;
+    if (!$item) return null;
+
+    $dcNs    = $ns['dc'] ?? 'http://purl.org/dc/elements/1.1/';
+    $dcterms = $ns['dcterms'] ?? 'http://purl.org/dc/terms/';
+
+    $title    = (string)($item->title ?? '');
+    $creator  = (string)($item->children($dcNs)->creator ?? '');
+    $imageUrl = null;
+
+    // サムネイル取得（カバー画像）
+    foreach ($item->children($ns['media'] ?? '') as $med) {
+        $imageUrl = (string)($med['url'] ?? '');
+        break;
+    }
+
+    if (!$title) return null;
+    return [
+        'name'     => $title,
+        'brand'    => $creator ?: null,
+        'imageUrl' => $imageUrl ?: null,
+        'category' => 'books',
+        'source'   => 'ndl',
+    ];
+}
+
+// Open Food Facts（食品・飲料・日用品）
+function lookupOpenFoodFacts($janCode) {
+    $url  = "https://world.openfoodfacts.org/api/v0/product/{$janCode}.json";
+    $data = httpGet($url);
+    if (!$data || ($data['status'] ?? 0) !== 1) return null;
+
+    $p    = $data['product'];
+    // 日本語名 → 英語名の順で取得
+    $name = $p['product_name_ja'] ?? $p['product_name'] ?? null;
+    if (!$name) return null;
+
+    return [
+        'name'     => $name,
+        'brand'    => $p['brands'] ?? null,
+        'imageUrl' => $p['image_url'] ?? null,
+        'category' => isset($p['categories_tags'][0])
+                      ? str_replace('en:', '', $p['categories_tags'][0]) : null,
+        'source'   => 'openfoodfacts',
+    ];
+}
+
 function httpGet($url) {
-    $ctx = stream_context_create([
-        'http' => [
-            'timeout'        => 6,
-            'ignore_errors'  => true,
-            'user_agent'     => 'SedoriChecker/1.0',
-        ],
-        'ssl'  => ['verify_peer' => false],
-    ]);
-    $body = @file_get_contents($url, false, $ctx);
+    $body = httpGetRaw($url);
     return $body ? json_decode($body, true) : null;
 }
 
+function httpGetRaw($url) {
+    $ctx = stream_context_create([
+        'http' => [
+            'timeout'       => 6,
+            'ignore_errors' => true,
+            'user_agent'    => 'SedoriChecker/1.0',
+        ],
+        'ssl' => ['verify_peer' => false],
+    ]);
+    $body = @file_get_contents($url, false, $ctx);
+    return $body ?: null;
+}
+
 // ─── Amazon モックデータ（PA-API未設定時） ─────────────────────────────────────
-function getMockAmazonData($janCode) {
+function getMockAmazonData($janCode, $productName = null) {
+    $title = $productName
+        ? "【Amazon価格はデモ】{$productName}"
+        : "[デモ] JAN: {$janCode}";
     return [[
         'asin'       => 'B0DEMO1234',
-        'title'      => "[デモ] JAN: {$janCode} - 商品名がここに表示されます",
-        'brand'      => 'ブランド名',
+        'title'      => $title,
+        'brand'      => '',
         'imageUrl'   => '',
-        'newPrice'   => 3980,
-        'usedPrice'  => 1500,
-        'offerCount' => 12,
-        'detailUrl'  => "https://www.amazon.co.jp/s?k={$janCode}",
+        'newPrice'   => null,
+        'usedPrice'  => null,
+        'offerCount' => 0,
+        'detailUrl'  => "https://www.amazon.co.jp/s?k=" . urlencode($productName ?? $janCode),
         'source'     => 'amazon',
         'isMock'     => true,
     ]];

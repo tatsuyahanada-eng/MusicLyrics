@@ -313,12 +313,12 @@ input:focus, select:focus { border-color: var(--primary); }
   font-weight: 600;
 }
 
-.external-links { display: flex; gap: 8px; }
+.external-links { display: flex; gap: 6px; }
 .ext-btn {
   flex: 1;
-  padding: 10px 8px;
-  border-radius: 8px;
-  font-size: 0.8rem;
+  padding: 6px 8px;
+  border-radius: 6px;
+  font-size: 0.72rem;
   font-weight: 600;
   text-align: center;
   text-decoration: none;
