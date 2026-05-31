@@ -1,14 +1,18 @@
 /* Music Lyrics — service worker (app-shell cache) */
-const CACHE = 'music-lyrics-v36';
+const CACHE = 'music-lyrics-v37';
 const SHELL = [
   './',
   './lyrics.html',
-  './lyrics.css?v=36',
-  './lyrics.js?v=36',
-  './config.js?v=36',
+  './lyrics.css?v=37',
+  './lyrics.js?v=37',
+  './config.js?v=37',
   './manifest.json',
   './icon.svg',
   './icon-maskable.svg',
+  './icon-192.png',
+  './icon-512.png',
+  './icon-maskable-192.png',
+  './icon-maskable-512.png',
 ];
 
 self.addEventListener('install', e => {
