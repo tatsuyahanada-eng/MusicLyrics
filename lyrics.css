@@ -1082,61 +1082,6 @@ body.song-active .ly-fx { display: block; }
   100% { transform: translate(-50%, -50%) scale(2.3) rotate(var(--rot, 0deg)); opacity: 0; } /* rest (gap) */
 }
 
-/* ---- FX theme: thumb (blurred video thumbnail = mood) ---- */
-.ly-thumb-bg {
-  position: absolute;
-  inset: -12%;
-  background-size: cover;
-  background-position: center;
-  background-color: #1a1a2e;
-  filter: blur(34px) brightness(0.55) saturate(1.2);
-  opacity: 0.85;
-  will-change: transform;
-  animation: ly-thumb-pan 28s ease-in-out infinite alternate;
-}
-@keyframes ly-thumb-pan {
-  from { transform: scale(1.2)  translate(-1.5%, -1%); }
-  to   { transform: scale(1.28) translate( 1.5%,  1%); }
-}
-
-/* ---- FX theme: drift (slow ambient colour gradients) ---- */
-.ly-drift {
-  position: absolute;
-  inset: -25%;
-  mix-blend-mode: screen;
-  will-change: transform, opacity;
-  opacity: 0.85;
-  animation-name: ly-drift-pan;
-  animation-timing-function: ease-in-out;
-  animation-iteration-count: infinite;
-  animation-direction: alternate;
-}
-.ly-drift-1 {
-  background: linear-gradient(125deg,
-    rgba(124,58,237,0.65) 0%,
-    rgba(124,58,237,0)    55%,
-    rgba(236,72,153,0.65) 100%);
-  animation-duration: 22s;
-}
-.ly-drift-2 {
-  background: linear-gradient(225deg,
-    rgba(96,165,250,0.55) 0%,
-    rgba(96,165,250,0)    55%,
-    rgba(52,211,153,0.55) 100%);
-  animation-duration: 28s;
-  animation-delay: -5s;
-}
-.ly-drift-3 {
-  background: radial-gradient(circle at 35% 40%,
-    rgba(244,114,182,0.55),
-    transparent 60%);
-  animation-duration: 34s;
-  animation-delay: -11s;
-}
-@keyframes ly-drift-pan {
-  from { transform: translate(-3%, -2%) rotate(-3deg); }
-  to   { transform: translate( 3%,  2%) rotate( 6deg); }
-}
 
 
 /* Lyric stack — fills the rest, centred */
