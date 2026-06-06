@@ -558,6 +558,7 @@ function loadYtVideo(idx) {
   stopProgressPoll();
   elPlayerSection.hidden = false;
   document.body.classList.add('song-active'); /* enables ambient ripples */
+  applyThumbnailToFx();   /* refresh ✨サムネ background */
   if (state.ytReady) {
     state.ytPlayer.loadVideoById(item.videoId);
     state.ytPlayer.setVolume(Number(elVolumeSlider.value));
@@ -1601,9 +1602,10 @@ function applyLyricStyle() {
 
 /* ============================================================
    Background FX themes
-   (rings / stars / streaks / squares / triangles / diamonds / mix)
+   (rings / stars / streaks / squares / triangles / diamonds / mix
+    / thumb / drift)
    ============================================================ */
-const FX_THEMES = ['rings', 'stars', 'streaks', 'squares', 'triangles', 'diamonds', 'mix'];
+const FX_THEMES = ['rings', 'stars', 'streaks', 'squares', 'triangles', 'diamonds', 'mix', 'thumb', 'drift'];
 const FX_LABELS = {
   rings:    '✨リング',
   stars:    '✨スター',
@@ -1612,6 +1614,8 @@ const FX_LABELS = {
   triangles:'✨三角',
   diamonds: '✨ダイヤ',
   mix:      '✨ミックス',
+  thumb:    '✨サムネ',
+  drift:    '✨グラデ',
 };
 const SQUARE_TINTS = [
   'rgba(167,139,250,0.85)', 'rgba(244,114,182,0.82)',
@@ -1672,7 +1676,33 @@ function buildFx() {
       const s = shapes[Math.floor(Math.random() * shapes.length)];
       elFx.appendChild(buildBlinker(s, i));
     }
+  } else if (fxTheme === 'thumb') {
+    /* COTODAMA-style mood background: blurred video thumbnail */
+    elFx.appendChild(mkEl('div', 'ly-thumb-bg'));
+    applyThumbnailToFx();
+  } else if (fxTheme === 'drift') {
+    /* Slow shifting colour gradients (ambient mood lighting) */
+    for (let i = 1; i <= 3; i++) {
+      elFx.appendChild(mkEl('div', `ly-drift ly-drift-${i}`));
+    }
   }
+}
+
+/* Update the thumbnail-background theme whenever the active
+   video changes. Safe to call when the theme isn't active — it
+   just no-ops. */
+function applyThumbnailToFx() {
+  if (!elFx || fxTheme !== 'thumb') return;
+  const bg = elFx.querySelector('.ly-thumb-bg');
+  if (!bg) return;
+  const item = state.ytQueue[state.ytQueueIdx];
+  let url = '';
+  if (item && item.videoId) {
+    url = `https://i.ytimg.com/vi/${item.videoId}/hqdefault.jpg`;
+  } else if (item && item.thumb) {
+    url = item.thumb;
+  }
+  bg.style.backgroundImage = url ? `url(${url})` : '';
 }
 
 /* Shared "expand & blink" element builder. Supports square /
