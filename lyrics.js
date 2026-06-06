@@ -1163,6 +1163,42 @@ async function fetchSongsByArtist(artist) {
 /* ============================================================
    Song search (lyrics + YouTube)
    ============================================================ */
+/* In-memory caches so back/forth navigation and prefetches don't
+   re-hit the YouTube/lyrics APIs. */
+const ytSearchCache = new Map();
+const lyricsCache   = new Map();   /* value: lyrics-string OR null = known-miss */
+const FETCH_CACHE_MAX = 80;
+
+function cachePut(map, key, val) {
+  if (map.size >= FETCH_CACHE_MAX) map.delete(map.keys().next().value);
+  map.set(key, val);
+}
+
+async function searchYouTubeCached(query) {
+  const cached = ytSearchCache.get(query);
+  if (cached) return cached;
+  const result = await searchYouTube(query);
+  cachePut(ytSearchCache, query, result);
+  return result;
+}
+
+async function fetchLyricsCached(artist, title) {
+  const key = `${artist}|${title}`;
+  if (lyricsCache.has(key)) {
+    const v = lyricsCache.get(key);
+    if (v === null) throw new Error('cached miss');
+    return v;
+  }
+  try {
+    const raw = await fetchLyricsWithFallback(artist, title);
+    cachePut(lyricsCache, key, raw);
+    return raw;
+  } catch (e) {
+    cachePut(lyricsCache, key, null);
+    throw e;
+  }
+}
+
 async function handleSongSearch(artist, title, opts = {}) {
   const autoplay = opts.autoplay !== false; /* default true */
   state.currentArtist = artist;
@@ -1174,60 +1210,70 @@ async function handleSongSearch(artist, title, opts = {}) {
   elFetchBtn.disabled = true;
   hideYtResults();
 
+  /* Reset lyrics state — populated when the lyrics fetch resolves
+     (which may be AFTER the video already starts). */
+  state.lyrics = [];
+  state.lrcLines = [];
+  state.useLrc = false;
+  state.currentIndex = -1;
+
+  /* Kick off both fetches in parallel, but DON'T await both before
+     starting playback — load the video as soon as YouTube returns
+     so "next song" feels responsive. */
+  const ytPromise     = searchYouTubeCached(`${artist} ${title}`);
+  const lyricsPromise = fetchLyricsCached(artist, title);
+
+  /* Apply lyrics whenever they arrive (often after the video) */
+  lyricsPromise
+    .then(raw => {
+      if (state.currentArtist !== artist || state.currentTitle !== title) return; /* user moved on */
+      loadLyrics(raw);
+      /* Plain-mode timer needs a kick if the player is already PLAYING */
+      if (state.ytPlayer && state.ytReady && !state.useLrc && state.lyrics.length) {
+        try {
+          if (state.ytPlayer.getPlayerState() === YT.PlayerState.PLAYING) startLyricsTimer();
+        } catch (_) {}
+      }
+    })
+    .catch(() => { /* leave lyrics empty; press 🎯歌詞START to see "歌詞なし" */ });
+
   try {
-    const [lyricsResult, ytItems] = await Promise.allSettled([
-      fetchLyricsWithFallback(artist, title),
-      searchYouTube(`${artist} ${title}`),
-    ]);
+    const ytList = await ytPromise;
+    if (state.currentArtist !== artist || state.currentTitle !== title) return; /* user moved on */
 
-    /* Lyrics */
-    if (lyricsResult.status === 'fulfilled') {
-      loadLyrics(lyricsResult.value);
-    } else {
-      state.lyrics = [];
-      state.lrcLines = [];
-    }
-
-    /* YouTube results */
-    const ytErr = ytItems.status === 'rejected' ? ytItems.reason : null;
-    const ytList = ytItems.status === 'fulfilled' ? ytItems.value : null;
+    elFetchBtn.disabled = false;
 
     if (ytList && ytList.length) {
       state.ytQueue    = ytList;
       state.ytQueueIdx = 0;
       showYtResults(ytList, !autoplay);
       enableTransportControls(true);
-      if (autoplay) {
-        loadYtVideo(0);
-        setStatus(
-          lyricsResult.status === 'fulfilled'
-            ? `▶ ${escapeHTML(title)}（歌詞あり）`
-            : `▶ ${escapeHTML(title)}（歌詞なし）`,
-          lyricsResult.status === 'fulfilled' ? 'success' : 'error'
-        );
-      } else {
-        setStatus(
-          lyricsResult.status === 'fulfilled'
-            ? `「${escapeHTML(title)}」の歌詞を取得しました。動画を選んで再生してください。`
-            : `歌詞は見つかりませんでした。YouTubeの結果から動画を選んでください。`,
-          lyricsResult.status === 'fulfilled' ? 'success' : 'error'
-        );
-      }
-    } else if (lyricsResult.status === 'fulfilled' && state.lyrics.length) {
+      if (autoplay) loadYtVideo(0);
+      setStatus(`▶ ${escapeHTML(title)}`, 'success');
+      return;
+    }
+
+    /* Empty YT result — fall back to lyrics-only mode if lyrics arrive */
+    const lyrics = await lyricsPromise.catch(() => null);
+    if (lyrics && state.lyrics.length) {
       clearStage();
       state.currentIndex = 0;
       elPlayPauseBtn.disabled = false;
-      const reason = ytErr ? `（YouTube: ${ytErr.message}）` : '（YouTube結果なし）';
-      setStatus(`「${escapeHTML(title)}」の歌詞を取得しました${reason}。▶で開始。`, ytErr ? 'error' : 'success');
-    } else if (ytErr) {
-      setStatus(`YouTube検索エラー: ${ytErr.message}`, 'error');
+      setStatus(`「${escapeHTML(title)}」の歌詞のみ取得（YouTube結果なし）。▶で開始。`, 'success');
     } else {
       setStatus('歌詞もYouTubeも見つかりませんでした。曲名を変えて試してください。', 'error');
     }
   } catch (err) {
-    setStatus(err.message || '取得に失敗しました。', 'error');
-  } finally {
     elFetchBtn.disabled = false;
+    const lyrics = await lyricsPromise.catch(() => null);
+    if (lyrics && state.lyrics.length) {
+      clearStage();
+      state.currentIndex = 0;
+      elPlayPauseBtn.disabled = false;
+      setStatus(`「${escapeHTML(title)}」の歌詞を取得しました（YouTube: ${err.message}）。▶で開始。`, 'error');
+    } else {
+      setStatus(`YouTube検索エラー: ${err.message}`, 'error');
+    }
   }
 }
 
@@ -1554,10 +1600,19 @@ function applyLyricStyle() {
 }
 
 /* ============================================================
-   Background FX themes (rings / stars / streaks / squares)
+   Background FX themes
+   (rings / stars / streaks / squares / triangles / diamonds / mix)
    ============================================================ */
-const FX_THEMES = ['rings', 'stars', 'streaks', 'squares'];
-const FX_LABELS = { rings: '✨リング', stars: '✨スター', streaks: '✨流星', squares: '✨スクエア' };
+const FX_THEMES = ['rings', 'stars', 'streaks', 'squares', 'triangles', 'diamonds', 'mix'];
+const FX_LABELS = {
+  rings:    '✨リング',
+  stars:    '✨スター',
+  streaks:  '✨流星',
+  squares:  '✨スクエア',
+  triangles:'✨三角',
+  diamonds: '✨ダイヤ',
+  mix:      '✨ミックス',
+};
 const SQUARE_TINTS = [
   'rgba(167,139,250,0.85)', 'rgba(244,114,182,0.82)',
   'rgba(96,165,250,0.82)', 'rgba(52,211,153,0.78)',
@@ -1606,26 +1661,84 @@ function buildFx() {
     }
 
   } else if (fxTheme === 'squares') {
-    /* Square/rectangle version of the rings: scattered outlined
-       shapes that pop in, expand & fade with a gap, in assorted
-       aspect ratios and tilts. */
-    for (let i = 0; i < 8; i++) {
-      const sq = mkEl('span', 'ly-square');
-      const w  = 12 + Math.random() * 18;      /* vmin */
-      const ar = 0.5 + Math.random() * 1.3;    /* aspect ratio */
-      const tint = SQUARE_TINTS[i % SQUARE_TINTS.length];
-      sq.style.left   = (10 + Math.random() * 80).toFixed(1) + '%';
-      sq.style.top    = (14 + Math.random() * 68).toFixed(1) + '%';
-      sq.style.width  = w.toFixed(1) + 'vmin';
-      sq.style.height = (w * ar).toFixed(1) + 'vmin';
-      sq.style.borderColor = tint;
-      sq.style.boxShadow = `0 0 22px ${tint.replace(/[\d.]+\)$/, '0.3)')}`;
-      sq.style.setProperty('--rot', (Math.random() * 60 - 30).toFixed(0) + 'deg');
-      sq.style.animationDuration = (6.5 + Math.random() * 2).toFixed(2) + 's';
-      sq.style.animationDelay    = (i * 0.8).toFixed(2) + 's';
-      elFx.appendChild(sq);
+    for (let i = 0; i < 8; i++) elFx.appendChild(buildBlinker('square', i));
+  } else if (fxTheme === 'triangles') {
+    for (let i = 0; i < 8; i++) elFx.appendChild(buildBlinker('triangle', i));
+  } else if (fxTheme === 'diamonds') {
+    for (let i = 0; i < 8; i++) elFx.appendChild(buildBlinker('diamond', i));
+  } else if (fxTheme === 'mix') {
+    const shapes = ['ring', 'square', 'triangle', 'diamond'];
+    for (let i = 0; i < 9; i++) {
+      const s = shapes[Math.floor(Math.random() * shapes.length)];
+      elFx.appendChild(buildBlinker(s, i));
     }
   }
+}
+
+/* Shared "expand & blink" element builder. Supports square /
+   triangle / diamond / ring shapes — all using the same scale +
+   rotate keyframe so they pop in, expand and fade with a gap. */
+function buildBlinker(kind, idx) {
+  const tint = SQUARE_TINTS[idx % SQUARE_TINTS.length];
+  const w   = 12 + Math.random() * 18;
+  const ar  = (kind === 'square' || kind === 'mix-rect')
+    ? 0.5 + Math.random() * 1.3
+    : 1;
+  const left = (10 + Math.random() * 80).toFixed(1) + '%';
+  const top  = (14 + Math.random() * 68).toFixed(1) + '%';
+  const rot  = (kind === 'diamond')
+    ? (45 + Math.random() * 30 - 15)
+    : (Math.random() * 60 - 30);
+  const dur  = (6.5 + Math.random() * 2).toFixed(2) + 's';
+  const delay = (idx * 0.75).toFixed(2) + 's';
+  const shadowTint = tint.replace(/[\d.]+\)$/, '0.3)');
+
+  if (kind === 'triangle') {
+    const sv = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+    sv.setAttribute('viewBox', '0 0 100 100');
+    sv.setAttribute('preserveAspectRatio', 'none');
+    sv.classList.add('ly-triangle');
+    const pg = document.createElementNS('http://www.w3.org/2000/svg', 'polygon');
+    pg.setAttribute('points', '50,8 92,90 8,90');
+    pg.setAttribute('fill', 'none');
+    pg.setAttribute('stroke', tint);
+    pg.setAttribute('stroke-width', '4');
+    pg.setAttribute('stroke-linejoin', 'round');
+    sv.appendChild(pg);
+    sv.style.left = left; sv.style.top = top;
+    sv.style.width = w.toFixed(1) + 'vmin';
+    sv.style.height = w.toFixed(1) + 'vmin';
+    sv.style.filter = `drop-shadow(0 0 16px ${shadowTint})`;
+    sv.style.setProperty('--rot', rot.toFixed(0) + 'deg');
+    sv.style.animationDuration = dur;
+    sv.style.animationDelay = delay;
+    return sv;
+  }
+
+  if (kind === 'ring') {
+    const el = mkEl('span', 'ly-square ly-ring');
+    el.style.left = left; el.style.top = top;
+    el.style.width = w.toFixed(1) + 'vmin';
+    el.style.height = w.toFixed(1) + 'vmin';
+    el.style.borderColor = tint;
+    el.style.boxShadow = `0 0 22px ${shadowTint}`;
+    el.style.setProperty('--rot', rot.toFixed(0) + 'deg');
+    el.style.animationDuration = dur;
+    el.style.animationDelay = delay;
+    return el;
+  }
+
+  /* square or diamond */
+  const el = mkEl('span', 'ly-square');
+  el.style.left = left; el.style.top = top;
+  el.style.width = w.toFixed(1) + 'vmin';
+  el.style.height = (w * ar).toFixed(1) + 'vmin';
+  el.style.borderColor = tint;
+  el.style.boxShadow = `0 0 22px ${shadowTint}`;
+  el.style.setProperty('--rot', rot.toFixed(0) + 'deg');
+  el.style.animationDuration = dur;
+  el.style.animationDelay = delay;
+  return el;
 }
 
 function mkEl(tag, className) {

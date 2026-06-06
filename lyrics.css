@@ -1051,7 +1051,8 @@ body.song-active .ly-fx { display: block; }
   100% { opacity: 0;    transform: translate(82vmin, 82vmin) rotate(45deg); }
 }
 
-/* ---- FX theme: squares (rectangle version of the rings) ---- */
+/* ---- FX theme: expanding-blink shapes (squares / triangles /
+   diamonds / mix) share the same scale+rotate keyframe ---- */
 .ly-square {
   position: absolute;
   border: 2.5px solid rgba(139,92,246,0.7);
@@ -1062,9 +1063,21 @@ body.song-active .ly-fx { display: block; }
   animation-timing-function: ease-out;
   animation-iteration-count: infinite;
 }
+.ly-square.ly-ring { border-radius: 50%; }
+
+.ly-triangle {
+  position: absolute;
+  opacity: 0;
+  will-change: transform, opacity;
+  animation-name: ly-square;
+  animation-timing-function: ease-out;
+  animation-iteration-count: infinite;
+  overflow: visible;
+}
+
 @keyframes ly-square {
   0%   { transform: translate(-50%, -50%) scale(0.15) rotate(var(--rot, 0deg)); opacity: 0; }
-  10%  { opacity: 0.85; }                                                       /* pop in */
+  10%  { opacity: 0.85; }                                                                    /* pop in */
   50%  { transform: translate(-50%, -50%) scale(2.3) rotate(var(--rot, 0deg)); opacity: 0; } /* expand & vanish */
   100% { transform: translate(-50%, -50%) scale(2.3) rotate(var(--rot, 0deg)); opacity: 0; } /* rest (gap) */
 }
