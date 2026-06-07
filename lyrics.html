@@ -15,7 +15,7 @@
   <link rel="icon" href="icon.svg" type="image/svg+xml">
   <link rel="apple-touch-icon" href="icon-192.png">
   <title>Music Lyrics</title>
-  <link rel="stylesheet" href="lyrics.css?v=40">
+  <link rel="stylesheet" href="lyrics.css?v=41">
 </head>
 <body class="ly-body">
 
@@ -126,13 +126,6 @@
           <span id="timer" class="ly-time-inline">00:00</span>
           <span id="duration" class="ly-time-inline ly-time-muted">/ --:--</span>
         </div>
-        <div class="ly-bar-row ly-lyrics-bar-row">
-          <span class="ly-bar-label" title="歌詞のタイミング">📝</span>
-          <span class="ly-offset-end">遅</span>
-          <input id="lyricsOffsetBar" class="ly-progress ly-lyrics-progress" type="range" min="-100" max="100" value="0" step="1" aria-label="歌詞のタイミング" title="左=遅らせる / 右=早める（±10秒）">
-          <span class="ly-offset-end">早</span>
-          <span id="lyricsOffsetDisplay" class="ly-offset-val">±0.0s</span>
-        </div>
       </div>
       <div class="ly-player-footer">
         <button id="fullscreenBtn"    type="button" class="ly-player-icon-btn" title="カラオケモード（動画＋歌詞のフルスクリーン）" aria-label="カラオケモード">🎬</button>
@@ -152,6 +145,7 @@
         <button id="lyricsResetBtn" type="button" class="ly-mini-btn" title="歌詞タイミングをリセット" hidden>↺</button>
         <button id="fxThemeBtn" type="button" class="ly-mini-btn" title="背景エフェクトを切替">✨リング</button>
         <button id="styleToggleBtn" type="button" class="ly-mini-btn" title="表示スタイル切替（スタック ↔ ランダム）">🎨ランダム</button>
+        <button id="colorToggleBtn" type="button" class="ly-mini-btn" title="背景色切替（暗 ↔ 明）">🌙ダーク</button>
       </div>
       <div id="lyricStack" class="ly-lyric-stack"></div>
       <div id="scatterLayer" class="ly-scatter-layer" aria-hidden="true"></div>
@@ -180,7 +174,7 @@
     </div>
   </div>
 
-  <script src="config.js?v=40"></script>
-  <script src="lyrics.js?v=40"></script>
+  <script src="config.js?v=41"></script>
+  <script src="lyrics.js?v=41"></script>
 </body>
 </html>

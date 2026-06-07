@@ -68,10 +68,11 @@ let elArtist, elTitle, elTitleWrap, elFetchBtn, elSearchHint, elStatus,
     elRandomPlayBtn, elOpenInYoutubeBtn, elFullscreenBtn,
     elExitKaraokeBtn, elArtistRandomBtn,
     elNowPlaying, elLyricStack, elScatterLayer, elStageExitBtn, elLyricsFsBtn,
-    elFx, elFxThemeBtn;
+    elFx, elFxThemeBtn, elColorToggleBtn;
 
 let lyricStyle = 'stack';   /* 'stack' | 'scatter' */
-let fxTheme = 'rings';      /* 'rings' | 'aurora' | 'stars' | 'beams' */
+let fxTheme = 'rings';
+let colorTheme = 'dark';    /* 'dark' | 'light' */
 
 /* ============================================================
    API key access — a site-wide key set in config.js takes
@@ -118,6 +119,7 @@ function init() {
   elLyricsOffsetDisplayFs = document.getElementById('lyricsOffsetDisplayFs');
   elStyleToggleBtn   = document.getElementById('styleToggleBtn');
   elFxThemeBtn       = document.getElementById('fxThemeBtn');
+  elColorToggleBtn   = document.getElementById('colorToggleBtn');
   elSongList       = document.getElementById('songList');
   elSongListInfo   = document.getElementById('songListInfo');
   elSongCards      = document.getElementById('songCards');
@@ -185,6 +187,10 @@ function init() {
   const savedFx = localStorage.getItem('fx_theme');
   fxTheme = FX_THEMES.includes(savedFx) ? savedFx : 'rings';
   buildFx();
+
+  /* Restore saved colour theme */
+  colorTheme = localStorage.getItem('color_theme') === 'light' ? 'light' : 'dark';
+  applyColorTheme();
 
   if (elCurrentOrigin) elCurrentOrigin.textContent = location.origin || location.href;
 
@@ -271,6 +277,9 @@ function init() {
 
   /* Background FX theme cycle */
   elFxThemeBtn.addEventListener('click', cycleFxTheme);
+
+  /* Colour theme toggle (dark <-> light lyrics) */
+  elColorToggleBtn.addEventListener('click', toggleColorTheme);
 
   elPrevPageBtn.addEventListener('click', () => goToPage(songList.page - 1));
   elNextPageBtn.addEventListener('click', () => goToPage(songList.page + 1));
@@ -423,9 +432,9 @@ function lyricsStartHere() {
     return;
   }
   if (!state.lyrics.length) {
-    /* No lyrics for this track — show it both as a status and on the stage */
-    setStatus('歌詞なし', 'error');
-    showStageMessage('歌詞なし');
+    /* No lyrics for this track — show in English on the stage + status */
+    setStatus('No Lyrics', 'error');
+    showStageMessage('No Lyrics');
     return;
   }
   const cur = state.ytPlayer.getCurrentTime() || 0;
@@ -1235,7 +1244,12 @@ async function handleSongSearch(artist, title, opts = {}) {
         } catch (_) {}
       }
     })
-    .catch(() => { /* leave lyrics empty; press 🎯歌詞START to see "歌詞なし" */ });
+    .catch(() => {
+      if (state.currentArtist !== artist || state.currentTitle !== title) return;
+      state.lyrics = [];
+      state.lrcLines = [];
+      showStageMessage('No Lyrics');
+    });
 
   try {
     const ytList = await ytPromise;
@@ -1290,6 +1304,7 @@ function loadLyrics(raw) {
   }
   state.currentIndex = 0;
   clearStage();
+  hideStageMessage();
 }
 
 /* ============================================================
@@ -1437,15 +1452,26 @@ function renderLyricStage(prevLines, current, nextLines, animateCurrent = true) 
   }
 }
 
-/** Show a one-off message (e.g. "歌詞なし") in the centre slot */
+/** Show a one-off message (e.g. "No Lyrics") as a centered overlay
+ *  on the stage. Visible in both stack and scatter modes. */
 function showStageMessage(msg) {
-  ensureStageSlots();
-  STAGE_SLOTS.forEach((s, i) => {
-    s.textContent = (i === 2) ? msg : '';
-    s.classList.remove('enter');
-  });
-  void STAGE_SLOTS[2].offsetWidth;
-  STAGE_SLOTS[2].classList.add('enter');
+  if (!elStage) return;
+  let overlay = elStage.querySelector('.ly-stage-msg');
+  if (!overlay) {
+    overlay = document.createElement('div');
+    overlay.className = 'ly-stage-msg';
+    elStage.appendChild(overlay);
+  }
+  overlay.textContent = msg;
+  overlay.classList.remove('enter');
+  void overlay.offsetWidth;
+  overlay.classList.add('enter');
+}
+
+function hideStageMessage() {
+  if (!elStage) return;
+  const overlay = elStage.querySelector('.ly-stage-msg');
+  if (overlay) overlay.remove();
 }
 
 /** Re-paint the LRC view based on state.currentIndex */
@@ -1599,18 +1625,31 @@ function applyLyricStyle() {
   }
 }
 
+/* Colour theme (lyrics on dark vs. light background) */
+function toggleColorTheme() {
+  colorTheme = (colorTheme === 'light') ? 'dark' : 'light';
+  localStorage.setItem('color_theme', colorTheme);
+  applyColorTheme();
+}
+
+function applyColorTheme() {
+  document.body.classList.toggle('theme-light', colorTheme === 'light');
+  if (elColorToggleBtn) {
+    elColorToggleBtn.textContent = colorTheme === 'light' ? '☀ライト' : '🌙ダーク';
+  }
+}
+
 /* ============================================================
    Background FX themes
-   (rings / stars / streaks / squares / triangles / diamonds / mix)
+   (rings / stars / streaks / squares / triangles / mix)
    ============================================================ */
-const FX_THEMES = ['rings', 'stars', 'streaks', 'squares', 'triangles', 'diamonds', 'mix'];
+const FX_THEMES = ['rings', 'stars', 'streaks', 'squares', 'triangles', 'mix'];
 const FX_LABELS = {
   rings:    '✨リング',
   stars:    '✨スター',
   streaks:  '✨流星',
   squares:  '✨スクエア',
   triangles:'✨三角',
-  diamonds: '✨ダイヤ',
   mix:      '✨ミックス',
 };
 const SQUARE_TINTS = [
@@ -1664,10 +1703,8 @@ function buildFx() {
     for (let i = 0; i < 8; i++) elFx.appendChild(buildBlinker('square', i));
   } else if (fxTheme === 'triangles') {
     for (let i = 0; i < 8; i++) elFx.appendChild(buildBlinker('triangle', i));
-  } else if (fxTheme === 'diamonds') {
-    for (let i = 0; i < 8; i++) elFx.appendChild(buildBlinker('diamond', i));
   } else if (fxTheme === 'mix') {
-    const shapes = ['ring', 'square', 'triangle', 'diamond'];
+    const shapes = ['ring', 'square', 'triangle'];
     for (let i = 0; i < 9; i++) {
       const s = shapes[Math.floor(Math.random() * shapes.length)];
       elFx.appendChild(buildBlinker(s, i));
@@ -1844,6 +1881,7 @@ function clearStage() {
     s.classList.remove('enter');
   });
   if (elScatterLayer) elScatterLayer.innerHTML = '';
+  hideStageMessage();
   plainHistory = [];
 }
 
