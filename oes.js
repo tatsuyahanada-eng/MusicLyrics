@@ -4,6 +4,9 @@
 (function () {
   'use strict';
 
+  const APP_VERSION = 'v2 (2026-06-08)';
+  console.log('[OESタスク管理] script loaded:', APP_VERSION);
+
   /* ---------- Constants ---------- */
   const STATUS = {
     assigned:     { label: 'アサイン',       step: 1 },
@@ -343,10 +346,22 @@
 
   /* ---------- Modal ---------- */
   function openTaskModal(taskId, mode) {
+    try {
+      _openTaskModal(taskId, mode);
+    } catch (err) {
+      console.error('[OES] openTaskModal failed:', err);
+      const bodyEl = document.getElementById('modalBody');
+      if (bodyEl) bodyEl.innerHTML = `<div class="oes-alert">表示エラー: ${err.message}<br><small>${(err.stack||'').slice(0,200)}</small></div>`;
+      const m = document.getElementById('taskModal');
+      if (m) { m.hidden = false; m.setAttribute('aria-hidden', 'false'); }
+    }
+  }
+  function _openTaskModal(taskId, mode) {
     const t = state.tasks.find(x => x.id === taskId);
-    if (!t) return;
+    if (!t) { console.warn('[OES] task not found:', taskId); return; }
     const titleEl = document.getElementById('modalTitle');
     const bodyEl = document.getElementById('modalBody');
+    if (!titleEl || !bodyEl) { console.error('[OES] modal elements missing'); return; }
 
     const infoHtml = `
       <div class="oes-info-block">
