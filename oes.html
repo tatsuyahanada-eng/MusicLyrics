@@ -2,94 +2,792 @@
 <html lang="ja">
 <head>
   <meta charset="UTF-8">
-  <meta http-equiv="Cache-Control" content="no-store">
+  <meta http-equiv="Cache-Control" content="no-store, no-cache, must-revalidate">
+  <meta http-equiv="Pragma" content="no-cache">
+  <meta http-equiv="Expires" content="0">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <meta name="theme-color" content="#1e3a8a">
   <title>OESタスク管理</title>
-  <link rel="stylesheet" href="oes.css?v=2">
+  <style>
+/* ========== OESタスク管理 v3 (single-file) ========== */
+:root {
+  --c-primary: #1e3a8a; --c-primary-dark: #172554; --c-accent: #2563eb;
+  --c-bg: #f4f6fb; --c-card: #ffffff; --c-text: #1f2937; --c-muted: #6b7280;
+  --c-border: #e5e7eb; --c-ok: #16a34a; --c-warn: #f59e0b; --c-danger: #dc2626;
+  --r: 10px; --shadow: 0 1px 3px rgba(0,0,0,.06), 0 1px 2px rgba(0,0,0,.04);
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; padding: 0; background: var(--c-bg); color: var(--c-text);
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Hiragino Kaku Gothic ProN", "Yu Gothic", Meiryo, sans-serif;
+  font-size: 15px; line-height: 1.55; -webkit-text-size-adjust: 100%; }
+button { font-family: inherit; cursor: pointer; }
+
+/* ===== Build banner / error overlay ===== */
+#buildBanner {
+  background: #fffbeb; color: #92400e; font-size: 11px; padding: 4px 10px;
+  border-bottom: 1px solid #fde68a; text-align: center;
+}
+#errorOverlay {
+  position: fixed; bottom: 0; left: 0; right: 0; z-index: 200;
+  background: #7f1d1d; color: #fff; padding: 10px 14px; font-size: 12px;
+  font-family: ui-monospace, Menlo, monospace; max-height: 40vh; overflow: auto;
+  border-top: 3px solid #fca5a5; display: none;
+}
+#errorOverlay.show { display: block; }
+#errorOverlay button { float: right; background: transparent; color: #fff; border: 1px solid #fff; border-radius: 4px; padding: 2px 8px; font-size: 11px; }
+
+/* ===== Header ===== */
+.oes-header { background: linear-gradient(135deg, var(--c-primary), var(--c-primary-dark));
+  color: #fff; position: sticky; top: 0; z-index: 50; box-shadow: 0 2px 6px rgba(0,0,0,.12); }
+.oes-header-inner { max-width: 1100px; margin: 0 auto; padding: 12px 16px;
+  display: flex; flex-wrap: wrap; gap: 12px; align-items: center; justify-content: space-between; }
+.oes-title { margin: 0; font-size: 20px; letter-spacing: .04em; }
+.oes-role-switch { display: flex; background: rgba(255,255,255,.12); border-radius: 999px; padding: 3px; gap: 2px; }
+.oes-role-btn { border: 0; background: transparent; color: #fff; padding: 7px 14px; border-radius: 999px; font-size: 13px; font-weight: 600; opacity: .85; }
+.oes-role-btn.active { background: #fff; color: var(--c-primary); opacity: 1; }
+
+/* ===== View / Section ===== */
+.oes-view { max-width: 1100px; margin: 0 auto; padding: 16px; }
+.oes-section { background: var(--c-card); border-radius: var(--r); padding: 14px 16px; margin-bottom: 16px; box-shadow: var(--shadow); }
+.oes-section-head { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px; margin-bottom: 10px; }
+.oes-h2 { margin: 0; font-size: 16px; color: var(--c-primary-dark); }
+.oes-section-row { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+
+/* ===== Form ===== */
+.oes-label { font-size: 13px; color: var(--c-muted); font-weight: 600; }
+.oes-select, .oes-input, .oes-textarea { border: 1px solid var(--c-border); background: #fff;
+  border-radius: 8px; padding: 9px 12px; font-size: 15px; color: var(--c-text); min-height: 40px; width: 100%; }
+.oes-select-sm { width: auto; min-width: 140px; font-size: 13px; padding: 7px 10px; min-height: 36px; }
+.oes-input[type="file"] { padding: 7px; }
+.oes-textarea { min-height: 70px; resize: vertical; }
+.oes-form-row { display: grid; grid-template-columns: 1fr; gap: 10px; margin-bottom: 12px; }
+.oes-form-row label { font-size: 13px; color: var(--c-muted); font-weight: 600; display: block; margin-bottom: 4px; }
+@media (min-width: 640px) { .oes-form-row.two-col { grid-template-columns: 1fr 1fr; } }
+
+/* ===== Buttons ===== */
+.oes-btn { display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+  border: 1px solid var(--c-border); background: #fff; color: var(--c-text); padding: 9px 14px;
+  border-radius: 8px; font-size: 14px; font-weight: 600; min-height: 40px; transition: background .15s ease; }
+.oes-btn:hover { background: #f9fafb; }
+.oes-btn:active { transform: scale(.98); }
+.oes-btn-primary { background: var(--c-accent); color: #fff; border-color: var(--c-accent); }
+.oes-btn-primary:hover { background: #1d4ed8; }
+.oes-btn-success { background: var(--c-ok); color: #fff; border-color: var(--c-ok); }
+.oes-btn-success:hover { background: #15803d; }
+.oes-btn-block { width: 100%; }
+.oes-btn-sm { padding: 6px 10px; font-size: 13px; min-height: 32px; }
+
+/* ===== Summary / Alerts ===== */
+.oes-summary { display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; margin-top: 12px; }
+@media (min-width: 640px) { .oes-summary { grid-template-columns: repeat(4, 1fr); } }
+.oes-summary-card { background: #f8fafc; border: 1px solid var(--c-border); border-radius: 8px; padding: 10px 12px; text-align: center; }
+.oes-summary-card .label { font-size: 11px; color: var(--c-muted); display: block; }
+.oes-summary-card .value { font-size: 20px; font-weight: 700; color: var(--c-primary-dark); display: block; margin-top: 2px; }
+.oes-alerts { margin-top: 10px; display: flex; flex-direction: column; gap: 6px; }
+.oes-alert { padding: 9px 12px; border-radius: 8px; font-size: 13px; background: #fef2f2; color: var(--c-danger); border: 1px solid #fecaca; }
+
+/* ===== Task Card / List ===== */
+.oes-task-list { display: flex; flex-direction: column; gap: 10px; }
+.oes-task-card { border: 1px solid var(--c-border); border-radius: 10px; padding: 12px; background: #fff; }
+.oes-task-card.alert { border-left: 4px solid var(--c-danger); background: #fffafa; }
+.oes-task-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 8px; margin-bottom: 8px; flex-wrap: wrap; }
+.oes-task-id { font-family: ui-monospace, Menlo, monospace; font-size: 12px; color: var(--c-muted); }
+.oes-task-store { font-size: 16px; font-weight: 700; color: var(--c-primary-dark); margin: 2px 0; }
+.oes-task-addr { font-size: 13px; color: var(--c-muted); }
+.oes-task-meta { display: flex; gap: 14px; flex-wrap: wrap; margin-top: 8px; font-size: 13px; }
+.oes-task-meta .key { color: var(--c-muted); margin-right: 4px; }
+.oes-task-actions { display: flex; gap: 8px; margin-top: 10px; flex-wrap: wrap; }
+
+/* ===== Inline Detail Panel (NEW: replaces detail modal) ===== */
+.oes-detail-panel { display: none; margin-top: 12px; padding: 12px; background: #f8fafc;
+  border: 1px solid var(--c-border); border-radius: 8px; }
+.oes-detail-panel.open { display: block; }
+.oes-detail-grid { display: grid; grid-template-columns: 1fr; gap: 6px; font-size: 13px; }
+@media (min-width: 480px) { .oes-detail-grid { grid-template-columns: 1fr 1fr; } }
+.oes-detail-grid > div { display: flex; justify-content: space-between; padding: 4px 8px; background: #fff; border-radius: 6px; }
+.oes-detail-grid .k { color: var(--c-muted); font-size: 11px; }
+.oes-detail-grid .v { font-weight: 600; }
+.oes-detail-receipt { margin-top: 10px; }
+.oes-receipt-thumb { display: block; max-width: 100%; max-height: 220px; border: 1px solid var(--c-border); border-radius: 8px; margin-top: 4px; }
+
+/* ===== Status Badge ===== */
+.oes-badge { display: inline-block; padding: 3px 9px; border-radius: 999px; font-size: 11px; font-weight: 700; white-space: nowrap; }
+.oes-badge.assigned     { background: #e0e7ff; color: #3730a3; }
+.oes-badge.mpr_received { background: #cffafe; color: #155e75; }
+.oes-badge.work_done    { background: #fef3c7; color: #92400e; }
+.oes-badge.returned     { background: #ddd6fe; color: #5b21b6; }
+.oes-badge.completed    { background: #dcfce7; color: #166534; }
+
+/* ===== Status Flow ===== */
+.oes-flow { display: flex; align-items: center; gap: 4px; margin: 10px 0 4px; overflow-x: auto; padding-bottom: 4px; }
+.oes-flow-step { flex: 0 0 auto; font-size: 11px; padding: 5px 9px; border-radius: 999px; background: #f1f5f9; color: var(--c-muted); white-space: nowrap; }
+.oes-flow-step.done   { background: #dcfce7; color: #166534; }
+.oes-flow-step.active { background: var(--c-accent); color: #fff; font-weight: 600; }
+.oes-flow-arrow { color: var(--c-muted); font-size: 10px; }
+
+/* ===== Admin Grid ===== */
+.oes-admin-grid { display: grid; grid-template-columns: 1fr; gap: 10px; }
+@media (min-width: 640px) { .oes-admin-grid { grid-template-columns: repeat(2, 1fr); } }
+@media (min-width: 960px) { .oes-admin-grid { grid-template-columns: repeat(3, 1fr); } }
+.oes-admin-card { border: 1px solid var(--c-border); border-radius: 10px; padding: 12px 14px; background: #fff; }
+.oes-admin-card .name { font-size: 15px; font-weight: 700; color: var(--c-primary-dark); margin-bottom: 6px; display: flex; justify-content: space-between; align-items: center; }
+.oes-admin-card .name .role { font-size: 11px; color: var(--c-muted); font-weight: 500; }
+.oes-mini-stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; margin-top: 8px; }
+.oes-mini-stats div { background: #f8fafc; border-radius: 6px; padding: 6px 4px; text-align: center; font-size: 11px; color: var(--c-muted); }
+.oes-mini-stats div b { display: block; font-size: 16px; color: var(--c-primary-dark); margin-top: 2px; }
+.oes-progress-bar { height: 8px; background: #e5e7eb; border-radius: 99px; margin: 10px 0 4px; overflow: hidden; }
+.oes-progress-bar > span { display: block; height: 100%; background: linear-gradient(90deg, var(--c-accent), var(--c-ok)); border-radius: 99px; }
+.oes-fee-line { display: flex; justify-content: space-between; margin-top: 6px; font-size: 13px; }
+.oes-fee-line b { color: var(--c-danger); }
+
+/* ===== Modal (Actions only, simplified - no sticky) ===== */
+.oes-modal { position: fixed; inset: 0; z-index: 100; display: none; }
+.oes-modal.open { display: flex; align-items: flex-end; justify-content: center; }
+.oes-modal-backdrop { position: absolute; inset: 0; background: rgba(15, 23, 42, .55); }
+.oes-modal-panel { position: relative; width: 100%; max-width: 560px; background: #fff;
+  border-radius: 14px 14px 0 0; max-height: 92vh; display: flex; flex-direction: column;
+  box-shadow: 0 -8px 24px rgba(0,0,0,.18); }
+@media (min-width: 640px) {
+  .oes-modal.open { align-items: center; }
+  .oes-modal-panel { border-radius: 14px; }
+}
+.oes-modal-head { flex: 0 0 auto; display: flex; justify-content: space-between; align-items: center;
+  padding: 14px 16px; border-bottom: 1px solid var(--c-border); background: #fff; border-radius: inherit; }
+.oes-modal-title { margin: 0; font-size: 16px; color: var(--c-primary-dark); }
+.oes-close-btn { border: 0; background: transparent; font-size: 18px; color: var(--c-muted); width: 32px; height: 32px; border-radius: 999px; }
+.oes-modal-body { flex: 1 1 auto; padding: 14px 16px 18px; overflow-y: auto; }
+.oes-info-block { background: #f8fafc; border-radius: 8px; padding: 10px 12px; margin-bottom: 12px; font-size: 14px; }
+.oes-info-block .row { display: flex; justify-content: space-between; gap: 10px; padding: 4px 0; }
+.oes-info-block .row .k { color: var(--c-muted); font-size: 12px; min-width: 88px; }
+.oes-info-block .row .v { font-weight: 600; text-align: right; }
+
+/* ===== Footer ===== */
+.oes-footer { text-align: center; padding: 16px; color: var(--c-muted); font-size: 12px; }
+@media (max-width: 480px) {
+  .oes-title { font-size: 17px; }
+  .oes-h2 { font-size: 15px; }
+  .oes-section { padding: 12px; }
+  .oes-role-btn { padding: 6px 10px; font-size: 12px; }
+}
+  </style>
 </head>
-<body class="oes-body">
+<body>
 
-  <header class="oes-header">
-    <div class="oes-header-inner">
-      <h1 class="oes-title">OESタスク管理</h1>
-      <div class="oes-role-switch" role="tablist" aria-label="表示モード">
-        <button class="oes-role-btn active" data-role="staff" role="tab" aria-selected="true">👷 スタッフ</button>
-        <button class="oes-role-btn" data-role="admin" role="tab" aria-selected="false">🧑‍💼 管理者</button>
-      </div>
-    </div>
-  </header>
+<div id="buildBanner">📦 OESタスク管理 build v3 (2026-06-08) — このバナーが見えていれば最新版です</div>
 
-  <!-- ===== Staff View ===== -->
-  <main id="staffView" class="oes-view">
-    <section class="oes-section">
-      <div class="oes-section-row">
-        <label class="oes-label" for="staffSelect">作業スタッフ</label>
-        <select id="staffSelect" class="oes-select" aria-label="スタッフ選択"></select>
-      </div>
-      <div id="staffSummary" class="oes-summary"></div>
-      <div id="staffAlerts" class="oes-alerts" aria-live="polite"></div>
-    </section>
-
-    <section class="oes-section">
-      <div class="oes-section-head">
-        <h2 class="oes-h2">担当OES入替タスク</h2>
-        <div class="oes-filter">
-          <select id="staffStatusFilter" class="oes-select oes-select-sm" aria-label="ステータス絞り込み">
-            <option value="all">すべて</option>
-            <option value="active">進行中</option>
-            <option value="assigned">①アサイン</option>
-            <option value="mpr_received">②MPR受取済</option>
-            <option value="work_done">③作業完了</option>
-            <option value="returned">④撤去機返送済</option>
-            <option value="completed">⑤完了</option>
-          </select>
-        </div>
-      </div>
-      <div id="staffTaskList" class="oes-task-list"></div>
-    </section>
-  </main>
-
-  <!-- ===== Admin View ===== -->
-  <main id="adminView" class="oes-view" hidden>
-    <section class="oes-section">
-      <div class="oes-section-head">
-        <h2 class="oes-h2">スタッフ別 進捗サマリー（{{month}}）</h2>
-        <div class="oes-filter">
-          <select id="adminMonthSelect" class="oes-select oes-select-sm" aria-label="対象月"></select>
-          <button id="exportExcelBtn" class="oes-btn oes-btn-primary">📥 Excel出力</button>
-        </div>
-      </div>
-      <div id="adminAlerts" class="oes-alerts" aria-live="polite"></div>
-      <div id="adminStaffSummary" class="oes-admin-grid"></div>
-    </section>
-
-    <section class="oes-section">
-      <div class="oes-section-head">
-        <h2 class="oes-h2">スタッフ詳細</h2>
-        <select id="adminStaffSelect" class="oes-select oes-select-sm" aria-label="詳細表示スタッフ"></select>
-      </div>
-      <div id="adminStaffDetail" class="oes-task-list"></div>
-    </section>
-  </main>
-
-  <!-- ===== Modal: Task Detail / Action ===== -->
-  <div id="taskModal" class="oes-modal" hidden aria-hidden="true" role="dialog" aria-modal="true">
-    <div class="oes-modal-backdrop" data-close></div>
-    <div class="oes-modal-panel">
-      <div class="oes-modal-head">
-        <h3 id="modalTitle" class="oes-modal-title">タスク詳細</h3>
-        <button class="oes-close-btn" data-close aria-label="閉じる">✕</button>
-      </div>
-      <div id="modalBody" class="oes-modal-body"></div>
+<header class="oes-header">
+  <div class="oes-header-inner">
+    <h1 class="oes-title">OESタスク管理</h1>
+    <div class="oes-role-switch" role="tablist">
+      <button class="oes-role-btn active" data-role="staff">👷 スタッフ</button>
+      <button class="oes-role-btn" data-role="admin">🧑‍💼 管理者</button>
     </div>
   </div>
+</header>
 
-  <footer class="oes-footer">
-    <p class="oes-foot-note">© OESタスク管理 / 試作版（モックデータ）</p>
-  </footer>
+<main id="staffView" class="oes-view">
+  <section class="oes-section">
+    <div class="oes-section-row">
+      <label class="oes-label" for="staffSelect">作業スタッフ</label>
+      <select id="staffSelect" class="oes-select"></select>
+    </div>
+    <div id="staffSummary" class="oes-summary"></div>
+    <div id="staffAlerts" class="oes-alerts" aria-live="polite"></div>
+  </section>
 
-  <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
-  <script src="oes.js?v=2"></script>
+  <section class="oes-section">
+    <div class="oes-section-head">
+      <h2 class="oes-h2">担当OES入替タスク</h2>
+      <select id="staffStatusFilter" class="oes-select oes-select-sm">
+        <option value="all">すべて</option>
+        <option value="active">進行中</option>
+        <option value="assigned">①アサイン</option>
+        <option value="mpr_received">②MPR受取済</option>
+        <option value="work_done">③作業完了</option>
+        <option value="returned">④撤去機返送済</option>
+        <option value="completed">⑤完了</option>
+      </select>
+    </div>
+    <div id="staffTaskList" class="oes-task-list"></div>
+  </section>
+</main>
+
+<main id="adminView" class="oes-view" hidden>
+  <section class="oes-section">
+    <div class="oes-section-head">
+      <h2 class="oes-h2">スタッフ別 進捗サマリー</h2>
+      <div class="oes-section-row">
+        <select id="adminMonthSelect" class="oes-select oes-select-sm"></select>
+        <button id="exportExcelBtn" class="oes-btn oes-btn-primary">📥 Excel出力</button>
+      </div>
+    </div>
+    <div id="adminAlerts" class="oes-alerts" aria-live="polite"></div>
+    <div id="adminStaffSummary" class="oes-admin-grid"></div>
+  </section>
+
+  <section class="oes-section">
+    <div class="oes-section-head">
+      <h2 class="oes-h2">スタッフ詳細</h2>
+      <select id="adminStaffSelect" class="oes-select oes-select-sm"></select>
+    </div>
+    <div id="adminStaffDetail" class="oes-task-list"></div>
+  </section>
+</main>
+
+<!-- Action modal only (detail is inline now) -->
+<div id="taskModal" class="oes-modal" aria-hidden="true" role="dialog" aria-modal="true">
+  <div class="oes-modal-backdrop" data-close></div>
+  <div class="oes-modal-panel">
+    <div class="oes-modal-head">
+      <h3 id="modalTitle" class="oes-modal-title">アクション</h3>
+      <button class="oes-close-btn" data-close aria-label="閉じる">✕</button>
+    </div>
+    <div id="modalBody" class="oes-modal-body"></div>
+  </div>
+</div>
+
+<footer class="oes-footer">© OESタスク管理 / 試作版（モックデータ）</footer>
+
+<div id="errorOverlay"><button onclick="document.getElementById('errorOverlay').classList.remove('show')">閉じる</button><div id="errorOverlayBody"></div></div>
+
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+<script>
+/* ========== OESタスク管理 inline app v3 ========== */
+(function () {
+  'use strict';
+
+  const APP_VERSION = 'v3 (2026-06-08, inline)';
+  console.log('[OES] script loaded:', APP_VERSION);
+
+  // ---- Global error overlay ----
+  window.addEventListener('error', function (e) {
+    showError('JSエラー: ' + e.message + '\n@ ' + e.filename + ':' + e.lineno);
+  });
+  window.addEventListener('unhandledrejection', function (e) {
+    showError('Promise エラー: ' + (e.reason && e.reason.message || e.reason));
+  });
+  function showError(msg) {
+    const o = document.getElementById('errorOverlay');
+    const b = document.getElementById('errorOverlayBody');
+    if (!o || !b) { alert(msg); return; }
+    b.textContent = msg;
+    o.classList.add('show');
+  }
+
+  /* ---------- Constants ---------- */
+  const STATUS = {
+    assigned:     { label: 'アサイン',       step: 1 },
+    mpr_received: { label: 'MPR受取済',     step: 2 },
+    work_done:    { label: '当日作業完了',   step: 3 },
+    returned:     { label: '撤去機返送済',   step: 4 },
+    completed:    { label: '完了',           step: 5 },
+  };
+  const FLOW_STEPS = [
+    { key: 'assigned',     label: '①アサイン' },
+    { key: 'mpr_received', label: '②MPR受取' },
+    { key: 'work_done',    label: '③当日作業' },
+    { key: 'returned',     label: '④撤去機返送' },
+    { key: 'completed',    label: '⑤完了' },
+  ];
+
+  /* ---------- Mock Data ---------- */
+  const STAFFS = [
+    { id: 'S001', name: '田中 太郎',  role: '関東エリア' },
+    { id: 'S002', name: '佐藤 花子',  role: '関西エリア' },
+    { id: 'S003', name: '鈴木 一郎',  role: '中部エリア' },
+    { id: 'S004', name: '高橋 健太',  role: '九州エリア' },
+    { id: 'S005', name: '渡辺 美咲',  role: '東北エリア' },
+  ];
+  const STORE_TEMPLATES = [
+    'セブンイレブン {city}{branch}店',
+    'ファミリーマート {city}{branch}店',
+    'ローソン {city}{branch}店',
+    'ミニストップ {city}{branch}店',
+    'デイリーヤマザキ {city}{branch}店',
+  ];
+  const REGIONS = {
+    'S001': { pref: '東京都', cities: ['渋谷区', '新宿区', '世田谷区', '練馬区', '杉並区', '中野区', '品川区', '目黒区'] },
+    'S002': { pref: '大阪府', cities: ['北区', '中央区', '吹田市', '堺市', '東大阪市', '豊中市', '高槻市'] },
+    'S003': { pref: '愛知県', cities: ['中区', '東区', '豊田市', '岡崎市', '春日井市', '一宮市'] },
+    'S004': { pref: '福岡県', cities: ['博多区', '中央区', '小倉北区', '久留米市', '大牟田市'] },
+    'S005': { pref: '宮城県', cities: ['青葉区', '宮城野区', '石巻市', '大崎市'] },
+  };
+  const BRANCHES = ['駅前', '中央', '西口', '北', '南口', '東', '本町', '緑町', '桜', '元町'];
+  const STREETS  = ['1-2-3', '4-5-6', '7-8-9', '10-11-12', '15-1', '3-7', '2-14-9', '6-22'];
+
+  function seededRandom(seed) { let s = seed; return () => { s = (s * 9301 + 49297) % 233280; return s / 233280; }; }
+  function pick(rand, arr) { return arr[Math.floor(rand() * arr.length)]; }
+
+  function generateTasks() {
+    const tasks = [];
+    const today = new Date();
+    const rand = seededRandom(20260608);
+    let serial = 1;
+    for (let monthOffset = -1; monthOffset <= 0; monthOffset++) {
+      const base = new Date(today.getFullYear(), today.getMonth() + monthOffset, 1);
+      STAFFS.forEach(staff => {
+        const count = 10 + Math.floor(rand() * 11);
+        const region = REGIONS[staff.id];
+        for (let i = 0; i < count; i++) {
+          const tpl = pick(rand, STORE_TEMPLATES);
+          const city = pick(rand, region.cities);
+          const branch = pick(rand, BRANCHES);
+          const street = pick(rand, STREETS);
+          const workDay = 1 + Math.floor(rand() * 27);
+          const workDate = new Date(base.getFullYear(), base.getMonth(), workDay);
+          const assignedDate = new Date(workDate);
+          assignedDate.setDate(workDate.getDate() - (5 + Math.floor(rand() * 8)));
+          const daysDiff = Math.floor((workDate - today) / 86400000);
+          let status, mprReceivedDate = null, shippingFee = null, receiptName = null, returnedDate = null;
+          if (daysDiff <= -3) {
+            const r = rand();
+            status = r < 0.7 ? 'completed' : (r < 0.9 ? 'returned' : 'work_done');
+            mprReceivedDate = addDays(workDate, -2 - Math.floor(rand() * 2));
+            if (status !== 'work_done') {
+              shippingFee = 800 + Math.floor(rand() * 1700);
+              receiptName = 'receipt_' + staff.id + '_' + serial + '.jpg';
+              returnedDate = addDays(workDate, 1 + Math.floor(rand() * 4));
+            }
+          } else if (daysDiff <= 0) {
+            status = rand() < 0.5 ? 'work_done' : 'mpr_received';
+            mprReceivedDate = addDays(workDate, -2 - Math.floor(rand() * 2));
+          } else if (daysDiff <= 3) {
+            status = rand() < 0.55 ? 'mpr_received' : 'assigned';
+            if (status === 'mpr_received') mprReceivedDate = addDays(today, -Math.floor(rand() * 2));
+          } else {
+            status = rand() < 0.25 ? 'mpr_received' : 'assigned';
+            if (status === 'mpr_received') mprReceivedDate = addDays(today, -Math.floor(rand() * 3));
+          }
+          const storeName = tpl.replace('{city}', city.replace(/(.+区|.+市)$/, '')).replace('{branch}', branch);
+          tasks.push({
+            id: 'OES-' + base.getFullYear() + pad2(base.getMonth()+1) + '-' + pad4(serial++),
+            staffId: staff.id, staffName: staff.name,
+            storeName: storeName,
+            storeAddress: region.pref + city + street,
+            assignedDate: ymd(assignedDate), workDate: ymd(workDate), status,
+            mprReceivedDate: mprReceivedDate ? ymd(mprReceivedDate) : null,
+            shippingFee, receiptName, receiptDataUrl: null,
+            returnedDate: returnedDate ? ymd(returnedDate) : null, note: '',
+          });
+        }
+      });
+    }
+    return tasks.sort((a, b) => a.workDate.localeCompare(b.workDate));
+  }
+
+  /* ---------- Date Utils ---------- */
+  function pad2(n) { return String(n).padStart(2, '0'); }
+  function pad4(n) { return String(n).padStart(4, '0'); }
+  function ymd(d) { return d.getFullYear() + '-' + pad2(d.getMonth()+1) + '-' + pad2(d.getDate()); }
+  function addDays(d, n) { const x = new Date(d); x.setDate(x.getDate() + n); return x; }
+  function parseYmd(s) { const p = s.split('-').map(Number); return new Date(p[0], p[1]-1, p[2]); }
+  function daysBetween(a, b) { return Math.floor((parseYmd(a) - parseYmd(b)) / 86400000); }
+  function todayYmd() { return ymd(new Date()); }
+  function fmtJpDate(s) {
+    if (!s) return '—';
+    const d = parseYmd(s);
+    const w = ['日','月','火','水','木','金','土'][d.getDay()];
+    return (d.getMonth()+1) + '/' + d.getDate() + '(' + w + ')';
+  }
+  function monthKey(s) { return s.slice(0, 7); }
+  function escapeHtml(s) {
+    return String(s == null ? '' : s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+  }
+
+  /* ---------- State ---------- */
+  const state = {
+    role: 'staff',
+    tasks: generateTasks(),
+    currentStaffId: STAFFS[0].id,
+    staffStatusFilter: 'all',
+    adminMonth: monthKey(todayYmd()),
+    adminStaffId: STAFFS[0].id,
+    openDetailId: null,
+  };
+
+  function isAlert(t) {
+    if (t.status !== 'assigned') return false;
+    const diff = daysBetween(t.workDate, todayYmd());
+    return diff >= 0 && diff <= 2;
+  }
+
+  /* ---------- Renderers ---------- */
+  function renderStaffSelect() {
+    const sel = document.getElementById('staffSelect');
+    sel.innerHTML = STAFFS.map(s => '<option value="'+s.id+'">'+escapeHtml(s.name)+'（'+escapeHtml(s.role)+'）</option>').join('');
+    sel.value = state.currentStaffId;
+  }
+
+  function renderStaffSummary() {
+    const wrap = document.getElementById('staffSummary');
+    const month = monthKey(todayYmd());
+    const mine = state.tasks.filter(t => t.staffId === state.currentStaffId && monthKey(t.workDate) === month);
+    const done = mine.filter(t => t.status === 'completed' || t.status === 'returned').length;
+    const inProg = mine.filter(t => t.status !== 'completed').length;
+    const fee = mine.reduce((s, t) => s + (t.shippingFee || 0), 0);
+    wrap.innerHTML =
+      '<div class="oes-summary-card"><span class="label">今月の総件数</span><span class="value">'+mine.length+'</span></div>' +
+      '<div class="oes-summary-card"><span class="label">進行中</span><span class="value">'+inProg+'</span></div>' +
+      '<div class="oes-summary-card"><span class="label">完了/返送済</span><span class="value">'+done+'</span></div>' +
+      '<div class="oes-summary-card"><span class="label">今月の送料合計</span><span class="value">¥'+fee.toLocaleString()+'</span></div>';
+  }
+
+  function renderStaffAlerts() {
+    const wrap = document.getElementById('staffAlerts');
+    const alerts = state.tasks.filter(t => t.staffId === state.currentStaffId && isAlert(t));
+    if (!alerts.length) { wrap.innerHTML = ''; return; }
+    wrap.innerHTML = alerts.map(t => {
+      const diff = daysBetween(t.workDate, todayYmd());
+      const when = diff === 0 ? '本日' : 'あと'+diff+'日';
+      return '<div class="oes-alert">⚠️ 【MPR未受取】 '+escapeHtml(t.storeName)+'（作業日 '+fmtJpDate(t.workDate)+' / '+when+'）— 配送状況を確認してください</div>';
+    }).join('');
+  }
+
+  function flowHtml(status) {
+    const cur = (STATUS[status] || {}).step || 1;
+    return '<div class="oes-flow">' + FLOW_STEPS.map((s, i) => {
+      const n = i + 1;
+      const cls = n < cur ? 'done' : (n === cur ? 'active' : '');
+      const arrow = i < FLOW_STEPS.length - 1 ? '<span class="oes-flow-arrow">▶</span>' : '';
+      return '<span class="oes-flow-step '+cls+'">'+escapeHtml(s.label)+'</span>'+arrow;
+    }).join('') + '</div>';
+  }
+
+  function actionButtonsHtml(t) {
+    switch (t.status) {
+      case 'assigned':     return '<button class="oes-btn oes-btn-sm oes-btn-primary" data-action="mpr" data-id="'+t.id+'">📦 MPR受取報告</button>';
+      case 'mpr_received': return '<button class="oes-btn oes-btn-sm oes-btn-primary" data-action="work" data-id="'+t.id+'">🛠 作業完了</button>';
+      case 'work_done':    return '<button class="oes-btn oes-btn-sm oes-btn-primary" data-action="return" data-id="'+t.id+'">🚚 返送・送料登録</button>';
+      case 'returned':     return '<button class="oes-btn oes-btn-sm oes-btn-success" data-action="complete" data-id="'+t.id+'">✅ 完了にする</button>';
+      default: return '';
+    }
+  }
+
+  function detailPanelHtml(t) {
+    const isOpen = state.openDetailId === t.id;
+    const receipt = t.receiptDataUrl
+      ? '<img src="'+t.receiptDataUrl+'" class="oes-receipt-thumb" alt="領収書">'
+      : (t.receiptName ? '<span style="color:var(--c-muted)">📎 '+escapeHtml(t.receiptName)+'（モックデータ）</span>'
+                       : '<span style="color:var(--c-muted)">なし</span>');
+    return '<div class="oes-detail-panel '+(isOpen ? 'open' : '')+'" data-detail-for="'+t.id+'">' +
+      flowHtml(t.status) +
+      '<div class="oes-detail-grid" style="margin-top:8px">' +
+        '<div><span class="k">アサイン日</span><span class="v">'+fmtJpDate(t.assignedDate)+'</span></div>' +
+        '<div><span class="k">作業日</span><span class="v">'+fmtJpDate(t.workDate)+'</span></div>' +
+        '<div><span class="k">MPR受取日</span><span class="v">'+fmtJpDate(t.mprReceivedDate)+'</span></div>' +
+        '<div><span class="k">返送日</span><span class="v">'+fmtJpDate(t.returnedDate)+'</span></div>' +
+        '<div><span class="k">送料</span><span class="v">'+(t.shippingFee != null ? '¥'+t.shippingFee.toLocaleString() : '—')+'</span></div>' +
+        '<div><span class="k">スタッフ</span><span class="v">'+escapeHtml(t.staffName)+'</span></div>' +
+      '</div>' +
+      '<div class="oes-detail-receipt"><div class="oes-label">領収書</div>'+receipt+'</div>' +
+      (t.note ? '<div style="margin-top:8px"><div class="oes-label">作業メモ</div><div>'+escapeHtml(t.note)+'</div></div>' : '') +
+    '</div>';
+  }
+
+  function taskCardHtml(t, opts) {
+    opts = opts || {};
+    const alert = isAlert(t);
+    const showStaff = !!opts.showStaff;
+    const isOpen = state.openDetailId === t.id;
+    return '<article class="oes-task-card '+(alert ? 'alert' : '')+'" data-task-id="'+t.id+'">' +
+      '<div class="oes-task-head">' +
+        '<div>' +
+          '<div class="oes-task-id">'+t.id+(showStaff ? ' / '+escapeHtml(t.staffName) : '')+'</div>' +
+          '<div class="oes-task-store">'+escapeHtml(t.storeName)+'</div>' +
+          '<div class="oes-task-addr">📍 '+escapeHtml(t.storeAddress)+'</div>' +
+        '</div>' +
+        '<span class="oes-badge '+t.status+'">'+STATUS[t.status].label+'</span>' +
+      '</div>' +
+      '<div class="oes-task-meta">' +
+        '<div><span class="key">作業日:</span><b>'+fmtJpDate(t.workDate)+'</b></div>' +
+        '<div><span class="key">アサイン:</span>'+fmtJpDate(t.assignedDate)+'</div>' +
+        '<div><span class="key">MPR受取:</span>'+fmtJpDate(t.mprReceivedDate)+'</div>' +
+        (t.shippingFee != null ? '<div><span class="key">送料:</span>¥'+t.shippingFee.toLocaleString()+'</div>' : '') +
+      '</div>' +
+      '<div class="oes-task-actions">' +
+        '<button class="oes-btn oes-btn-sm" data-action="detail" data-id="'+t.id+'">'+(isOpen ? '▲ 詳細を閉じる' : '▼ 詳細')+'</button>' +
+        actionButtonsHtml(t) +
+      '</div>' +
+      detailPanelHtml(t) +
+    '</article>';
+  }
+
+  function renderStaffTasks() {
+    const wrap = document.getElementById('staffTaskList');
+    const filter = state.staffStatusFilter;
+    let list = state.tasks.filter(t => t.staffId === state.currentStaffId);
+    if (filter !== 'all') {
+      if (filter === 'active') list = list.filter(t => t.status !== 'completed');
+      else list = list.filter(t => t.status === filter);
+    }
+    list.sort((a, b) => a.workDate.localeCompare(b.workDate));
+    wrap.innerHTML = list.length
+      ? list.map(t => taskCardHtml(t)).join('')
+      : '<div class="oes-info-block">該当するタスクはありません。</div>';
+  }
+
+  function buildMonthOptions() {
+    const sel = document.getElementById('adminMonthSelect');
+    const months = Array.from(new Set(state.tasks.map(t => monthKey(t.workDate)))).sort().reverse();
+    sel.innerHTML = months.map(m => {
+      const parts = m.split('-');
+      return '<option value="'+m+'">'+parts[0]+'年'+parseInt(parts[1],10)+'月</option>';
+    }).join('');
+    sel.value = state.adminMonth;
+  }
+  function buildAdminStaffOptions() {
+    const sel = document.getElementById('adminStaffSelect');
+    sel.innerHTML = STAFFS.map(s => '<option value="'+s.id+'">'+escapeHtml(s.name)+'</option>').join('');
+    sel.value = state.adminStaffId;
+  }
+  function renderAdminAlerts() {
+    const wrap = document.getElementById('adminAlerts');
+    const alerts = state.tasks.filter(isAlert);
+    if (!alerts.length) { wrap.innerHTML = ''; return; }
+    const grouped = {};
+    alerts.forEach(t => { (grouped[t.staffName] = grouped[t.staffName] || []).push(t); });
+    wrap.innerHTML = Object.entries(grouped).map(([name, list]) =>
+      '<div class="oes-alert">⚠️ '+escapeHtml(name)+' さん：MPR未受取が '+list.length+' 件あります（最直近 '+fmtJpDate(list[0].workDate)+'）</div>'
+    ).join('');
+  }
+  function renderAdminSummary() {
+    const wrap = document.getElementById('adminStaffSummary');
+    const month = state.adminMonth;
+    wrap.innerHTML = STAFFS.map(s => {
+      const tasks = state.tasks.filter(t => t.staffId === s.id && monthKey(t.workDate) === month);
+      const done = tasks.filter(t => t.status === 'completed' || t.status === 'returned').length;
+      const inProg = tasks.filter(t => t.status !== 'completed').length;
+      const fee = tasks.reduce((sum, t) => sum + (t.shippingFee || 0), 0);
+      const alertCnt = tasks.filter(isAlert).length;
+      const pct = tasks.length ? Math.round((done / tasks.length) * 100) : 0;
+      return '<div class="oes-admin-card">' +
+        '<div class="name">'+escapeHtml(s.name)+'<span class="role">'+escapeHtml(s.role)+'</span></div>' +
+        '<div class="oes-mini-stats">' +
+          '<div>件数<b>'+tasks.length+'</b></div>' +
+          '<div>進行中<b>'+inProg+'</b></div>' +
+          '<div>完了<b>'+done+'</b></div>' +
+        '</div>' +
+        '<div class="oes-progress-bar"><span style="width:'+pct+'%"></span></div>' +
+        '<div class="oes-fee-line"><span>月間送料合計</span><b>¥'+fee.toLocaleString()+'</b></div>' +
+        (alertCnt ? '<div class="oes-fee-line" style="color:var(--c-danger)"><span>⚠️ 未受取アラート</span><b>'+alertCnt+'件</b></div>' : '') +
+      '</div>';
+    }).join('');
+  }
+  function renderAdminStaffDetail() {
+    const wrap = document.getElementById('adminStaffDetail');
+    const list = state.tasks
+      .filter(t => t.staffId === state.adminStaffId && monthKey(t.workDate) === state.adminMonth)
+      .sort((a, b) => a.workDate.localeCompare(b.workDate));
+    wrap.innerHTML = list.length
+      ? list.map(t => taskCardHtml(t, { showStaff: true })).join('')
+      : '<div class="oes-info-block">対象月のタスクはありません。</div>';
+  }
+
+  /* ---------- Detail toggle (inline, no modal) ---------- */
+  function toggleDetail(taskId) {
+    state.openDetailId = state.openDetailId === taskId ? null : taskId;
+    rerender();
+    // Scroll into view
+    setTimeout(() => {
+      const el = document.querySelector('[data-task-id="'+taskId+'"]');
+      if (el && state.openDetailId === taskId) {
+        el.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+      }
+    }, 50);
+  }
+
+  /* ---------- Action Modal (kept for forms only) ---------- */
+  function openActionModal(taskId, mode) {
+    const t = state.tasks.find(x => x.id === taskId);
+    if (!t) { showError('タスクが見つかりません: ' + taskId); return; }
+    const titleEl = document.getElementById('modalTitle');
+    const bodyEl = document.getElementById('modalBody');
+
+    const infoHtml =
+      '<div class="oes-info-block">' +
+        '<div class="row"><span class="k">店舗</span><span class="v">'+escapeHtml(t.storeName)+'</span></div>' +
+        '<div class="row"><span class="k">住所</span><span class="v">'+escapeHtml(t.storeAddress)+'</span></div>' +
+        '<div class="row"><span class="k">作業日</span><span class="v">'+fmtJpDate(t.workDate)+'</span></div>' +
+      '</div>';
+
+    if (mode === 'mpr') {
+      titleEl.textContent = '📦 MPR受取報告';
+      bodyEl.innerHTML = infoHtml +
+        '<div class="oes-form-row"><label for="mprDate">受取日</label>' +
+        '<input type="date" id="mprDate" class="oes-input" value="'+todayYmd()+'"></div>' +
+        '<button class="oes-btn oes-btn-primary oes-btn-block" id="submitMpr">受取完了を報告</button>';
+      document.getElementById('submitMpr').onclick = () => {
+        t.mprReceivedDate = document.getElementById('mprDate').value || todayYmd();
+        t.status = 'mpr_received'; closeModal(); rerender();
+      };
+    } else if (mode === 'work') {
+      titleEl.textContent = '🛠 当日作業完了';
+      bodyEl.innerHTML = infoHtml +
+        '<div class="oes-form-row"><label for="workNote">作業メモ（任意）</label>' +
+        '<textarea id="workNote" class="oes-textarea" placeholder="特記事項があれば入力">'+escapeHtml(t.note)+'</textarea></div>' +
+        '<button class="oes-btn oes-btn-primary oes-btn-block" id="submitWork">作業完了を報告</button>';
+      document.getElementById('submitWork').onclick = () => {
+        t.note = document.getElementById('workNote').value;
+        t.status = 'work_done'; closeModal(); rerender();
+      };
+    } else if (mode === 'return') {
+      titleEl.textContent = '🚚 撤去機 返送・送料登録';
+      bodyEl.innerHTML = infoHtml +
+        '<div class="oes-form-row two-col">' +
+          '<div><label for="retDate">返送日</label><input type="date" id="retDate" class="oes-input" value="'+(t.returnedDate || todayYmd())+'"></div>' +
+          '<div><label for="retFee">送料（円）</label><input type="number" id="retFee" class="oes-input" min="0" step="10" placeholder="例: 1500" value="'+(t.shippingFee || '')+'"></div>' +
+        '</div>' +
+        '<div class="oes-form-row"><label for="retReceipt">領収書画像</label>' +
+        '<input type="file" id="retReceipt" class="oes-input" accept="image/*" capture="environment">' +
+        '<div id="retReceiptPreview"></div></div>' +
+        '<button class="oes-btn oes-btn-primary oes-btn-block" id="submitReturn">返送・送料を登録</button>';
+      const fileInput = document.getElementById('retReceipt');
+      const preview = document.getElementById('retReceiptPreview');
+      let pendingDataUrl = t.receiptDataUrl;
+      let pendingName = t.receiptName;
+      if (pendingDataUrl) preview.innerHTML = '<img src="'+pendingDataUrl+'" class="oes-receipt-thumb" alt="領収書">';
+      fileInput.onchange = (e) => {
+        const f = e.target.files[0]; if (!f) return;
+        const reader = new FileReader();
+        reader.onload = () => {
+          pendingDataUrl = reader.result; pendingName = f.name;
+          preview.innerHTML = '<img src="'+pendingDataUrl+'" class="oes-receipt-thumb" alt="領収書">';
+        };
+        reader.readAsDataURL(f);
+      };
+      document.getElementById('submitReturn').onclick = () => {
+        const fee = parseInt(document.getElementById('retFee').value, 10);
+        if (!fee || fee <= 0) { alert('送料を入力してください'); return; }
+        if (!pendingDataUrl && !confirm('領収書画像が未添付です。このまま登録しますか？')) return;
+        t.shippingFee = fee;
+        t.returnedDate = document.getElementById('retDate').value || todayYmd();
+        t.receiptDataUrl = pendingDataUrl; t.receiptName = pendingName;
+        t.status = 'returned'; closeModal(); rerender();
+      };
+    } else if (mode === 'complete') {
+      titleEl.textContent = '✅ タスク完了';
+      bodyEl.innerHTML = infoHtml +
+        '<p>このタスクを「完了」にしてよろしいですか？</p>' +
+        '<button class="oes-btn oes-btn-success oes-btn-block" id="submitComplete">完了にする</button>';
+      document.getElementById('submitComplete').onclick = () => {
+        t.status = 'completed'; closeModal(); rerender();
+      };
+    }
+
+    const m = document.getElementById('taskModal');
+    m.classList.add('open');
+    m.setAttribute('aria-hidden', 'false');
+    document.body.style.overflow = 'hidden';
+  }
+  function closeModal() {
+    const m = document.getElementById('taskModal');
+    m.classList.remove('open');
+    m.setAttribute('aria-hidden', 'true');
+    document.body.style.overflow = '';
+  }
+
+  /* ---------- Excel Export ---------- */
+  function exportExcel() {
+    if (typeof XLSX === 'undefined') { alert('Excel出力ライブラリ未読込。ネットワークを確認してください。'); return; }
+    const month = state.adminMonth;
+    const monthlyTasks = state.tasks.filter(t => monthKey(t.workDate) === month);
+    const taskRows = monthlyTasks.map(t => ({
+      'タスクID': t.id, 'スタッフ': t.staffName, '店舗名': t.storeName, '住所': t.storeAddress,
+      'アサイン日': t.assignedDate, '作業日': t.workDate,
+      'MPR受取日': t.mprReceivedDate || '', '返送日': t.returnedDate || '',
+      '送料(円)': t.shippingFee || 0, 'ステータス': STATUS[t.status].label,
+      '領収書': t.receiptName || '', '備考': t.note || '',
+    }));
+    const summaryRows = STAFFS.map(s => {
+      const list = monthlyTasks.filter(t => t.staffId === s.id);
+      const done = list.filter(t => t.status === 'completed' || t.status === 'returned').length;
+      const fee = list.reduce((sum, t) => sum + (t.shippingFee || 0), 0);
+      return { 'スタッフID': s.id, 'スタッフ名': s.name, 'エリア': s.role,
+        '総件数': list.length, '完了件数': done,
+        '未着アラート件数': list.filter(isAlert).length, '送料合計(円)': fee };
+    });
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(taskRows),    'タスク一覧');
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(summaryRows), 'スタッフ別集計');
+    XLSX.writeFile(wb, 'OESタスク管理_' + month + '.xlsx');
+  }
+
+  /* ---------- Render orchestration ---------- */
+  function rerender() {
+    if (state.role === 'staff') {
+      renderStaffSummary(); renderStaffAlerts(); renderStaffTasks();
+    } else {
+      renderAdminAlerts(); renderAdminSummary(); renderAdminStaffDetail();
+    }
+  }
+
+  function switchRole(role) {
+    state.role = role;
+    state.openDetailId = null;
+    document.querySelectorAll('.oes-role-btn').forEach(b => {
+      const active = b.dataset.role === role;
+      b.classList.toggle('active', active);
+      b.setAttribute('aria-selected', active);
+    });
+    document.getElementById('staffView').hidden = role !== 'staff';
+    document.getElementById('adminView').hidden = role !== 'admin';
+    rerender();
+  }
+
+  /* ---------- Event Wiring ---------- */
+  function wireEvents() {
+    document.querySelectorAll('.oes-role-btn').forEach(b => {
+      b.addEventListener('click', () => switchRole(b.dataset.role));
+    });
+    document.getElementById('staffSelect').addEventListener('change', e => {
+      state.currentStaffId = e.target.value; state.openDetailId = null; rerender();
+    });
+    document.getElementById('staffStatusFilter').addEventListener('change', e => {
+      state.staffStatusFilter = e.target.value; renderStaffTasks();
+    });
+    document.getElementById('adminMonthSelect').addEventListener('change', e => {
+      state.adminMonth = e.target.value; rerender();
+    });
+    document.getElementById('adminStaffSelect').addEventListener('change', e => {
+      state.adminStaffId = e.target.value; state.openDetailId = null; renderAdminStaffDetail();
+    });
+    document.getElementById('exportExcelBtn').addEventListener('click', exportExcel);
+
+    document.body.addEventListener('click', (e) => {
+      const btn = e.target.closest('[data-action]');
+      if (btn) {
+        const action = btn.dataset.action;
+        const id = btn.dataset.id;
+        if (action === 'detail') { toggleDetail(id); }
+        else { openActionModal(id, action); }
+        return;
+      }
+      if (e.target.closest('[data-close]')) closeModal();
+    });
+
+    document.addEventListener('keydown', (e) => { if (e.key === 'Escape') closeModal(); });
+  }
+
+  function init() {
+    try {
+      renderStaffSelect();
+      buildMonthOptions();
+      buildAdminStaffOptions();
+      wireEvents();
+      rerender();
+      console.log('[OES] init complete');
+    } catch (err) {
+      showError('初期化エラー: ' + err.message);
+      console.error(err);
+    }
+  }
+
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', init);
+  } else {
+    init();
+  }
+})();
+</script>
 </body>
 </html>
