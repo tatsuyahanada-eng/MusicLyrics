@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta http-equiv="Cache-Control" content="no-store">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <meta name="theme-color" content="#1e3a8a">
+  <title>OESタスク管理</title>
+  <link rel="stylesheet" href="oes.css?v=1">
+</head>
+<body class="oes-body">
+
+  <header class="oes-header">
+    <div class="oes-header-inner">
+      <h1 class="oes-title">OESタスク管理</h1>
+      <div class="oes-role-switch" role="tablist" aria-label="表示モード">
+        <button class="oes-role-btn active" data-role="staff" role="tab" aria-selected="true">👷 スタッフ</button>
+        <button class="oes-role-btn" data-role="admin" role="tab" aria-selected="false">🧑‍💼 管理者</button>
+      </div>
+    </div>
+  </header>
+
+  <!-- ===== Staff View ===== -->
+  <main id="staffView" class="oes-view">
+    <section class="oes-section">
+      <div class="oes-section-row">
+        <label class="oes-label" for="staffSelect">作業スタッフ</label>
+        <select id="staffSelect" class="oes-select" aria-label="スタッフ選択"></select>
+      </div>
+      <div id="staffSummary" class="oes-summary"></div>
+      <div id="staffAlerts" class="oes-alerts" aria-live="polite"></div>
+    </section>
+
+    <section class="oes-section">
+      <div class="oes-section-head">
+        <h2 class="oes-h2">担当OES入替タスク</h2>
+        <div class="oes-filter">
+          <select id="staffStatusFilter" class="oes-select oes-select-sm" aria-label="ステータス絞り込み">
+            <option value="all">すべて</option>
+            <option value="active">進行中</option>
+            <option value="assigned">①アサイン</option>
+            <option value="mpr_received">②MPR受取済</option>
+            <option value="work_done">③作業完了</option>
+            <option value="returned">④撤去機返送済</option>
+            <option value="completed">⑤完了</option>
+          </select>
+        </div>
+      </div>
+      <div id="staffTaskList" class="oes-task-list"></div>
+    </section>
+  </main>
+
+  <!-- ===== Admin View ===== -->
+  <main id="adminView" class="oes-view" hidden>
+    <section class="oes-section">
+      <div class="oes-section-head">
+        <h2 class="oes-h2">スタッフ別 進捗サマリー（{{month}}）</h2>
+        <div class="oes-filter">
+          <select id="adminMonthSelect" class="oes-select oes-select-sm" aria-label="対象月"></select>
+          <button id="exportExcelBtn" class="oes-btn oes-btn-primary">📥 Excel出力</button>
+        </div>
+      </div>
+      <div id="adminAlerts" class="oes-alerts" aria-live="polite"></div>
+      <div id="adminStaffSummary" class="oes-admin-grid"></div>
+    </section>
+
+    <section class="oes-section">
+      <div class="oes-section-head">
+        <h2 class="oes-h2">スタッフ詳細</h2>
+        <select id="adminStaffSelect" class="oes-select oes-select-sm" aria-label="詳細表示スタッフ"></select>
+      </div>
+      <div id="adminStaffDetail" class="oes-task-list"></div>
+    </section>
+  </main>
+
+  <!-- ===== Modal: Task Detail / Action ===== -->
+  <div id="taskModal" class="oes-modal" hidden aria-hidden="true" role="dialog" aria-modal="true">
+    <div class="oes-modal-backdrop" data-close></div>
+    <div class="oes-modal-panel">
+      <div class="oes-modal-head">
+        <h3 id="modalTitle" class="oes-modal-title">タスク詳細</h3>
+        <button class="oes-close-btn" data-close aria-label="閉じる">✕</button>
+      </div>
+      <div id="modalBody" class="oes-modal-body"></div>
+    </div>
+  </div>
+
+  <footer class="oes-footer">
+    <p class="oes-foot-note">© OESタスク管理 / 試作版（モックデータ）</p>
+  </footer>
+
+  <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+  <script src="oes.js?v=1"></script>
+</body>
+</html>
