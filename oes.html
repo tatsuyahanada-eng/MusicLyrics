@@ -168,32 +168,60 @@ button { font-family: inherit; cursor: pointer; }
 }
 
 .oes-footer { text-align: center; padding: 14px; color: var(--c-muted); font-size: 11px; }
+
+/* ===== Login screen ===== */
+.oes-login { position: fixed; inset: 0; background: linear-gradient(135deg, #1e3a8a, #172554); z-index: 1000; display: flex; align-items: center; justify-content: center; padding: 20px; }
+.oes-login-box { background: #fff; border-radius: 16px; padding: 28px 22px; max-width: 460px; width: 100%; box-shadow: 0 10px 30px rgba(0,0,0,.3); }
+.oes-login-box h2 { margin: 0 0 4px; color: var(--c-primary-dark); font-size: 22px; text-align: center; }
+.oes-login-box p { margin: 0 0 18px; color: var(--c-muted); text-align: center; font-size: 12px; }
+.oes-login-section { font-size: 11px; color: var(--c-muted); font-weight: 600; margin: 12px 0 6px; padding-bottom: 4px; border-bottom: 1px solid var(--c-border-lt); }
+.oes-login-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.oes-login-btn { padding: 12px 8px; border: 1px solid var(--c-border); border-radius: 8px; background: #fff; cursor: pointer; font-family: inherit; font-size: 14px; font-weight: 600; color: var(--c-primary-dark); text-align: center; transition: background .12s, border-color .12s; }
+.oes-login-btn:hover { background: #f0f9ff; border-color: var(--c-accent); }
+.oes-login-btn:active { transform: scale(.98); }
+.oes-login-btn small { display: block; font-size: 11px; color: var(--c-muted); margin-top: 4px; font-weight: 400; }
+.oes-login-btn.admin { background: linear-gradient(135deg, var(--c-primary), var(--c-primary-dark)); color: #fff; border: 0; }
+.oes-login-btn.admin small { color: rgba(255,255,255,.75); }
+.oes-login-note { font-size: 10px; color: var(--c-muted); text-align: center; margin-top: 12px; line-height: 1.5; }
+
+.oes-header-user { display: flex; align-items: center; gap: 8px; color: #fff; font-size: 13px; flex-wrap: wrap; justify-content: flex-end; }
+.oes-header-user .badge { background: rgba(255,255,255,.18); padding: 4px 10px; border-radius: 99px; font-weight: 600; }
+.oes-header-user .badge.admin { background: #fbbf24; color: #78350f; }
+.oes-header-user button { background: rgba(255,255,255,.15); border: 1px solid rgba(255,255,255,.3); color: #fff; padding: 5px 12px; border-radius: 5px; font-size: 11px; cursor: pointer; font-family: inherit; }
+.oes-header-user button:hover { background: rgba(255,255,255,.25); }
+
 .flash { animation: flash 0.6s ease; }
 @keyframes flash { 0% { background: #fef9c3 !important; } 100% { background: transparent; } }
   </style>
 </head>
 <body>
 
-<div id="buildBanner">📦 OESタスク管理 build v4 (2026-06-08) — Excel風グリッド版</div>
+<div id="buildBanner">📦 OESタスク管理 build v5 (2026-06-08) — ログイン制グリッド版</div>
+
+<!-- ===== Login screen ===== -->
+<div id="loginScreen" class="oes-login" hidden>
+  <div class="oes-login-box">
+    <h2>📋 OESタスク管理</h2>
+    <p>ログインするユーザーを選択してください</p>
+    <div class="oes-login-section">👷 スタッフ</div>
+    <div class="oes-login-grid" id="loginStaffBtns"></div>
+    <div class="oes-login-section">🧑‍💼 管理者</div>
+    <div class="oes-login-grid" id="loginAdminBtns"></div>
+    <div class="oes-login-note">※ 試作版モック。実運用ではID/パスワード認証に置換。<br>ログイン情報はブラウザに保存されます（ログアウトで消去）。</div>
+  </div>
+</div>
 
 <header class="oes-header">
   <div class="oes-header-inner">
     <h1 class="oes-title">OESタスク管理<small>OES Replacement Task Board</small></h1>
-    <div class="oes-role-switch" role="tablist">
-      <button class="oes-role-btn active" data-role="staff">👷 スタッフ</button>
-      <button class="oes-role-btn" data-role="admin">🧑‍💼 管理者</button>
-    </div>
+    <div id="headerUser" class="oes-header-user"></div>
   </div>
 </header>
 
 <!-- ========== Staff view ========== -->
-<main id="staffView" class="oes-view">
+<main id="staffView" class="oes-view" hidden>
   <section class="oes-section">
     <div class="oes-filter-row">
-      <div class="oes-field">
-        <label>スタッフ</label>
-        <select id="staffSelect" class="oes-select"></select>
-      </div>
       <div class="oes-field">
         <label>対象月</label>
         <select id="staffMonthSelect" class="oes-select"></select>
@@ -297,7 +325,7 @@ button { font-family: inherit; cursor: pointer; }
 <script>
 (function () {
   'use strict';
-  const APP_VERSION = 'v4 (2026-06-08, grid)';
+  const APP_VERSION = 'v5 (2026-06-08, grid + login)';
   console.log('[OES] script loaded:', APP_VERSION);
 
   window.addEventListener('error', e => showError('JSエラー: ' + e.message + ' @ ' + e.filename + ':' + e.lineno));
@@ -429,15 +457,79 @@ button { font-family: inherit; cursor: pointer; }
 
   /* ---------- State ---------- */
   const state = {
-    role: 'staff',
+    user: null,  // { type:'staff'|'admin', id, name, role }
     tasks: generateTasks(),
-    currentStaffId: STAFFS[0].id,
+    currentStaffId: null, // = user.id when logged in as staff
     staffMonth: monthKey(todayYmd()),
     staffViewFilter: 'all',
     adminMonth: monthKey(todayYmd()),
     adminStaffFilter: 'ALL',
     adminViewFilter: 'all',
   };
+
+  /* ---------- Auth (mock) ---------- */
+  const LS_KEY = 'oes_user_v5';
+  function loadUser() {
+    try {
+      const j = localStorage.getItem(LS_KEY);
+      if (!j) return false;
+      const u = JSON.parse(j);
+      if (u && u.type === 'admin') { state.user = u; return true; }
+      if (u && u.type === 'staff') {
+        const s = STAFFS.find(x => x.id === u.id);
+        if (s) { state.user = u; state.currentStaffId = s.id; return true; }
+      }
+    } catch(e) { console.warn('loadUser failed', e); }
+    return false;
+  }
+  function saveUser() {
+    try { localStorage.setItem(LS_KEY, JSON.stringify(state.user)); } catch(e) {}
+  }
+  function loginAs(id) {
+    if (id === 'ADMIN') {
+      state.user = { type:'admin', id:'ADMIN', name:'管理者', role:'システム管理' };
+    } else {
+      const s = STAFFS.find(x => x.id === id);
+      if (!s) return;
+      state.user = { type:'staff', id:s.id, name:s.name, role:s.role };
+      state.currentStaffId = s.id;
+    }
+    saveUser();
+    applyUser();
+  }
+  function logout() {
+    if (!confirm('ログアウトしますか？')) return;
+    state.user = null;
+    state.currentStaffId = null;
+    try { localStorage.removeItem(LS_KEY); } catch(e) {}
+    showLogin();
+  }
+  function showLogin() {
+    document.getElementById('loginScreen').hidden = false;
+    document.getElementById('staffView').hidden = true;
+    document.getElementById('adminView').hidden = true;
+    document.getElementById('headerUser').innerHTML = '';
+  }
+  function applyUser() {
+    const u = state.user;
+    document.getElementById('loginScreen').hidden = true;
+    const isAdmin = u.type === 'admin';
+    document.getElementById('headerUser').innerHTML =
+      '<span class="badge ' + (isAdmin?'admin':'') + '">' + (isAdmin?'🧑‍💼':'👷') + ' ' + esc(u.name) + (isAdmin?'':' さん') + '</span>' +
+      '<span style="font-size:11px;opacity:.8">' + esc(u.role) + '</span>' +
+      '<button id="logoutBtn">ログアウト</button>';
+    document.getElementById('logoutBtn').onclick = logout;
+    document.getElementById('staffView').hidden = isAdmin;
+    document.getElementById('adminView').hidden = !isAdmin;
+    rerenderAll();
+  }
+  function renderLoginButtons() {
+    document.getElementById('loginStaffBtns').innerHTML = STAFFS.map(s =>
+      '<button class="oes-login-btn" data-login-id="' + s.id + '">' + esc(s.name) + '<small>' + esc(s.role) + '</small></button>'
+    ).join('');
+    document.getElementById('loginAdminBtns').innerHTML =
+      '<button class="oes-login-btn admin" data-login-id="ADMIN" style="grid-column:span 2">🧑‍💼 管理者としてログイン<small>全スタッフのタスク・進捗を一覧／Excel出力</small></button>';
+  }
 
   function findTask(id) { return state.tasks.find(t => t.id === id); }
   function filteredTasks(scope) {
@@ -689,7 +781,8 @@ button { font-family: inherit; cursor: pointer; }
   }
 
   function rerenderAll() {
-    if (state.role === 'staff') renderStaffView();
+    if (!state.user) return;
+    if (state.user.type === 'staff') renderStaffView();
     else renderAdminView();
   }
 
@@ -709,26 +802,12 @@ button { font-family: inherit; cursor: pointer; }
     renderGrid('adminGrid', list, { showStaff: true });
   }
 
-  function switchRole(role) {
-    state.role = role;
-    document.querySelectorAll('.oes-role-btn').forEach(b => {
-      const active = b.dataset.role === role;
-      b.classList.toggle('active', active);
-      b.setAttribute('aria-selected', active);
-    });
-    document.getElementById('staffView').hidden = role !== 'staff';
-    document.getElementById('adminView').hidden = role !== 'admin';
-    rerenderAll();
-  }
-
   function jumpToTask(taskId) {
-    // 全表示にしてから対象行へスクロール
-    if (state.role === 'staff') {
-      const t = findTask(taskId);
-      if (t && t.staffId !== state.currentStaffId) {
-        state.currentStaffId = t.staffId;
-        document.getElementById('staffSelect').value = t.staffId;
-      }
+    const t = findTask(taskId);
+    if (!t || !state.user) return;
+    if (state.user.type === 'staff') {
+      // スタッフは自分のタスクのみ → 他人のタスクへはジャンプ不可
+      if (t.staffId !== state.currentStaffId) return;
       state.staffViewFilter = 'all';
       document.getElementById('staffViewFilter').value = 'all';
     } else {
@@ -754,10 +833,13 @@ button { font-family: inherit; cursor: pointer; }
   }
 
   function wireEvents() {
-    document.querySelectorAll('.oes-role-btn').forEach(b => b.addEventListener('click', () => switchRole(b.dataset.role)));
+    // login buttons (delegated since rendered later)
+    document.getElementById('loginScreen').addEventListener('click', e => {
+      const btn = e.target.closest('[data-login-id]');
+      if (btn) loginAs(btn.dataset.loginId);
+    });
 
     // staff filters
-    document.getElementById('staffSelect').addEventListener('change', e => { state.currentStaffId = e.target.value; rerenderAll(); });
     document.getElementById('staffMonthSelect').addEventListener('change', e => { state.staffMonth = e.target.value; rerenderAll(); });
     document.getElementById('staffViewFilter').addEventListener('change', e => { state.staffViewFilter = e.target.value; rerenderAll(); });
 
@@ -773,6 +855,11 @@ button { font-family: inherit; cursor: pointer; }
       if (!tr) return;
       const field = e.target.dataset.field;
       if (!field) return;
+      // 権限チェック: スタッフは自分のタスクのみ編集可
+      if (state.user && state.user.type === 'staff') {
+        const t = findTask(tr.dataset.taskId);
+        if (!t || t.staffId !== state.user.id) { showError('他スタッフのタスクは編集できません'); return; }
+      }
       onFieldChange(tr.dataset.taskId, field, e.target);
     });
     // jump from alert / image lightbox
@@ -787,9 +874,6 @@ button { font-family: inherit; cursor: pointer; }
   }
 
   function initSelects() {
-    const staffOpts = STAFFS.map(s => '<option value="' + s.id + '">' + esc(s.name) + '（' + esc(s.role) + '）</option>').join('');
-    document.getElementById('staffSelect').innerHTML = staffOpts;
-    document.getElementById('staffSelect').value = state.currentStaffId;
     document.getElementById('adminStaffFilter').innerHTML = '<option value="ALL">全員</option>' + STAFFS.map(s => '<option value="' + s.id + '">' + esc(s.name) + '</option>').join('');
 
     const months = Array.from(new Set(state.tasks.map(t => monthKey(t.workDate)))).sort().reverse();
@@ -803,9 +887,11 @@ button { font-family: inherit; cursor: pointer; }
   function init() {
     try {
       initSelects();
+      renderLoginButtons();
       wireEvents();
-      rerenderAll();
-      console.log('[OES] init complete');
+      if (loadUser()) applyUser();
+      else showLogin();
+      console.log('[OES] init complete; user=', state.user);
     } catch (err) {
       showError('初期化エラー: ' + err.message + '\n' + (err.stack||'').slice(0,400));
       console.error(err);
