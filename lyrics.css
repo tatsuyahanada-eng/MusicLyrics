@@ -1126,8 +1126,13 @@ body.lyric-scatter .ly-lyric-stack  { display: none; }
   word-break: normal;
   max-width: 74%;
   opacity: 0;
-  transform: scale(0.85);
-  transition: opacity 0.6s ease, transform 0.6s cubic-bezier(0.22,1,0.36,1);
+  /* Default tilt / drift offsets — JS sets per-token via vars */
+  --tilt: 0deg;
+  --enter-ms: 0.6s;
+  --drift-ms: 7s;
+  transform: scale(0.82) translate(0, 0) rotate(var(--tilt));
+  transition: opacity var(--enter-ms, 0.6s) ease,
+              transform var(--enter-ms, 0.6s) cubic-bezier(0.22,1,0.36,1);
   will-change: opacity, transform;
 }
 
@@ -1166,8 +1171,20 @@ body.song-active .ly-fs-offset { display: flex; }
 body.lyrics-fs:not(.fs-controls-visible) .ly-fs-offset,
 body.karaoke-mode:not(.fs-controls-visible) .ly-fs-offset { display: none; }
 
-.ly-scatter-token.in  { opacity: 1; transform: scale(1); }
-.ly-scatter-token.out { opacity: 0; transform: scale(0.94); }
+.ly-scatter-token.in  {
+  opacity: 1;
+  animation: ly-scatter-drift var(--drift-ms, 7s) ease-in-out infinite alternate;
+}
+.ly-scatter-token.out {
+  opacity: 0;
+  transform: scale(0.94) rotate(var(--tilt));
+  animation: none;
+}
+
+@keyframes ly-scatter-drift {
+  0%   { transform: scale(0.98) translate(-1.5%, -1%) rotate(var(--tilt)); }
+  100% { transform: scale(1.04) translate( 1.5%,  1%) rotate(var(--tilt)); }
+}
 
 /* Lyrics-only mode: cover the whole viewport as a CSS overlay so
    it works even where the Fullscreen API is unavailable (iOS). */

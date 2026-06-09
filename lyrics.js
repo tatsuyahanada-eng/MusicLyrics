@@ -1193,19 +1193,12 @@ async function searchYouTubeCached(query) {
 
 async function fetchLyricsCached(artist, title) {
   const key = `${artist}|${title}`;
-  if (lyricsCache.has(key)) {
-    const v = lyricsCache.get(key);
-    if (v === null) throw new Error('cached miss');
-    return v;
-  }
-  try {
-    const raw = await fetchLyricsWithFallback(artist, title);
-    cachePut(lyricsCache, key, raw);
-    return raw;
-  } catch (e) {
-    cachePut(lyricsCache, key, null);
-    throw e;
-  }
+  if (lyricsCache.has(key)) return lyricsCache.get(key);
+  /* Don't cache failures — a transient network glitch shouldn't
+     permanently mark a song as "No Lyrics". */
+  const raw = await fetchLyricsWithFallback(artist, title);
+  cachePut(lyricsCache, key, raw);
+  return raw;
 }
 
 async function handleSongSearch(artist, title, opts = {}) {
@@ -1214,6 +1207,7 @@ async function handleSongSearch(artist, title, opts = {}) {
   state.currentTitle  = title;
   loadOffsetForCurrentSong();
   setNowPlayingTitle(artist, title);
+  hideStageMessage();   /* clear "No Lyrics" from the previous song */
 
   setStatus(`「${escapeHTML(title)}」を検索中...`, 'loading');
   elFetchBtn.disabled = true;
@@ -1248,7 +1242,15 @@ async function handleSongSearch(artist, title, opts = {}) {
       if (state.currentArtist !== artist || state.currentTitle !== title) return;
       state.lyrics = [];
       state.lrcLines = [];
-      showStageMessage('No Lyrics');
+      /* Wait a beat before declaring the song lyric-less. If the
+         user advances to another song within this window we skip
+         the message entirely; if lyrics genuinely don't exist the
+         message appears as a steady "No Lyrics", not a flash. */
+      setTimeout(() => {
+        if (state.currentArtist !== artist || state.currentTitle !== title) return;
+        if (state.lyrics.length) return; /* lyrics arrived via another path */
+        showStageMessage('No Lyrics');
+      }, 900);
     });
 
   try {
@@ -1785,8 +1787,7 @@ function mkEl(tag, className) {
 }
 
 /* ---- Scatter tokens: random h/v orientation, size, no overlap ---- */
-const SCATTER_MAX  = 4;
-const SCATTER_LIFE = 6500;
+const SCATTER_MAX  = 5;
 const SCATTER_GAP  = 18;   /* min px gap between scatter tokens */
 
 function spawnScatterToken(text) {
@@ -1809,19 +1810,37 @@ function spawnScatterToken(text) {
   const sw = elScatterLayer.clientWidth  || 320;
   const sh = elScatterLayer.clientHeight || 200;
   const scale = Math.max(0.62, Math.min(1.25, sw / 680));
-  const vertical = sh > 260 && Math.random() < 0.4; /* ~40% vertical when tall enough */
+  const vertical = sh > 260 && Math.random() < 0.42; /* ~42% vertical */
   if (vertical) el.classList.add('vertical');
-  /* Bigger text; horizontal lines may wrap (handled in CSS) */
-  let size = randomInt(Math.round(30 * scale), Math.round(66 * scale));
+
+  /* Wider size range for more dynamism. Occasionally a token is
+     either really big (emphasis) or modest (background flavour). */
+  const r = Math.random();
+  let size;
+  if (r < 0.18)      size = randomInt(Math.round(56 * scale), Math.round(86 * scale)); /* emphasis */
+  else if (r > 0.82) size = randomInt(Math.round(22 * scale), Math.round(34 * scale)); /* subtle */
+  else               size = randomInt(Math.round(32 * scale), Math.round(64 * scale)); /* normal */
   el.style.fontSize = `${size}px`;
+
+  /* Speed: each token has its own entry timing and lifespan, so
+     the stream feels less metronomic. */
+  const enterMs = 0.42 + Math.random() * 0.65;   /* 0.42 – 1.07 s */
+  const driftMs = 5 + Math.random() * 6;          /* 5 – 11 s drift cycle */
+  const lifeMs  = 4500 + Math.random() * 4500;   /* 4.5 – 9.0 s on screen */
+  el.style.setProperty('--enter-ms', enterMs.toFixed(2) + 's');
+  el.style.setProperty('--drift-ms', driftMs.toFixed(2) + 's');
+  /* Slight tilt for horizontal tokens (vertical stays upright) */
+  if (!vertical) {
+    el.style.setProperty('--tilt', (Math.random() * 16 - 8).toFixed(1) + 'deg');
+  }
+
   el.style.left = '-9999px';
   el.style.top  = '-9999px';
   elScatterLayer.appendChild(el);
 
-  /* Shrink only if it still doesn't fit after wrapping (keeps text big).
-     Vertical lines can't wrap, so they rely on this to fit the height. */
+  /* Shrink only if it still doesn't fit after wrapping. */
   const maxW = sw - 16;
-  const maxH = sh - 46;            /* leave room under the title */
+  const maxH = sh - 46;
   let guard = 16;
   while ((el.offsetHeight > maxH || el.offsetWidth > maxW) && size > 13 && guard-- > 0) {
     size = Math.max(13, Math.floor(size * 0.88));
@@ -1833,7 +1852,7 @@ function spawnScatterToken(text) {
   el.style.top  = `${pos.y}px`;
 
   requestAnimationFrame(() => el.classList.add('in'));
-  setTimeout(() => fadeOutScatter(el), SCATTER_LIFE);
+  setTimeout(() => fadeOutScatter(el), lifeMs);
 }
 
 function findScatterPosition(el) {
