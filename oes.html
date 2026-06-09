@@ -171,6 +171,7 @@ button { font-family: inherit; cursor: pointer; }
 
 /* ===== Login screen ===== */
 .oes-login { position: fixed; inset: 0; background: linear-gradient(135deg, #1e3a8a, #172554); z-index: 1000; display: flex; align-items: center; justify-content: center; padding: 20px; }
+.oes-login[hidden] { display: none !important; }
 .oes-login-box { background: #fff; border-radius: 16px; padding: 28px 22px; max-width: 460px; width: 100%; box-shadow: 0 10px 30px rgba(0,0,0,.3); }
 .oes-login-box h2 { margin: 0 0 4px; color: var(--c-primary-dark); font-size: 22px; text-align: center; }
 .oes-login-box p { margin: 0 0 18px; color: var(--c-muted); text-align: center; font-size: 12px; }
@@ -196,7 +197,7 @@ button { font-family: inherit; cursor: pointer; }
 </head>
 <body>
 
-<div id="buildBanner">📦 OESタスク管理 build v5 (2026-06-08) — ログイン制グリッド版</div>
+<div id="buildBanner">📦 OESタスク管理 build v5.1 (2026-06-09) — ログイン遷移修正</div>
 
 <!-- ===== Login screen ===== -->
 <div id="loginScreen" class="oes-login" hidden>
@@ -325,7 +326,7 @@ button { font-family: inherit; cursor: pointer; }
 <script>
 (function () {
   'use strict';
-  const APP_VERSION = 'v5 (2026-06-08, grid + login)';
+  const APP_VERSION = 'v5.1 (2026-06-09, login transition fix)';
   console.log('[OES] script loaded:', APP_VERSION);
 
   window.addEventListener('error', e => showError('JSエラー: ' + e.message + ' @ ' + e.filename + ':' + e.lineno));
