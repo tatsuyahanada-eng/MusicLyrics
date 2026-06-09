@@ -108,16 +108,16 @@ button { font-family: inherit; cursor: pointer; }
 .check-cell.missing { background: var(--c-cell-alert) !important; }
 .check-cell.partial { background: #fef3c7 !important; }
 
-/* MPR cell (AM/PM dual checkbox) */
-.mpr-cell { min-width: 120px; }
-.mpr-wrap { display: flex; flex-direction: column; gap: 3px; }
-.mpr-slot { display: grid; grid-template-columns: 20px 24px 1fr; gap: 4px; align-items: center; cursor: pointer; padding: 2px 4px; border-radius: 4px; background: rgba(0,0,0,.02); }
+/* MPR cell (AM/PM dual checkbox, horizontal) */
+.mpr-cell { min-width: 140px; }
+.mpr-wrap { display: grid; grid-template-columns: 1fr 1fr; gap: 4px; }
+.mpr-slot { display: flex; flex-direction: column; align-items: center; gap: 2px; cursor: pointer; padding: 4px 2px; border-radius: 5px; background: rgba(0,0,0,.03); }
 .mpr-slot:hover { background: rgba(37,99,235,.08); }
-.mpr-slot.on { background: rgba(22,163,74,.12); }
-.mpr-slot input[type="checkbox"] { width: 18px; height: 18px; margin: 0; accent-color: var(--c-ok); cursor: pointer; }
-.mpr-slot .slot-lbl { font-weight: 700; font-size: 10px; color: var(--c-muted); }
+.mpr-slot.on { background: rgba(22,163,74,.15); border: 1px solid rgba(22,163,74,.3); padding: 3px 1px; }
+.mpr-slot input[type="checkbox"] { width: 20px; height: 20px; margin: 0; accent-color: var(--c-ok); cursor: pointer; }
+.mpr-slot .slot-lbl { font-weight: 700; font-size: 11px; color: var(--c-muted); line-height: 1; }
 .mpr-slot.on .slot-lbl { color: var(--c-ok); }
-.mpr-slot .when { font-size: 10px; color: var(--c-muted); text-align: right; }
+.mpr-slot .when { font-size: 10px; color: var(--c-muted); line-height: 1; }
 .mpr-slot.on .when { color: #166534; font-weight: 600; }
 
 /* ===== Fee cell ===== */
@@ -206,11 +206,33 @@ button { font-family: inherit; cursor: pointer; }
 
 .flash { animation: flash 0.6s ease; }
 @keyframes flash { 0% { background: #fef9c3 !important; } 100% { background: transparent; } }
+
+/* ===== Save bar (pending changes) ===== */
+.oes-sticky-top { position: sticky; top: 0; z-index: 50; }
+.oes-save-bar { background: #f1f5f9; border-bottom: 1px solid var(--c-border); transition: background .2s; }
+.oes-save-bar.has-changes { background: #fffbeb; border-bottom-color: #fde68a; }
+.oes-save-bar[hidden] { display: none; }
+.save-bar-inner { max-width: 1400px; margin: 0 auto; padding: 7px 14px; display: flex; justify-content: space-between; align-items: center; gap: 8px; flex-wrap: wrap; }
+.save-status { display: flex; align-items: center; gap: 6px; font-size: 13px; color: var(--c-muted); }
+.save-status .count-badge { background: var(--c-warn); color: #fff; padding: 1px 8px; border-radius: 99px; font-weight: 700; font-size: 11px; }
+.oes-save-bar.has-changes .save-status { color: #92400e; font-weight: 600; }
+.save-actions { display: flex; gap: 6px; }
+.save-actions button { padding: 6px 14px; font-size: 13px; }
+#saveBtn:not(:disabled) { animation: savePulse 1.8s ease infinite; }
+#saveBtn:disabled, #discardBtn:disabled { opacity: .45; cursor: not-allowed; }
+@keyframes savePulse { 0%,100% { box-shadow: 0 0 0 0 rgba(37,99,235,.45); } 50% { box-shadow: 0 0 0 6px rgba(37,99,235,0); } }
+.dirty-tag { display: inline-block; background: var(--c-warn); color: #fff; padding: 1px 5px; border-radius: 3px; font-size: 9px; font-weight: 700; margin-left: 4px; vertical-align: middle; }
+
+/* ===== Toast ===== */
+.oes-toast { position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%); background: var(--c-primary-dark); color: #fff; padding: 10px 18px; border-radius: 8px; box-shadow: 0 4px 14px rgba(0,0,0,.25); z-index: 110; font-size: 13px; font-weight: 600; opacity: 0; pointer-events: none; transition: opacity .25s, transform .25s; }
+.oes-toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+.oes-toast.ok { background: var(--c-ok); }
+.oes-toast.err { background: var(--c-danger); }
   </style>
 </head>
 <body>
 
-<div id="buildBanner">📦 OESタスク管理 build v6 (2026-06-09) — MPR AM/PM対応・スタッフ4名</div>
+<div id="buildBanner">📦 OESタスク管理 build v7 (2026-06-09) — MPR横並び・保存ボタン追加</div>
 
 <!-- ===== Login screen ===== -->
 <div id="loginScreen" class="oes-login" hidden>
@@ -225,12 +247,27 @@ button { font-family: inherit; cursor: pointer; }
   </div>
 </div>
 
-<header class="oes-header">
-  <div class="oes-header-inner">
-    <h1 class="oes-title">OESタスク管理<small>OES Replacement Task Board</small></h1>
-    <div id="headerUser" class="oes-header-user"></div>
+<div class="oes-sticky-top">
+  <header class="oes-header">
+    <div class="oes-header-inner">
+      <h1 class="oes-title">OESタスク管理<small>OES Replacement Task Board</small></h1>
+      <div id="headerUser" class="oes-header-user"></div>
+    </div>
+  </header>
+  <div id="saveBar" class="oes-save-bar" hidden>
+    <div class="save-bar-inner">
+      <div class="save-status">
+        <span>💾</span>
+        <span id="saveLabel">変更はありません</span>
+        <span id="saveCountBadge" class="count-badge" hidden>0</span>
+      </div>
+      <div class="save-actions">
+        <button id="discardBtn" class="oes-btn" disabled>↺ 破棄</button>
+        <button id="saveBtn" class="oes-btn oes-btn-primary" disabled>💾 保存</button>
+      </div>
+    </div>
   </div>
-</header>
+</div>
 
 <!-- ========== Staff view ========== -->
 <main id="staffView" class="oes-view" hidden>
@@ -333,13 +370,15 @@ button { font-family: inherit; cursor: pointer; }
 
 <footer class="oes-footer">© OESタスク管理 / 試作版（モックデータ）</footer>
 
+<div id="toast" class="oes-toast"></div>
+
 <div id="errorOverlay"><button onclick="document.getElementById('errorOverlay').classList.remove('show')">閉じる</button><div id="errorOverlayBody"></div></div>
 
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 <script>
 (function () {
   'use strict';
-  const APP_VERSION = 'v6 (2026-06-09, MPR AM/PM)';
+  const APP_VERSION = 'v7 (2026-06-09, MPR horizontal + save buffer)';
   console.log('[OES] script loaded:', APP_VERSION);
 
   window.addEventListener('error', e => showError('JSエラー: ' + e.message + ' @ ' + e.filename + ':' + e.lineno));
@@ -521,7 +560,9 @@ button { font-family: inherit; cursor: pointer; }
     applyUser();
   }
   function logout() {
-    if (!confirm('ログアウトしますか？')) return;
+    if (pendingChanges.size && !confirm('未保存の変更が ' + pendingChanges.size + ' 件あります。破棄してログアウトしますか？')) return;
+    else if (!pendingChanges.size && !confirm('ログアウトしますか？')) return;
+    pendingChanges.clear();
     state.user = null;
     state.currentStaffId = null;
     try { localStorage.removeItem(LS_KEY); } catch(e) {}
@@ -532,6 +573,7 @@ button { font-family: inherit; cursor: pointer; }
     document.getElementById('staffView').hidden = true;
     document.getElementById('adminView').hidden = true;
     document.getElementById('headerUser').innerHTML = '';
+    document.getElementById('saveBar').hidden = true;
   }
   function applyUser() {
     const u = state.user;
@@ -544,6 +586,7 @@ button { font-family: inherit; cursor: pointer; }
     document.getElementById('logoutBtn').onclick = logout;
     document.getElementById('staffView').hidden = isAdmin;
     document.getElementById('adminView').hidden = !isAdmin;
+    document.getElementById('saveBar').hidden = false;
     rerenderAll();
   }
   function renderLoginButtons() {
@@ -555,6 +598,64 @@ button { font-family: inherit; cursor: pointer; }
   }
 
   function findTask(id) { return state.tasks.find(t => t.id === id); }
+
+  /* ---------- Pending changes (draft buffer) ---------- */
+  const pendingChanges = new Map(); // taskId -> snapshot before first edit
+  function markDirty(taskId) {
+    if (pendingChanges.has(taskId)) return;
+    const t = findTask(taskId);
+    if (t) pendingChanges.set(taskId, JSON.parse(JSON.stringify(t)));
+  }
+  function saveChanges() {
+    if (!pendingChanges.size) return;
+    const n = pendingChanges.size;
+    // ===== MySQL連携時はここでAPI呼び出し =====
+    // const payload = Array.from(pendingChanges.keys()).map(id => findTask(id));
+    // fetch('/api/tasks/batch', { method:'POST', headers:{...}, body: JSON.stringify(payload) })
+    //   .then(r => r.json()).then(() => { pendingChanges.clear(); updateSaveBar(); showToast('保存しました', 'ok'); })
+    //   .catch(err => showToast('保存失敗: ' + err.message, 'err'));
+    pendingChanges.clear();
+    rerenderAll();
+    showToast('✅ ' + n + ' 件の変更を保存しました', 'ok');
+  }
+  function discardChanges() {
+    if (!pendingChanges.size) return;
+    if (!confirm('未保存の変更を破棄しますか？')) return;
+    pendingChanges.forEach((orig, id) => {
+      const idx = state.tasks.findIndex(t => t.id === id);
+      if (idx >= 0) state.tasks[idx] = orig;
+    });
+    pendingChanges.clear();
+    rerenderAll();
+    showToast('変更を破棄しました', 'ok');
+  }
+  function updateSaveBar() {
+    const n = pendingChanges.size;
+    const bar = document.getElementById('saveBar');
+    const lbl = document.getElementById('saveLabel');
+    const badge = document.getElementById('saveCountBadge');
+    const sBtn = document.getElementById('saveBtn');
+    const dBtn = document.getElementById('discardBtn');
+    bar.classList.toggle('has-changes', n > 0);
+    if (n > 0) {
+      lbl.textContent = '未保存の変更があります';
+      badge.textContent = n + ' 件';
+      badge.hidden = false;
+    } else {
+      lbl.textContent = '変更はありません';
+      badge.hidden = true;
+    }
+    sBtn.disabled = n === 0;
+    dBtn.disabled = n === 0;
+  }
+  function showToast(msg, cls) {
+    const el = document.getElementById('toast');
+    el.textContent = msg;
+    el.className = 'oes-toast' + (cls ? ' ' + cls : '');
+    requestAnimationFrame(() => el.classList.add('show'));
+    clearTimeout(el._t);
+    el._t = setTimeout(() => el.classList.remove('show'), 2200);
+  }
   function filteredTasks(scope) {
     let list = state.tasks;
     if (scope.staffId && scope.staffId !== 'ALL') list = list.filter(t => t.staffId === scope.staffId);
@@ -662,9 +763,10 @@ button { font-family: inherit; cursor: pointer; }
     const st = computedStatus(t);
     const cls = (alerts.length ? 'has-alert ' : '') + (st === 'completed' ? 'completed ' : '');
     const staffInfo = opts.showStaff ? ' / ' + esc(t.staffName) : '';
+    const dirty = pendingChanges.has(t.id) ? '<span class="dirty-tag">未保存</span>' : '';
     return '<tr data-task-id="' + t.id + '" class="' + cls + '">' +
       '<td class="col-store">' +
-        '<div class="id">' + t.id + staffInfo + '</div>' +
+        '<div class="id">' + t.id + staffInfo + dirty + '</div>' +
         '<div class="name">' + esc(t.storeName) + '</div>' +
         '<div class="addr" title="' + esc(t.storeAddress) + '">📍 ' + esc(t.storeAddress) + '</div>' +
       '</td>' +
@@ -804,6 +906,7 @@ button { font-family: inherit; cursor: pointer; }
   function onFieldChange(taskId, field, target) {
     const t = findTask(taskId);
     if (!t) return;
+    markDirty(taskId);
     if (target.type === 'checkbox') {
       t[field] = target.checked;
       const dateMap = {
@@ -833,6 +936,7 @@ button { font-family: inherit; cursor: pointer; }
     if (!state.user) return;
     if (state.user.type === 'staff') renderStaffView();
     else renderAdminView();
+    updateSaveBar();
   }
 
   function renderStaffView() {
@@ -897,6 +1001,11 @@ button { font-family: inherit; cursor: pointer; }
     document.getElementById('adminStaffFilter').addEventListener('change', e => { state.adminStaffFilter = e.target.value; rerenderAll(); });
     document.getElementById('adminViewFilter').addEventListener('change', e => { state.adminViewFilter = e.target.value; rerenderAll(); });
     document.getElementById('exportExcelBtn').addEventListener('click', exportExcel);
+    document.getElementById('saveBtn').addEventListener('click', saveChanges);
+    document.getElementById('discardBtn').addEventListener('click', discardChanges);
+    window.addEventListener('beforeunload', e => {
+      if (pendingChanges.size) { e.preventDefault(); e.returnValue = ''; return ''; }
+    });
 
     // grid cell interactions (delegated)
     document.body.addEventListener('change', e => {
