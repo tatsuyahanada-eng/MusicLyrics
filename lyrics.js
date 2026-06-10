@@ -1483,11 +1483,7 @@ function renderLrcView() {
   const lines = state.lrcLines;
   const text = lines[idx].text;
   if (lyricStyle === 'scatter') {
-    /* Stagger this line's words across the time until the next
-       line (or a fallback for the last line) */
-    const next = lines[idx + 1];
-    const durMs = next ? Math.max(800, (next.time - lines[idx].time) * 1000) : 4000;
-    scheduleWordsForLine(text, durMs);
+    spawnScatterToken(text);
     return;
   }
   const textArr = lines.map(l => l.text);
@@ -1507,7 +1503,7 @@ function displayLine(text) {
   plainHistory.unshift(trimmed);
   if (plainHistory.length > PLAIN_HISTORY + 1) plainHistory.length = PLAIN_HISTORY + 1;
   if (lyricStyle === 'scatter') {
-    scheduleWordsForLine(trimmed, state.speed || 2500);
+    spawnScatterToken(trimmed);
     return;
   }
   renderLyricStage(
@@ -1792,56 +1788,66 @@ function mkEl(tag, className) {
   return el;
 }
 
-/* ---- Scatter tokens: word-level kinetic typography ---- */
-const SCATTER_MAX  = 8;
-const SCATTER_GAP  = 26;   /* min px gap between scatter tokens */
+/* ---- Scatter tokens: one token per line, with one word
+   visually emphasized in a vivid colour & larger size ---- */
+const SCATTER_MAX  = 4;
+const SCATTER_GAP  = 22;
+const EMPH_COLORS  = [
+  ['#ec4899', 'rgba(236,72,153,0.65)'],   /* pink */
+  ['#fbbf24', 'rgba(251,191,36,0.65)'],   /* amber */
+  ['#22d3ee', 'rgba(34,211,238,0.65)'],   /* cyan */
+  ['#4ade80', 'rgba(74,222,128,0.6)'],    /* green */
+  ['#c084fc', 'rgba(192,132,252,0.65)'],  /* violet */
+  ['#f87171', 'rgba(248,113,113,0.6)'],   /* coral */
+];
 
-let scatterWordTimers = [];
+/* Build the token text with one word/chunk wrapped in a vivid
+   .ly-emph span. Picks a whitespace-delimited word if available,
+   otherwise a short character cluster from the middle of the
+   line (for Japanese without spaces). */
+function applyEmphasizedText(el, text) {
+  el.textContent = '';
+  let before = '', emph = '', after = '';
 
-function clearScatterWordTimers() {
-  scatterWordTimers.forEach(id => clearTimeout(id));
-  scatterWordTimers = [];
-}
-
-/* Split a lyric line into display chunks (words / phrases / kanji
-   clusters). Handles English (spaces), Japanese with spaces,
-   Japanese with punctuation, and unbroken kana/kanji runs. */
-function splitLineForScatter(text) {
-  const t = (text || '').trim();
-  if (!t) return [];
-  /* 1. plain whitespace (ASCII + full-width) */
-  let parts = t.split(/[\s　]+/).filter(Boolean);
-  if (parts.length >= 2) return parts;
-  /* 2. Japanese punctuation as soft boundaries */
-  parts = t.split(/[、。「」『』!！?？・…—–]+/).map(s => s.trim()).filter(Boolean);
-  if (parts.length >= 2) return parts;
-  /* 3. fall back to fixed-size character chunks for long runs */
-  if (t.length > 5) {
-    const chunkSize = t.length <= 10 ? 2 : t.length <= 16 ? 3 : 4;
-    const chunks = [];
-    for (let i = 0; i < t.length; i += chunkSize) chunks.push(t.slice(i, i + chunkSize));
-    return chunks;
+  /* Word-based: pick a random space-separated word */
+  const parts = text.split(/(\s+)/);
+  const wordIdxs = [];
+  for (let i = 0; i < parts.length; i++) if (i % 2 === 0 && parts[i].trim()) wordIdxs.push(i);
+  if (wordIdxs.length >= 2) {
+    const pickIdx = wordIdxs[Math.floor(Math.random() * wordIdxs.length)];
+    before = parts.slice(0, pickIdx).join('');
+    emph   = parts[pickIdx];
+    after  = parts.slice(pickIdx + 1).join('');
+  } else if (text.length >= 5) {
+    /* Run of characters with no whitespace: pick a chunk near the
+       middle (avoid both ends so the line still reads naturally) */
+    const len = text.length;
+    const chunkLen = Math.min(4, Math.max(2, Math.floor(len / 4)));
+    const lo = Math.floor((len - chunkLen) * 0.2);
+    const hi = Math.floor((len - chunkLen) * 0.8);
+    const start = randomInt(Math.max(0, lo), Math.max(0, hi));
+    before = text.slice(0, start);
+    emph   = text.slice(start, start + chunkLen);
+    after  = text.slice(start + chunkLen);
+  } else {
+    /* Short line — just emphasise the whole thing */
+    emph = text;
   }
-  return [t];
-}
 
-/* Stagger word tokens across a line's duration. durationMs is the
-   time before the next line arrives; words are spread over ~85%
-   of it so they finish appearing before the next line takes over. */
-function scheduleWordsForLine(text, durationMs) {
-  clearScatterWordTimers();
-  const words = splitLineForScatter(text);
-  if (!words.length) return;
-  const totalMs = Math.max(700, Math.min(durationMs * 0.85, 9000));
-  /* leading delay 0 so the first word feels immediate */
-  for (let i = 0; i < words.length; i++) {
-    const delay = (i * totalMs) / words.length;
-    const tid = setTimeout(() => spawnScatterToken(words[i], durationMs), delay);
-    scatterWordTimers.push(tid);
+  if (before) el.appendChild(document.createTextNode(before));
+  if (emph) {
+    const [color, glow] = EMPH_COLORS[Math.floor(Math.random() * EMPH_COLORS.length)];
+    const span = document.createElement('span');
+    span.className = 'ly-emph';
+    span.style.color = color;
+    span.style.textShadow = `0 2px 12px rgba(0,0,0,0.6), 0 0 22px ${glow}`;
+    span.textContent = emph;
+    el.appendChild(span);
   }
+  if (after) el.appendChild(document.createTextNode(after));
 }
 
-function spawnScatterToken(text, lineDurMs) {
+function spawnScatterToken(text) {
   if (!elScatterLayer || !text || !text.trim()) return;
   const trimmed = text.trim();
   const live = [...elScatterLayer.querySelectorAll('.ly-scatter-token:not(.out)')];
@@ -1854,7 +1860,7 @@ function spawnScatterToken(text, lineDurMs) {
 
   const el = document.createElement('div');
   el.className     = 'ly-scatter-token';
-  el.textContent   = trimmed;
+  applyEmphasizedText(el, trimmed);
   el.dataset.text  = trimmed;
   el.dataset.born  = String(Date.now());
 
@@ -1864,26 +1870,22 @@ function spawnScatterToken(text, lineDurMs) {
   const vertical = sh > 260 && Math.random() < 0.38; /* ~38% vertical */
   if (vertical) el.classList.add('vertical');
 
-  /* Short words get more "emphasis" room because they fit big.
-     Long words / chunks lean smaller to stay readable. */
+  /* Whole-line tokens: short lines get bold-emphasis sizing,
+     longer lines lean smaller so they fit on one or two rows. */
   const charLen = trimmed.length;
   const r = Math.random();
   let size;
-  if (charLen <= 3)        size = randomInt(Math.round(64 * scale), Math.round(110 * scale));
-  else if (charLen <= 6)   size = randomInt(Math.round(48 * scale), Math.round(86  * scale));
-  else if (charLen <= 10)  size = randomInt(Math.round(34 * scale), Math.round(60  * scale));
-  else                     size = randomInt(Math.round(24 * scale), Math.round(40  * scale));
-  if (r < 0.15) size = Math.round(size * 1.25); /* occasional extra-large */
+  if (charLen <= 6)        size = randomInt(Math.round(54 * scale), Math.round(96 * scale));
+  else if (charLen <= 12)  size = randomInt(Math.round(42 * scale), Math.round(72 * scale));
+  else if (charLen <= 20)  size = randomInt(Math.round(32 * scale), Math.round(54 * scale));
+  else if (charLen <= 30)  size = randomInt(Math.round(26 * scale), Math.round(42 * scale));
+  else                     size = randomInt(Math.round(20 * scale), Math.round(32 * scale));
+  if (r < 0.18) size = Math.round(size * 1.18); /* occasional extra-large */
   el.style.fontSize = `${size}px`;
 
-  /* Per-token entry timing and lifespan. Cap lifespan to the
-     current line's duration so words from the previous line have
-     all faded out by the time the next line starts. */
   const enterMs = 0.32 + Math.random() * 0.55;   /* 0.32 – 0.87 s */
   const driftMs = 5 + Math.random() * 6;          /* 5 – 11 s drift cycle */
-  const baseLife = 2800 + Math.random() * 2400;  /* 2.8 – 5.2 s */
-  const lineCap = lineDurMs ? Math.max(1500, Math.min(lineDurMs * 0.95, 6500)) : baseLife;
-  const lifeMs  = Math.min(baseLife, lineCap);
+  const lifeMs  = 4500 + Math.random() * 4500;    /* 4.5 – 9 s */
   el.style.setProperty('--enter-ms', enterMs.toFixed(2) + 's');
   el.style.setProperty('--drift-ms', driftMs.toFixed(2) + 's');
   /* Slight tilt for horizontal tokens (vertical stays upright) */
@@ -1957,7 +1959,6 @@ function clearStage() {
     s.classList.remove('enter');
   });
   if (elScatterLayer) elScatterLayer.innerHTML = '';
-  clearScatterWordTimers();
   hideStageMessage();
   plainHistory = [];
 }

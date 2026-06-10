@@ -1181,6 +1181,21 @@ body.karaoke-mode:not(.fs-controls-visible) .ly-fs-offset { display: none; }
   animation: none;
 }
 
+/* One word per line is highlighted: larger, bolder, vivid colour.
+   The JS sets `color` and `text-shadow` inline so each pick can use
+   a different palette colour. */
+.ly-emph {
+  display: inline-block;
+  font-weight: 900;
+  font-size: 1.32em;
+  letter-spacing: 0.04em;
+  padding: 0 0.06em;
+  transform: translateY(-0.04em);
+}
+.ly-scatter-token.vertical .ly-emph {
+  transform: none;
+}
+
 @keyframes ly-scatter-drift {
   0%   { transform: scale(0.99) translate(-0.6%, -0.4%) rotate(var(--tilt)); }
   100% { transform: scale(1.02) translate( 0.6%,  0.4%) rotate(var(--tilt)); }
