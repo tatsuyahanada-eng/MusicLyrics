@@ -1789,17 +1789,10 @@ function mkEl(tag, className) {
 }
 
 /* ---- Scatter tokens: one token per line, with one word
-   visually emphasized in a vivid colour & larger size ---- */
+   visually emphasized using a muted grey that contrasts with the
+   current theme (light grey on dark, dark grey on light) ---- */
 const SCATTER_MAX  = 4;
 const SCATTER_GAP  = 22;
-const EMPH_COLORS  = [
-  ['#ec4899', 'rgba(236,72,153,0.65)'],   /* pink */
-  ['#fbbf24', 'rgba(251,191,36,0.65)'],   /* amber */
-  ['#22d3ee', 'rgba(34,211,238,0.65)'],   /* cyan */
-  ['#4ade80', 'rgba(74,222,128,0.6)'],    /* green */
-  ['#c084fc', 'rgba(192,132,252,0.65)'],  /* violet */
-  ['#f87171', 'rgba(248,113,113,0.6)'],   /* coral */
-];
 
 /* Build the token text with one word/chunk wrapped in a vivid
    .ly-emph span. Picks a whitespace-delimited word if available,
@@ -1836,11 +1829,10 @@ function applyEmphasizedText(el, text) {
 
   if (before) el.appendChild(document.createTextNode(before));
   if (emph) {
-    const [color, glow] = EMPH_COLORS[Math.floor(Math.random() * EMPH_COLORS.length)];
+    /* Colour comes from CSS so it follows the light/dark theme;
+       JS only owns the structural span. */
     const span = document.createElement('span');
     span.className = 'ly-emph';
-    span.style.color = color;
-    span.style.textShadow = `0 2px 12px rgba(0,0,0,0.6), 0 0 22px ${glow}`;
     span.textContent = emph;
     el.appendChild(span);
   }
