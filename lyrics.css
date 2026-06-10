@@ -1182,8 +1182,8 @@ body.karaoke-mode:not(.fs-controls-visible) .ly-fs-offset { display: none; }
 }
 
 @keyframes ly-scatter-drift {
-  0%   { transform: scale(0.98) translate(-1.5%, -1%) rotate(var(--tilt)); }
-  100% { transform: scale(1.04) translate( 1.5%,  1%) rotate(var(--tilt)); }
+  0%   { transform: scale(0.99) translate(-0.6%, -0.4%) rotate(var(--tilt)); }
+  100% { transform: scale(1.02) translate( 0.6%,  0.4%) rotate(var(--tilt)); }
 }
 
 /* Lyrics-only mode: cover the whole viewport as a CSS overlay so
