@@ -86,6 +86,13 @@ button { font-family: inherit; cursor: pointer; }
 .oes-grid tbody tr.has-alert td { background: #fffafa; }
 .oes-grid tbody tr.has-alert td.col-store { border-left: 3px solid var(--c-danger); }
 .oes-grid tbody tr.completed td { opacity: .75; }
+.oes-grid tbody tr.locked td { background: #f1f5f9 !important; }
+.oes-grid tbody tr.locked td.col-store { border-left: 3px solid #64748b; }
+.oes-grid tbody tr.locked input:disabled,
+.oes-grid tbody tr.locked label.upload-btn { cursor: not-allowed; opacity: .55; }
+.lock-tag { display: inline-block; background: #475569; color: #fff; padding: 1px 7px; border-radius: 3px; font-size: 10px; font-weight: 700; margin-left: 4px; }
+.unlock-btn { background: transparent; border: 1px solid #94a3b8; color: #475569; padding: 2px 8px; border-radius: 4px; font-size: 10px; cursor: pointer; font-family: inherit; font-weight: 600; margin-top: 4px; }
+.unlock-btn:hover { background: #475569; color: #fff; }
 .oes-grid tbody td.col-store { text-align: left; position: sticky; left: 0; z-index: 1; background: #fff; min-width: 200px; max-width: 220px; }
 .oes-grid tbody tr:nth-child(even) td.col-store { background: var(--c-grid-zebra); }
 .oes-grid tbody tr.has-alert td.col-store { background: #fffafa; }
@@ -257,7 +264,7 @@ button { font-family: inherit; cursor: pointer; }
 </head>
 <body>
 
-<div id="buildBanner">📦 OESタスク管理 build v11 (2026-06-09) — 使用マニュアル＋出勤管理ビュー追加</div>
+<div id="buildBanner">📦 OESタスク管理 build v12 (2026-06-09) — 完了確定ロック追加</div>
 
 <!-- ===== Login screen ===== -->
 <div id="loginScreen" class="oes-login" hidden>
@@ -320,6 +327,10 @@ button { font-family: inherit; cursor: pointer; }
       <h3>💾 保存について</h3>
       <p>チェックや入力は<b>上部の「💾 保存」ボタン</b>を押すまでサーバーに反映されません。<br>変更ありの行には「未保存」タグが表示されます。ページを離脱する前に必ず保存してください。<br>意図しない変更は「↺ 破棄」で元に戻せます。</p>
 
+      <h3>🔒 完了確定について</h3>
+      <p><b>①〜⑤ すべてにチェック・入力が揃うと確認ダイアログ</b>が表示されます。<br>「はい」を選ぶと行が <code>🔒 確定</code> 状態になり、それ以降は<b>修正できなくなります</b>。</p>
+      <div class="note">💡 確定前に必ず内容を確認してください。誤って確定してしまった場合は<b>管理者にロック解除を依頼</b>してください。</div>
+
       <h3>⚠️ アラート（赤セル）の対応</h3>
       <ul>
         <li><b>MPR未着</b>: セイコーへ配送状況を問い合わせ</li>
@@ -334,6 +345,7 @@ button { font-family: inherit; cursor: pointer; }
         <li><b>本日の出勤状況</b>: 画面上部の「📅 本日の出勤状況」で、各スタッフが当日業務を開始したかを確認できます（②のチェック状況）。</li>
         <li><b>月間送料の確認</b>: スタッフ別カードに月間送料合計が表示されます。</li>
         <li><b>未対応の一覧</b>: 全スタッフの未着・送料未入力・画像未送信を一画面で把握。</li>
+        <li><b>ロック解除</b>: 確定済(🔒)タスクの「🔓 ロック解除」ボタンで再編集を許可できます。</li>
         <li><b>Excel出力</b>: 「📥 Excel出力」で月単位のグリッドとスタッフ別集計をダウンロード可能。</li>
       </ul>
 
@@ -466,7 +478,7 @@ button { font-family: inherit; cursor: pointer; }
 <script>
 (function () {
   'use strict';
-  const APP_VERSION = 'v11 (2026-06-09, manual + attendance)';
+  const APP_VERSION = 'v12 (2026-06-09, completion lock)';
   console.log('[OES] script loaded:', APP_VERSION);
 
   window.addEventListener('error', e => showError('JSエラー: ' + e.message + ' @ ' + e.filename + ':' + e.lineno));
@@ -532,21 +544,23 @@ button { font-family: inherit; cursor: pointer; }
             staffId: staff.id, staffName: staff.name,
             storeName, storeAddress: reg.pref+city+street,
             assignedDate: ymd(assignDate), workDate: ymd(workDate),
-            workDateSlot: rand() < 0.5 ? 'AM' : 'PM',  // DB由来の作業時間帯(表示のみ)
+            workDateSlot: rand() < 0.5 ? 'AM' : 'PM',
             mprReceived:false, mprReceivedDate:null,
             workDone:false, workDoneDate:null,
             returned:false, returnedDate:null,
             shippingFee:null, receiptDataUrl:null, receiptName:null, note:'',
+            locked:false,
           };
           // 進捗をランダムに進める
           if (dDiff <= -3) {
             const r = rand();
             t.mprReceived = true; t.mprReceivedDate = ymd(addDays(workDate, -2));
             t.workDone = true; t.workDoneDate = ymd(workDate);
-            if (r < 0.7) { // 完全完了
+            if (r < 0.7) { // 完全完了→ロック済
               t.returned = true; t.returnedDate = ymd(addDays(workDate, 2));
               t.shippingFee = 800 + Math.floor(rand()*1700);
               t.receiptName = 'receipt_'+staff.id+'_'+serial+'.jpg';
+              t.locked = true;
             } else if (r < 0.85) { // 送料未入力アラート
               t.returned = true; t.returnedDate = ymd(addDays(workDate, 2));
             } else { // 画像未送信アラート
@@ -764,9 +778,10 @@ button { font-family: inherit; cursor: pointer; }
     const date = t[dateField];
     const hasAlert = alertKeys && getAlerts(t).some(a => alertKeys.indexOf(a.k) >= 0);
     const cls = checked ? 'done' : (hasAlert ? 'missing' : '');
+    const disabled = t.locked ? ' disabled' : '';
     return '<td class="check-cell ' + cls + '">' +
       '<div class="check-wrap">' +
-        '<input type="checkbox" data-field="' + field + '" ' + (checked ? 'checked' : '') + '>' +
+        '<input type="checkbox" data-field="' + field + '" ' + (checked ? 'checked' : '') + disabled + '>' +
         '<span class="when">' + (checked && date ? '✓ ' + fmtShortDate(date) : '—') + '</span>' +
       '</div>' +
     '</td>';
@@ -776,9 +791,10 @@ button { font-family: inherit; cursor: pointer; }
     const alerts = getAlerts(t);
     const missing = alerts.some(a => a.k === 'fee_missing');
     const cls = t.shippingFee != null ? 'done' : (missing ? 'missing' : '');
+    const disabled = t.locked ? ' disabled' : '';
     return '<td class="fee-cell ' + cls + '">' +
       '<span class="yen">¥</span>' +
-      '<input type="number" min="0" step="10" placeholder="—" data-field="shippingFee" value="' + (t.shippingFee != null ? t.shippingFee : '') + '">' +
+      '<input type="number" min="0" step="10" placeholder="—" data-field="shippingFee" value="' + (t.shippingFee != null ? t.shippingFee : '') + '"' + disabled + '>' +
     '</td>';
   }
 
@@ -790,6 +806,8 @@ button { font-family: inherit; cursor: pointer; }
       inner = '<img src="' + t.receiptDataUrl + '" class="thumb" data-action="view-image" alt="領収書">';
     } else if (t.receiptName) {
       inner = '<span class="mock-tag" title="' + esc(t.receiptName) + '">📎 添付済</span>';
+    } else if (t.locked) {
+      inner = '<span style="color:var(--c-muted);font-size:11px">—</span>';
     } else {
       inner = '<label class="upload-btn"><input type="file" accept="image/*" capture="environment" data-field="receipt" hidden>📷 添付</label>';
     }
@@ -810,9 +828,14 @@ button { font-family: inherit; cursor: pointer; }
   function statusCellHtml(t) {
     const alerts = getAlerts(t);
     const st = computedStatus(t);
-    let html = '<div><span class="status-chip ' + st + '">' + STATUS_LABEL[st] + '</span></div>';
+    let html = '<div><span class="status-chip ' + st + '">' + STATUS_LABEL[st] + '</span>';
+    if (t.locked) html += '<span class="lock-tag">🔒 確定</span>';
+    html += '</div>';
     if (alerts.length) {
       html += '<div style="margin-top:3px">' + alerts.map(a => '<span class="alert-chip ' + (a.warn ? 'warn' : '') + '">' + esc(a.label) + '</span>').join('') + '</div>';
+    }
+    if (t.locked && state.user && state.user.type === 'admin') {
+      html += '<button class="unlock-btn" data-action="unlock" data-id="' + t.id + '">🔓 ロック解除</button>';
     }
     return '<td class="col-status">' + html + '</td>';
   }
@@ -821,7 +844,7 @@ button { font-family: inherit; cursor: pointer; }
     opts = opts || {};
     const alerts = getAlerts(t);
     const st = computedStatus(t);
-    const cls = (alerts.length ? 'has-alert ' : '') + (st === 'completed' ? 'completed ' : '');
+    const cls = (alerts.length ? 'has-alert ' : '') + (st === 'completed' ? 'completed ' : '') + (t.locked ? 'locked ' : '');
     const staffInfo = opts.showStaff ? ' / ' + esc(t.staffName) : '';
     const dirty = pendingChanges.has(t.id) ? '<span class="dirty-tag">未保存</span>' : '';
     return '<tr data-task-id="' + t.id + '" class="' + cls + '">' +
@@ -964,27 +987,60 @@ button { font-family: inherit; cursor: pointer; }
   function onFieldChange(taskId, field, target) {
     const t = findTask(taskId);
     if (!t) return;
-    markDirty(taskId);
-    if (target.type === 'checkbox') {
-      t[field] = target.checked;
-      const dateMap = { mprReceived:'mprReceivedDate', workDone:'workDoneDate', returned:'returnedDate' };
-      const df = dateMap[field];
-      if (df) t[df] = target.checked ? todayYmd() : null;
+    if (t.locked) {
+      showToast('🔒 このタスクは確定済みのため編集できません', 'err');
+      if (target.type === 'checkbox') target.checked = !target.checked;
+      else if (target.type === 'file') target.value = '';
+      return;
+    }
+
+    function applyChange(updates) {
+      const tentative = Object.assign({}, t, updates);
+      const wasCompleted = computedStatus(t) === 'completed';
+      const willComplete = computedStatus(tentative) === 'completed';
+      if (willComplete && !wasCompleted) {
+        if (!confirm('✅ 全ての処理(①〜⑤)が完了します。\n\n確定するとこの行は編集できなくなります。\nよろしいですか？')) {
+          // 取消: UI を元に戻す
+          if (target.type === 'checkbox') target.checked = !target.checked;
+          else if (target.type === 'number') target.value = (t.shippingFee != null ? t.shippingFee : '');
+          else if (target.type === 'file') target.value = '';
+          return;
+        }
+        updates.locked = true;
+      }
+      markDirty(taskId);
+      Object.assign(t, updates);
       rerenderAll();
+      if (updates.locked) showToast('🔒 確定しました', 'ok');
+    }
+
+    if (target.type === 'checkbox') {
+      const updates = {}; updates[field] = target.checked;
+      const dateMap = { mprReceived:'mprReceivedDate', workDone:'workDoneDate', returned:'returnedDate' };
+      if (dateMap[field]) updates[dateMap[field]] = target.checked ? todayYmd() : null;
+      applyChange(updates);
     } else if (target.type === 'number') {
       const v = parseInt(target.value, 10);
-      t.shippingFee = isNaN(v) || v <= 0 ? null : v;
-      rerenderAll();
+      applyChange({ shippingFee: isNaN(v) || v <= 0 ? null : v });
     } else if (target.type === 'file') {
       const f = target.files[0]; if (!f) return;
       const reader = new FileReader();
       reader.onload = () => {
-        t.receiptDataUrl = reader.result;
-        t.receiptName = f.name;
-        rerenderAll();
+        applyChange({ receiptDataUrl: reader.result, receiptName: f.name });
       };
       reader.readAsDataURL(f);
     }
+  }
+
+  function unlockTask(taskId) {
+    const t = findTask(taskId);
+    if (!t || !t.locked) return;
+    if (!state.user || state.user.type !== 'admin') return;
+    if (!confirm(t.id + ' / ' + t.storeName + '\n\nロックを解除して編集可能にしますか？')) return;
+    markDirty(taskId);
+    t.locked = false;
+    rerenderAll();
+    showToast('🔓 ロックを解除しました', 'ok');
   }
 
   function rerenderAll() {
@@ -1113,8 +1169,10 @@ button { font-family: inherit; cursor: pointer; }
       }
       onFieldChange(tr.dataset.taskId, field, e.target);
     });
-    // jump from alert / image lightbox
+    // jump from alert / image lightbox / admin unlock
     document.body.addEventListener('click', e => {
+      const unlock = e.target.closest('[data-action="unlock"]');
+      if (unlock) { unlockTask(unlock.dataset.id); return; }
       const jump = e.target.closest('[data-jump]');
       if (jump) { jumpToTask(jump.dataset.jump); return; }
       const img = e.target.closest('[data-action="view-image"]');
