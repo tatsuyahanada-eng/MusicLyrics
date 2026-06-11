@@ -170,6 +170,41 @@ button { font-family: inherit; cursor: pointer; }
   .oes-grid tbody td.col-store { min-width: 160px; max-width: 180px; }
 }
 
+/* ===== Help / manual panel ===== */
+.oes-help-wrap { max-width: 1400px; margin: 12px auto 0; padding: 0 14px; }
+.oes-help-wrap[hidden] { display: none; }
+.oes-help-panel { background: #eff6ff; border: 1px solid #bfdbfe; border-radius: 8px; overflow: hidden; }
+.help-toggle { width: 100%; background: transparent; border: 0; padding: 11px 14px; text-align: left; font-weight: 700; color: var(--c-primary-dark); cursor: pointer; font-size: 14px; display: flex; justify-content: space-between; align-items: center; font-family: inherit; }
+.help-toggle:hover { background: rgba(255,255,255,.5); }
+.help-toggle .arrow { transition: transform .2s; font-size: 12px; }
+.help-toggle.open .arrow { transform: rotate(180deg); }
+.help-body { padding: 0 16px 14px; display: none; font-size: 13px; line-height: 1.7; color: var(--c-text); }
+.help-body.open { display: block; }
+.help-body h3 { margin: 12px 0 4px; font-size: 13px; color: var(--c-primary-dark); border-bottom: 1px solid #bfdbfe; padding-bottom: 3px; }
+.help-body ol, .help-body ul { margin: 4px 0 8px; padding-left: 24px; }
+.help-body li { margin-bottom: 6px; }
+.help-body code { background: #dbeafe; padding: 1px 6px; border-radius: 3px; font-size: 12px; font-weight: 700; color: var(--c-primary-dark); font-family: inherit; }
+.help-body .note { background: #fef3c7; border-left: 3px solid var(--c-warn); padding: 6px 10px; margin: 6px 0; border-radius: 4px; font-size: 12px; }
+.help-body .alert-box { background: #fee2e2; border-left: 3px solid var(--c-danger); padding: 6px 10px; margin: 6px 0; border-radius: 4px; font-size: 12px; color: #7f1d1d; }
+.help-body .role-tag { display: inline-block; background: var(--c-primary); color: #fff; padding: 1px 8px; border-radius: 99px; font-size: 10px; font-weight: 700; margin-right: 4px; vertical-align: 1px; }
+
+/* ===== Today attendance (admin) ===== */
+.oes-attendance { display: grid; grid-template-columns: 1fr; gap: 8px; }
+@media (min-width: 640px) { .oes-attendance { grid-template-columns: repeat(2, 1fr); } }
+@media (min-width: 1100px) { .oes-attendance { grid-template-columns: repeat(4, 1fr); } }
+.att-card { border: 1px solid var(--c-border-lt); border-radius: 8px; padding: 10px 12px; background: #fff; display: flex; justify-content: space-between; align-items: center; }
+.att-card.present { background: #ecfdf5; border-color: #86efac; }
+.att-card.absent  { background: #fef2f2; border-color: #fca5a5; }
+.att-card.none    { opacity: .6; }
+.att-card .who { font-weight: 700; color: var(--c-primary-dark); }
+.att-card .who small { display: block; font-size: 10px; color: var(--c-muted); font-weight: 400; }
+.att-card .stat { font-size: 12px; font-weight: 700; padding: 4px 10px; border-radius: 99px; }
+.att-card.present .stat { background: var(--c-ok); color: #fff; }
+.att-card.absent .stat { background: var(--c-danger); color: #fff; }
+.att-card.none .stat { background: #e5e7eb; color: var(--c-muted); }
+.att-summary { display: flex; gap: 14px; align-items: center; font-size: 13px; color: var(--c-text); margin-bottom: 10px; flex-wrap: wrap; }
+.att-summary b { color: var(--c-primary-dark); font-size: 16px; }
+
 .oes-footer { text-align: center; padding: 14px; color: var(--c-muted); font-size: 11px; }
 
 /* ===== Login screen ===== */
@@ -222,7 +257,7 @@ button { font-family: inherit; cursor: pointer; }
 </head>
 <body>
 
-<div id="buildBanner">📦 OESタスク管理 build v10 (2026-06-09) — 作業日にAM/PM表示(DB由来)</div>
+<div id="buildBanner">📦 OESタスク管理 build v11 (2026-06-09) — 使用マニュアル＋出勤管理ビュー追加</div>
 
 <!-- ===== Login screen ===== -->
 <div id="loginScreen" class="oes-login" hidden>
@@ -255,6 +290,60 @@ button { font-family: inherit; cursor: pointer; }
         <button id="discardBtn" class="oes-btn" disabled>↺ 破棄</button>
         <button id="saveBtn" class="oes-btn oes-btn-primary" disabled>💾 保存</button>
       </div>
+    </div>
+  </div>
+</div>
+
+<div id="helpWrap" class="oes-help-wrap" hidden>
+  <div class="oes-help-panel">
+    <button id="helpToggle" class="help-toggle">
+      <span>📖 使い方マニュアル — 作業フロー・保存・アラートの説明</span>
+      <span class="arrow">▼</span>
+    </button>
+    <div id="helpBody" class="help-body">
+      <h3>🚀 作業フロー（スタッフ）</h3>
+      <ol>
+        <li><b>① プリンター(MPR)受取</b><br>セイコーからプリンターが届いて受け取ったら <code>①MPR受取</code> にチェック。</li>
+        <li><b>② 当日入替作業（兼 出勤確認）</b><br>作業日当日、出勤して入替作業を開始する時に <code>②入替作業</code> にチェック。
+          <div class="note">⚠️ このチェックは <b>管理者の出勤確認</b> に使われます。出社したら必ずチェックしてください。</div>
+        </li>
+        <li><b>③〜⑤ 撤去機の返送と精算（まとめて入力）</b><br>当日作業が完了し、撤去機を発送する時に以下を一度に入力:
+          <ul>
+            <li><code>③撤去機返送</code> にチェック</li>
+            <li><code>④送料</code> に金額（円）を入力</li>
+            <li><code>⑤画像</code> で領収書写真をアップロード（スマホはカメラ起動可）</li>
+          </ul>
+          全て揃うとタスクは「⑤完了」になります。
+        </li>
+      </ol>
+
+      <h3>💾 保存について</h3>
+      <p>チェックや入力は<b>上部の「💾 保存」ボタン</b>を押すまでサーバーに反映されません。<br>変更ありの行には「未保存」タグが表示されます。ページを離脱する前に必ず保存してください。<br>意図しない変更は「↺ 破棄」で元に戻せます。</p>
+
+      <h3>⚠️ アラート（赤セル）の対応</h3>
+      <ul>
+        <li><b>MPR未着</b>: セイコーへ配送状況を問い合わせ</li>
+        <li><b>送料未入力</b>: 返送時に金額を必ず入力</li>
+        <li><b>画像未送信</b>: 領収書写真をアップロード</li>
+        <li><b>作業未完 / 返送未完</b>: 作業や返送が遅延 → 速やかに対応</li>
+      </ul>
+      <div class="alert-box">画面上部の「⚠️ 要対応リスト」をクリックすると、該当タスクへ自動でジャンプします。</div>
+
+      <h3><span class="role-tag">管理者</span> 主な確認ポイント</h3>
+      <ul>
+        <li><b>本日の出勤状況</b>: 画面上部の「📅 本日の出勤状況」で、各スタッフが当日業務を開始したかを確認できます（②のチェック状況）。</li>
+        <li><b>月間送料の確認</b>: スタッフ別カードに月間送料合計が表示されます。</li>
+        <li><b>未対応の一覧</b>: 全スタッフの未着・送料未入力・画像未送信を一画面で把握。</li>
+        <li><b>Excel出力</b>: 「📥 Excel出力」で月単位のグリッドとスタッフ別集計をダウンロード可能。</li>
+      </ul>
+
+      <h3>💡 操作のヒント</h3>
+      <ul>
+        <li>左の <b>店舗名カラム</b> は横スクロール時も固定表示されます。</li>
+        <li>領収書のサムネをタップで拡大表示。</li>
+        <li>「表示」フィルタで <b>要対応のみ</b> 絞り込み可能。</li>
+        <li>スマホでも操作可能（チェックボックスは指タッチサイズ調整済）。</li>
+      </ul>
     </div>
   </div>
 </div>
@@ -331,6 +420,15 @@ button { font-family: inherit; cursor: pointer; }
 
   <section class="oes-section">
     <div class="oes-section-head">
+      <h2 class="oes-h2">📅 本日の出勤状況</h2>
+      <small style="color:var(--c-muted)">②入替作業のチェックで判定（本日作業予定のスタッフのみ）</small>
+    </div>
+    <div id="attendanceSummary" class="att-summary"></div>
+    <div id="attendanceGrid" class="oes-attendance"></div>
+  </section>
+
+  <section class="oes-section">
+    <div class="oes-section-head">
       <h2 class="oes-h2">👥 スタッフ別進捗</h2>
     </div>
     <div id="adminStaffSummary" class="oes-admin-grid"></div>
@@ -368,7 +466,7 @@ button { font-family: inherit; cursor: pointer; }
 <script>
 (function () {
   'use strict';
-  const APP_VERSION = 'v10 (2026-06-09, workDate AM/PM display)';
+  const APP_VERSION = 'v11 (2026-06-09, manual + attendance)';
   console.log('[OES] script loaded:', APP_VERSION);
 
   window.addEventListener('error', e => showError('JSエラー: ' + e.message + ' @ ' + e.filename + ':' + e.lineno));
@@ -553,6 +651,7 @@ button { font-family: inherit; cursor: pointer; }
     document.getElementById('adminView').hidden = true;
     document.getElementById('headerUser').innerHTML = '';
     document.getElementById('saveBar').hidden = true;
+    document.getElementById('helpWrap').hidden = true;
   }
   function applyUser() {
     const u = state.user;
@@ -566,6 +665,7 @@ button { font-family: inherit; cursor: pointer; }
     document.getElementById('staffView').hidden = isAdmin;
     document.getElementById('adminView').hidden = !isAdmin;
     document.getElementById('saveBar').hidden = false;
+    document.getElementById('helpWrap').hidden = false;
     rerenderAll();
   }
   function renderLoginButtons() {
@@ -651,7 +751,7 @@ button { font-family: inherit; cursor: pointer; }
       '<th class="col-store">店舗 / 住所</th>' +
       '<th>作業日<span class="sub">残/経過</span></th>' +
       '<th>① MPR受取<span class="sub">セイコー到着</span></th>' +
-      '<th>② 入替作業<span class="sub">当日</span></th>' +
+      '<th>② 入替作業<span class="sub">当日 / 出勤確認</span></th>' +
       '<th>③ 撤去機返送<span class="sub">発送</span></th>' +
       '<th>④ 送料入力<span class="sub">金額(円)</span></th>' +
       '<th>⑤ 画像送信<span class="sub">領収書</span></th>' +
@@ -906,8 +1006,39 @@ button { font-family: inherit; cursor: pointer; }
     const monthAll = state.tasks.filter(t => monthKey(t.workDate) === state.adminMonth);
     renderSummary('adminSummary', monthAll);
     renderAlerts('adminAlerts', 'adminAlertCount', monthAll, { showStaff: true });
+    renderTodayAttendance();
     renderAdminStaffSummary();
     renderGrid('adminGrid', list, { showStaff: true });
+  }
+
+  function renderTodayAttendance() {
+    const today = todayYmd();
+    const todayTasks = state.tasks.filter(t => t.workDate === today);
+    const byStaff = {};
+    STAFFS.forEach(s => { byStaff[s.id] = { staff: s, total: 0, done: 0 }; });
+    todayTasks.forEach(t => {
+      const g = byStaff[t.staffId]; if (!g) return;
+      g.total++; if (t.workDone) g.done++;
+    });
+    const presentStaff = Object.values(byStaff).filter(g => g.total > 0 && g.done > 0).length;
+    const scheduledStaff = Object.values(byStaff).filter(g => g.total > 0).length;
+    document.getElementById('attendanceSummary').innerHTML =
+      '<div>本日(' + fmtJpDate(today) + ') の予定: <b>' + todayTasks.length + '</b> 件 / ' +
+      '<b>' + scheduledStaff + '</b> 名予定</div>' +
+      '<div>出勤チェック済: <b style="color:var(--c-ok)">' + presentStaff + '</b> 名 / ' +
+      '未出勤: <b style="color:var(--c-danger)">' + (scheduledStaff - presentStaff) + '</b> 名</div>';
+    document.getElementById('attendanceGrid').innerHTML = STAFFS.map(s => {
+      const g = byStaff[s.id];
+      let cls, stat;
+      if (!g.total)          { cls = 'none';    stat = '本日予定なし'; }
+      else if (g.done >= g.total) { cls = 'present'; stat = '✅ 全件出勤'; }
+      else if (g.done > 0)        { cls = 'present'; stat = '🟢 出勤 ('+g.done+'/'+g.total+')'; }
+      else                        { cls = 'absent';  stat = '⏰ 未出勤 ('+g.total+'件)'; }
+      return '<div class="att-card ' + cls + '">' +
+        '<div class="who">' + esc(s.name) + '<small>' + esc(s.role) + '</small></div>' +
+        '<span class="stat">' + stat + '</span>' +
+      '</div>';
+    }).join('');
   }
 
   function jumpToTask(taskId) {
@@ -958,6 +1089,13 @@ button { font-family: inherit; cursor: pointer; }
     document.getElementById('exportExcelBtn').addEventListener('click', exportExcel);
     document.getElementById('saveBtn').addEventListener('click', saveChanges);
     document.getElementById('discardBtn').addEventListener('click', discardChanges);
+    document.getElementById('helpToggle').addEventListener('click', () => {
+      const t = document.getElementById('helpToggle');
+      const b = document.getElementById('helpBody');
+      const open = !b.classList.contains('open');
+      b.classList.toggle('open', open);
+      t.classList.toggle('open', open);
+    });
     window.addEventListener('beforeunload', e => {
       if (pendingChanges.size) { e.preventDefault(); e.returnValue = ''; return ''; }
     });
