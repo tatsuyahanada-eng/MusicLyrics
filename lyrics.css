@@ -1181,9 +1181,8 @@ body.karaoke-mode:not(.fs-controls-visible) .ly-fs-offset { display: none; }
   animation: none;
 }
 
-/* One word per line is highlighted: larger and bolder, but in a
-   muted grey that contrasts with the current background.
-   Dark theme -> light grey; light theme -> dark grey. */
+/* One word per line is highlighted with size & weight only — no
+   colour override, so it inherits the token's theme colour. */
 .ly-emph {
   display: inline-block;
   font-weight: 900;
@@ -1191,12 +1190,6 @@ body.karaoke-mode:not(.fs-controls-visible) .ly-fs-offset { display: none; }
   letter-spacing: 0.04em;
   padding: 0 0.06em;
   transform: translateY(-0.04em);
-  color: #d4d4d8;
-  text-shadow: 0 2px 10px rgba(0,0,0,0.45);
-}
-body.theme-light .ly-emph {
-  color: #3f3f46;
-  text-shadow: 0 1px 6px rgba(0,0,0,0.12);
 }
 .ly-scatter-token.vertical .ly-emph {
   transform: none;

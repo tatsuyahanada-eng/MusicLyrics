@@ -1238,19 +1238,34 @@ async function handleSongSearch(artist, title, opts = {}) {
         } catch (_) {}
       }
     })
-    .catch(() => {
+    .catch(async () => {
       if (state.currentArtist !== artist || state.currentTitle !== title) return;
-      state.lyrics = [];
-      state.lrcLines = [];
-      /* Wait a beat before declaring the song lyric-less. If the
-         user advances to another song within this window we skip
-         the message entirely; if lyrics genuinely don't exist the
-         message appears as a steady "No Lyrics", not a flash. */
+      /* A single failure isn't enough to declare the song lyric-less —
+         lyrics.ovh / LRCLIB hiccup transiently. Wait, then retry
+         once with a fresh attempt. */
+      await new Promise(r => setTimeout(r, 1200));
+      if (state.currentArtist !== artist || state.currentTitle !== title) return;
+      if (state.lyrics.length) return; /* arrived another way */
+      try {
+        const retryRaw = await fetchLyricsWithFallback(artist, title);
+        if (state.currentArtist !== artist || state.currentTitle !== title) return;
+        loadLyrics(retryRaw);
+        cachePut(lyricsCache, `${artist}|${title}`, retryRaw);
+        if (state.ytPlayer && state.ytReady && !state.useLrc && state.lyrics.length) {
+          try {
+            if (state.ytPlayer.getPlayerState() === YT.PlayerState.PLAYING) startLyricsTimer();
+          } catch (_) {}
+        }
+        return;
+      } catch (_2) {}
+      /* Both the initial fetch and the retry failed — give one
+         last grace window for any late success, then show the
+         steady "No Lyrics" message. */
       setTimeout(() => {
         if (state.currentArtist !== artist || state.currentTitle !== title) return;
-        if (state.lyrics.length) return; /* lyrics arrived via another path */
+        if (state.lyrics.length) return;
         showStageMessage('No Lyrics');
-      }, 900);
+      }, 1500);
     });
 
   try {
