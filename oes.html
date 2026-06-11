@@ -106,19 +106,6 @@ button { font-family: inherit; cursor: pointer; }
 .check-cell.done { background: var(--c-cell-done) !important; }
 .check-cell.done .when { color: #166534; font-weight: 600; }
 .check-cell.missing { background: var(--c-cell-alert) !important; }
-.check-cell.partial { background: #fef3c7 !important; }
-
-/* MPR cell (AM/PM dual checkbox, horizontal) */
-.mpr-cell { min-width: 140px; }
-.mpr-wrap { display: grid; grid-template-columns: 1fr 1fr; gap: 4px; }
-.mpr-slot { display: flex; flex-direction: column; align-items: center; gap: 2px; cursor: pointer; padding: 4px 2px; border-radius: 5px; background: rgba(0,0,0,.03); }
-.mpr-slot:hover { background: rgba(37,99,235,.08); }
-.mpr-slot.on { background: rgba(22,163,74,.15); border: 1px solid rgba(22,163,74,.3); padding: 3px 1px; }
-.mpr-slot input[type="checkbox"] { width: 20px; height: 20px; margin: 0; accent-color: var(--c-ok); cursor: pointer; }
-.mpr-slot .slot-lbl { font-weight: 700; font-size: 11px; color: var(--c-muted); line-height: 1; }
-.mpr-slot.on .slot-lbl { color: var(--c-ok); }
-.mpr-slot .when { font-size: 10px; color: var(--c-muted); line-height: 1; }
-.mpr-slot.on .when { color: #166534; font-weight: 600; }
 
 /* ===== Fee cell ===== */
 .fee-cell { min-width: 110px; }
@@ -232,7 +219,7 @@ button { font-family: inherit; cursor: pointer; }
 </head>
 <body>
 
-<div id="buildBanner">📦 OESタスク管理 build v7 (2026-06-09) — MPR横並び・保存ボタン追加</div>
+<div id="buildBanner">📦 OESタスク管理 build v8 (2026-06-09) — MPR受取を1チェックに統合</div>
 
 <!-- ===== Login screen ===== -->
 <div id="loginScreen" class="oes-login" hidden>
@@ -378,7 +365,7 @@ button { font-family: inherit; cursor: pointer; }
 <script>
 (function () {
   'use strict';
-  const APP_VERSION = 'v7 (2026-06-09, MPR horizontal + save buffer)';
+  const APP_VERSION = 'v8 (2026-06-09, MPR single check)';
   console.log('[OES] script loaded:', APP_VERSION);
 
   window.addEventListener('error', e => showError('JSエラー: ' + e.message + ' @ ' + e.filename + ':' + e.lineno));
@@ -444,17 +431,15 @@ button { font-family: inherit; cursor: pointer; }
             staffId: staff.id, staffName: staff.name,
             storeName, storeAddress: reg.pref+city+street,
             assignedDate: ymd(assignDate), workDate: ymd(workDate),
-            mprReceivedAM:false, mprReceivedAMDate:null,
-            mprReceivedPM:false, mprReceivedPMDate:null,
+            mprReceived:false, mprReceivedDate:null,
             workDone:false, workDoneDate:null,
             returned:false, returnedDate:null,
             shippingFee:null, receiptDataUrl:null, receiptName:null, note:'',
           };
-          const setMprBoth = (d) => { t.mprReceivedAM = true; t.mprReceivedAMDate = ymd(d); t.mprReceivedPM = true; t.mprReceivedPMDate = ymd(d); };
           // 進捗をランダムに進める
           if (dDiff <= -3) {
             const r = rand();
-            setMprBoth(addDays(workDate, -2));
+            t.mprReceived = true; t.mprReceivedDate = ymd(addDays(workDate, -2));
             t.workDone = true; t.workDoneDate = ymd(workDate);
             if (r < 0.7) { // 完全完了
               t.returned = true; t.returnedDate = ymd(addDays(workDate, 2));
@@ -467,19 +452,12 @@ button { font-family: inherit; cursor: pointer; }
               t.shippingFee = 800 + Math.floor(rand()*1700);
             }
           } else if (dDiff <= 0) {
-            setMprBoth(addDays(workDate, -2));
+            t.mprReceived = true; t.mprReceivedDate = ymd(addDays(workDate, -2));
             if (rand() < 0.5) { t.workDone = true; t.workDoneDate = ymd(workDate); }
           } else if (dDiff <= 3) {
-            // 直近：MPR受取済(両方) / 片方のみ受取 / 未受取
-            const r = rand();
-            if (r < 0.45) { setMprBoth(addDays(today, -Math.floor(rand()*2))); }
-            else if (r < 0.65) {
-              // 片方のみ
-              if (rand() < 0.5) { t.mprReceivedAM = true; t.mprReceivedAMDate = ymd(addDays(today, -Math.floor(rand()*2))); }
-              else { t.mprReceivedPM = true; t.mprReceivedPMDate = ymd(addDays(today, -Math.floor(rand()*2))); }
-            }
+            if (rand() < 0.55) { t.mprReceived = true; t.mprReceivedDate = ymd(addDays(today, -Math.floor(rand()*2))); }
           } else {
-            if (rand() < 0.25) { setMprBoth(addDays(today, -Math.floor(rand()*3))); }
+            if (rand() < 0.25) { t.mprReceived = true; t.mprReceivedDate = ymd(addDays(today, -Math.floor(rand()*3))); }
           }
           tasks.push(t);
         }
@@ -493,24 +471,21 @@ button { font-family: inherit; cursor: pointer; }
     assigned:'①アサイン', mpr_received:'②MPR受取済', work_done:'③作業完了',
     returned:'④返送済', completed:'⑤完了',
   };
-  function mprFullyReceived(t) { return t.mprReceivedAM && t.mprReceivedPM; }
-  function mprPartial(t) { return (t.mprReceivedAM || t.mprReceivedPM) && !mprFullyReceived(t); }
   function computedStatus(t) {
     const hasImg = !!(t.receiptDataUrl || t.receiptName);
-    if (mprFullyReceived(t) && t.workDone && t.returned && t.shippingFee != null && hasImg) return 'completed';
+    if (t.mprReceived && t.workDone && t.returned && t.shippingFee != null && hasImg) return 'completed';
     if (t.returned) return 'returned';
     if (t.workDone) return 'work_done';
-    if (mprFullyReceived(t)) return 'mpr_received';
+    if (t.mprReceived) return 'mpr_received';
     return 'assigned';
   }
   function getAlerts(t) {
     const a = []; const today = todayYmd(); const d2w = daysBetween(t.workDate, today);
-    if (!mprFullyReceived(t)) {
-      const partial = mprPartial(t);
-      if (d2w < 0) a.push({k:'mpr_overdue', label: partial ? 'MPR片方未着(超過)' : 'MPR未着(超過)', warn:false});
-      else if (d2w <= 2) a.push({k:'mpr_imminent', label: partial ? 'MPR片方未着(2日内)' : 'MPR未着(2日内)', warn:true});
+    if (!t.mprReceived) {
+      if (d2w < 0) a.push({k:'mpr_overdue', label:'MPR未着(超過)', warn:false});
+      else if (d2w <= 2) a.push({k:'mpr_imminent', label:'MPR未着(2日内)', warn:true});
     }
-    if (mprFullyReceived(t) && !t.workDone && d2w < 0) a.push({k:'work_overdue', label:'作業未完', warn:false});
+    if (t.mprReceived && !t.workDone && d2w < 0) a.push({k:'work_overdue', label:'作業未完', warn:false});
     if (t.workDone && !t.returned && d2w < -3) a.push({k:'return_overdue', label:'返送未完', warn:true});
     if (t.returned && t.shippingFee == null) a.push({k:'fee_missing', label:'送料未入力', warn:false});
     if (t.shippingFee != null && !t.receiptDataUrl && !t.receiptName) a.push({k:'image_missing', label:'画像未送信', warn:false});
@@ -671,7 +646,7 @@ button { font-family: inherit; cursor: pointer; }
     return '<thead><tr>' +
       '<th class="col-store">店舗 / 住所</th>' +
       '<th>作業日<span class="sub">残/経過</span></th>' +
-      '<th>① MPR受取<span class="sub">AM / PM</span></th>' +
+      '<th>① MPR受取<span class="sub">セイコー到着</span></th>' +
       '<th>② 入替作業<span class="sub">当日</span></th>' +
       '<th>③ 撤去機返送<span class="sub">発送</span></th>' +
       '<th>④ 送料入力<span class="sub">金額(円)</span></th>' +
@@ -680,35 +655,15 @@ button { font-family: inherit; cursor: pointer; }
     '</tr></thead>';
   }
 
-  function checkCellHtml(t, field, dateField) {
+  function checkCellHtml(t, field, dateField, alertKeys) {
     const checked = !!t[field];
     const date = t[dateField];
-    return '<td class="check-cell ' + (checked ? 'done' : '') + '">' +
+    const hasAlert = alertKeys && getAlerts(t).some(a => alertKeys.indexOf(a.k) >= 0);
+    const cls = checked ? 'done' : (hasAlert ? 'missing' : '');
+    return '<td class="check-cell ' + cls + '">' +
       '<div class="check-wrap">' +
         '<input type="checkbox" data-field="' + field + '" ' + (checked ? 'checked' : '') + '>' +
         '<span class="when">' + (checked && date ? '✓ ' + fmtShortDate(date) : '—') + '</span>' +
-      '</div>' +
-    '</td>';
-  }
-
-  function mprCellHtml(t) {
-    const full = mprFullyReceived(t);
-    const partial = mprPartial(t);
-    const hasAlert = getAlerts(t).some(a => a.k.startsWith('mpr'));
-    const cls = full ? 'done' : (partial ? 'partial' : (hasAlert ? 'missing' : ''));
-    function slot(key, dateKey, label) {
-      const c = !!t[key];
-      const d = t[dateKey];
-      return '<label class="mpr-slot ' + (c?'on':'') + '">' +
-        '<input type="checkbox" data-field="' + key + '" ' + (c?'checked':'') + '>' +
-        '<span class="slot-lbl">' + label + '</span>' +
-        '<span class="when">' + (c && d ? fmtShortDate(d) : '—') + '</span>' +
-      '</label>';
-    }
-    return '<td class="check-cell mpr-cell ' + cls + '">' +
-      '<div class="mpr-wrap">' +
-        slot('mprReceivedAM', 'mprReceivedAMDate', 'AM') +
-        slot('mprReceivedPM', 'mprReceivedPMDate', 'PM') +
       '</div>' +
     '</td>';
   }
@@ -771,9 +726,9 @@ button { font-family: inherit; cursor: pointer; }
         '<div class="addr" title="' + esc(t.storeAddress) + '">📍 ' + esc(t.storeAddress) + '</div>' +
       '</td>' +
       dateCellHtml(t) +
-      mprCellHtml(t) +
-      checkCellHtml(t, 'workDone', 'workDoneDate') +
-      checkCellHtml(t, 'returned', 'returnedDate') +
+      checkCellHtml(t, 'mprReceived', 'mprReceivedDate', ['mpr_overdue','mpr_imminent']) +
+      checkCellHtml(t, 'workDone',    'workDoneDate',    ['work_overdue']) +
+      checkCellHtml(t, 'returned',    'returnedDate',    ['return_overdue']) +
       feeCellHtml(t) +
       imageCellHtml(t) +
       statusCellHtml(t) +
@@ -869,8 +824,7 @@ button { font-family: inherit; cursor: pointer; }
         'タスクID': t.id, 'スタッフ': t.staffName,
         '店舗名': t.storeName, '住所': t.storeAddress,
         'アサイン日': t.assignedDate, '作業日': t.workDate,
-        '①MPR受取(AM)': t.mprReceivedAM ? '済' : '未', 'AM受取日': t.mprReceivedAMDate || '',
-        '①MPR受取(PM)': t.mprReceivedPM ? '済' : '未', 'PM受取日': t.mprReceivedPMDate || '',
+        '①MPR受取': t.mprReceived ? '済' : '未', 'MPR受取日': t.mprReceivedDate || '',
         '②入替作業': t.workDone ? '済' : '未', '作業実施日': t.workDoneDate || '',
         '③撤去機返送': t.returned ? '済' : '未', '返送日': t.returnedDate || '',
         '④送料(円)': t.shippingFee || '',
@@ -890,8 +844,7 @@ button { font-family: inherit; cursor: pointer; }
         'スタッフID': s.id, 'スタッフ名': s.name, 'エリア': s.role,
         '総件数': list.length, '完了件数': completed, '送料合計(円)': fee,
         'アラート件数': alertCnt,
-        'MPR未着(完全未受取)': list.filter(t => !t.mprReceivedAM && !t.mprReceivedPM).length,
-        'MPR片方未着': list.filter(t => (t.mprReceivedAM ^ t.mprReceivedPM) === 1).length,
+        'MPR未着': list.filter(t => !t.mprReceived).length,
         '送料未入力': list.filter(t => t.returned && t.shippingFee == null).length,
         '画像未送信': list.filter(t => t.shippingFee != null && !t.receiptDataUrl && !t.receiptName).length,
       };
@@ -909,10 +862,7 @@ button { font-family: inherit; cursor: pointer; }
     markDirty(taskId);
     if (target.type === 'checkbox') {
       t[field] = target.checked;
-      const dateMap = {
-        mprReceivedAM:'mprReceivedAMDate', mprReceivedPM:'mprReceivedPMDate',
-        workDone:'workDoneDate', returned:'returnedDate'
-      };
+      const dateMap = { mprReceived:'mprReceivedDate', workDone:'workDoneDate', returned:'returnedDate' };
       const df = dateMap[field];
       if (df) t[df] = target.checked ? todayYmd() : null;
       rerenderAll();
