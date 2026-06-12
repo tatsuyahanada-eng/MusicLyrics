@@ -8,8 +8,9 @@
     :root {
       --bg: #eaf2fb;
       --panel: #ffffff;
-      --panel-2: #f3f8ff;
-      --line: #cfe0f2;
+      --panel-2: #e6f0f9;
+      --line: #b6cde3;
+      --input-border: #9eb8d4;
       --text: #1f2b3a;
       --muted: #5e7081;
       --accent: #2f7be0;
@@ -47,7 +48,7 @@
       width: 100%;
       padding: 9px 10px;
       background: var(--panel-2);
-      border: 1px solid var(--line);
+      border: 1px solid var(--input-border);
       border-radius: 8px;
       color: var(--text);
       outline: none;
@@ -211,7 +212,8 @@
 
   <script>
     const VISITS = 7;
-    const TOLL_LEGS = ['基点→1','1→2','2→3','3→4','4→5','5→6','6→7','7→8'];
+    const PARK_ROWS = 5;
+    const TOLL_LEGS = ['基点→1','1→2','2→3','3→4','4→5'];
 
     // 訪問先入力
     const visitsEl = document.getElementById('visits');
@@ -238,7 +240,7 @@
 
     // 駐車場テーブル
     const parkBody = document.querySelector('#parkTable tbody');
-    for (let i = 1; i <= VISITS; i++) {
+    for (let i = 1; i <= PARK_ROWS; i++) {
       const tr = document.createElement('tr');
       tr.innerHTML = `
         <td><span class="rlabel">訪問先${i}</span></td>
