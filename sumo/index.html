@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>大相撲ガイド ― 番付・力士・部屋を一覧</title>
+<meta name="description" content="日本の大相撲の番付、力士のプロフィール、部屋、出身、同部屋の力士、過去の場所結果を一覧できるサイトです。">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<header class="site-header">
+  <div class="site-header-inner">
+    <h1 class="site-title">
+      <a href="#/"><span class="accent">大</span>相撲ガイド</a>
+      <span class="site-subtitle">― 番付・力士・部屋を一覧 ―</span>
+    </h1>
+    <nav class="site-nav" id="site-nav">
+      <a href="#/" data-nav="home">番付</a>
+      <a href="#/rikishi" data-nav="rikishi">力士一覧</a>
+      <a href="#/stables" data-nav="stables">部屋一覧</a>
+      <a href="#/tournaments" data-nav="tournaments">場所結果</a>
+      <a href="#/about" data-nav="about">サイトについて</a>
+    </nav>
+  </div>
+</header>
+
+<main id="app">
+  <div class="empty-state">読み込み中...</div>
+</main>
+
+<footer class="site-footer">
+  <div>大相撲ガイド ― 本サイトはサンプルデータによる閲覧デモです</div>
+  <div class="note">所属・成績などは実際と異なる場合があります。</div>
+</footer>
+
+<script src="data.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
