@@ -13,11 +13,31 @@ function escapeHtml(s) {
     .replace(/'/g, '&#39;');
 }
 
-// 四股名（上）＋下の名前（名乗り）。通向けにフルの四股名を表示する。
-function fullShikonaHtml(rikishi) {
+// 漢字にフリガナ（ルビ）を振る
+function rubyHtml(kanji, kana) {
+  if (!kana) return escapeHtml(kanji);
+  return `<ruby>${escapeHtml(kanji)}<rt>${escapeHtml(kana)}</rt></ruby>`;
+}
+
+// 四股名（上）＋下の名前（名乗り）。通向けにフルの四股名をフリガナ付きで表示する。
+function fullShikonaRuby(rikishi) {
   const given = getShikonaGiven(rikishi.id);
-  return escapeHtml(rikishi.name) +
-    (given ? `<span class="shikona-given">${escapeHtml(given)}</span>` : '');
+  const givenKana = getShikonaGivenKana(rikishi.id);
+  let html = rubyHtml(rikishi.name, rikishi.nameKana);
+  if (given) {
+    html += `<span class="shikona-given">${rubyHtml(given, givenKana)}</span>`;
+  }
+  return html;
+}
+
+// 力士の写真。photo が設定されていれば画像、なければ四股名頭文字のプレースホルダー。
+function rikishiPhotoHtml(rikishi, sizeClass) {
+  const cls = `rikishi-photo ${sizeClass || ''}`;
+  if (rikishi.photo) {
+    return `<img class="${cls}" src="${escapeHtml(rikishi.photo)}" alt="${escapeHtml(rikishi.name)}の写真" loading="lazy">`;
+  }
+  const ch = (rikishi.name || '?').slice(0, 1);
+  return `<div class="${cls} placeholder" aria-hidden="true">${escapeHtml(ch)}</div>`;
 }
 
 function rankBadgeClass(rank) {
@@ -91,7 +111,7 @@ function renderBanzuke() {
         <div class="yusho">
           <div class="label">幕内優勝</div>
           <div class="winner">
-            ${winner ? `<a href="#/rikishi/${winner.id}">${fullShikonaHtml(winner)}</a>` : '?'} （${escapeHtml(latest.yushoMakuuchi.record)}）
+            ${winner ? `<a href="#/rikishi/${winner.id}">${fullShikonaRuby(winner)}</a>` : '?'} （${escapeHtml(latest.yushoMakuuchi.record)}）
           </div>
           ${latest.yushoMakuuchi.note ? `<div class="meta">${escapeHtml(latest.yushoMakuuchi.note)}</div>` : ''}
         </div>
@@ -125,7 +145,7 @@ function banzukeCell(rikishi, sideClass) {
   return `
     <div class="banzuke-cell ${sideClass}">
       <span class="side-tag ${sideClass}">${sideLabel}</span>
-      <div class="name"><a href="#/rikishi/${rikishi.id}">${fullShikonaHtml(rikishi)}</a></div>
+      <div class="name"><a href="#/rikishi/${rikishi.id}">${fullShikonaRuby(rikishi)}</a></div>
       <div class="sub">${escapeHtml(rikishi.birthplace)}</div>
       <div class="sub">${stable ? `<a href="#/stable/${stable.id}">${escapeHtml(stable.name)}</a>` : ''}</div>
     </div>
@@ -213,14 +233,19 @@ function renderRikishiGrid() {
     const stable = getStableById(r.stableId);
     return `
       <div class="card">
-        <h3><a href="#/rikishi/${r.id}">${fullShikonaHtml(r)}</a></h3>
-        <div class="meta">${escapeHtml(r.nameKana || '')}</div>
-        <div class="badge-row">
-          ${rankBadge(r)}
-          ${sideBadge(r)}
-          ${countryBadge(r)}
+        <div class="card-rikishi-head">
+          <a href="#/rikishi/${r.id}" class="card-photo-link">${rikishiPhotoHtml(r, 'thumb')}</a>
+          <div class="card-rikishi-name">
+            <h3><a href="#/rikishi/${r.id}">${fullShikonaRuby(r)}</a></h3>
+            <div class="meta">${escapeHtml(r.nameRomaji || '')}</div>
+            <div class="badge-row">
+              ${rankBadge(r)}
+              ${sideBadge(r)}
+              ${countryBadge(r)}
+            </div>
+          </div>
         </div>
-        <div class="meta" style="margin-top:8px;">
+        <div class="meta" style="margin-top:10px;">
           ${escapeHtml(r.birthplace)}<br>
           ${stable ? `<a href="#/stable/${stable.id}">${escapeHtml(stable.name)}</a>` : ''}
         </div>
@@ -245,13 +270,16 @@ function renderRikishiDetail(id) {
       <a href="#/">トップ</a> ＞ <a href="#/rikishi">力士一覧</a> ＞ ${escapeHtml(r.name)}
     </div>
     <div class="detail-hero">
-      <div class="name-large">${fullShikonaHtml(r)}</div>
-      <div class="name-kana">${escapeHtml(r.nameKana || '')} ／ ${escapeHtml(r.nameRomaji || '')}</div>
-      <div class="badge-row">
-        ${rankBadge(r)}
-        ${sideBadge(r)}
-        ${countryBadge(r)}
-        ${stable ? `<span class="badge">${escapeHtml(stable.name)}</span>` : ''}
+      <div class="detail-hero-photo">${rikishiPhotoHtml(r, 'large')}</div>
+      <div class="detail-hero-body">
+        <div class="name-large">${fullShikonaRuby(r)}</div>
+        <div class="name-kana">${escapeHtml(r.nameRomaji || '')}</div>
+        <div class="badge-row">
+          ${rankBadge(r)}
+          ${sideBadge(r)}
+          ${countryBadge(r)}
+          ${stable ? `<span class="badge">${escapeHtml(stable.name)}</span>` : ''}
+        </div>
       </div>
     </div>
 
@@ -295,7 +323,7 @@ function renderRikishiDetail(id) {
         <ul class="rikishi-mini-list">
           ${sortByRank(mates).map(m => `
             <li>
-              <a href="#/rikishi/${m.id}">${fullShikonaHtml(m)}</a>
+              <a href="#/rikishi/${m.id}">${fullShikonaRuby(m)}</a>
               <span class="rank">${escapeHtml(m.rank)}</span>
             </li>
           `).join('')}
@@ -415,7 +443,7 @@ function renderStableDetail(id) {
       <ul class="rikishi-mini-list">
         ${rikishiList.map(r => `
           <li>
-            <a href="#/rikishi/${r.id}">${fullShikonaHtml(r)}</a>
+            <a href="#/rikishi/${r.id}">${fullShikonaRuby(r)}</a>
             <span class="rank">${escapeHtml(r.rank)}</span>
           </li>
         `).join('')}
@@ -450,7 +478,7 @@ function renderTournaments() {
           <div class="yusho">
             <div class="label">幕内優勝</div>
             <div class="winner">
-              ${winner ? `<a href="#/rikishi/${winner.id}">${fullShikonaHtml(winner)}</a>` : '?'}
+              ${winner ? `<a href="#/rikishi/${winner.id}">${fullShikonaRuby(winner)}</a>` : '?'}
               （${escapeHtml(t.yushoMakuuchi.record)}）
             </div>
             ${t.yushoMakuuchi.note ? `<div class="meta">${escapeHtml(t.yushoMakuuchi.note)}</div>` : ''}
@@ -575,6 +603,8 @@ function renderAbout() {
     <ul>
       <li><strong>番付</strong>：各力士の <code>rank</code>（例: 横綱／大関／前頭3）と <code>side</code>（東／西）を変更</li>
       <li><strong>力士の追加</strong>：<code>RIKISHI</code> 配列に新しい力士を追加（<code>id</code> は他と重複しない英数字）</li>
+      <li><strong>下の名前・フリガナ</strong>：<code>SHIKONA_GIVEN</code>（漢字）と <code>SHIKONA_GIVEN_KANA</code>（読み）に追加</li>
+      <li><strong>写真</strong>：<code>images/</code> に画像を置き、力士の <code>photo</code> 欄にパスを設定（未設定なら頭文字の仮画像）</li>
       <li><strong>場所結果</strong>：<code>TOURNAMENTS</code> 配列の先頭に新しい場所を追加</li>
       <li><strong>巡業</strong>：<code>JUNGYO</code> 配列の各 <code>stops</code>（日付・都道府県・会場）を更新し、確定したら <code>tentative</code> を <code>false</code> に</li>
       <li>更新後は <code>SITE_META.lastUpdated</code> の日付も書き換え、ファイルをサーバへ再アップロード</li>

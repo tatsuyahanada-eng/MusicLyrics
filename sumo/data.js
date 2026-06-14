@@ -383,7 +383,7 @@ const RIKISHI = [
     id: 'wakamotoharu',
     name: '若元春',
     nameKana: 'わかもとはる',
-    nameRomaji: 'Wakamotoharu Atsushi',
+    nameRomaji: 'Wakamotoharu Minato',
     realName: '大波港',
     rank: '前頭11',
     rankNum: 5,
@@ -707,7 +707,7 @@ const RIKISHI = [
     id: 'nishikigi',
     name: '錦木',
     nameKana: 'にしきぎ',
-    nameRomaji: 'Nishikigi Tetsushi',
+    nameRomaji: 'Nishikigi Tetsuya',
     realName: '熊谷哲也',
     rank: '前頭7',
     rankNum: 5,
@@ -1368,4 +1368,50 @@ const SHIKONA_GIVEN = {
 
 function getShikonaGiven(id) {
   return SHIKONA_GIVEN[id] || '';
+}
+
+// 下の名前（名乗り）の読み。漢字の上にフリガナ（ルビ）として表示される。
+const SHIKONA_GIVEN_KANA = {
+  hoshoryu: 'ともかつ',
+  onosato: 'だいき',
+  kotozakura: 'まさかつ',
+  aonishiki: 'あらた',
+  kirishima: 'てつお',
+  atamifuji: 'さくたろう',
+  kotoshoho: 'よしなり',
+  wakatakakage: 'あつし',
+  takayasu: 'あきら',
+  wakamotoharu: 'みなと',
+  daieisho: 'はやと',
+  abi: 'まさとら',
+  asanoyama: 'ひでき',
+  mitakeumi: 'ひさし',
+  tobizaru: 'まさや',
+  ura: 'かずき',
+  hiradoumi: 'ゆうき',
+  gonoyama: 'とわ',
+  midorifuji: 'かずや',
+  nishikifuji: 'りゅうせい',
+  ohho: 'こうのすけ',
+  hokutofuji: 'だいき',
+  nishikigi: 'てつや',
+  tamawashi: 'いちろう',
+  endo: 'しょうた',
+  takanosho: 'のぶあき',
+  myogiryu: 'やすなり',
+  ichiyamamoto: 'だいき',
+  shonannoumi: 'ももたろう',
+  kinbozan: 'はるき',
+  roga: 'ときよし',
+  chiyoshoma: 'ふじお',
+  sadanoumi: 'たかし',
+  tomokaze: 'ゆうた',
+  hakuoho: 'てつや',
+  oshoma: 'でき',
+  churanoumi: 'よしひさ',
+  tokihayate: 'ひでき',
+};
+
+function getShikonaGivenKana(id) {
+  return SHIKONA_GIVEN_KANA[id] || '';
 }

@@ -77,17 +77,40 @@ const SITE_META = {
 },
 ```
 
-### 四股名の「下の名前（名乗り）」を表示する
+### 四股名の「下の名前（名乗り）」とフリガナを表示する
 
-下の名前は `data.js` 末尾の `SHIKONA_GIVEN` に `id: '下の名前'` の形で追加します。
+下の名前は `data.js` 末尾の `SHIKONA_GIVEN`、その読み（フリガナ）は `SHIKONA_GIVEN_KANA` に、
+それぞれ `id: '値'` の形で追加します。上の四股名のフリガナは各力士の `nameKana` が使われます。
 
 ```js
 const SHIKONA_GIVEN = {
   hoshoryu: '智勝',
-  newrikishi: '太郎',   // ← 追加
+  newrikishi: '太郎',     // ← 下の名前（漢字）
+  …
+};
+
+const SHIKONA_GIVEN_KANA = {
+  hoshoryu: 'ともかつ',
+  newrikishi: 'たろう',   // ← 下の名前の読み
   …
 };
 ```
+
+### 力士の写真を表示する
+
+1. `images/` フォルダに画像を置く（例: `images/newrikishi.jpg`）
+2. 力士オブジェクトに `photo` 欄を追加する
+
+```js
+{
+  id: 'newrikishi',
+  …
+  photo: 'images/newrikishi.jpg',   // ← 追加
+},
+```
+
+`photo` を設定しない力士は、四股名の頭文字のプレースホルダーが自動表示されます。
+詳しくは `images/README.md` を参照してください（**著作権にご注意ください**）。
 
 ---
 

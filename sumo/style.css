@@ -285,6 +285,80 @@ h2.section-title {
   color: var(--color-accent-dark);
 }
 
+/* フリガナ（ルビ） */
+ruby {
+  ruby-align: center;
+}
+
+rt {
+  font-size: 0.45em;
+  font-weight: 400;
+  color: var(--color-muted);
+  letter-spacing: 0.02em;
+  -webkit-text-fill-color: currentColor;
+}
+
+.name-large rt {
+  color: var(--color-muted);
+  margin-bottom: 2px;
+}
+
+/* 力士写真 / プレースホルダー */
+.rikishi-photo {
+  background: var(--color-bg-alt);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  object-fit: cover;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--color-accent-dark);
+  font-weight: 700;
+  overflow: hidden;
+  flex-shrink: 0;
+}
+
+.rikishi-photo.placeholder {
+  background: linear-gradient(160deg, var(--color-bg-alt), #e3d6bd);
+  font-family: "Hiragino Mincho ProN", "Yu Mincho", serif;
+}
+
+.rikishi-photo.large {
+  width: 116px;
+  height: 150px;
+  font-size: 52px;
+}
+
+.rikishi-photo.thumb {
+  width: 56px;
+  height: 72px;
+  font-size: 26px;
+}
+
+/* 一覧カードの写真付きヘッダー */
+.card-rikishi-head {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+}
+
+.card-rikishi-name {
+  min-width: 0;
+}
+
+.card-rikishi-name h3 {
+  margin: 0 0 2px;
+}
+
+.card-photo-link {
+  border: none;
+  line-height: 0;
+}
+
+.card-photo-link:hover {
+  border: none;
+}
+
 .banzuke-cell .name a {
   color: var(--color-ink);
   border: none;
@@ -403,6 +477,14 @@ h2.section-title {
   box-shadow: var(--shadow-soft);
   position: relative;
   overflow: hidden;
+  display: flex;
+  align-items: center;
+  gap: 22px;
+}
+
+.detail-hero-body {
+  flex: 1;
+  min-width: 0;
 }
 
 .detail-hero::before {
@@ -773,10 +855,16 @@ code {
 
   /* 詳細ヘッダ・テーブル */
   .detail-hero {
-    padding: 18px 18px 18px 22px;
+    padding: 16px 16px 16px 20px;
+    gap: 14px;
   }
   .detail-hero .name-large {
-    font-size: 26px;
+    font-size: 24px;
+  }
+  .rikishi-photo.large {
+    width: 88px;
+    height: 116px;
+    font-size: 38px;
   }
   .info-table th,
   .info-table td {
