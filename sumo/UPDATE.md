@@ -96,22 +96,6 @@ const SHIKONA_GIVEN_KANA = {
 };
 ```
 
-### 力士の写真を表示する
-
-1. `images/` フォルダに画像を置く（例: `images/newrikishi.jpg`）
-2. 力士オブジェクトに `photo` 欄を追加する
-
-```js
-{
-  id: 'newrikishi',
-  …
-  photo: 'images/newrikishi.jpg',   // ← 追加
-},
-```
-
-`photo` を設定しない力士は、四股名の頭文字のプレースホルダーが自動表示されます。
-詳しくは `images/README.md` を参照してください（**著作権にご注意ください**）。
-
 ---
 
 ## 3. 部屋を追加・編集する
