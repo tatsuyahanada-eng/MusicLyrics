@@ -114,8 +114,10 @@ function banzukeRow(eastList, rank, westList, isTop) {
 
 function banzukeCell(rikishi, sideClass) {
   const stable = getStableById(rikishi.stableId);
+  const sideLabel = rikishi.side === '東' ? '東' : '西';
   return `
     <div class="banzuke-cell ${sideClass}">
+      <span class="side-tag ${sideClass}">${sideLabel}</span>
       <div class="name"><a href="#/rikishi/${rikishi.id}">${escapeHtml(rikishi.name)}</a></div>
       <div class="sub">${escapeHtml(rikishi.birthplace)}</div>
       <div class="sub">${stable ? `<a href="#/stable/${stable.id}">${escapeHtml(stable.name)}</a>` : ''}</div>
