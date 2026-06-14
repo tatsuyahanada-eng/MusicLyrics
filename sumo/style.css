@@ -367,6 +367,18 @@ rt {
   margin-bottom: 8px;
 }
 
+.card .nickname {
+  font-size: 13px;
+  color: var(--color-accent-dark);
+  font-weight: 600;
+  margin: 4px 0 6px;
+  letter-spacing: 0.03em;
+}
+
+.muted {
+  color: var(--color-muted);
+}
+
 .card .badge-row {
   margin-top: 8px;
   display: flex;

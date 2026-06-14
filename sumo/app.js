@@ -221,10 +221,12 @@ function renderRikishiGrid() {
   }
   $grid.innerHTML = list.map(r => {
     const stable = getStableById(r.stableId);
+    const nickname = getNickname(r.id);
     return `
       <div class="card">
         <h3><a href="#/rikishi/${r.id}">${fullShikonaRuby(r)}</a></h3>
         <div class="meta">${escapeHtml(r.nameRomaji || '')}</div>
+        ${nickname ? `<div class="nickname">「${escapeHtml(nickname)}」</div>` : ''}
         <div class="badge-row">
           ${rankBadge(r)}
           ${sideBadge(r)}
@@ -268,6 +270,7 @@ function renderRikishiDetail(id) {
     <h2 class="section-title">基本情報</h2>
     <table class="info-table">
       <tr><th>本名</th><td>${escapeHtml(r.realName || '―')}</td></tr>
+      <tr><th>ニックネーム</th><td>${getNickname(r.id) ? escapeHtml(getNickname(r.id)) : '<span class="muted">なし</span>'}</td></tr>
       <tr><th>現在の番付</th><td>${escapeHtml(r.side + ' ' + r.rank)}</td></tr>
       <tr><th>所属部屋</th><td>${stable ? `<a href="#/stable/${stable.id}">${escapeHtml(stable.name)}</a>（${escapeHtml(stable.ichimon || '')}）` : '―'}</td></tr>
       <tr><th>出身地</th><td>${escapeHtml(r.birthplace)}</td></tr>
@@ -586,6 +589,7 @@ function renderAbout() {
       <li><strong>番付</strong>：各力士の <code>rank</code>（例: 横綱／大関／前頭3）と <code>side</code>（東／西）を変更</li>
       <li><strong>力士の追加</strong>：<code>RIKISHI</code> 配列に新しい力士を追加（<code>id</code> は他と重複しない英数字）</li>
       <li><strong>下の名前・フリガナ</strong>：<code>SHIKONA_GIVEN</code>（漢字）と <code>SHIKONA_GIVEN_KANA</code>（読み）に追加</li>
+      <li><strong>ニックネーム</strong>：<code>NICKNAMES</code> に <code>id: '愛称'</code> を追加（未登録は「なし」と表示）</li>
       <li><strong>場所結果</strong>：<code>TOURNAMENTS</code> 配列の先頭に新しい場所を追加</li>
       <li><strong>巡業</strong>：<code>JUNGYO</code> 配列の各 <code>stops</code>（日付・都道府県・会場）を更新し、確定したら <code>tentative</code> を <code>false</code> に</li>
       <li>更新後は <code>SITE_META.lastUpdated</code> の日付も書き換え、ファイルをサーバへ再アップロード</li>

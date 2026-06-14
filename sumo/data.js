@@ -1415,3 +1415,30 @@ const SHIKONA_GIVEN_KANA = {
 function getShikonaGivenKana(id) {
   return SHIKONA_GIVEN_KANA[id] || '';
 }
+
+// 力士のニックネーム（愛称・通称）。
+// 雑誌・報道・公式SNSなどで広く使われているものを中心に登録。
+// 未登録の力士はサイト上「なし」と表示されます。
+const NICKNAMES = {
+  hoshoryu: '平成の朝青龍',
+  onosato: '令和の怪物',
+  kotozakura: '三代目琴櫻',
+  aonishiki: '青い目のウルフ／ウクライナの星',
+  kirishima: '令和のウルフ',
+  asanoyama: '富山の星',
+  tamawashi: '鉄人',
+  endo: '角界のプリンス',
+  ura: '角界の魔術師',
+  takayasu: 'お父さん力士',
+  tobizaru: 'おじゃる丸',
+  midorifuji: '肩透かしの達人',
+  atamifuji: '熱海のホープ',
+  hakuoho: 'スーパールーキー',
+  wakatakakage: '技のデパート',
+  ohho: '大鵬の孫',
+  daieisho: '突き押しのスペシャリスト',
+};
+
+function getNickname(id) {
+  return NICKNAMES[id] || '';
+}
