@@ -13,6 +13,13 @@ function escapeHtml(s) {
     .replace(/'/g, '&#39;');
 }
 
+// 四股名（上）＋下の名前（名乗り）。通向けにフルの四股名を表示する。
+function fullShikonaHtml(rikishi) {
+  const given = getShikonaGiven(rikishi.id);
+  return escapeHtml(rikishi.name) +
+    (given ? `<span class="shikona-given">${escapeHtml(given)}</span>` : '');
+}
+
 function rankBadgeClass(rank) {
   if (rank === '横綱') return 'rank-yokozuna';
   if (rank === '大関') return 'rank-ozeki';
@@ -84,7 +91,7 @@ function renderBanzuke() {
         <div class="yusho">
           <div class="label">幕内優勝</div>
           <div class="winner">
-            ${winner ? `<a href="#/rikishi/${winner.id}">${escapeHtml(winner.name)}</a>` : '?'} （${escapeHtml(latest.yushoMakuuchi.record)}）
+            ${winner ? `<a href="#/rikishi/${winner.id}">${fullShikonaHtml(winner)}</a>` : '?'} （${escapeHtml(latest.yushoMakuuchi.record)}）
           </div>
           ${latest.yushoMakuuchi.note ? `<div class="meta">${escapeHtml(latest.yushoMakuuchi.note)}</div>` : ''}
         </div>
@@ -118,7 +125,7 @@ function banzukeCell(rikishi, sideClass) {
   return `
     <div class="banzuke-cell ${sideClass}">
       <span class="side-tag ${sideClass}">${sideLabel}</span>
-      <div class="name"><a href="#/rikishi/${rikishi.id}">${escapeHtml(rikishi.name)}</a></div>
+      <div class="name"><a href="#/rikishi/${rikishi.id}">${fullShikonaHtml(rikishi)}</a></div>
       <div class="sub">${escapeHtml(rikishi.birthplace)}</div>
       <div class="sub">${stable ? `<a href="#/stable/${stable.id}">${escapeHtml(stable.name)}</a>` : ''}</div>
     </div>
@@ -206,7 +213,7 @@ function renderRikishiGrid() {
     const stable = getStableById(r.stableId);
     return `
       <div class="card">
-        <h3><a href="#/rikishi/${r.id}">${escapeHtml(r.name)}</a></h3>
+        <h3><a href="#/rikishi/${r.id}">${fullShikonaHtml(r)}</a></h3>
         <div class="meta">${escapeHtml(r.nameKana || '')}</div>
         <div class="badge-row">
           ${rankBadge(r)}
@@ -238,7 +245,7 @@ function renderRikishiDetail(id) {
       <a href="#/">トップ</a> ＞ <a href="#/rikishi">力士一覧</a> ＞ ${escapeHtml(r.name)}
     </div>
     <div class="detail-hero">
-      <div class="name-large">${escapeHtml(r.name)}</div>
+      <div class="name-large">${fullShikonaHtml(r)}</div>
       <div class="name-kana">${escapeHtml(r.nameKana || '')} ／ ${escapeHtml(r.nameRomaji || '')}</div>
       <div class="badge-row">
         ${rankBadge(r)}
@@ -288,7 +295,7 @@ function renderRikishiDetail(id) {
         <ul class="rikishi-mini-list">
           ${sortByRank(mates).map(m => `
             <li>
-              <a href="#/rikishi/${m.id}">${escapeHtml(m.name)}</a>
+              <a href="#/rikishi/${m.id}">${fullShikonaHtml(m)}</a>
               <span class="rank">${escapeHtml(m.rank)}</span>
             </li>
           `).join('')}
@@ -408,7 +415,7 @@ function renderStableDetail(id) {
       <ul class="rikishi-mini-list">
         ${rikishiList.map(r => `
           <li>
-            <a href="#/rikishi/${r.id}">${escapeHtml(r.name)}</a>
+            <a href="#/rikishi/${r.id}">${fullShikonaHtml(r)}</a>
             <span class="rank">${escapeHtml(r.rank)}</span>
           </li>
         `).join('')}
@@ -443,7 +450,7 @@ function renderTournaments() {
           <div class="yusho">
             <div class="label">幕内優勝</div>
             <div class="winner">
-              ${winner ? `<a href="#/rikishi/${winner.id}">${escapeHtml(winner.name)}</a>` : '?'}
+              ${winner ? `<a href="#/rikishi/${winner.id}">${fullShikonaHtml(winner)}</a>` : '?'}
               （${escapeHtml(t.yushoMakuuchi.record)}）
             </div>
             ${t.yushoMakuuchi.note ? `<div class="meta">${escapeHtml(t.yushoMakuuchi.note)}</div>` : ''}

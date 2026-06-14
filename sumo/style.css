@@ -271,6 +271,20 @@ h2.section-title {
   font-weight: 700;
 }
 
+/* 下の名前（名乗り） */
+.shikona-given {
+  font-size: 0.62em;
+  font-weight: 600;
+  color: var(--color-muted);
+  margin-left: 0.35em;
+  letter-spacing: 0.03em;
+}
+
+.name-large .shikona-given {
+  font-size: 0.5em;
+  color: var(--color-accent-dark);
+}
+
 .banzuke-cell .name a {
   color: var(--color-ink);
   border: none;
