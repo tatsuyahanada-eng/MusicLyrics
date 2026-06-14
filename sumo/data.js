@@ -1417,26 +1417,23 @@ function getShikonaGivenKana(id) {
 }
 
 // 力士のニックネーム（愛称・通称）。
-// 雑誌・報道・公式SNSなどで広く使われているものを中心に登録。
+// 本人の愛称として報道・Wikipedia等で確認できるものを優先して登録。
+// （一部、メディアでよく使われる通称・異名を含みます）
 // 未登録の力士はサイト上「なし」と表示されます。
 const NICKNAMES = {
-  hoshoryu: '平成の朝青龍',
-  onosato: '令和の怪物',
-  kotozakura: '三代目琴櫻',
-  aonishiki: '青い目のウルフ／ウクライナの星',
-  kirishima: '令和のウルフ',
-  asanoyama: '富山の星',
-  tamawashi: '鉄人',
+  aonishiki: 'ダーニャ',        // 本名ダニーロ（Danylo）に由来する愛称
+  midorifuji: 'ポケモンパワー', // Wikipedia「愛称」欄
+  takayasu: 'ヤス',
+  tamawashi: '鉄人',           // 連続出場を続ける丈夫さから
   endo: '角界のプリンス',
+  asanoyama: '富山の星',
   ura: '角界の魔術師',
-  takayasu: 'お父さん力士',
-  tobizaru: 'おじゃる丸',
-  midorifuji: '肩透かしの達人',
-  atamifuji: '熱海のホープ',
   hakuoho: 'スーパールーキー',
-  wakatakakage: '技のデパート',
+  hoshoryu: '平成の朝青龍',     // 元横綱・朝青龍の甥
+  onosato: '令和の怪物',
+  kotozakura: '三代目琴櫻',     // 祖父は先代横綱・琴櫻
   ohho: '大鵬の孫',
-  daieisho: '突き押しのスペシャリスト',
+  atamifuji: '熱海のホープ',
 };
 
 function getNickname(id) {
