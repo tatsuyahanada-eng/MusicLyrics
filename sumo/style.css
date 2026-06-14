@@ -556,6 +556,56 @@ h2.section-title {
   margin-right: 6px;
 }
 
+/* ===== Notice / schedule ===== */
+.notice {
+  background: #fff7e6;
+  border: 1px solid #f0d9a8;
+  border-left: 4px solid var(--color-gold);
+  border-radius: var(--radius);
+  padding: 12px 16px;
+  font-size: 13px;
+  color: var(--color-ink-soft);
+  margin-bottom: 20px;
+}
+
+.notice a {
+  color: var(--color-accent-dark);
+}
+
+.badge.tentative {
+  background: var(--color-gold);
+  color: #fff;
+  font-weight: 700;
+}
+
+.table-scroll {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+.schedule-table th {
+  width: auto;
+  white-space: nowrap;
+}
+
+.schedule-table thead th {
+  background: var(--color-ink-soft);
+  color: #fff;
+}
+
+.schedule-table td {
+  white-space: nowrap;
+}
+
+code {
+  background: var(--color-bg-alt);
+  padding: 1px 6px;
+  border-radius: 4px;
+  font-family: "SFMono-Regular", Consolas, "Courier New", monospace;
+  font-size: 0.9em;
+  color: var(--color-accent-dark);
+}
+
 /* ===== Footer ===== */
 .site-footer {
   background: #1f1a17;

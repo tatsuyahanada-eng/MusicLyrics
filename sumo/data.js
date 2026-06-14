@@ -3,6 +3,8 @@
 // データは2026年初場所頃の状況を想定しています。
 
 const SITE_META = {
+  // ▼ データを更新したら、この最終更新日も書き換えてください（表示に使われます）
+  lastUpdated: '2026-06-14',
   dataAsOf: '令和8年（2026年）五月場所（夏場所）後',
   note: '番付・優勝歴などの主要情報は公開情報をもとに精査していますが、前頭の枚数順や通算成績の細部は概算を含みます。正確な最新情報は日本相撲協会公式サイトをご確認ください。',
 };
@@ -1222,6 +1224,55 @@ const TOURNAMENTS = [
     period: '2025年1月12日〜26日',
     yushoMakuuchi: { rikishiId: 'hoshoryu', record: '12勝3敗', note: '横綱昇進を決める' },
     summary: '大関・豊昇龍が12勝3敗で優勝し、場所後に第74代横綱へ昇進した。'
+  },
+];
+
+// ===== 巡業スケジュール =====
+// 本場所と本場所の間に行われる地方巡業の日程表。
+// tentative: true の巡業は「予定・暫定」として表示されます。
+// 公式日程が出たら stops（各開催地）を書き換え、tentative を false にしてください。
+const JUNGYO = [
+  {
+    id: '2026-summer',
+    name: '令和8年 夏巡業',
+    season: '夏',
+    period: '2026年7月下旬〜8月',
+    note: '名古屋場所（七月）と秋場所（九月）の間に行われる巡業。',
+    tentative: true,
+    stops: [
+      { date: '2026-08-01', venue: '未定', pref: '静岡県', event: '' },
+      { date: '2026-08-02', venue: '未定', pref: '長野県', event: '' },
+      { date: '2026-08-08', venue: '未定', pref: '新潟県', event: '' },
+      { date: '2026-08-09', venue: '未定', pref: '福島県', event: '' },
+      { date: '2026-08-22', venue: '未定', pref: '北海道', event: '' },
+    ],
+  },
+  {
+    id: '2026-autumn',
+    name: '令和8年 秋巡業',
+    season: '秋',
+    period: '2026年10月',
+    note: '秋場所（九月）と九州場所（十一月）の間に行われる巡業。',
+    tentative: true,
+    stops: [
+      { date: '2026-10-10', venue: '未定', pref: '愛知県', event: '' },
+      { date: '2026-10-11', venue: '未定', pref: '三重県', event: '' },
+      { date: '2026-10-17', venue: '未定', pref: '大阪府', event: '' },
+      { date: '2026-10-24', venue: '未定', pref: '広島県', event: '' },
+    ],
+  },
+  {
+    id: '2026-winter',
+    name: '令和8年 冬巡業',
+    season: '冬',
+    period: '2026年12月',
+    note: '九州場所（十一月）後に九州・西日本を中心に行われる巡業。',
+    tentative: true,
+    stops: [
+      { date: '2026-12-05', venue: '未定', pref: '福岡県', event: '' },
+      { date: '2026-12-06', venue: '未定', pref: '熊本県', event: '' },
+      { date: '2026-12-12', venue: '未定', pref: '鹿児島県', event: '' },
+    ],
   },
 ];
 

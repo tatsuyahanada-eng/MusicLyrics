@@ -482,6 +482,53 @@ function renderSansho(sansho) {
   return `<div class="sansho">${inner}</div>`;
 }
 
+// ========== 巡業スケジュール ==========
+function formatDate(iso) {
+  if (!iso) return '';
+  const d = new Date(iso);
+  if (isNaN(d.getTime())) return iso;
+  const w = ['日', '月', '火', '水', '木', '金', '土'][d.getDay()];
+  return `${d.getFullYear()}年${d.getMonth() + 1}月${d.getDate()}日（${w}）`;
+}
+
+function renderJungyo() {
+  const hasTentative = (typeof JUNGYO !== 'undefined') && JUNGYO.some(j => j.tentative);
+  $app.innerHTML = `
+    <h1 class="page-title">巡業スケジュール</h1>
+    <p class="lead">本場所と本場所の間に各地で行われる地方巡業の日程です。</p>
+    ${hasTentative ? `
+      <div class="notice">
+        ※「予定」と表示された巡業はサンプル・暫定日程です。公式日程が発表されたら更新してください（更新方法は <a href="#/about">サイトについて</a> を参照）。
+      </div>
+    ` : ''}
+    ${(typeof JUNGYO === 'undefined' ? [] : JUNGYO).map(j => `
+      <div class="tournament-card">
+        <h3>${escapeHtml(j.name)} ${j.tentative ? '<span class="badge tentative">予定</span>' : ''}</h3>
+        <div class="meta">${escapeHtml(j.period || '')}</div>
+        ${j.note ? `<p>${escapeHtml(j.note)}</p>` : ''}
+        ${j.stops && j.stops.length ? `
+          <div class="table-scroll">
+            <table class="info-table schedule-table">
+              <thead>
+                <tr><th>日付</th><th>都道府県</th><th>会場</th></tr>
+              </thead>
+              <tbody>
+                ${j.stops.map(s => `
+                  <tr>
+                    <td>${escapeHtml(formatDate(s.date))}</td>
+                    <td>${escapeHtml(s.pref || '')}</td>
+                    <td>${escapeHtml(s.venue || '未定')}${s.event ? `（${escapeHtml(s.event)}）` : ''}</td>
+                  </tr>
+                `).join('')}
+              </tbody>
+            </table>
+          </div>
+        ` : '<p>開催地は未定です。</p>'}
+      </div>
+    `).join('')}
+  `;
+}
+
 // ========== About ==========
 function renderAbout() {
   const ichimons = [...new Set(STABLES.map(s => s.ichimon).filter(Boolean))];
@@ -492,9 +539,10 @@ function renderAbout() {
     <h2 class="section-title">収録内容</h2>
     <ul>
       <li>現在の番付（幕内）</li>
-      <li>幕内力士（${RIKISHI.length}名）のプロフィール・通算成績・受賞歴</li>
+      <li>幕内力士（${RIKISHI.length}名）のプロフィール・四股名（下の名前）・通算成績・受賞歴</li>
       <li>相撲部屋（${STABLES.length}部屋）の概要と所属力士、一門</li>
-      <li>直近の本場所結果と三賞受賞者</li>
+      <li>直近の本場所結果</li>
+      <li>巡業スケジュール</li>
       <li>同部屋・同一門のクロスリンク</li>
     </ul>
 
@@ -517,7 +565,21 @@ function renderAbout() {
 
     <h2 class="section-title">データについて</h2>
     <p>${escapeHtml(SITE_META.note)}</p>
-    <p>収録時点: ${escapeHtml(SITE_META.dataAsOf)}</p>
+    <table class="info-table">
+      <tr><th>収録時点</th><td>${escapeHtml(SITE_META.dataAsOf)}</td></tr>
+      <tr><th>データ最終更新日</th><td>${escapeHtml(SITE_META.lastUpdated || '―')}</td></tr>
+    </table>
+
+    <h2 class="section-title">情報の更新について</h2>
+    <p>最新の番付・成績・巡業日程に更新するには、<code>data.js</code> 内の各データを書き換えるだけです（プログラムの変更は不要）。</p>
+    <ul>
+      <li><strong>番付</strong>：各力士の <code>rank</code>（例: 横綱／大関／前頭3）と <code>side</code>（東／西）を変更</li>
+      <li><strong>力士の追加</strong>：<code>RIKISHI</code> 配列に新しい力士を追加（<code>id</code> は他と重複しない英数字）</li>
+      <li><strong>場所結果</strong>：<code>TOURNAMENTS</code> 配列の先頭に新しい場所を追加</li>
+      <li><strong>巡業</strong>：<code>JUNGYO</code> 配列の各 <code>stops</code>（日付・都道府県・会場）を更新し、確定したら <code>tentative</code> を <code>false</code> に</li>
+      <li>更新後は <code>SITE_META.lastUpdated</code> の日付も書き換え、ファイルをサーバへ再アップロード</li>
+    </ul>
+    <p>詳しい手順とテンプレートは、配布物に同梱の <code>UPDATE.md</code> をご覧ください。</p>
   `;
 }
 
@@ -538,6 +600,7 @@ const routes = [
   { match: /^#\/stables\/?$/, render: renderStableList, nav: 'stables' },
   { match: /^#\/stable\/(.+)$/, render: (m) => renderStableDetail(m[1]), nav: 'stables' },
   { match: /^#\/tournaments\/?$/, render: renderTournaments, nav: 'tournaments' },
+  { match: /^#\/jungyo\/?$/, render: renderJungyo, nav: 'jungyo' },
   { match: /^#\/about\/?$/, render: renderAbout, nav: 'about' },
 ];
 
@@ -561,5 +624,15 @@ function updateNav(key) {
   });
 }
 
+function setFooterMeta() {
+  const el = document.getElementById('footer-updated');
+  if (el && typeof SITE_META !== 'undefined' && SITE_META.lastUpdated) {
+    el.textContent = `データ最終更新日: ${SITE_META.lastUpdated}（${SITE_META.dataAsOf}）`;
+  }
+}
+
 window.addEventListener('hashchange', route);
-window.addEventListener('DOMContentLoaded', route);
+window.addEventListener('DOMContentLoaded', () => {
+  setFooterMeta();
+  route();
+});
