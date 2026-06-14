@@ -3,8 +3,8 @@
 // データは2026年初場所頃の状況を想定しています。
 
 const SITE_META = {
-  dataAsOf: '2026年初場所（一月場所）後',
-  note: 'このサイトのデータはサンプルです。実際の番付・成績とは異なる場合があります。',
+  dataAsOf: '令和8年（2026年）五月場所（夏場所）後',
+  note: '番付・優勝歴などの主要情報は公開情報をもとに精査していますが、前頭の枚数順や通算成績の細部は概算を含みます。正確な最新情報は日本相撲協会公式サイトをご確認ください。',
 };
 
 const STABLES = [
@@ -252,11 +252,11 @@ const RIKISHI = [
     weight: 182,
     debut: '2023年5月',
     debutRank: '幕下10枚目格付出',
-    yusho: 4,
+    yusho: 6,
     sansho: { shukunsho: 2, kantosho: 2, ginosho: 2 },
     kinboshi: 0,
     favoriteKimarite: ['突き押し', '寄り切り'],
-    profile: '日本大学から幕下付出デビュー。スピード出世で2025年初場所後に第75代横綱に昇進。日本人横綱の誕生で大きな話題に。'
+    profile: '日本大学から幕下付出デビュー。2025年夏場所後に第75代横綱に昇進。初土俵から所要13場所での昇進は年6場所制が定着した1958年以降で最速。日本出身横綱の誕生として大きな話題となった。'
   },
 
   // ===== 大関 =====
@@ -284,13 +284,36 @@ const RIKISHI = [
     profile: '元大関・琴櫻（先代）の孫。2024年に四股名を「琴ノ若」から「琴櫻」に改名し、同年九州場所で初優勝。'
   },
   {
+    id: 'aonishiki',
+    name: '安青錦',
+    nameKana: 'あおにしき',
+    nameRomaji: 'Aonishiki Arata',
+    realName: 'ヤヴグシシン・ダニーロ（Danylo Yavhusishyn）',
+    rank: '大関',
+    rankNum: 2,
+    side: '西',
+    stableId: 'ajigawa',
+    birthplace: 'ウクライナ・ヴィーンヌィツャ',
+    birthplaceCountry: 'ウクライナ',
+    birthdate: '2004-03-23',
+    height: 182,
+    weight: 141,
+    debut: '2023年9月',
+    debutRank: '前相撲',
+    yusho: 2,
+    sansho: { shukunsho: 2, kantosho: 2, ginosho: 2 },
+    kinboshi: 1,
+    favoriteKimarite: ['押し出し', '寄り切り', 'おっつけ'],
+    profile: 'ウクライナ出身者として史上初の大関。2022年に来日し、元関脇・安美錦の安治川部屋へ入門。2023年九月場所で初土俵。低く当たって食い下がる技巧派の取り口で、2025年九州場所で初優勝、翌2026年初場所も連覇。初土俵から所要14場所での大関昇進は史上最速タイ級の出世。'
+  },
+  {
     id: 'kirishima',
     name: '霧島',
     nameKana: 'きりしま',
     nameRomaji: 'Kirishima Tetsuo',
     realName: 'バヤンジャルガル',
-    rank: '関脇',
-    rankNum: 3,
+    rank: '大関',
+    rankNum: 2,
     side: '東',
     stableId: 'otowayama',
     birthplace: 'モンゴル・ウランバートル',
@@ -300,22 +323,68 @@ const RIKISHI = [
     weight: 145,
     debut: '2015年3月',
     debutRank: '前相撲',
-    yusho: 2,
+    yusho: 1,
     sansho: { shukunsho: 3, kantosho: 2, ginosho: 3 },
     kinboshi: 2,
     favoriteKimarite: ['右四つ', '上手投げ', '寄り切り'],
-    profile: '元大関。投げ技を得意とする技巧派。2024年に師匠の引退に伴い陸奥部屋から音羽山部屋へ移籍。'
+    profile: '投げ技を得意とする技巧派。一度は大関から陥落したが、2026年春場所で12勝2敗の初優勝を果たし、同年夏場所で約2年ぶりに大関へ復帰（特例なしでの復帰は史上3人目）。'
   },
 
   // ===== 関脇 =====
+  {
+    id: 'atamifuji',
+    name: '熱海富士',
+    nameKana: 'あたみふじ',
+    nameRomaji: 'Atamifuji Sakutaro',
+    realName: '武井朔太郎',
+    rank: '関脇',
+    rankNum: 3,
+    side: '東',
+    stableId: 'isegahama',
+    birthplace: '静岡県熱海市',
+    birthplaceCountry: '日本',
+    birthdate: '2002-09-03',
+    height: 186,
+    weight: 175,
+    debut: '2020年11月',
+    debutRank: '前相撲',
+    yusho: 0,
+    sansho: { shukunsho: 1, kantosho: 2, ginosho: 0 },
+    kinboshi: 1,
+    favoriteKimarite: ['右四つ', '寄り切り', '突き押し'],
+    profile: '熱海市出身の若手有望株。地元では絶大な人気を誇る。2026年夏場所で新関脇となり三役定着を狙う。'
+  },
+  {
+    id: 'kotoshoho',
+    name: '琴勝峰',
+    nameKana: 'ことしょうほう',
+    nameRomaji: 'Kotoshoho Yoshinari',
+    realName: '秋谷信桜',
+    rank: '関脇',
+    rankNum: 3,
+    side: '西',
+    stableId: 'sadogatake',
+    birthplace: '千葉県柏市',
+    birthplaceCountry: '日本',
+    birthdate: '1999-08-24',
+    height: 192,
+    weight: 168,
+    debut: '2015年11月',
+    debutRank: '前相撲',
+    yusho: 1,
+    sansho: { shukunsho: 1, kantosho: 2, ginosho: 1 },
+    kinboshi: 1,
+    favoriteKimarite: ['右四つ', '寄り切り', '突き押し'],
+    profile: '佐渡ヶ嶽部屋所属。琴櫻とは同部屋。2025年名古屋場所で13勝2敗の平幕初優勝を果たし、一気に三役へ昇進した。'
+  },
   {
     id: 'wakamotoharu',
     name: '若元春',
     nameKana: 'わかもとはる',
     nameRomaji: 'Wakamotoharu Atsushi',
     realName: '大波港',
-    rank: '関脇',
-    rankNum: 3,
+    rank: '前頭11',
+    rankNum: 5,
     side: '西',
     stableId: 'arashio',
     birthplace: '福島県福島市',
@@ -329,7 +398,7 @@ const RIKISHI = [
     sansho: { shukunsho: 1, kantosho: 1, ginosho: 1 },
     kinboshi: 0,
     favoriteKimarite: ['左四つ', '寄り切り', '上手投げ'],
-    profile: '若隆景の実兄。三兄弟力士の次男。粘り強い左四つの相撲が持ち味。'
+    profile: '若隆景の実兄。三兄弟力士の次男。粘り強い左四つの相撲が持ち味で、関脇を長く務めた実力者。'
   },
   {
     id: 'daieisho',
@@ -337,8 +406,8 @@ const RIKISHI = [
     nameKana: 'だいえいしょう',
     nameRomaji: 'Daieisho Hayato',
     realName: '高橋勇人',
-    rank: '関脇',
-    rankNum: 3,
+    rank: '前頭1',
+    rankNum: 5,
     side: '東',
     stableId: 'oitekaze',
     birthplace: '埼玉県朝霞市',
@@ -357,29 +426,6 @@ const RIKISHI = [
 
   // ===== 小結 =====
   {
-    id: 'abi',
-    name: '阿炎',
-    nameKana: 'あび',
-    nameRomaji: 'Abi Masatora',
-    realName: '堀切川政虎',
-    rank: '小結',
-    rankNum: 4,
-    side: '東',
-    stableId: 'shikoroyama',
-    birthplace: '埼玉県越谷市',
-    birthplaceCountry: '日本',
-    birthdate: '1994-05-04',
-    height: 192,
-    weight: 152,
-    debut: '2013年5月',
-    debutRank: '前相撲',
-    yusho: 1,
-    sansho: { shukunsho: 2, kantosho: 2, ginosho: 1 },
-    kinboshi: 2,
-    favoriteKimarite: ['突き押し', '突き出し', 'はたき込み'],
-    profile: '長身を活かした突っ張りが武器。2022年九州場所で初優勝。'
-  },
-  {
     id: 'wakatakakage',
     name: '若隆景',
     nameKana: 'わかたかかげ',
@@ -387,7 +433,7 @@ const RIKISHI = [
     realName: '大波渥',
     rank: '小結',
     rankNum: 4,
-    side: '西',
+    side: '東',
     stableId: 'arashio',
     birthplace: '福島県福島市',
     birthplaceCountry: '日本',
@@ -396,23 +442,21 @@ const RIKISHI = [
     weight: 130,
     debut: '2017年3月',
     debutRank: '前相撲',
-    yusho: 1,
+    yusho: 2,
     sansho: { shukunsho: 3, kantosho: 1, ginosho: 4 },
     kinboshi: 1,
     favoriteKimarite: ['右四つ', '寄り切り', '突き落とし'],
-    profile: '若元春の実弟。三兄弟力士の三男。前さばきの巧さが光る技巧派。2022年春場所で初優勝。'
+    profile: '若元春の実弟。三兄弟力士の三男。前さばきの巧さが光る技巧派。2022年春場所での初優勝に続き、2026年夏場所で25場所ぶり2度目の優勝を果たした。'
   },
-
-  // ===== 前頭 =====
   {
     id: 'takayasu',
     name: '高安',
     nameKana: 'たかやす',
     nameRomaji: 'Takayasu Akira',
     realName: '高安晃',
-    rank: '前頭1',
-    rankNum: 5,
-    side: '東',
+    rank: '小結',
+    rankNum: 4,
+    side: '西',
     stableId: 'tagonoura',
     birthplace: '茨城県土浦市',
     birthplaceCountry: '日本',
@@ -865,29 +909,6 @@ const RIKISHI = [
     profile: 'ロシア・ブリヤート共和国出身。'
   },
   {
-    id: 'atamifuji',
-    name: '熱海富士',
-    nameKana: 'あたみふじ',
-    nameRomaji: 'Atamifuji Sakutaro',
-    realName: '武井朔太郎',
-    rank: '前頭11',
-    rankNum: 5,
-    side: '西',
-    stableId: 'isegahama',
-    birthplace: '静岡県熱海市',
-    birthplaceCountry: '日本',
-    birthdate: '2002-09-03',
-    height: 186,
-    weight: 175,
-    debut: '2020年11月',
-    debutRank: '前相撲',
-    yusho: 0,
-    sansho: { shukunsho: 0, kantosho: 1, ginosho: 0 },
-    kinboshi: 1,
-    favoriteKimarite: ['右四つ', '寄り切り'],
-    profile: '熱海市出身の期待の若手。地元では絶大な人気を誇る。'
-  },
-  {
     id: 'chiyoshoma',
     name: '千代翔馬',
     nameKana: 'ちよしょうま',
@@ -1048,6 +1069,29 @@ const RIKISHI = [
     favoriteKimarite: ['左四つ', '寄り切り'],
     profile: '沖縄県出身。木瀬部屋所属の中堅力士。'
   },
+  {
+    id: 'abi',
+    name: '阿炎',
+    nameKana: 'あび',
+    nameRomaji: 'Abi Masatora',
+    realName: '堀切川政虎',
+    rank: '前頭2',
+    rankNum: 5,
+    side: '西',
+    stableId: 'shikoroyama',
+    birthplace: '埼玉県越谷市',
+    birthplaceCountry: '日本',
+    birthdate: '1994-05-04',
+    height: 192,
+    weight: 152,
+    debut: '2013年5月',
+    debutRank: '前相撲',
+    yusho: 1,
+    sansho: { shukunsho: 2, kantosho: 2, ginosho: 1 },
+    kinboshi: 2,
+    favoriteKimarite: ['突き押し', '突き出し', 'はたき込み'],
+    profile: '長身を活かした突っ張りが武器。2022年九州場所で初優勝。'
+  },
 ];
 
 // 部屋を補完
@@ -1083,6 +1127,16 @@ STABLES.push(
     description: '隆の勝などを抱える比較的新しい部屋。'
   },
   {
+    id: 'ajigawa',
+    name: '安治川部屋',
+    nameRomaji: 'Ajigawa-beya',
+    ichimon: '伊勢ヶ濱一門',
+    location: '東京都江東区佐賀',
+    master: '安治川親方（元関脇・安美錦）',
+    established: '2020年',
+    description: '元関脇・安美錦が伊勢ヶ濱部屋から分家独立して興した部屋。ウクライナ出身の大関・安青錦を育てたことで知られる。'
+  },
+  {
     id: 'miyagino',
     name: '宮城野部屋（伊勢ヶ濱部屋預かり）',
     nameRomaji: 'Miyagino-beya',
@@ -1094,98 +1148,80 @@ STABLES.push(
   }
 );
 
-// ===== 場所結果（直近数場所）=====
+// ===== 場所結果（直近の本場所）=====
+// 優勝力士・概要は公開情報をもとに精査。三賞の個別受賞者は省略しています。
 const TOURNAMENTS = [
+  {
+    id: '2026-05',
+    name: '令和8年 五月場所（夏場所）',
+    venue: '両国国技館',
+    period: '2026年5月10日〜24日',
+    yushoMakuuchi: { rikishiId: 'wakatakakage', record: '12勝3敗', note: '25場所ぶり2度目の優勝' },
+    summary: '小結・若隆景が12勝3敗で復活優勝。2022年春場所以来、25場所ぶり2度目の幕内最高優勝を果たした。'
+  },
+  {
+    id: '2026-03',
+    name: '令和8年 三月場所（春場所）',
+    venue: 'エディオンアリーナ大阪',
+    period: '2026年3月8日〜22日',
+    yushoMakuuchi: { rikishiId: 'kirishima', record: '12勝2敗', note: '初優勝・大関復帰を決める' },
+    summary: '関脇・霧島が12勝2敗で初の幕内最高優勝。この成績で大関復帰の条件を満たし、翌夏場所での大関復帰が決まった。'
+  },
   {
     id: '2026-01',
     name: '令和8年 一月場所（初場所）',
     venue: '両国国技館',
-    period: '2026年1月12日〜26日',
-    yushoMakuuchi: { rikishiId: 'onosato', record: '14勝1敗', note: '4回目の優勝、横綱昇進を決める' },
-    sansho: {
-      shukunsho: ['daieisho'],
-      kantosho: ['hakuoho'],
-      ginosho: ['wakatakakage']
-    },
-    summary: '大の里が14勝1敗で優勝。場所後に横綱昇進が決定し、第75代横綱となる。'
+    period: '2026年1月11日〜25日',
+    yushoMakuuchi: { rikishiId: 'aonishiki', record: '13勝2敗', note: '2場所連続2度目の優勝' },
+    summary: '新大関・安青錦が2場所連続2度目の優勝。新大関での優勝は2006年夏場所の白鵬以来となった。'
   },
   {
     id: '2025-11',
     name: '令和7年 十一月場所（九州場所）',
     venue: '福岡国際センター',
     period: '2025年11月9日〜23日',
-    yushoMakuuchi: { rikishiId: 'hoshoryu', record: '13勝2敗', note: '3回目の優勝' },
-    sansho: {
-      shukunsho: ['kotozakura'],
-      kantosho: ['atamifuji'],
-      ginosho: ['ura']
-    },
-    summary: '横綱・豊昇龍が13勝2敗で優勝。'
+    yushoMakuuchi: { rikishiId: 'aonishiki', record: '13勝2敗', note: '初優勝（優勝決定戦を制す）' },
+    summary: '関脇・安青錦が豊昇龍との優勝決定戦を制して初優勝。これにより初土俵から所要14場所での大関昇進が確定した。'
   },
   {
     id: '2025-09',
     name: '令和7年 九月場所（秋場所）',
     venue: '両国国技館',
     period: '2025年9月14日〜28日',
-    yushoMakuuchi: { rikishiId: 'onosato', record: '13勝2敗', note: '3回目の優勝' },
-    sansho: {
-      shukunsho: ['wakatakakage'],
-      kantosho: ['hiradoumi'],
-      ginosho: ['kotozakura']
-    },
-    summary: '大関・大の里が13勝2敗で3度目の優勝。'
+    yushoMakuuchi: { rikishiId: 'onosato', record: '13勝2敗', note: '横綱として優勝' },
+    summary: '横綱・大の里が13勝2敗で優勝。'
   },
   {
     id: '2025-07',
     name: '令和7年 七月場所（名古屋場所）',
-    venue: '愛知県体育館（IGアリーナ）',
+    venue: 'IGアリーナ（愛知）',
     period: '2025年7月13日〜27日',
-    yushoMakuuchi: { rikishiId: 'kotozakura', record: '13勝2敗', note: '2回目の優勝' },
-    sansho: {
-      shukunsho: ['daieisho'],
-      kantosho: ['hakuoho'],
-      ginosho: ['ura']
-    },
-    summary: '大関・琴櫻が2度目の優勝。'
+    yushoMakuuchi: { rikishiId: 'kotoshoho', record: '13勝2敗', note: '平幕初優勝' },
+    summary: '平幕の琴勝峰が13勝2敗で初優勝。平幕優勝は前年春場所の尊富士以来となった。'
   },
   {
     id: '2025-05',
     name: '令和7年 五月場所（夏場所）',
     venue: '両国国技館',
     period: '2025年5月11日〜25日',
-    yushoMakuuchi: { rikishiId: 'onosato', record: '14勝1敗', note: '2回目の優勝' },
-    sansho: {
-      shukunsho: ['wakatakakage'],
-      kantosho: ['atamifuji'],
-      ginosho: ['hakuoho']
-    },
-    summary: '大関・大の里が14勝1敗で2回目の優勝。'
+    yushoMakuuchi: { rikishiId: 'onosato', record: '14勝1敗', note: '横綱昇進を決める' },
+    summary: '大関・大の里が14勝1敗で優勝。2場所連続優勝となり、場所後に第75代横綱へ昇進した。'
   },
   {
     id: '2025-03',
     name: '令和7年 三月場所（春場所）',
     venue: 'エディオンアリーナ大阪',
     period: '2025年3月9日〜23日',
-    yushoMakuuchi: { rikishiId: 'hoshoryu', record: '12勝3敗', note: '横綱昇進後の初場所' },
-    sansho: {
-      shukunsho: ['onosato'],
-      kantosho: ['hiradoumi'],
-      ginosho: ['midorifuji']
-    },
-    summary: '新横綱・豊昇龍が綱取りに成功した翌場所も優勝。'
+    yushoMakuuchi: { rikishiId: 'onosato', record: '12勝3敗', note: '大関として優勝' },
+    summary: '大関・大の里が12勝3敗で優勝。'
   },
   {
     id: '2025-01',
     name: '令和7年 一月場所（初場所）',
     venue: '両国国技館',
     period: '2025年1月12日〜26日',
-    yushoMakuuchi: { rikishiId: 'hoshoryu', record: '12勝3敗', note: '初優勝・横綱昇進決定' },
-    sansho: {
-      shukunsho: ['kinbozan'],
-      kantosho: ['onosato'],
-      ginosho: ['daieisho']
-    },
-    summary: '豊昇龍が初優勝、第74代横綱に昇進。'
+    yushoMakuuchi: { rikishiId: 'hoshoryu', record: '12勝3敗', note: '横綱昇進を決める' },
+    summary: '大関・豊昇龍が12勝3敗で優勝し、場所後に第74代横綱へ昇進した。'
   },
 ];
 

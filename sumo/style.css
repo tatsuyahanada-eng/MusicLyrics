@@ -185,6 +185,16 @@ h2.section-title {
   margin-bottom: 12px;
 }
 
+.banzuke-side {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.banzuke-side > .banzuke-cell {
+  flex: 1;
+}
+
 .banzuke-rank {
   display: flex;
   align-items: center;
@@ -584,28 +594,54 @@ h2.section-title {
 
 @media (max-width: 720px) {
   .site-header-inner {
-    padding: 12px 16px;
+    padding: 10px 14px;
+    gap: 6px 16px;
   }
   .site-title {
     font-size: 18px;
+  }
+  .site-subtitle {
+    display: none;
   }
   .site-nav {
     width: 100%;
     margin-left: 0;
     overflow-x: auto;
     flex-wrap: nowrap;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+  }
+  .site-nav::-webkit-scrollbar {
+    display: none;
   }
   .site-nav a {
     flex-shrink: 0;
+    padding: 6px 12px;
   }
   main {
-    padding: 24px 16px 48px;
+    padding: 20px 14px 48px;
   }
   h1.page-title {
-    font-size: 22px;
+    font-size: 21px;
   }
+  h2.section-title {
+    font-size: 18px;
+  }
+
+  /* 番付を縦積みに */
   .banzuke-row {
     grid-template-columns: 1fr;
+    gap: 6px;
+    margin-bottom: 18px;
+  }
+  .banzuke-rank {
+    order: -1;
+    min-width: 0;
+    width: 100%;
+    padding: 6px 12px;
+    font-size: 15px;
+  }
+  .banzuke-side {
     gap: 6px;
   }
   .banzuke-cell.west {
@@ -614,7 +650,64 @@ h2.section-title {
     border-right: 1px solid var(--color-border);
     border-left: 4px solid var(--color-west);
   }
+
+  /* ツールバーは縦並び・全幅 */
+  .toolbar {
+    gap: 8px;
+  }
+  .toolbar input[type="search"],
+  .toolbar select {
+    width: 100%;
+    min-width: 0;
+  }
+  .result-count {
+    margin-left: 0;
+  }
+
+  /* カードは1列 */
+  .card-grid {
+    grid-template-columns: 1fr;
+    gap: 12px;
+  }
+  .rikishi-mini-list {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  /* 詳細ヘッダ・テーブル */
+  .detail-hero {
+    padding: 18px 18px 18px 22px;
+  }
   .detail-hero .name-large {
-    font-size: 28px;
+    font-size: 26px;
+  }
+  .info-table th,
+  .info-table td {
+    padding: 8px 10px;
+    font-size: 13px;
+  }
+  .info-table th {
+    width: 38%;
+  }
+  .tournament-card {
+    padding: 16px;
+  }
+  .tournament-card .sansho {
+    flex-direction: column;
+    gap: 4px;
+  }
+}
+
+@media (max-width: 400px) {
+  .site-title {
+    font-size: 16px;
+  }
+  .detail-hero .name-large {
+    font-size: 22px;
+  }
+  .rikishi-mini-list {
+    grid-template-columns: 1fr;
+  }
+  .info-table th {
+    width: 42%;
   }
 }

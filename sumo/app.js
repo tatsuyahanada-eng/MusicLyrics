@@ -55,17 +55,18 @@ function renderBanzuke() {
   `;
 
   for (const sy of sanyaku) {
-    const east = RIKISHI.find(r => r.rank === sy.rank && r.side === '東');
-    const west = RIKISHI.find(r => r.rank === sy.rank && r.side === '西');
+    const east = RIKISHI.filter(r => r.rank === sy.rank && r.side === '東');
+    const west = RIKISHI.filter(r => r.rank === sy.rank && r.side === '西');
+    if (!east.length && !west.length) continue;
     html += banzukeRow(east, sy.rank, west, sy.top);
   }
 
   // 前頭
   for (let i = 1; i <= 17; i++) {
     const rank = `前頭${i}`;
-    const east = RIKISHI.find(r => r.rank === rank && r.side === '東');
-    const west = RIKISHI.find(r => r.rank === rank && r.side === '西');
-    if (!east && !west) continue;
+    const east = RIKISHI.filter(r => r.rank === rank && r.side === '東');
+    const west = RIKISHI.filter(r => r.rank === rank && r.side === '西');
+    if (!east.length && !west.length) continue;
     html += banzukeRow(east, rank, west, false);
   }
 
@@ -95,12 +96,18 @@ function renderBanzuke() {
   $app.innerHTML = html;
 }
 
-function banzukeRow(east, rank, west, isTop) {
+function banzukeRow(eastList, rank, westList, isTop) {
+  const eastHtml = eastList.length
+    ? eastList.map(r => banzukeCell(r, 'east')).join('')
+    : '<div class="banzuke-cell banzuke-empty">―</div>';
+  const westHtml = westList.length
+    ? westList.map(r => banzukeCell(r, 'west')).join('')
+    : '<div class="banzuke-cell banzuke-empty">―</div>';
   return `
     <div class="banzuke-row">
-      ${east ? banzukeCell(east, 'east') : '<div class="banzuke-cell banzuke-empty">―</div>'}
+      <div class="banzuke-side">${eastHtml}</div>
       <div class="banzuke-rank ${isTop ? 'top' : ''}">${escapeHtml(rank)}</div>
-      ${west ? banzukeCell(west, 'west') : '<div class="banzuke-cell banzuke-empty">―</div>'}
+      <div class="banzuke-side">${westHtml}</div>
     </div>
   `;
 }
@@ -457,13 +464,13 @@ function renderSansho(sansho) {
     }).join('、');
     return `<span><strong>${label}</strong>${names}</span>`;
   };
-  return `
-    <div class="sansho">
-      ${fmt('殊勲賞', sansho.shukunsho)}
-      ${fmt('敢闘賞', sansho.kantosho)}
-      ${fmt('技能賞', sansho.ginosho)}
-    </div>
-  `;
+  const inner = [
+    fmt('殊勲賞', sansho.shukunsho),
+    fmt('敢闘賞', sansho.kantosho),
+    fmt('技能賞', sansho.ginosho),
+  ].join('');
+  if (!inner) return '';
+  return `<div class="sansho">${inner}</div>`;
 }
 
 // ========== About ==========
