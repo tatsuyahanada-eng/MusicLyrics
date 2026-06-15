@@ -3,14 +3,14 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>J-COM案件 車両移動経費請求書</title>
+  <title>車両移動経費請求書</title>
   <style>
     :root {
       --bg: #eaf2fb;
       --panel: #ffffff;
-      --panel-2: #e6f0f9;
-      --line: #b6cde3;
-      --input-border: #9eb8d4;
+      --panel-2: #e3edf7;
+      --line: #a8c4dd;
+      --input-border: #8aa9c8;
       --text: #1f2b3a;
       --muted: #5e7081;
       --accent: #2f7be0;
@@ -39,7 +39,44 @@
       margin-bottom: 16px;
       box-shadow: 0 1px 4px rgba(31, 99, 192, .07);
     }
-    .panel h2 { font-size: 15px; margin: 0 0 14px; }
+    .panel h2 {
+      font-size: 15px; margin: 0 0 14px;
+      border-left: 3px solid var(--accent); padding-left: 10px;
+      color: var(--accent-d);
+    }
+    .panel.compact { padding: 12px 14px; }
+    .panel.compact h2 { font-size: 14px; margin-bottom: 9px; }
+
+    /* 上部 案件選択バー */
+    .top-bar {
+      display: flex; flex-wrap: wrap; gap: 14px 20px; align-items: end;
+      background: linear-gradient(135deg, #dceafa, #eef5fc);
+      border: 1px solid var(--accent);
+      border-left-width: 4px;
+      border-radius: var(--radius);
+      padding: 12px 16px;
+      margin-bottom: 16px;
+      box-shadow: 0 2px 8px rgba(47, 123, 224, .15);
+    }
+    .top-bar .field { display: flex; flex-direction: column; gap: 3px; }
+    .top-bar label { font-size: 11px; color: var(--accent-d); font-weight: 700; margin: 0; letter-spacing: .02em; }
+    .top-bar select {
+      font-family: inherit; font-size: 14px; padding: 7px 10px;
+      background: #fff; border: 1px solid var(--input-border);
+      border-radius: 6px; color: var(--text); min-width: 170px;
+    }
+    .top-bar .price-bar { display: flex; align-items: center; gap: 8px; }
+    .top-bar .price-bar input {
+      width: 78px; padding: 7px 9px; font-size: 14px; text-align: right;
+      background: #fff; border: 1px solid var(--input-border); border-radius: 6px;
+      font-variant-numeric: tabular-nums;
+    }
+    .top-bar .price-bar .u { font-size: 13px; color: var(--muted); }
+    .top-bar .case-tag {
+      background: var(--accent); color: #fff; font-size: 11px; font-weight: 700;
+      padding: 3px 10px; border-radius: 20px; letter-spacing: .03em;
+      white-space: nowrap;
+    }
 
     label { font-size: 13px; color: var(--muted); display: block; margin-bottom: 4px; }
     input {
@@ -57,11 +94,11 @@
     input.num { text-align: right; font-variant-numeric: tabular-nums; }
     input::placeholder { color: #b3c0cf; }
 
-    .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px 16px; }
-    .grid2 .full { grid-column: 1 / -1; }
-    .grid2 label { font-size: 12px; margin-bottom: 3px; }
-    .grid2 input { font-size: 13px; padding: 7px 9px; }
-    @media (max-width: 620px) { .grid2 { grid-template-columns: 1fr; } }
+    .grid3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 7px 12px; }
+    .grid3 .full { grid-column: 1 / -1; }
+    .grid3 label { font-size: 11px; margin-bottom: 2px; }
+    .grid3 input { font-size: 13px; padding: 6px 8px; }
+    @media (max-width: 620px) { .grid3 { grid-template-columns: 1fr; } }
 
     .visit-row { display: grid; grid-template-columns: 70px 1fr; gap: 8px; align-items: center; margin-bottom: 8px; }
     .visit-row .vlabel { font-size: 13px; color: var(--muted); }
@@ -118,14 +155,34 @@
 <body>
   <div class="wrap">
     <header>
-      <h1>J-COM案件 車両移動経費請求書</h1>
+      <h1>車両移動経費請求書</h1>
       <p>基点から各訪問先への移動経費（ガソリン代・有料道路・駐車場）を入力し、請求総額を計算します。</p>
     </header>
 
+    <!-- 上部：案件選択 + 距離単価 -->
+    <section class="top-bar">
+      <div class="field">
+        <label for="caseSelect">案件</label>
+        <select id="caseSelect">
+          <option value="JCOM">JCOM</option>
+          <option value="リテイルオンサイト">リテイルオンサイト</option>
+          <option value="その他">その他</option>
+        </select>
+      </div>
+      <div class="field">
+        <label for="unitPrice">距離単価</label>
+        <div class="price-bar">
+          <input id="unitPrice" type="number" min="0" step="1" value="14">
+          <span class="u">円/km</span>
+          <span class="case-tag" id="caseTag">JCOM</span>
+        </div>
+      </div>
+    </section>
+
     <!-- 基本情報 -->
-    <section class="panel">
+    <section class="panel compact">
       <h2>基本情報</h2>
-      <div class="grid2">
+      <div class="grid3">
         <div>
           <label for="workDate">稼働日</label>
           <input id="workDate" type="date">
@@ -138,10 +195,6 @@
           <label for="staffId">スタッフID</label>
           <input id="staffId" type="text" placeholder="省略可">
         </div>
-        <div>
-          <label for="unitPrice">距離単価（円/km）</label>
-          <input id="unitPrice" class="num" type="number" min="0" step="1" value="14">
-        </div>
         <div class="full">
           <label for="baseAddr">基点住所</label>
           <input id="baseAddr" type="text">
@@ -151,8 +204,10 @@
 
     <!-- 訪問先 -->
     <section class="panel">
-      <h2>訪問先（最大7件）</h2>
+      <h2>訪問先（既定5件・最大7件まで追加可）</h2>
       <div id="visits"></div>
+      <button id="addVisit" class="btn btn-outline btn-sm" type="button" style="margin-bottom:10px;">＋ 訪問先を追加</button>
+      <br>
       <button id="autoDist" class="btn btn-cta" type="button"><span class="ico" aria-hidden="true">📍</span>住所から総移動距離を自動計算</button>
       <div id="geoStatus" class="geo-status"></div>
       <div id="legResult" class="leg-result"></div>
@@ -211,19 +266,40 @@
   </div>
 
   <script>
-    const VISITS = 7;
+    const VISITS_DEFAULT = 5;
+    const VISITS_MAX = 7;
     const PARK_ROWS = 5;
     const TOLL_LEGS = ['基点→1','1→2','2→3','3→4','4→5'];
+    const CASE_PRICES = { 'JCOM': 14, 'リテイルオンサイト': 16, 'その他': 14 };
 
-    // 訪問先入力
+    // 案件セレクト → 距離単価を更新
+    const caseSelect = document.getElementById('caseSelect');
+    const caseTag = document.getElementById('caseTag');
+    const unitPriceEl = document.getElementById('unitPrice');
+    caseSelect.addEventListener('change', () => {
+      const c = caseSelect.value;
+      unitPriceEl.value = CASE_PRICES[c];
+      caseTag.textContent = c;
+      recalc();
+    });
+
+    // 訪問先入力（動的追加）
     const visitsEl = document.getElementById('visits');
-    for (let i = 1; i <= VISITS; i++) {
+    const addVisitBtn = document.getElementById('addVisit');
+    let visitCount = 0;
+    function addVisitRow() {
+      if (visitCount >= VISITS_MAX) return;
+      visitCount++;
       const row = document.createElement('div');
       row.className = 'visit-row';
-      row.innerHTML = `<span class="vlabel">訪問先${i}</span>`
-        + `<input type="text" class="visit-addr" data-i="${i}" placeholder="住所・場所名（空白可）" autocomplete="off">`;
+      row.innerHTML = `<span class="vlabel">訪問先${visitCount}</span>`
+        + `<input type="text" class="visit-addr" data-i="${visitCount}" placeholder="住所・場所名（空白可）" autocomplete="off">`;
       visitsEl.appendChild(row);
+      addVisitBtn.disabled = visitCount >= VISITS_MAX;
+      if (visitCount >= VISITS_MAX) addVisitBtn.textContent = `（最大${VISITS_MAX}件）`;
     }
+    addVisitBtn.addEventListener('click', addVisitRow);
+    for (let i = 0; i < VISITS_DEFAULT; i++) addVisitRow();
 
     // ルート（有料道路）テーブル
     const tollBody = document.querySelector('#tollTable tbody');
@@ -393,7 +469,7 @@
       const km = parseFloat(document.getElementById('totalKm').value) || 0;
       const val = id => document.getElementById(id).value.trim();
 
-      add('B1', 's', 'J-COM案件_車両移動経費請求書');
+      add('B1', 's', `${caseSelect.value}_車両移動経費請求書`);
       add('B2', 's', '稼働日'); txt('C2', val('workDate'));
       add('B3', 's', '管理番号'); txt('C3', val('mngNo'));
       add('N3', 'n', price);
@@ -548,7 +624,7 @@
       const date = document.getElementById('workDate').value || '';
       const a = document.createElement('a');
       a.href = URL.createObjectURL(blob);
-      a.download = `J-COM車両移動経費請求書${date ? '_' + date : ''}.xlsx`;
+      a.download = `車両移動経費請求書_${caseSelect.value}${date ? '_' + date : ''}.xlsx`;
       document.body.appendChild(a); a.click(); a.remove();
       URL.revokeObjectURL(a.href);
     });
