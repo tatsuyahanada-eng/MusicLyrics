@@ -72,8 +72,8 @@ function renderBanzuke() {
   `;
 
   for (const sy of sanyaku) {
-    const east = RIKISHI.filter(r => r.rank === sy.rank && r.side === '東');
-    const west = RIKISHI.filter(r => r.rank === sy.rank && r.side === '西');
+    const east = RIKISHI.filter(r => !r.retired && r.rank === sy.rank && r.side === '東');
+    const west = RIKISHI.filter(r => !r.retired && r.rank === sy.rank && r.side === '西');
     if (!east.length && !west.length) continue;
     html += banzukeRow(east, sy.rank, west, sy.top);
   }
@@ -81,8 +81,8 @@ function renderBanzuke() {
   // 前頭
   for (let i = 1; i <= 17; i++) {
     const rank = `前頭${i}`;
-    const east = RIKISHI.filter(r => r.rank === rank && r.side === '東');
-    const west = RIKISHI.filter(r => r.rank === rank && r.side === '西');
+    const east = RIKISHI.filter(r => !r.retired && r.rank === rank && r.side === '東');
+    const west = RIKISHI.filter(r => !r.retired && r.rank === rank && r.side === '西');
     if (!east.length && !west.length) continue;
     html += banzukeRow(east, rank, west, false);
   }
@@ -211,6 +211,7 @@ function renderRikishiList() {
 function renderRikishiGrid() {
   const q = rikishiFilter.q.toLowerCase();
   const list = sortByRank(RIKISHI.filter(r => {
+    if (r.retired) return false;
     if (rikishiFilter.rank && r.rank !== rikishiFilter.rank) return false;
     if (rikishiFilter.stable && r.stableId !== rikishiFilter.stable) return false;
     if (rikishiFilter.birthCountry && r.birthplaceCountry !== rikishiFilter.birthCountry) return false;

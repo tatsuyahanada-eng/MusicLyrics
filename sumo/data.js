@@ -801,6 +801,7 @@ const RIKISHI = [
     nameKana: 'みょうぎりゅう',
     nameRomaji: 'Myogiryu Yasunari',
     realName: '宮本泰成',
+    retired: true,
     rank: '前頭9',
     rankNum: 5,
     side: '東',
@@ -816,7 +817,7 @@ const RIKISHI = [
     sansho: { shukunsho: 1, kantosho: 1, ginosho: 4 },
     kinboshi: 4,
     favoriteKimarite: ['押し出し', '突き押し', 'おっつけ'],
-    profile: '日本体育大学出身。テクニックある押し相撲が持ち味。'
+    profile: '日本体育大学出身。テクニックある押し相撲が持ち味。2024年9月場所後に引退。'
   },
   {
     id: 'ichiyamamoto',
