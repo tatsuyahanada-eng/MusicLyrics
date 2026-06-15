@@ -153,7 +153,15 @@ function renderRikishiList() {
   const countryOpts = countries
     .map(c => `<option value="${c}">${escapeHtml(c)}</option>`)
     .join('');
-  const ranks = [...new Set(RIKISHI.map(r => r.rank))];
+  const rankDropOrder = r => {
+    if (r === '横綱') return 1;
+    if (r === '大関') return 2;
+    if (r === '関脇') return 3;
+    if (r === '小結') return 4;
+    const m = r.match(/前頭(\d+)/);
+    return m ? 5000 + parseInt(m[1], 10) : 9999;
+  };
+  const ranks = [...new Set(RIKISHI.map(r => r.rank))].sort((a, b) => rankDropOrder(a) - rankDropOrder(b));
   const rankOpts = ranks
     .map(r => `<option value="${r}">${escapeHtml(r)}</option>`)
     .join('');
@@ -646,8 +654,31 @@ function setFooterMeta() {
   }
 }
 
+// 番付更新通知（前回訪問時より lastUpdated が変わっていたらバナーを表示）
+function checkForUpdate() {
+  const KEY = 'sumo_banzuke_seen';
+  const current = (SITE_META && SITE_META.lastUpdated) || '';
+  if (!current) return;
+  const seen = localStorage.getItem(KEY);
+  if (seen && seen !== current) {
+    const banner = document.createElement('div');
+    banner.className = 'update-banner';
+    const msg = document.createElement('span');
+    msg.textContent = `番付データが更新されました（${current} / ${SITE_META.dataAsOf}）`;
+    const btn = document.createElement('button');
+    btn.textContent = '閉じる';
+    btn.addEventListener('click', () => banner.remove());
+    banner.appendChild(msg);
+    banner.appendChild(btn);
+    const app = document.getElementById('app');
+    app.parentNode.insertBefore(banner, app);
+  }
+  localStorage.setItem(KEY, current);
+}
+
 window.addEventListener('hashchange', route);
 window.addEventListener('DOMContentLoaded', () => {
   setFooterMeta();
+  checkForUpdate();
   route();
 });

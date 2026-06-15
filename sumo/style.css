@@ -636,6 +636,35 @@ code {
   color: var(--color-accent-dark);
 }
 
+/* ===== Update Banner ===== */
+.update-banner {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+  background: #1c5b8a;
+  color: #fff;
+  padding: 10px 20px;
+  font-size: 14px;
+  font-weight: 600;
+  flex-wrap: wrap;
+}
+
+.update-banner button {
+  background: rgba(255, 255, 255, 0.2);
+  border: 1px solid rgba(255, 255, 255, 0.4);
+  color: #fff;
+  padding: 3px 14px;
+  border-radius: var(--radius);
+  cursor: pointer;
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+.update-banner button:hover {
+  background: rgba(255, 255, 255, 0.35);
+}
+
 /* ===== Footer ===== */
 .site-footer {
   background: #1f1a17;
