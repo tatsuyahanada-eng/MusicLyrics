@@ -264,7 +264,7 @@ button { font-family: inherit; cursor: pointer; }
 </head>
 <body>
 
-<div id="buildBanner">📦 OESタスク管理 build v12 (2026-06-09) — 完了確定ロック追加</div>
+<div id="buildBanner">📦 OESタスク管理 build v13 (2026-06-16) — サンプル店舗を飲食3チェーンに変更</div>
 
 <!-- ===== Login screen ===== -->
 <div id="loginScreen" class="oes-login" hidden>
@@ -478,7 +478,7 @@ button { font-family: inherit; cursor: pointer; }
 <script>
 (function () {
   'use strict';
-  const APP_VERSION = 'v12 (2026-06-09, completion lock)';
+  const APP_VERSION = 'v13 (2026-06-16, sample stores: すき家/オリーブの丘/華屋与兵衛)';
   console.log('[OES] script loaded:', APP_VERSION);
 
   window.addEventListener('error', e => showError('JSエラー: ' + e.message + ' @ ' + e.filename + ':' + e.lineno));
@@ -495,7 +495,7 @@ button { font-family: inherit; cursor: pointer; }
     { id: 'S004', name: '高橋 健太', role: '九州エリア' },
     { id: 'S005', name: '渡辺 美咲', role: '東北エリア' },
   ];
-  const STORE_TPL = ['セブンイレブン {city}{branch}店','ファミリーマート {city}{branch}店','ローソン {city}{branch}店','ミニストップ {city}{branch}店','デイリーヤマザキ {city}{branch}店'];
+  const STORE_TPL = ['すき家 {city}{branch}店','オリーブの丘 {city}{branch}店','華屋与兵衛 {city}{branch}店'];
   const REGIONS = {
     S001: { pref: '東京都', cities: ['渋谷区','新宿区','世田谷区','練馬区','杉並区','中野区','品川区','目黒区'] },
     S003: { pref: '愛知県', cities: ['中区','東区','豊田市','岡崎市','春日井市','一宮市'] },
