@@ -4,7 +4,7 @@
 
 const SITE_META = {
   // ▼ データを更新したら、この最終更新日も書き換えてください（表示に使われます）
-  lastUpdated: '2026-06-14',
+  lastUpdated: '2026-06-16',
   dataAsOf: '令和8年（2026年）五月場所（夏場所）後',
   note: '番付・優勝歴などの主要情報は公開情報をもとに精査していますが、前頭の枚数順や通算成績の細部は概算を含みます。正確な最新情報は日本相撲協会公式サイトをご確認ください。',
 };
@@ -686,6 +686,7 @@ const RIKISHI = [
     nameKana: 'ほくとふじ',
     nameRomaji: 'Hokutofuji Daiki',
     realName: '中村大輝',
+    retired: true,
     rank: '前頭6',
     rankNum: 5,
     side: '西',
@@ -701,7 +702,7 @@ const RIKISHI = [
     sansho: { shukunsho: 1, kantosho: 1, ginosho: 1 },
     kinboshi: 4,
     favoriteKimarite: ['押し出し', '突き出し'],
-    profile: '日本大学出身。鋭い立ち合いと押し相撲が持ち味。'
+    profile: '日本大学出身。鋭い立ち合いと押し相撲が持ち味。2025年夏場所限りで引退し、大山親方を襲名。'
   },
   {
     id: 'nishikigi',
@@ -755,6 +756,7 @@ const RIKISHI = [
     nameKana: 'えんどう',
     nameRomaji: 'Endo Shota',
     realName: '遠藤聖大',
+    retired: true,
     rank: '前頭8',
     rankNum: 5,
     side: '東',
@@ -770,7 +772,7 @@ const RIKISHI = [
     sansho: { shukunsho: 2, kantosho: 3, ginosho: 2 },
     kinboshi: 4,
     favoriteKimarite: ['右四つ', '寄り切り', '上手投げ'],
-    profile: '日本大学出身。端正な顔立ちで人気の力士。技巧派の相撲。'
+    profile: '日本大学出身。端正な顔立ちで人気の力士。技巧派の相撲。両膝の手術を経て2025年11月に引退、北陣親方を襲名。'
   },
   {
     id: 'takanosho',
@@ -781,7 +783,7 @@ const RIKISHI = [
     rank: '前頭8',
     rankNum: 5,
     side: '西',
-    stableId: 'tokiwayama',
+    stableId: 'minatogawa',
     birthplace: '千葉県柏市',
     birthplaceCountry: '日本',
     birthdate: '1994-07-14',
@@ -793,7 +795,7 @@ const RIKISHI = [
     sansho: { shukunsho: 1, kantosho: 1, ginosho: 0 },
     kinboshi: 1,
     favoriteKimarite: ['押し出し', '突き出し'],
-    profile: '常盤山部屋所属。鋭い突き押しが武器。'
+    profile: '元・常盤山部屋所属。2026年初場所後、師匠交代に伴い部屋名が「湊川部屋」に改称された。鋭い突き押しが武器。'
   },
   {
     id: 'myogiryu',
@@ -1120,14 +1122,14 @@ STABLES.push(
     description: '玉鷲、玉ノ井（玉鷲）など玉の四股名を継ぐ部屋。'
   },
   {
-    id: 'tokiwayama',
-    name: '常盤山部屋',
-    nameRomaji: 'Tokiwayama-beya',
+    id: 'minatogawa',
+    name: '湊川部屋',
+    nameRomaji: 'Minatogawa-beya',
     ichimon: '出羽海一門',
     location: '東京都江東区東陽',
-    master: '常盤山親方（元小結・隆三杉）',
-    established: '2014年',
-    description: '隆の勝などを抱える比較的新しい部屋。'
+    master: '湊川親方（元大関・貴景勝）',
+    established: '2014年（旧・常盤山部屋を継承）',
+    description: '2014年に元小結・隆三杉が「常盤山部屋」として創設。2026年初場所後に元大関・貴景勝が継承し「湊川部屋」へ改称。隆の勝などを抱える。'
   },
   {
     id: 'ajigawa',
