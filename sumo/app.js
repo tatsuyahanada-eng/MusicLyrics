@@ -56,6 +56,41 @@ function countryBadge(rikishi) {
   return '';
 }
 
+// ========== 次回番付発表のお知らせ ==========
+function nextBanzukeNoticeHtml() {
+  if (typeof BANZUKE_SCHEDULE === 'undefined' || !BANZUKE_SCHEDULE.length) return '';
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const upcoming = BANZUKE_SCHEDULE
+    .filter(b => !b.banzukeAnnounced)
+    .map(b => ({ ...b, dateObj: new Date(b.banzukeDate) }))
+    .sort((a, b) => a.dateObj - b.dateObj)[0];
+  if (!upcoming) return '';
+  const diff = Math.ceil((upcoming.dateObj - today) / (24 * 3600 * 1000));
+  const formatted = formatJaDate(upcoming.banzukeDate);
+  let countdown;
+  if (diff > 0) countdown = `あと ${diff} 日`;
+  else if (diff === 0) countdown = '本日発表';
+  else countdown = `${-diff} 日前に発表済み（データ更新待ち）`;
+  return `
+    <div class="banzuke-notice">
+      <div class="banzuke-notice-label">次回 番付発表</div>
+      <div class="banzuke-notice-main">
+        <span class="banzuke-notice-date">${escapeHtml(formatted)}</span>
+        <span class="banzuke-notice-countdown">${escapeHtml(countdown)}</span>
+      </div>
+      <div class="banzuke-notice-sub">${escapeHtml(upcoming.name)}（${escapeHtml(upcoming.basho)}／${escapeHtml(upcoming.venue)}）</div>
+    </div>
+  `;
+}
+
+function formatJaDate(ymd) {
+  const d = new Date(ymd);
+  if (isNaN(d)) return ymd;
+  const days = ['日', '月', '火', '水', '木', '金', '土'];
+  return `${d.getFullYear()}年${d.getMonth() + 1}月${d.getDate()}日（${days[d.getDay()]}）`;
+}
+
 // ========== Top（番付）==========
 function renderBanzuke() {
   const sanyaku = [
@@ -68,6 +103,7 @@ function renderBanzuke() {
   let html = `
     <h1 class="page-title">現在の番付（幕内）</h1>
     <p class="lead">${escapeHtml(SITE_META.dataAsOf)}時点の幕内番付です。</p>
+    ${nextBanzukeNoticeHtml()}
     <div class="banzuke-section">
   `;
 
@@ -607,6 +643,185 @@ function renderAbout() {
   `;
 }
 
+// ========== 番付編集（画面から編集→data.jsをダウンロード）==========
+const RANK_OPTIONS = (() => {
+  const opts = ['横綱', '大関', '関脇', '小結'];
+  for (let i = 1; i <= 17; i++) opts.push(`前頭${i}`);
+  opts.push('十両以下'); // 幕内から外れた場合の選択肢
+  return opts;
+})();
+
+// 編集状態（メモリ上）。{rikishiId: {rank, side, retired}}
+let banzukeEdits = {};
+
+function renderEdit() {
+  // RIKISHI を rank 順にソートして表示
+  const sorted = sortByRank(RIKISHI);
+  banzukeEdits = {};
+  sorted.forEach(r => {
+    banzukeEdits[r.id] = { rank: r.rank, side: r.side, retired: !!r.retired };
+  });
+
+  $app.innerHTML = `
+    <h1 class="page-title">番付エディタ</h1>
+    <p class="lead">
+      画面上で番付を編集して、最新の <code>data.js</code> をダウンロードできます。
+      ダウンロードしたファイルを <code>sumo/data.js</code> として上書きアップロード（FTP）するだけで、サイトに反映されます。
+    </p>
+    <div class="edit-toolbar">
+      <label>
+        データ最終更新日:
+        <input type="date" id="edit-lastUpdated" value="${escapeHtml(SITE_META.lastUpdated || '')}">
+      </label>
+      <label>
+        収録時点の説明:
+        <input type="text" id="edit-dataAsOf" value="${escapeHtml(SITE_META.dataAsOf || '')}" size="40">
+      </label>
+      <button id="edit-download" class="primary">data.js をダウンロード</button>
+    </div>
+    <p class="edit-hint">
+      ヒント：階級を「十両以下」にすると番付から外れます（プロフィールは残ります）。引退チェックを入れると番付・力士一覧から除外されます。
+    </p>
+    <div class="edit-table-wrapper">
+      <table class="edit-table">
+        <thead>
+          <tr>
+            <th>四股名</th>
+            <th>所属部屋</th>
+            <th>階級</th>
+            <th>東/西</th>
+            <th>引退</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${sorted.map(r => {
+            const stable = getStableById(r.stableId);
+            return `
+              <tr data-id="${escapeHtml(r.id)}">
+                <td class="edit-name">${escapeHtml(r.name)}<span class="edit-id">${escapeHtml(r.id)}</span></td>
+                <td class="edit-stable">${stable ? escapeHtml(stable.name) : '―'}</td>
+                <td>
+                  <select class="edit-rank">
+                    ${RANK_OPTIONS.map(o => `<option value="${escapeHtml(o)}"${o === r.rank ? ' selected' : ''}>${escapeHtml(o)}</option>`).join('')}
+                  </select>
+                </td>
+                <td>
+                  <select class="edit-side">
+                    <option value="東"${r.side === '東' ? ' selected' : ''}>東</option>
+                    <option value="西"${r.side === '西' ? ' selected' : ''}>西</option>
+                  </select>
+                </td>
+                <td class="edit-retired-cell">
+                  <input type="checkbox" class="edit-retired"${r.retired ? ' checked' : ''}>
+                </td>
+              </tr>
+            `;
+          }).join('')}
+        </tbody>
+      </table>
+    </div>
+  `;
+
+  // 値の収集
+  $app.querySelectorAll('tr[data-id]').forEach(tr => {
+    const id = tr.dataset.id;
+    const rankSel = tr.querySelector('.edit-rank');
+    const sideSel = tr.querySelector('.edit-side');
+    const retChk = tr.querySelector('.edit-retired');
+    const sync = () => {
+      banzukeEdits[id] = { rank: rankSel.value, side: sideSel.value, retired: retChk.checked };
+    };
+    rankSel.addEventListener('change', sync);
+    sideSel.addEventListener('change', sync);
+    retChk.addEventListener('change', sync);
+  });
+
+  document.getElementById('edit-download').addEventListener('click', () => downloadUpdatedDataJs());
+}
+
+function downloadUpdatedDataJs() {
+  // 元の data.js テキストを fetch して、編集箇所だけ書き換える
+  fetch('data.js')
+    .then(res => res.text())
+    .then(src => {
+      let updated = src;
+      const newLastUpdated = document.getElementById('edit-lastUpdated').value;
+      const newDataAsOf = document.getElementById('edit-dataAsOf').value;
+
+      // SITE_META.lastUpdated と dataAsOf を書き換え
+      if (newLastUpdated) {
+        updated = updated.replace(/lastUpdated:\s*'[^']*'/, `lastUpdated: '${newLastUpdated}'`);
+      }
+      if (newDataAsOf) {
+        updated = updated.replace(/dataAsOf:\s*'[^']*'/, `dataAsOf: '${newDataAsOf.replace(/'/g, "\\'")}'`);
+      }
+
+      // 各力士の rank / side / retired を書き換え
+      let errors = [];
+      Object.keys(banzukeEdits).forEach(id => {
+        const edit = banzukeEdits[id];
+        const result = applyRikishiEdit(updated, id, edit);
+        if (result.error) errors.push(`${id}: ${result.error}`);
+        else updated = result.text;
+      });
+
+      if (errors.length) {
+        alert('一部の力士で書き換えに失敗しました:\n' + errors.join('\n'));
+      }
+
+      // ダウンロード
+      const blob = new Blob([updated], { type: 'application/javascript;charset=utf-8' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'data.js';
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    })
+    .catch(err => alert('data.js の読み込みに失敗しました: ' + err.message));
+}
+
+// 1名分の rank/side/retired を書き換える
+function applyRikishiEdit(text, id, edit) {
+  // RIKISHI 内の対象オブジェクト範囲を特定
+  const idMarker = `id: '${id}'`;
+  const idx = text.indexOf(idMarker);
+  if (idx < 0) return { error: 'idが見つかりません' };
+  // オブジェクトの開始 { と終端 }, を探す
+  let braceStart = text.lastIndexOf('{', idx);
+  if (braceStart < 0) return { error: 'オブジェクト開始が見つかりません' };
+  let depth = 0;
+  let i = braceStart;
+  for (; i < text.length; i++) {
+    if (text[i] === '{') depth++;
+    else if (text[i] === '}') { depth--; if (depth === 0) break; }
+  }
+  if (depth !== 0) return { error: 'オブジェクト終端が見つかりません' };
+  let objText = text.slice(braceStart, i + 1);
+
+  // rank
+  if (/rank:\s*'[^']*'/.test(objText)) {
+    objText = objText.replace(/rank:\s*'[^']*'/, `rank: '${edit.rank}'`);
+  }
+  // side
+  if (/side:\s*'[^']*'/.test(objText)) {
+    objText = objText.replace(/side:\s*'[^']*'/, `side: '${edit.side}'`);
+  }
+  // retired (既存の場合は更新、ない場合は realName の直後に挿入)
+  if (/retired:\s*(true|false)/.test(objText)) {
+    objText = objText.replace(/retired:\s*(true|false)/, `retired: ${edit.retired ? 'true' : 'false'}`);
+  } else if (edit.retired) {
+    // realName 行 or rank 行の直前に挿入
+    const insertMatch = objText.match(/(\n\s*)rank:/);
+    if (insertMatch) {
+      objText = objText.replace(insertMatch[0], `${insertMatch[1]}retired: true,${insertMatch[0]}`);
+    }
+  }
+  return { text: text.slice(0, braceStart) + objText + text.slice(i + 1) };
+}
+
 function render404() {
   $app.innerHTML = `
     <div class="empty-state">
@@ -626,6 +841,7 @@ const routes = [
   { match: /^#\/tournaments\/?$/, render: renderTournaments, nav: 'tournaments' },
   { match: /^#\/jungyo\/?$/, render: renderJungyo, nav: 'jungyo' },
   { match: /^#\/about\/?$/, render: renderAbout, nav: 'about' },
+  { match: /^#\/edit\/?$/, render: renderEdit, nav: 'edit' },
 ];
 
 function route() {

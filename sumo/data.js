@@ -9,6 +9,15 @@ const SITE_META = {
   note: '番付・優勝歴などの主要情報は公開情報をもとに精査していますが、前頭の枚数順や通算成績の細部は概算を含みます。正確な最新情報は日本相撲協会公式サイトをご確認ください。',
 };
 
+// 番付発表・本場所スケジュール（最新の情報は日本相撲協会公式で確認）
+// 番付発表日が過ぎたものは banzukeAnnounced を true にしてください（表示が切り替わります）
+const BANZUKE_SCHEDULE = [
+  { id: '2026-07', name: '令和8年 七月場所（名古屋場所）', banzukeDate: '2026-06-29', basho: '2026-07-12〜26', venue: 'IGアリーナ（愛知）', banzukeAnnounced: false },
+  { id: '2026-09', name: '令和8年 九月場所（秋場所）', banzukeDate: '2026-08-31', basho: '2026-09-13〜27', venue: '両国国技館（東京）', banzukeAnnounced: false },
+  { id: '2026-11', name: '令和8年 十一月場所（九州場所）', banzukeDate: '2026-10-26', basho: '2026-11-08〜22', venue: '福岡国際センター', banzukeAnnounced: false },
+  { id: '2027-01', name: '令和9年 一月場所（初場所）', banzukeDate: '2026-12-21', basho: '2027-01-10〜24', venue: '両国国技館（東京）', banzukeAnnounced: false },
+];
+
 const STABLES = [
   {
     id: 'isegahama',
