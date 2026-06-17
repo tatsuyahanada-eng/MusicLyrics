@@ -9,6 +9,9 @@ on:
       - '.github/workflows/build-apk.yml'
   workflow_dispatch: {}
 
+permissions:
+  contents: write
+
 jobs:
   build-apk:
     runs-on: ubuntu-latest
@@ -49,3 +52,19 @@ jobs:
           name: fx-signal-debug-apk
           path: fx_signal_app/build/app/outputs/flutter-apk/app-debug.apk
           if-no-files-found: error
+
+      - name: Rename APK
+        run: cp build/app/outputs/flutter-apk/app-debug.apk build/app/outputs/flutter-apk/fx-signal.apk
+
+      - name: Publish APK to a Release (no login needed to download)
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: apk-latest
+          name: FXシグナル 最新APK
+          body: |
+            最新のデバッグAPKです。下の `fx-signal.apk` をタップしてダウンロードし、
+            Android端末でインストールしてください（「不明なアプリのインストール」を許可）。
+
+            コミット: ${{ github.sha }}
+          files: fx_signal_app/build/app/outputs/flutter-apk/fx-signal.apk
+          make_latest: true
