@@ -1,0 +1,16 @@
+# --- Basic 認証（特定ユーザーのみアクセス許可） ---
+AuthType Basic
+AuthName "Restricted Area - Please log in"
+
+# ↓ サーバー上の .htpasswd の「絶対パス」に必ず書き換えてください。
+#   例(さくら): /home/アカウント名/www/.htpasswd
+#   例(Xserver): /home/アカウント名/ドメイン/public_html/.htpasswd
+#   絶対パスが分からない場合は、コントロールパネルやFTPのフルパスを確認してください。
+AuthUserFile /path/to/your/webroot/.htpasswd
+
+Require valid-user
+
+# --- .htpasswd / .htaccess 自体への直接アクセスを禁止 ---
+<FilesMatch "^\.ht">
+    Require all denied
+</FilesMatch>
