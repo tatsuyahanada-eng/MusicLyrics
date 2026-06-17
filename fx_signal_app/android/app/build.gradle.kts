@@ -27,11 +27,23 @@ android {
         multiDexEnabled = true
     }
 
+    signingConfigs {
+        // 固定の署名鍵。毎回同じ鍵で署名されるため、APKを「上書きインストール」で
+        // 更新できる（アンインストール不要）。個人利用向けの簡易設定。
+        create("fxsignal") {
+            storeFile = file("fxsignal-keystore.jks")
+            storePassword = "fxsignal123"
+            keyAlias = "fxsignal"
+            keyPassword = "fxsignal123"
+        }
+    }
+
     buildTypes {
         release {
-            // TODO: Add your own signing config for the release build.
-            // Signing with the debug keys for now, so `flutter run --release` works.
-            signingConfig = signingConfigs.getByName("debug")
+            signingConfig = signingConfigs.getByName("fxsignal")
+        }
+        debug {
+            signingConfig = signingConfigs.getByName("fxsignal")
         }
     }
 }

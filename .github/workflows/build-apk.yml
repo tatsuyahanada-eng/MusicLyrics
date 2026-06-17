@@ -43,18 +43,20 @@ jobs:
       - name: Run tests
         run: flutter test
 
-      - name: Build debug APK
-        run: flutter build apk --debug
+      - name: Build release APK
+        # 固定鍵で署名されたリリースAPK。versionCode を run番号で自動採番し、
+        # 常に増加させることで上書き更新を確実にする。
+        run: flutter build apk --release --build-number=${{ github.run_number }}
+
+      - name: Rename APK
+        run: cp build/app/outputs/flutter-apk/app-release.apk build/app/outputs/flutter-apk/fx-signal.apk
 
       - name: Upload APK artifact
         uses: actions/upload-artifact@v4
         with:
-          name: fx-signal-debug-apk
-          path: fx_signal_app/build/app/outputs/flutter-apk/app-debug.apk
+          name: fx-signal-apk
+          path: fx_signal_app/build/app/outputs/flutter-apk/fx-signal.apk
           if-no-files-found: error
-
-      - name: Rename APK
-        run: cp build/app/outputs/flutter-apk/app-debug.apk build/app/outputs/flutter-apk/fx-signal.apk
 
       - name: Publish APK to a Release (no login needed to download)
         uses: softprops/action-gh-release@v2
@@ -62,9 +64,10 @@ jobs:
           tag_name: apk-latest
           name: FXシグナル 最新APK
           body: |
-            最新のデバッグAPKです。下の `fx-signal.apk` をタップしてダウンロードし、
+            最新のAPKです。下の `fx-signal.apk` をタップしてダウンロードし、
             Android端末でインストールしてください（「不明なアプリのインストール」を許可）。
+            固定鍵で署名しているため、既存アプリに上書きインストールで更新できます。
 
-            コミット: ${{ github.sha }}
+            コミット: ${{ github.sha }} / ビルド番号: ${{ github.run_number }}
           files: fx_signal_app/build/app/outputs/flutter-apk/fx-signal.apk
           make_latest: true

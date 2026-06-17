@@ -23,8 +23,24 @@ class FxApp extends StatelessWidget {
       title: 'FXシグナル',
       debugShowCheckedModeBanner: false,
       theme: ThemeData(
-        colorSchemeSeed: Colors.indigo,
+        colorSchemeSeed: const Color(0xFF3A5BD9),
         useMaterial3: true,
+        scaffoldBackgroundColor: const Color(0xFFF7F8FC),
+        appBarTheme: const AppBarTheme(
+          backgroundColor: Color(0xFF3A5BD9),
+          foregroundColor: Colors.white,
+          elevation: 0,
+          centerTitle: false,
+          titleTextStyle: TextStyle(
+            color: Colors.white,
+            fontSize: 20,
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+        navigationBarTheme: NavigationBarThemeData(
+          backgroundColor: Colors.white,
+          indicatorColor: const Color(0xFF3A5BD9).withValues(alpha: 0.15),
+        ),
       ),
       home: const HomeShell(),
     );

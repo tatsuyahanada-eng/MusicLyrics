@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../application/providers.dart';
 import '../../domain/entities/candle.dart';
 import '../../domain/entities/signal.dart';
+import '../ui_colors.dart';
 
 class PairDetailScreen extends ConsumerWidget {
   final String symbol;
@@ -20,23 +21,59 @@ class PairDetailScreen extends ConsumerWidget {
         error: (e, _) => Center(child: Text('取得エラー: $e')),
         data: (v) {
           final e = v.evaluation;
+          final color = trendColor(e.trend);
           return ListView(
             padding: const EdgeInsets.all(16),
             children: [
-              _chart(v.candles),
-              const SizedBox(height: 16),
-              _StatRow(label: 'トレンド', value: '${e.trend.arrow} ${e.trend.jp}'),
-              _StatRow(
-                  label: '現在値', value: e.lastClose?.toStringAsFixed(3) ?? '-'),
-              _StatRow(
-                  label: 'SMA短期', value: e.smaShort?.toStringAsFixed(3) ?? '-'),
-              _StatRow(
-                  label: 'SMA長期', value: e.smaLong?.toStringAsFixed(3) ?? '-'),
-              _StatRow(label: 'RSI', value: e.rsi?.toStringAsFixed(1) ?? '-'),
-              _StatRow(
-                  label: 'MACDヒスト',
-                  value: e.macdHist?.toStringAsFixed(4) ?? '-'),
-              const Divider(height: 32),
+              _card(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 10, vertical: 4),
+                          decoration: BoxDecoration(
+                            color: color.withValues(alpha: 0.12),
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: Text('${e.trend.arrow} ${e.trend.jp}',
+                              style: TextStyle(
+                                  color: color, fontWeight: FontWeight.bold)),
+                        ),
+                        const Spacer(),
+                        Text(
+                          e.lastClose?.toStringAsFixed(3) ?? '-',
+                          style: const TextStyle(
+                              fontSize: 22, fontWeight: FontWeight.bold),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 12),
+                    _chart(v.candles, color),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 12),
+              _card(
+                child: Column(
+                  children: [
+                    _StatRow(
+                        label: 'SMA短期',
+                        value: e.smaShort?.toStringAsFixed(3) ?? '-'),
+                    _StatRow(
+                        label: 'SMA長期',
+                        value: e.smaLong?.toStringAsFixed(3) ?? '-'),
+                    _StatRow(
+                        label: 'RSI', value: e.rsi?.toStringAsFixed(1) ?? '-'),
+                    _StatRow(
+                        label: 'MACDヒスト',
+                        value: e.macdHist?.toStringAsFixed(4) ?? '-'),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 12),
               _SignalSection(signal: e.signal),
             ],
           );
@@ -45,7 +82,25 @@ class PairDetailScreen extends ConsumerWidget {
     );
   }
 
-  Widget _chart(List<Candle> candles) {
+  Widget _card({required Widget child}) {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.05),
+            blurRadius: 8,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: child,
+    );
+  }
+
+  Widget _chart(List<Candle> candles, Color color) {
     final spots = <FlSpot>[];
     for (var i = 0; i < candles.length; i++) {
       spots.add(FlSpot(i.toDouble(), candles[i].close));
@@ -62,10 +117,14 @@ class PairDetailScreen extends ConsumerWidget {
           lineBarsData: [
             LineChartBarData(
               spots: spots,
-              isCurved: false,
+              isCurved: true,
               dotData: const FlDotData(show: false),
-              barWidth: 2,
-              color: Colors.blue,
+              barWidth: 2.5,
+              color: color,
+              belowBarData: BarAreaData(
+                show: true,
+                color: color.withValues(alpha: 0.12),
+              ),
             ),
           ],
         ),
@@ -101,26 +160,71 @@ class _SignalSection extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     if (signal == null) {
-      return const Text('現在シグナルは出ていません（待機中）',
-          style: TextStyle(fontSize: 16));
+      return Container(
+        width: double.infinity,
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: const Color(0xFFEFF1F6),
+          borderRadius: BorderRadius.circular(16),
+        ),
+        child: const Text('現在シグナルは出ていません（待機中）',
+            style: TextStyle(fontSize: 16, color: kNeutral)),
+      );
     }
     final isBuy = signal!.side == Side.buy;
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          '${signal!.side.jp}シグナル ${signal!.stars}',
-          style: TextStyle(
-            fontSize: 20,
-            fontWeight: FontWeight.bold,
-            color: isBuy ? Colors.green : Colors.red,
-          ),
+    final color = sideColor(signal!.side);
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(18),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          colors: [color, color.withValues(alpha: 0.8)],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
         ),
-        const SizedBox(height: 8),
-        Text('根拠: ${signal!.reasons.join(', ')}'),
-        Text('価格: ${signal!.price.toStringAsFixed(3)}'),
-        Text('時刻: ${signal!.time.toLocal()}'),
-      ],
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+            color: color.withValues(alpha: 0.4),
+            blurRadius: 12,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(isBuy ? Icons.trending_up : Icons.trending_down,
+                  color: Colors.white, size: 28),
+              const SizedBox(width: 8),
+              Text(
+                '${signal!.side.jp}シグナル ${signal!.stars}',
+                style: const TextStyle(
+                  fontSize: 22,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.white,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          _line('根拠', signal!.reasons.join(', ')),
+          _line('価格', signal!.price.toStringAsFixed(3)),
+          _line('時刻', '${signal!.time.toLocal()}'),
+        ],
+      ),
+    );
+  }
+
+  Widget _line(String label, String value) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 2),
+      child: Text(
+        '$label: $value',
+        style: const TextStyle(color: Colors.white, fontSize: 14),
+      ),
     );
   }
 }
