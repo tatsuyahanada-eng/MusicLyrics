@@ -7,11 +7,21 @@ import 'presentation/dashboard/dashboard_screen.dart';
 import 'presentation/history/history_screen.dart';
 import 'presentation/settings/settings_screen.dart';
 
-void main() async {
+void main() {
   WidgetsFlutterBinding.ensureInitialized();
-  await LocalNotifier.init();
-  await BackgroundScheduler.init();
+  // UIの起動を最優先。先にアプリを表示する。
   runApp(const ProviderScope(child: FxApp()));
+  // 通知・バックグラウンド監視の初期化は後回し＆失敗しても起動を妨げない。
+  _initServices();
+}
+
+Future<void> _initServices() async {
+  try {
+    await LocalNotifier.init();
+  } catch (_) {/* 通知初期化失敗でもアプリは動かす */}
+  try {
+    await BackgroundScheduler.init();
+  } catch (_) {/* バックグラウンド初期化失敗でもアプリは動かす */}
 }
 
 class FxApp extends StatelessWidget {
