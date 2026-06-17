@@ -46,7 +46,7 @@ class PairDetailScreen extends ConsumerWidget {
                         Text(
                           e.lastClose?.toStringAsFixed(3) ?? '-',
                           style: const TextStyle(
-                              fontSize: 22, fontWeight: FontWeight.bold),
+                              fontSize: 34, fontWeight: FontWeight.bold),
                         ),
                       ],
                     ),
@@ -200,7 +200,7 @@ class _SignalSection extends StatelessWidget {
                   color: Colors.white, size: 28),
               const SizedBox(width: 8),
               Text(
-                '${signal!.side.jp}シグナル ${signal!.stars}',
+                '${signal!.side.jp} (${signal!.side.bidAsk}) ${signal!.stars}',
                 style: const TextStyle(
                   fontSize: 22,
                   fontWeight: FontWeight.bold,

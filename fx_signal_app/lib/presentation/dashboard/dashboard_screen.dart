@@ -163,6 +163,16 @@ class _Metrics extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
+        // 現在値を大きく表示。
+        Text(
+          price,
+          style: const TextStyle(
+            fontSize: 30,
+            fontWeight: FontWeight.bold,
+            letterSpacing: 0.5,
+          ),
+        ),
+        const SizedBox(height: 6),
         Row(
           children: [
             Container(
@@ -177,15 +187,10 @@ class _Metrics extends StatelessWidget {
               ),
             ),
             const SizedBox(width: 10),
-            Text(
-              price,
-              style: const TextStyle(
-                  fontSize: 17, fontWeight: FontWeight.w600),
-            ),
+            Text('RSI $rsi',
+                style: const TextStyle(color: Colors.grey, fontSize: 13)),
           ],
         ),
-        const SizedBox(height: 4),
-        Text('RSI $rsi', style: const TextStyle(color: Colors.grey, fontSize: 12)),
       ],
     );
   }
@@ -209,9 +214,9 @@ class _SignalBadge extends StatelessWidget {
       );
     }
     final isBuy = signal!.side == Side.buy;
-    final color = isBuy ? const Color(0xFF1B9E5A) : const Color(0xFFE53935);
+    final color = sideColor(signal!.side);
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
       decoration: BoxDecoration(
         gradient: LinearGradient(
           colors: [color, color.withValues(alpha: 0.75)],
@@ -233,8 +238,10 @@ class _SignalBadge extends StatelessWidget {
           Text(
             signal!.side.jp,
             style: const TextStyle(
-                color: Colors.white, fontWeight: FontWeight.bold),
+                color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16),
           ),
+          Text(signal!.side.bidAsk,
+              style: const TextStyle(color: Colors.white70, fontSize: 11)),
           Text(signal!.stars,
               style: const TextStyle(color: Colors.white, fontSize: 11)),
         ],

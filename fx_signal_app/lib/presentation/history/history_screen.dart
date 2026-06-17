@@ -4,6 +4,7 @@ import 'package:intl/intl.dart';
 
 import '../../application/providers.dart';
 import '../../domain/entities/signal.dart';
+import '../ui_colors.dart';
 
 class HistoryScreen extends ConsumerWidget {
   const HistoryScreen({super.key});
@@ -49,20 +50,22 @@ class _Tile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final isBuy = signal.side == Side.buy;
     final fmt = DateFormat('MM/dd HH:mm');
     return ListTile(
       leading: CircleAvatar(
-        backgroundColor: isBuy ? Colors.green.shade100 : Colors.red.shade100,
-        child: Text(signal.side.jp),
+        backgroundColor: sideColor(signal.side),
+        foregroundColor: Colors.white,
+        child: Text(signal.side.jp, style: const TextStyle(fontSize: 12)),
       ),
       title: Text('${signal.pair}  ${signal.stars}'),
-      subtitle: Text(signal.reasons.join(', ')),
+      subtitle: Text('${signal.side.bidAsk} ・ ${signal.reasons.join(', ')}'),
       trailing: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         crossAxisAlignment: CrossAxisAlignment.end,
         children: [
-          Text(signal.price.toStringAsFixed(3)),
+          Text(signal.price.toStringAsFixed(3),
+              style: const TextStyle(
+                  fontSize: 16, fontWeight: FontWeight.bold)),
           Text(fmt.format(signal.time.toLocal()),
               style: const TextStyle(fontSize: 12, color: Colors.grey)),
         ],

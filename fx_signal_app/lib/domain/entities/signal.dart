@@ -3,6 +3,9 @@ enum Side { buy, sell }
 
 extension SideLabel on Side {
   String get jp => this == Side.buy ? '買い' : '売り';
+
+  /// FX用語: 買い=Ask、売り=Bid。
+  String get bidAsk => this == Side.buy ? 'Ask' : 'Bid';
 }
 
 /// 相場のトレンド状態。
