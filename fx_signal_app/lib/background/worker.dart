@@ -35,7 +35,7 @@ class BackgroundScheduler {
       kMonitorTaskUnique,
       kMonitorTask,
       frequency: period,
-      existingWorkPolicy: ExistingWorkPolicy.replace,
+      existingWorkPolicy: ExistingPeriodicWorkPolicy.replace,
       constraints: Constraints(networkType: NetworkType.connected),
     );
   }
