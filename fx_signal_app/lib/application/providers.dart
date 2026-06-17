@@ -2,16 +2,30 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../data/history/history_repository.dart';
 import '../data/market/twelve_data_api.dart';
+import '../data/positions/position_repository.dart';
 import '../data/settings/settings_repository.dart';
 import '../domain/entities/candle.dart';
+import '../domain/entities/position.dart';
 import '../domain/entities/signal.dart';
 import '../domain/signal/signal_engine.dart';
 import '../background/notifier.dart';
 import 'monitor_service.dart';
+import 'position_alerts.dart';
 
 final settingsRepoProvider = Provider((_) => SettingsRepository());
 final historyRepoProvider = Provider((_) => HistoryRepository());
+final positionRepoProvider = Provider((_) => PositionRepository());
 final monitorServiceProvider = Provider((_) => MonitorService());
+
+/// 保有中（オープン）のポジション一覧。
+final openPositionsProvider = FutureProvider<List<Position>>((ref) {
+  return ref.watch(positionRepoProvider).openPositions();
+});
+
+/// 全ポジション（決済済み含む）。
+final allPositionsProvider = FutureProvider<List<Position>>((ref) {
+  return ref.watch(positionRepoProvider).load();
+});
 
 /// アプリ設定（読み込み・更新）。
 class SettingsNotifier extends AsyncNotifier<AppSettings> {
@@ -65,6 +79,15 @@ final pairViewProvider =
         ref.invalidate(historyProvider);
       }
     }
+
+    // 保有ポジションの決済（利確）アラート判定。
+    await PositionAlertService(repo: ref.read(positionRepoProvider)).check(
+      symbol,
+      view.evaluation,
+      profitOnly: settings.profitOnlyClose,
+      notifyEnabled: settings.notifyEnabled,
+    );
+    ref.invalidate(openPositionsProvider);
     return view;
   } finally {
     api.close();

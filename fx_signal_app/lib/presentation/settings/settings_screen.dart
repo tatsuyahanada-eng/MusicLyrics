@@ -36,6 +36,7 @@ class _FormState extends ConsumerState<_Form> {
   late TextEditingController _apiKey;
   late int _poll;
   late bool _notify;
+  late bool _profitOnly;
   late List<WatchPair> _pairs;
 
   @override
@@ -44,6 +45,7 @@ class _FormState extends ConsumerState<_Form> {
     _apiKey = TextEditingController(text: widget.settings.apiKey);
     _poll = widget.settings.pollMinutes;
     _notify = widget.settings.notifyEnabled;
+    _profitOnly = widget.settings.profitOnlyClose;
     _pairs = List.of(widget.settings.pairs);
   }
 
@@ -58,6 +60,7 @@ class _FormState extends ConsumerState<_Form> {
       apiKey: _apiKey.text.trim(),
       pollMinutes: _poll,
       notifyEnabled: _notify,
+      profitOnlyClose: _profitOnly,
       pairs: _pairs,
     );
     await ref.read(settingsProvider.notifier).save(updated);
@@ -112,6 +115,12 @@ class _FormState extends ConsumerState<_Form> {
           title: const Text('通知を有効にする'),
           value: _notify,
           onChanged: (v) => setState(() => _notify = v),
+        ),
+        SwitchListTile(
+          title: const Text('含み益のときだけ決済アラート'),
+          subtitle: const Text('損切り回避モード。ONだと損失中は決済を促しません'),
+          value: _profitOnly,
+          onChanged: (v) => setState(() => _profitOnly = v),
         ),
         const Divider(height: 32),
         Row(

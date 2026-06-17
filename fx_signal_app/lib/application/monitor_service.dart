@@ -1,9 +1,11 @@
 import '../data/history/history_repository.dart';
 import '../data/market/twelve_data_api.dart';
+import '../data/positions/position_repository.dart';
 import '../data/settings/settings_repository.dart';
 import '../domain/entities/signal.dart';
 import '../domain/signal/signal_engine.dart';
 import '../background/notifier.dart';
+import 'position_alerts.dart';
 
 /// 全監視ペアを1巡して評価・通知・履歴保存を行う中核処理。
 ///
@@ -12,12 +14,16 @@ import '../background/notifier.dart';
 class MonitorService {
   final SettingsRepository settingsRepo;
   final HistoryRepository historyRepo;
+  final PositionAlertService positionAlerts;
 
   MonitorService({
     SettingsRepository? settingsRepo,
     HistoryRepository? historyRepo,
+    PositionAlertService? positionAlerts,
   })  : settingsRepo = settingsRepo ?? SettingsRepository(),
-        historyRepo = historyRepo ?? HistoryRepository();
+        historyRepo = historyRepo ?? HistoryRepository(),
+        positionAlerts = positionAlerts ??
+            PositionAlertService(repo: PositionRepository());
 
   /// 1巡実行。新規に検出したシグナルのリストを返す。
   /// [notify] が true のときは通知も発火する。
@@ -37,6 +43,15 @@ class MonitorService {
             interval: pair.interval,
           );
           final eval = engine.evaluate(pair.symbol, candles);
+
+          // 保有ポジションの決済（利確）アラート判定。
+          await positionAlerts.check(
+            pair.symbol,
+            eval,
+            profitOnly: settings.profitOnlyClose,
+            notifyEnabled: notify && settings.notifyEnabled,
+          );
+
           final signal = eval.signal;
           if (signal == null) continue;
 

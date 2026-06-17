@@ -5,6 +5,7 @@ import 'background/notifier.dart';
 import 'background/worker.dart';
 import 'presentation/dashboard/dashboard_screen.dart';
 import 'presentation/history/history_screen.dart';
+import 'presentation/positions/positions_screen.dart';
 import 'presentation/settings/settings_screen.dart';
 
 void main() {
@@ -69,6 +70,7 @@ class _HomeShellState extends State<HomeShell> {
 
   static const _pages = [
     DashboardScreen(),
+    PositionsScreen(),
     HistoryScreen(),
     SettingsScreen(),
   ];
@@ -83,6 +85,9 @@ class _HomeShellState extends State<HomeShell> {
         destinations: const [
           NavigationDestination(
               icon: Icon(Icons.dashboard_outlined), label: 'ダッシュボード'),
+          NavigationDestination(
+              icon: Icon(Icons.account_balance_wallet_outlined),
+              label: 'ポジション'),
           NavigationDestination(icon: Icon(Icons.history), label: '履歴'),
           NavigationDestination(
               icon: Icon(Icons.settings_outlined), label: '設定'),

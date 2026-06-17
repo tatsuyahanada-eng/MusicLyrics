@@ -12,6 +12,7 @@ class AppSettings {
   final bool notifyEnabled;
   final List<WatchPair> pairs;
   final IndicatorConfig indicator;
+  final bool profitOnlyClose; // 含み益のときだけ決済アラートを出す（損切り回避）
 
   const AppSettings({
     this.apiKey = '',
@@ -19,6 +20,7 @@ class AppSettings {
     this.notifyEnabled = true,
     this.pairs = const [],
     this.indicator = const IndicatorConfig(),
+    this.profitOnlyClose = true,
   });
 
   AppSettings copyWith({
@@ -27,6 +29,7 @@ class AppSettings {
     bool? notifyEnabled,
     List<WatchPair>? pairs,
     IndicatorConfig? indicator,
+    bool? profitOnlyClose,
   }) {
     return AppSettings(
       apiKey: apiKey ?? this.apiKey,
@@ -34,6 +37,7 @@ class AppSettings {
       notifyEnabled: notifyEnabled ?? this.notifyEnabled,
       pairs: pairs ?? this.pairs,
       indicator: indicator ?? this.indicator,
+      profitOnlyClose: profitOnlyClose ?? this.profitOnlyClose,
     );
   }
 }
@@ -44,6 +48,7 @@ class SettingsRepository {
   static const _kNotify = 'notify_enabled';
   static const _kPairs = 'watch_pairs';
   static const _kIndicator = 'indicator_config';
+  static const _kProfitOnly = 'profit_only_close';
 
   Future<AppSettings> load() async {
     final p = await SharedPreferences.getInstance();
@@ -72,6 +77,7 @@ class SettingsRepository {
       notifyEnabled: p.getBool(_kNotify) ?? true,
       pairs: pairs,
       indicator: indicator,
+      profitOnlyClose: p.getBool(_kProfitOnly) ?? true,
     );
   }
 
@@ -85,5 +91,6 @@ class SettingsRepository {
       json.encode(s.pairs.map((e) => e.toJson()).toList()),
     );
     await p.setString(_kIndicator, json.encode(s.indicator.toJson()));
+    await p.setBool(_kProfitOnly, s.profitOnlyClose);
   }
 }
