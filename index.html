@@ -100,8 +100,16 @@
     .grid3 input { font-size: 13px; padding: 6px 8px; }
     @media (max-width: 620px) { .grid3 { grid-template-columns: 1fr; } }
 
-    .visit-row { display: grid; grid-template-columns: 70px 1fr; gap: 8px; align-items: center; margin-bottom: 8px; }
+    .visit-row { display: grid; grid-template-columns: 62px 70px 1fr; gap: 8px; align-items: center; margin-bottom: 8px; }
     .visit-row .vlabel { font-size: 13px; color: var(--muted); }
+    .visit-row .reorder { display: flex; gap: 3px; }
+    .visit-row .reorder button {
+      padding: 3px 8px; font-size: 13px; line-height: 1; font-family: inherit;
+      background: #fff; border: 1px solid var(--input-border);
+      border-radius: 5px; color: var(--accent-d); cursor: pointer;
+    }
+    .visit-row .reorder button:hover:not(:disabled) { background: var(--accent); color: #fff; border-color: var(--accent); }
+    .visit-row .reorder button:disabled { opacity: .3; cursor: not-allowed; }
 
     table { width: 100%; border-collapse: collapse; }
     th, td { padding: 7px 6px; border-bottom: 1px solid var(--line); font-size: 13px; vertical-align: middle; }
@@ -140,8 +148,20 @@
     .leg-result table { width: 100%; max-width: 480px; border-collapse: collapse; }
     .leg-result td { padding: 6px 8px; border-bottom: 1px solid var(--line); font-size: 13px; }
     .leg-result td.num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
-    .leg-result .leg-total td { font-weight: 700; color: var(--text); border-bottom: none; border-top: 2px solid var(--line); }
-    .leg-result .leg-total td.num { color: var(--ok); }
+    .leg-total-card {
+      display: flex; align-items: baseline; justify-content: space-between;
+      gap: 12px; padding: 14px 20px; margin: 14px 0 6px;
+      background: linear-gradient(135deg, #dceafa, #f0f6fd);
+      border: 1px solid var(--accent); border-left-width: 5px;
+      border-radius: 10px;
+      box-shadow: 0 2px 10px rgba(47, 123, 224, .18);
+    }
+    .leg-total-card .lbl { font-size: 13px; color: var(--accent-d); font-weight: 700; letter-spacing: .02em; }
+    .leg-total-card .val {
+      font-size: 36px; font-weight: 800; color: var(--accent-d);
+      font-variant-numeric: tabular-nums; line-height: 1;
+    }
+    .leg-total-card .u { font-size: 16px; color: var(--accent-d); font-weight: 600; margin-left: 2px; }
 
     .summary .line { display: flex; justify-content: space-between; align-items: baseline; padding: 8px 0; border-bottom: 1px solid var(--line); }
     .summary .line .lbl { color: var(--muted); font-size: 14px; }
@@ -249,7 +269,7 @@
         </div>
         <span class="unit">km</span>
       </div>
-      <p class="hint">「住所から総移動距離を自動計算」で概算を入力できます（直線距離・参考値）。実走行距離は手入力で上書きしてください。</p>
+      <p class="hint">「住所から総移動距離を自動計算」で道路距離（OSRM／OpenStreetMap）を取得します。実走行距離は手入力で上書きできます。</p>
     </section>
 
     <!-- 請求額 -->
@@ -283,20 +303,49 @@
       recalc();
     });
 
-    // 訪問先入力（動的追加）
+    // 訪問先入力（動的追加・並べ替え）
     const visitsEl = document.getElementById('visits');
     const addVisitBtn = document.getElementById('addVisit');
-    let visitCount = 0;
+    let visitSeq = 0;
+    function renumberVisits() {
+      const rows = visitsEl.querySelectorAll('.visit-row');
+      rows.forEach((row, idx) => {
+        const n = idx + 1;
+        row.querySelector('.vlabel').textContent = `訪問先${n}`;
+        row.querySelector('.visit-addr').dataset.i = n;
+        const btns = row.querySelectorAll('.reorder button');
+        btns[0].disabled = idx === 0;
+        btns[1].disabled = idx === rows.length - 1;
+      });
+      const count = rows.length;
+      addVisitBtn.disabled = count >= VISITS_MAX;
+      addVisitBtn.textContent = count >= VISITS_MAX ? `（最大${VISITS_MAX}件）` : '＋ 訪問先を追加';
+    }
+    function moveVisit(row, dir) {
+      if (dir === 'up' && row.previousElementSibling) {
+        visitsEl.insertBefore(row, row.previousElementSibling);
+      } else if (dir === 'down' && row.nextElementSibling) {
+        visitsEl.insertBefore(row.nextElementSibling, row);
+      }
+      renumberVisits();
+    }
     function addVisitRow() {
-      if (visitCount >= VISITS_MAX) return;
-      visitCount++;
+      if (visitsEl.querySelectorAll('.visit-row').length >= VISITS_MAX) return;
+      visitSeq++;
       const row = document.createElement('div');
       row.className = 'visit-row';
-      row.innerHTML = `<span class="vlabel">訪問先${visitCount}</span>`
-        + `<input type="text" class="visit-addr" data-i="${visitCount}" placeholder="住所・場所名（空白可）" autocomplete="off">`;
+      row.innerHTML =
+        `<div class="reorder">`
+        + `<button type="button" data-dir="up" aria-label="上へ" title="上へ">↑</button>`
+        + `<button type="button" data-dir="down" aria-label="下へ" title="下へ">↓</button>`
+        + `</div>`
+        + `<span class="vlabel">訪問先${visitSeq}</span>`
+        + `<input type="text" class="visit-addr" placeholder="住所・場所名（空白可）" autocomplete="off">`;
       visitsEl.appendChild(row);
-      addVisitBtn.disabled = visitCount >= VISITS_MAX;
-      if (visitCount >= VISITS_MAX) addVisitBtn.textContent = `（最大${VISITS_MAX}件）`;
+      row.querySelectorAll('.reorder button').forEach(b => {
+        b.addEventListener('click', () => moveVisit(row, b.dataset.dir));
+      });
+      renumberVisits();
     }
     addVisitBtn.addEventListener('click', addVisitRow);
     for (let i = 0; i < VISITS_DEFAULT; i++) addVisitRow();
@@ -416,6 +465,23 @@
       return null;
     }
 
+    // OSRMで複数地点のルート距離（道路距離）を取得。失敗時はnull。
+    async function osrmRoute(points) {
+      try {
+        const coords = points.map(p => `${p.lng},${p.lat}`).join(';');
+        const url = `https://router.project-osrm.org/route/v1/driving/${coords}?overview=false&steps=false`;
+        const res = await fetch(url);
+        if (!res.ok) return null;
+        const data = await res.json();
+        if (data.code !== 'Ok' || !data.routes || !data.routes.length) return null;
+        const route = data.routes[0];
+        return {
+          totalKm: route.distance / 1000,
+          legsKm: route.legs.map(l => l.distance / 1000),
+        };
+      } catch (e) { return null; }
+    }
+
     document.getElementById('autoDist').addEventListener('click', async () => {
       const status = document.getElementById('geoStatus');
       const legBox = document.getElementById('legResult');
@@ -437,16 +503,37 @@
         status.className = 'geo-status err';
         return;
       }
-      let total = 0, rows = '';
-      for (let i = 1; i < resolved.length; i++) {
-        const km = haversineKm(resolved[i - 1].pt, resolved[i].pt);
-        total += km;
-        rows += `<tr><td>${resolved[i - 1].label} → ${resolved[i].label}</td><td class="num">${km.toFixed(1)} km</td></tr>`;
+
+      // 道路距離（OSRM）→ 失敗時は直線距離（Haversine）にフォールバック
+      status.textContent = '道路距離を計算中…'; status.className = 'geo-status';
+      const pts = resolved.map(r => r.pt);
+      const osrm = await osrmRoute(pts);
+      let legsKm, total, mode;
+      if (osrm) {
+        legsKm = osrm.legsKm;
+        total = osrm.totalKm;
+        mode = '道路距離（OSRM）';
+      } else {
+        legsKm = [];
+        total = 0;
+        for (let i = 1; i < pts.length; i++) {
+          const km = haversineKm(pts[i - 1], pts[i]);
+          legsKm.push(km); total += km;
+        }
+        mode = '直線距離（OSRM取得失敗のためフォールバック）';
+      }
+
+      let rows = '';
+      for (let i = 0; i < legsKm.length; i++) {
+        rows += `<tr><td>${resolved[i].label} → ${resolved[i + 1].label}</td><td class="num">${legsKm[i].toFixed(1)} km</td></tr>`;
       }
       document.getElementById('totalKm').value = total.toFixed(1);
       recalc();
-      legBox.innerHTML = `<table>${rows}<tr class="leg-total"><td>総移動距離</td><td class="num">${total.toFixed(1)} km</td></tr></table>`;
-      let msg = '区間ごとの距離を表示しました（直線距離・参考値）。';
+      legBox.innerHTML =
+        `<div class="leg-total-card"><span class="lbl">総移動距離</span>`
+        + `<span><span class="val">${total.toFixed(1)}</span><span class="u"> km</span></span></div>`
+        + `<table>${rows}</table>`;
+      let msg = `区間ごとの距離を表示しました（${mode}）。`;
       if (failed.length) msg += ` 未取得: ${failed.join(' / ')}（手入力で補正してください）`;
       status.textContent = msg;
       status.className = failed.length ? 'geo-status' : 'geo-status ok';
