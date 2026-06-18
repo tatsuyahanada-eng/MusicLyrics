@@ -4,6 +4,10 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>車両移動経費請求書</title>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+    integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="">
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
+    integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin="" defer></script>
   <style>
     :root {
       --bg: #eaf2fb;
@@ -123,6 +127,47 @@
     }
     .gmap-link:hover { background: var(--accent); color: #fff; }
 
+    /* 使い方マニュアル（折りたたみ） */
+    .manual {
+      margin-bottom: 14px; border: 1px solid var(--line); border-radius: var(--radius);
+      background: #fff; box-shadow: 0 1px 4px rgba(31, 99, 192, .07);
+    }
+    .manual summary {
+      cursor: pointer; padding: 10px 14px; font-weight: 700;
+      color: var(--accent-d); font-size: 14px; list-style: none;
+      display: flex; align-items: center; gap: 8px;
+    }
+    .manual summary::-webkit-details-marker { display: none; }
+    .manual summary::before {
+      content: '▶'; font-size: 10px; color: var(--accent);
+      transition: transform .15s;
+    }
+    .manual[open] summary { border-bottom: 1px solid var(--line); }
+    .manual[open] summary::before { transform: rotate(90deg); }
+    .manual-body { padding: 10px 18px 14px; font-size: 13px; line-height: 1.7; color: var(--text); }
+    .manual-body h3 { font-size: 13px; margin: 10px 0 4px; color: var(--accent-d); }
+    .manual-body ol, .manual-body ul { padding-left: 22px; margin: 4px 0; }
+    .manual-body li { margin: 2px 0; }
+    .manual-body .note { font-size: 12px; color: var(--muted); margin-top: 10px; }
+    .kbd {
+      display: inline-block; padding: 1px 6px; border: 1px solid var(--input-border);
+      border-radius: 4px; background: var(--panel-2); font-size: 12px; line-height: 1.3;
+    }
+
+    /* 地図プレビュー */
+    .route-map {
+      height: 340px; margin-top: 14px;
+      border: 1px solid var(--input-border); border-radius: 8px;
+      display: none;
+    }
+    .route-marker {
+      background: #fff; border: 2px solid var(--accent); border-radius: 14px;
+      padding: 2px 9px; font-size: 11px; font-weight: 700; color: var(--accent-d);
+      white-space: nowrap; box-shadow: 0 2px 6px rgba(0, 0, 0, .25);
+      text-align: center; line-height: 1.5;
+    }
+    .route-marker.is-base { background: var(--accent); color: #fff; border-color: var(--accent-d); }
+
     table { width: 100%; border-collapse: collapse; }
     th, td { padding: 7px 6px; border-bottom: 1px solid var(--line); font-size: 13px; vertical-align: middle; }
     th { color: var(--muted); font-weight: 500; text-align: left; }
@@ -191,6 +236,33 @@
       <p>基点から各訪問先への移動経費（ガソリン代・有料道路・駐車場）を入力し、請求総額を計算します。</p>
     </header>
 
+    <!-- 使い方マニュアル -->
+    <details class="manual">
+      <summary>📖 使い方マニュアル（クリックで開閉）</summary>
+      <div class="manual-body">
+        <h3>基本の流れ</h3>
+        <ol>
+          <li><b>案件を選択</b>：上部のセレクタで「JCOM / リテイルオンサイト / その他」を切替えると<b>距離単価が自動で変わります</b>（手入力での上書きも可）</li>
+          <li><b>基本情報</b>：稼働日は当日が自動入力。管理番号・スタッフIDは省略可。<b>基点住所</b>を入力</li>
+          <li><b>訪問先</b>：初期5件。「<b>＋ 訪問先を追加</b>」で最大7件まで増やせます</li>
+          <li><b>並べ替え</b>：各行の <span class="kbd">⇕</span> を<b>ドラッグ</b>して上下に並べ替え（青ラインで挿入位置を表示）</li>
+          <li><b>自動計算</b>：「<b>📍 住所から総移動距離を自動計算</b>」で<b>道路距離（OSRM）</b>を取得し、区間ごと・合計を表示</li>
+          <li><b>地図で確認</b>：「<b>🗺️ Googleマップで表示</b>」または、自動計算後にページ内地図プレビュー（基点・訪問先1〜のラベル付き）でルートを確認できます</li>
+          <li><b>有料道路・駐車場</b>：費用を入力すると請求総額に自動反映</li>
+          <li><b>総移動距離</b>：自動入力後も手修正OK。Googleマップとの差が気になる場合は上書きしてください</li>
+          <li><b>Excel出力</b>：右下「<b>Excelエクスポート</b>」で .xlsx をダウンロード（ファイル名・タイトルは選択した案件が反映）</li>
+        </ol>
+        <h3>計算式</h3>
+        <ul>
+          <li><b>ガソリン代</b> ＝ 距離単価 × 総移動距離</li>
+          <li><b>有料道路</b> ＝ ルート表「費用」の合計</li>
+          <li><b>駐車場</b> ＝ 駐車場表「費用」の合計</li>
+          <li><b>請求総額</b> ＝ ガソリン代 ＋ 有料道路 ＋ 駐車場</li>
+        </ul>
+        <p class="note">※ 距離はOSRM（OpenStreetMap）の道路距離。Googleマップとは道路データが異なるため、ルート選択によって数値が前後する場合があります。</p>
+      </div>
+    </details>
+
     <!-- 上部：案件選択 + 距離単価 -->
     <section class="top-bar">
       <div class="field">
@@ -244,6 +316,7 @@
       <button id="openGmaps" class="btn btn-outline btn-sm" type="button" style="margin-left:8px;">🗺️ Googleマップで表示</button>
       <div id="geoStatus" class="geo-status"></div>
       <div id="legResult" class="leg-result"></div>
+      <div id="routeMap" class="route-map"></div>
     </section>
 
     <!-- ルート（有料道路） -->
@@ -533,6 +606,43 @@
       return null;
     }
 
+    // Leafletで地図プレビューを描画（基点・訪問先のラベル付き）
+    let mapInstance = null;
+    function showRouteMap(resolved) {
+      const container = document.getElementById('routeMap');
+      if (typeof L === 'undefined' || !resolved || resolved.length === 0) {
+        container.style.display = 'none';
+        return;
+      }
+      container.style.display = 'block';
+      if (mapInstance) { mapInstance.remove(); mapInstance = null; }
+      mapInstance = L.map(container, { scrollWheelZoom: false });
+      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        attribution: '© OpenStreetMap',
+        maxZoom: 18,
+      }).addTo(mapInstance);
+      const latlngs = [];
+      resolved.forEach((r) => {
+        const isBase = r.label === '基点';
+        const icon = L.divIcon({
+          className: 'route-marker' + (isBase ? ' is-base' : ''),
+          html: r.label,
+          iconSize: [70, 24],
+          iconAnchor: [35, 12],
+        });
+        L.marker([r.pt.lat, r.pt.lng], { icon }).addTo(mapInstance);
+        latlngs.push([r.pt.lat, r.pt.lng]);
+      });
+      if (latlngs.length > 1) {
+        L.polyline(latlngs, { color: '#2f7be0', weight: 3, opacity: 0.75 }).addTo(mapInstance);
+      }
+      if (latlngs.length === 1) {
+        mapInstance.setView(latlngs[0], 14);
+      } else {
+        mapInstance.fitBounds(latlngs, { padding: [30, 30] });
+      }
+    }
+
     // OSRMで複数地点のルート距離（道路距離）を取得。失敗時はnull。
     async function osrmRoute(points) {
       try {
@@ -603,6 +713,7 @@
         + `<span><span class="val">${total.toFixed(1)}</span><span class="u"> km</span></span></div>`
         + `<table>${rows}</table>`
         + (gmapUrl ? `<a class="gmap-link" href="${gmapUrl}" target="_blank" rel="noopener">🗺️ Googleマップでルートを確認</a>` : '');
+      showRouteMap(resolved);
       let msg = `区間ごとの距離を表示しました（${mode}）。`;
       if (failed.length) msg += ` 未取得: ${failed.join(' / ')}（手入力で補正してください）`;
       status.textContent = msg;
