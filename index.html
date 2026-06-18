@@ -100,16 +100,28 @@
     .grid3 input { font-size: 13px; padding: 6px 8px; }
     @media (max-width: 620px) { .grid3 { grid-template-columns: 1fr; } }
 
-    .visit-row { display: grid; grid-template-columns: 62px 70px 1fr; gap: 8px; align-items: center; margin-bottom: 8px; }
+    .visit-row { display: grid; grid-template-columns: 38px 70px 1fr; gap: 8px; align-items: center; margin-bottom: 8px; transition: background .15s, opacity .15s; }
+    .visit-row.dragging { opacity: .4; background: var(--panel-2); }
+    .visit-row.drop-before { box-shadow: 0 -3px 0 var(--accent); }
+    .visit-row.drop-after  { box-shadow: 0 3px 0 var(--accent); }
     .visit-row .vlabel { font-size: 13px; color: var(--muted); }
-    .visit-row .reorder { display: flex; gap: 3px; }
-    .visit-row .reorder button {
-      padding: 3px 8px; font-size: 13px; line-height: 1; font-family: inherit;
+    .visit-row .grip {
+      display: flex; align-items: center; justify-content: center;
+      padding: 6px 0; font-size: 16px; line-height: 1; font-family: inherit;
       background: #fff; border: 1px solid var(--input-border);
-      border-radius: 5px; color: var(--accent-d); cursor: pointer;
+      border-radius: 5px; color: var(--accent-d);
+      cursor: grab; user-select: none;
     }
-    .visit-row .reorder button:hover:not(:disabled) { background: var(--accent); color: #fff; border-color: var(--accent); }
-    .visit-row .reorder button:disabled { opacity: .3; cursor: not-allowed; }
+    .visit-row .grip:hover { background: var(--accent); color: #fff; border-color: var(--accent); }
+    .visit-row .grip:active { cursor: grabbing; }
+    .gmap-link {
+      display: inline-flex; align-items: center; gap: 6px;
+      margin: 12px 0 0; padding: 7px 12px;
+      font-size: 13px; font-weight: 600; text-decoration: none;
+      background: #fff; color: var(--accent-d);
+      border: 1px solid var(--accent); border-radius: 6px;
+    }
+    .gmap-link:hover { background: var(--accent); color: #fff; }
 
     table { width: 100%; border-collapse: collapse; }
     th, td { padding: 7px 6px; border-bottom: 1px solid var(--line); font-size: 13px; vertical-align: middle; }
@@ -229,6 +241,7 @@
       <button id="addVisit" class="btn btn-outline btn-sm" type="button" style="margin-bottom:10px;">＋ 訪問先を追加</button>
       <br>
       <button id="autoDist" class="btn btn-cta" type="button"><span class="ico" aria-hidden="true">📍</span>住所から総移動距離を自動計算</button>
+      <button id="openGmaps" class="btn btn-outline btn-sm" type="button" style="margin-left:8px;">🗺️ Googleマップで表示</button>
       <div id="geoStatus" class="geo-status"></div>
       <div id="legResult" class="leg-result"></div>
     </section>
@@ -303,31 +316,25 @@
       recalc();
     });
 
-    // 訪問先入力（動的追加・並べ替え）
+    // 訪問先入力（動的追加・ドラッグで並べ替え）
     const visitsEl = document.getElementById('visits');
     const addVisitBtn = document.getElementById('addVisit');
     let visitSeq = 0;
+    let dragSrc = null;
+
     function renumberVisits() {
       const rows = visitsEl.querySelectorAll('.visit-row');
       rows.forEach((row, idx) => {
         const n = idx + 1;
         row.querySelector('.vlabel').textContent = `訪問先${n}`;
         row.querySelector('.visit-addr').dataset.i = n;
-        const btns = row.querySelectorAll('.reorder button');
-        btns[0].disabled = idx === 0;
-        btns[1].disabled = idx === rows.length - 1;
       });
       const count = rows.length;
       addVisitBtn.disabled = count >= VISITS_MAX;
       addVisitBtn.textContent = count >= VISITS_MAX ? `（最大${VISITS_MAX}件）` : '＋ 訪問先を追加';
     }
-    function moveVisit(row, dir) {
-      if (dir === 'up' && row.previousElementSibling) {
-        visitsEl.insertBefore(row, row.previousElementSibling);
-      } else if (dir === 'down' && row.nextElementSibling) {
-        visitsEl.insertBefore(row.nextElementSibling, row);
-      }
-      renumberVisits();
+    function clearDropMarks() {
+      visitsEl.querySelectorAll('.visit-row').forEach(r => r.classList.remove('drop-before', 'drop-after'));
     }
     function addVisitRow() {
       if (visitsEl.querySelectorAll('.visit-row').length >= VISITS_MAX) return;
@@ -335,20 +342,81 @@
       const row = document.createElement('div');
       row.className = 'visit-row';
       row.innerHTML =
-        `<div class="reorder">`
-        + `<button type="button" data-dir="up" aria-label="上へ" title="上へ">↑</button>`
-        + `<button type="button" data-dir="down" aria-label="下へ" title="下へ">↓</button>`
-        + `</div>`
+        `<button type="button" class="grip" aria-label="ドラッグで並べ替え" title="ドラッグで上下に並べ替え">⇕</button>`
         + `<span class="vlabel">訪問先${visitSeq}</span>`
         + `<input type="text" class="visit-addr" placeholder="住所・場所名（空白可）" autocomplete="off">`;
       visitsEl.appendChild(row);
-      row.querySelectorAll('.reorder button').forEach(b => {
-        b.addEventListener('click', () => moveVisit(row, b.dataset.dir));
+
+      const grip = row.querySelector('.grip');
+      grip.addEventListener('mousedown', () => { row.draggable = true; });
+      grip.addEventListener('touchstart', () => { row.draggable = true; }, { passive: true });
+      row.addEventListener('mouseup', () => { row.draggable = false; });
+
+      row.addEventListener('dragstart', (e) => {
+        dragSrc = row;
+        row.classList.add('dragging');
+        e.dataTransfer.effectAllowed = 'move';
+        try { e.dataTransfer.setData('text/plain', ''); } catch (_) {}
       });
+      row.addEventListener('dragend', () => {
+        row.classList.remove('dragging');
+        row.draggable = false;
+        clearDropMarks();
+        dragSrc = null;
+        renumberVisits();
+      });
+      row.addEventListener('dragover', (e) => {
+        if (!dragSrc || dragSrc === row) return;
+        e.preventDefault();
+        e.dataTransfer.dropEffect = 'move';
+        const rect = row.getBoundingClientRect();
+        const after = (e.clientY - rect.top) > rect.height / 2;
+        row.classList.toggle('drop-after', after);
+        row.classList.toggle('drop-before', !after);
+      });
+      row.addEventListener('dragleave', () => {
+        row.classList.remove('drop-before', 'drop-after');
+      });
+      row.addEventListener('drop', (e) => {
+        e.preventDefault();
+        if (!dragSrc || dragSrc === row) return;
+        const rect = row.getBoundingClientRect();
+        const after = (e.clientY - rect.top) > rect.height / 2;
+        if (after) visitsEl.insertBefore(dragSrc, row.nextElementSibling);
+        else visitsEl.insertBefore(dragSrc, row);
+        clearDropMarks();
+        renumberVisits();
+      });
+
       renumberVisits();
     }
     addVisitBtn.addEventListener('click', addVisitRow);
     for (let i = 0; i < VISITS_DEFAULT; i++) addVisitRow();
+
+    // Googleマップで現状の住所順をルート表示
+    function buildGmapsUrl(addrs) {
+      if (!addrs.length) return null;
+      if (addrs.length === 1) {
+        return 'https://www.google.com/maps/search/?api=1&query=' + encodeURIComponent(addrs[0]);
+      }
+      const origin = encodeURIComponent(addrs[0]);
+      const dest = encodeURIComponent(addrs[addrs.length - 1]);
+      const wp = addrs.slice(1, -1).map(encodeURIComponent).join('|');
+      let url = `https://www.google.com/maps/dir/?api=1&origin=${origin}&destination=${dest}&travelmode=driving`;
+      if (wp) url += `&waypoints=${wp}`;
+      return url;
+    }
+    document.getElementById('openGmaps').addEventListener('click', () => {
+      const addrs = [document.getElementById('baseAddr').value.trim(),
+        ...[...document.querySelectorAll('.visit-addr')].map(el => el.value.trim())]
+        .filter(Boolean);
+      if (!addrs.length) {
+        const s = document.getElementById('geoStatus');
+        s.textContent = '基点住所または訪問先を入力してください'; s.className = 'geo-status err';
+        return;
+      }
+      window.open(buildGmapsUrl(addrs), '_blank', 'noopener');
+    });
 
     // ルート（有料道路）テーブル
     const tollBody = document.querySelector('#tollTable tbody');
@@ -529,10 +597,12 @@
       }
       document.getElementById('totalKm').value = total.toFixed(1);
       recalc();
+      const gmapUrl = buildGmapsUrl(resolved.map(r => entries.find(e => e.label === r.label)?.addr).filter(Boolean));
       legBox.innerHTML =
         `<div class="leg-total-card"><span class="lbl">総移動距離</span>`
         + `<span><span class="val">${total.toFixed(1)}</span><span class="u"> km</span></span></div>`
-        + `<table>${rows}</table>`;
+        + `<table>${rows}</table>`
+        + (gmapUrl ? `<a class="gmap-link" href="${gmapUrl}" target="_blank" rel="noopener">🗺️ Googleマップでルートを確認</a>` : '');
       let msg = `区間ごとの距離を表示しました（${mode}）。`;
       if (failed.length) msg += ` 未取得: ${failed.join(' / ')}（手入力で補正してください）`;
       status.textContent = msg;
