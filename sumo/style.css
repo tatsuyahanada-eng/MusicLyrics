@@ -936,39 +936,81 @@ code {
     font-size: 18px;
   }
 
-  /* 番付を縦積みに */
+  /* 番付：スマホでも東西を左右に並べる（読みやすさを保ちつつ縮小） */
   .banzuke-row {
-    grid-template-columns: 1fr;
-    gap: 6px;
-    margin-bottom: 20px;
+    grid-template-columns: 1fr 1fr;
+    grid-template-areas:
+      "rank rank"
+      "east west";
+    gap: 4px 6px;
+    margin-bottom: 16px;
   }
+  .banzuke-row > .banzuke-side:nth-child(1) { grid-area: east; }
+  .banzuke-row > .banzuke-side:nth-child(3) { grid-area: west; }
   .banzuke-rank {
-    order: -1;
+    grid-area: rank;
     min-width: 0;
     width: 100%;
-    padding: 6px 12px;
-    font-size: 15px;
+    padding: 4px 12px;
+    font-size: 13px;
+    letter-spacing: 0.2em;
+    background: var(--color-bg-alt);
+    border-color: var(--color-border);
+  }
+  .banzuke-rank.top {
+    font-size: 14px;
   }
   .banzuke-side {
-    gap: 6px;
+    gap: 4px;
   }
-  /* スマホでは東西を色とラベルで明示 */
+  .banzuke-cell {
+    padding: 8px 10px;
+    box-shadow: none;
+    gap: 2px;
+  }
+  /* スマホでは東西をラベルと背景色で明示 */
   .banzuke-cell .side-tag {
     display: inline-block;
-    margin-bottom: 4px;
+    align-self: flex-start;
+    margin-bottom: 2px;
+    padding: 0 8px;
+    font-size: 10px;
+    letter-spacing: 0.1em;
   }
   .banzuke-cell.east {
-    background: linear-gradient(180deg, #eef4fa 0%, var(--color-paper) 60%);
+    background: linear-gradient(180deg, #e8f0f8 0%, var(--color-paper) 80%);
+    border-left: 3px solid var(--color-east);
   }
   .banzuke-cell.west {
     text-align: left;
     align-items: flex-start;
-    background: linear-gradient(180deg, #faeeee 0%, var(--color-paper) 60%);
-    border-right: 1px solid var(--color-border);
-    border-left: 4px solid var(--color-west);
+    background: linear-gradient(180deg, #fae8e8 0%, var(--color-paper) 80%);
+    border-right: 3px solid var(--color-west);
+    border-left: 1px solid var(--color-border);
   }
   .banzuke-cell.west .side-tag {
-    align-self: flex-start;
+    align-self: flex-end;
+  }
+  .banzuke-cell.west .name,
+  .banzuke-cell.west .sub {
+    align-self: flex-end;
+    text-align: right;
+  }
+  .banzuke-cell .name {
+    font-size: 15px;
+    line-height: 1.25;
+  }
+  .banzuke-cell .sub {
+    font-size: 10px;
+    line-height: 1.3;
+  }
+  .banzuke-cell.banzuke-empty {
+    padding: 6px;
+    font-size: 11px;
+  }
+  /* 四股名の下の名前（名乗り）はスマホでは省略 */
+  .banzuke-cell .name .shikona-given {
+    display: none;
   }
 
   /* ツールバーは縦並び・全幅 */
