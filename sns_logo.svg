@@ -1,0 +1,161 @@
+<svg width="400" height="400" viewBox="0 0 400 400" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <!-- Background gradient -->
+    <radialGradient id="bgGrad" cx="40%" cy="35%" r="70%">
+      <stop offset="0%" stop-color="#1a0533"/>
+      <stop offset="100%" stop-color="#050010"/>
+    </radialGradient>
+
+    <!-- Main brand gradient: purple → blue → cyan -->
+    <linearGradient id="brandGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%"   stop-color="#9333EA"/>
+      <stop offset="50%"  stop-color="#3B82F6"/>
+      <stop offset="100%" stop-color="#06B6D4"/>
+    </linearGradient>
+
+    <!-- Glow filter for nodes -->
+    <filter id="glow" x="-50%" y="-50%" width="200%" height="200%">
+      <feGaussianBlur stdDeviation="4" result="blur"/>
+      <feMerge>
+        <feMergeNode in="blur"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+
+    <!-- Soft outer glow -->
+    <filter id="outerGlow" x="-30%" y="-30%" width="160%" height="160%">
+      <feGaussianBlur stdDeviation="12" result="blur"/>
+      <feMerge>
+        <feMergeNode in="blur"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+
+    <!-- Clip to circle -->
+    <clipPath id="circleClip">
+      <circle cx="200" cy="200" r="196"/>
+    </clipPath>
+  </defs>
+
+  <!-- Dark background circle -->
+  <circle cx="200" cy="200" r="200" fill="url(#bgGrad)"/>
+
+  <!-- Subtle dot grid background -->
+  <g clip-path="url(#circleClip)" opacity="0.15">
+    <pattern id="dots" x="0" y="0" width="24" height="24" patternUnits="userSpaceOnUse">
+      <circle cx="12" cy="12" r="1.2" fill="#7C3AED"/>
+    </pattern>
+    <rect width="400" height="400" fill="url(#dots)"/>
+  </g>
+
+  <!-- ── Neural network connections ── -->
+  <g clip-path="url(#circleClip)">
+    <!-- Outer ring faint arcs -->
+    <circle cx="200" cy="200" r="155" fill="none" stroke="#7C3AED" stroke-width="0.6" stroke-dasharray="4 8" opacity="0.3"/>
+    <circle cx="200" cy="200" r="120" fill="none" stroke="#3B82F6" stroke-width="0.6" stroke-dasharray="3 10" opacity="0.2"/>
+
+    <!-- Connection lines between nodes (faint) -->
+    <!-- Top cluster -->
+    <line x1="200" y1="64"  x2="152" y2="112" stroke="#7C3AED" stroke-width="1" opacity="0.4"/>
+    <line x1="200" y1="64"  x2="248" y2="112" stroke="#3B82F6" stroke-width="1" opacity="0.4"/>
+    <line x1="200" y1="64"  x2="200" y2="128" stroke="#06B6D4" stroke-width="1" opacity="0.4"/>
+
+    <!-- Left cluster -->
+    <line x1="64"  y1="200" x2="112" y2="152" stroke="#9333EA" stroke-width="1" opacity="0.4"/>
+    <line x1="64"  y1="200" x2="112" y2="248" stroke="#7C3AED" stroke-width="1" opacity="0.4"/>
+    <line x1="64"  y1="200" x2="128" y2="200" stroke="#3B82F6" stroke-width="1" opacity="0.4"/>
+
+    <!-- Right cluster -->
+    <line x1="336" y1="200" x2="288" y2="152" stroke="#3B82F6" stroke-width="1" opacity="0.4"/>
+    <line x1="336" y1="200" x2="288" y2="248" stroke="#06B6D4" stroke-width="1" opacity="0.4"/>
+    <line x1="336" y1="200" x2="272" y2="200" stroke="#7C3AED" stroke-width="1" opacity="0.4"/>
+
+    <!-- Bottom cluster -->
+    <line x1="200" y1="336" x2="152" y2="288" stroke="#06B6D4" stroke-width="1" opacity="0.4"/>
+    <line x1="200" y1="336" x2="248" y2="288" stroke="#3B82F6" stroke-width="1" opacity="0.4"/>
+    <line x1="200" y1="336" x2="200" y2="272" stroke="#9333EA" stroke-width="1" opacity="0.4"/>
+
+    <!-- Mid ring to center connections -->
+    <line x1="152" y1="112" x2="200" y2="128" stroke="#9333EA" stroke-width="0.8" opacity="0.35"/>
+    <line x1="248" y1="112" x2="200" y2="128" stroke="#3B82F6" stroke-width="0.8" opacity="0.35"/>
+    <line x1="112" y1="152" x2="128" y2="200" stroke="#7C3AED" stroke-width="0.8" opacity="0.35"/>
+    <line x1="112" y1="248" x2="128" y2="200" stroke="#06B6D4" stroke-width="0.8" opacity="0.35"/>
+    <line x1="288" y1="152" x2="272" y2="200" stroke="#3B82F6" stroke-width="0.8" opacity="0.35"/>
+    <line x1="288" y1="248" x2="272" y2="200" stroke="#9333EA" stroke-width="0.8" opacity="0.35"/>
+    <line x1="152" y1="288" x2="200" y2="272" stroke="#06B6D4" stroke-width="0.8" opacity="0.35"/>
+    <line x1="248" y1="288" x2="200" y2="272" stroke="#7C3AED" stroke-width="0.8" opacity="0.35"/>
+
+    <!-- Inner ring connections -->
+    <line x1="200" y1="128" x2="128" y2="200" stroke="#9333EA" stroke-width="1.2" opacity="0.5"/>
+    <line x1="200" y1="128" x2="272" y2="200" stroke="#3B82F6" stroke-width="1.2" opacity="0.5"/>
+    <line x1="128" y1="200" x2="200" y2="272" stroke="#06B6D4" stroke-width="1.2" opacity="0.5"/>
+    <line x1="272" y1="200" x2="200" y2="272" stroke="#7C3AED" stroke-width="1.2" opacity="0.5"/>
+    <line x1="200" y1="128" x2="200" y2="272" stroke="url(#brandGrad)" stroke-width="0.8" opacity="0.3"/>
+    <line x1="128" y1="200" x2="272" y2="200" stroke="url(#brandGrad)" stroke-width="0.8" opacity="0.3"/>
+
+    <!-- Center to inner nodes -->
+    <line x1="200" y1="200" x2="200" y2="128" stroke="#9333EA" stroke-width="1.5" opacity="0.6"/>
+    <line x1="200" y1="200" x2="128" y2="200" stroke="#7C3AED" stroke-width="1.5" opacity="0.6"/>
+    <line x1="200" y1="200" x2="272" y2="200" stroke="#3B82F6" stroke-width="1.5" opacity="0.6"/>
+    <line x1="200" y1="200" x2="200" y2="272" stroke="#06B6D4" stroke-width="1.5" opacity="0.6"/>
+    <!-- Diagonal connections to center -->
+    <line x1="200" y1="200" x2="152" y2="152" stroke="#8B5CF6" stroke-width="1" opacity="0.45"/>
+    <line x1="200" y1="200" x2="248" y2="152" stroke="#60A5FA" stroke-width="1" opacity="0.45"/>
+    <line x1="200" y1="200" x2="152" y2="248" stroke="#22D3EE" stroke-width="1" opacity="0.45"/>
+    <line x1="200" y1="200" x2="248" y2="248" stroke="#7C3AED" stroke-width="1" opacity="0.45"/>
+
+    <!-- ── Outer nodes (ring 3) ── -->
+    <circle cx="200" cy="64"  r="7" fill="#0D0020" stroke="#9333EA" stroke-width="2" filter="url(#glow)" opacity="0.9"/>
+    <circle cx="64"  cy="200" r="7" fill="#0D0020" stroke="#7C3AED" stroke-width="2" filter="url(#glow)" opacity="0.9"/>
+    <circle cx="336" cy="200" r="7" fill="#0D0020" stroke="#3B82F6" stroke-width="2" filter="url(#glow)" opacity="0.9"/>
+    <circle cx="200" cy="336" r="7" fill="#0D0020" stroke="#06B6D4" stroke-width="2" filter="url(#glow)" opacity="0.9"/>
+
+    <!-- Diagonal outer nodes -->
+    <circle cx="113" cy="113" r="5" fill="#0D0020" stroke="#8B5CF6" stroke-width="1.5" opacity="0.7"/>
+    <circle cx="287" cy="113" r="5" fill="#0D0020" stroke="#60A5FA" stroke-width="1.5" opacity="0.7"/>
+    <circle cx="113" cy="287" r="5" fill="#0D0020" stroke="#22D3EE" stroke-width="1.5" opacity="0.7"/>
+    <circle cx="287" cy="287" r="5" fill="#0D0020" stroke="#7C3AED" stroke-width="1.5" opacity="0.7"/>
+
+    <!-- ── Mid ring nodes (ring 2) ── -->
+    <circle cx="152" cy="112" r="6" fill="#0D0020" stroke="#9333EA" stroke-width="1.8" filter="url(#glow)" opacity="0.85"/>
+    <circle cx="248" cy="112" r="6" fill="#0D0020" stroke="#3B82F6" stroke-width="1.8" filter="url(#glow)" opacity="0.85"/>
+    <circle cx="112" cy="152" r="6" fill="#0D0020" stroke="#7C3AED" stroke-width="1.8" filter="url(#glow)" opacity="0.85"/>
+    <circle cx="288" cy="152" r="6" fill="#0D0020" stroke="#3B82F6" stroke-width="1.8" filter="url(#glow)" opacity="0.85"/>
+    <circle cx="112" cy="248" r="6" fill="#0D0020" stroke="#06B6D4" stroke-width="1.8" filter="url(#glow)" opacity="0.85"/>
+    <circle cx="288" cy="248" r="6" fill="#0D0020" stroke="#06B6D4" stroke-width="1.8" filter="url(#glow)" opacity="0.85"/>
+    <circle cx="152" cy="288" r="6" fill="#0D0020" stroke="#22D3EE" stroke-width="1.8" filter="url(#glow)" opacity="0.85"/>
+    <circle cx="248" cy="288" r="6" fill="#0D0020" stroke="#7C3AED" stroke-width="1.8" filter="url(#glow)" opacity="0.85"/>
+
+    <!-- ── Inner ring nodes (ring 1) ── -->
+    <circle cx="200" cy="128" r="9" fill="#0D0020" stroke="url(#brandGrad)" stroke-width="2.5" filter="url(#glow)"/>
+    <circle cx="128" cy="200" r="9" fill="#0D0020" stroke="url(#brandGrad)" stroke-width="2.5" filter="url(#glow)"/>
+    <circle cx="272" cy="200" r="9" fill="#0D0020" stroke="url(#brandGrad)" stroke-width="2.5" filter="url(#glow)"/>
+    <circle cx="200" cy="272" r="9" fill="#0D0020" stroke="url(#brandGrad)" stroke-width="2.5" filter="url(#glow)"/>
+    <circle cx="152" cy="152" r="7" fill="#0D0020" stroke="#9333EA" stroke-width="2" filter="url(#glow)" opacity="0.9"/>
+    <circle cx="248" cy="152" r="7" fill="#0D0020" stroke="#3B82F6" stroke-width="2" filter="url(#glow)" opacity="0.9"/>
+    <circle cx="152" cy="248" r="7" fill="#0D0020" stroke="#06B6D4" stroke-width="2" filter="url(#glow)" opacity="0.9"/>
+    <circle cx="248" cy="248" r="7" fill="#0D0020" stroke="#7C3AED" stroke-width="2" filter="url(#glow)" opacity="0.9"/>
+
+    <!-- ── Central hub ── -->
+    <!-- Outer glow ring -->
+    <circle cx="200" cy="200" r="36" fill="none" stroke="#7C3AED" stroke-width="1" opacity="0.4" filter="url(#outerGlow)"/>
+    <!-- Hub background -->
+    <circle cx="200" cy="200" r="34" fill="#0a0018"/>
+    <!-- Hub gradient ring -->
+    <circle cx="200" cy="200" r="34" fill="none" stroke="url(#brandGrad)" stroke-width="3"/>
+
+    <!-- "AI" text inside hub -->
+    <text x="200" y="208"
+          font-family="'SF Pro Display', 'Helvetica Neue', Arial, sans-serif"
+          font-size="28"
+          font-weight="700"
+          letter-spacing="1"
+          text-anchor="middle"
+          fill="url(#brandGrad)"
+          filter="url(#glow)">AI</text>
+  </g>
+
+  <!-- Outer border ring -->
+  <circle cx="200" cy="200" r="196" fill="none" stroke="url(#brandGrad)" stroke-width="2" opacity="0.6"/>
+  <circle cx="200" cy="200" r="193" fill="none" stroke="#9333EA" stroke-width="0.5" opacity="0.2"/>
+</svg>

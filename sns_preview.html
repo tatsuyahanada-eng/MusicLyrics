@@ -1,0 +1,128 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>SNS Assets Preview</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      background: #111;
+      color: #eee;
+      font-family: 'Helvetica Neue', Arial, sans-serif;
+      padding: 40px 20px;
+    }
+    h2 {
+      font-size: 14px;
+      letter-spacing: 3px;
+      text-transform: uppercase;
+      color: #888;
+      margin-bottom: 16px;
+    }
+    .section { margin-bottom: 60px; }
+
+    /* Header preview */
+    .header-wrap {
+      width: 100%;
+      max-width: 900px;
+      border-radius: 12px;
+      overflow: hidden;
+      border: 1px solid #333;
+    }
+    .header-wrap img { width: 100%; display: block; }
+
+    /* Logo preview */
+    .logo-row { display: flex; gap: 24px; align-items: flex-start; flex-wrap: wrap; }
+    .logo-box {
+      background: #1a1a2e;
+      border-radius: 12px;
+      padding: 20px;
+      border: 1px solid #333;
+      text-align: center;
+    }
+    .logo-box p { font-size: 12px; color: #666; margin-top: 10px; letter-spacing: 1px; }
+
+    /* Twitter-like profile mock */
+    .twitter-mock {
+      width: 100%;
+      max-width: 600px;
+      background: #000;
+      border-radius: 16px;
+      overflow: hidden;
+      border: 1px solid #2f3336;
+    }
+    .mock-header { width: 100%; aspect-ratio: 3/1; overflow: hidden; }
+    .mock-header img { width: 100%; height: 100%; object-fit: cover; }
+    .mock-profile-row {
+      display: flex;
+      align-items: flex-end;
+      padding: 0 16px;
+      margin-top: -36px;
+      margin-bottom: 12px;
+      position: relative;
+    }
+    .mock-avatar {
+      width: 72px;
+      height: 72px;
+      border-radius: 50%;
+      border: 3px solid #000;
+      overflow: hidden;
+      flex-shrink: 0;
+    }
+    .mock-avatar img { width: 100%; height: 100%; object-fit: cover; }
+    .mock-info { padding: 48px 16px 8px; }
+    .mock-name { font-size: 18px; font-weight: 700; color: #fff; }
+    .mock-handle { font-size: 14px; color: #71767b; margin-top: 2px; }
+    .mock-bio { font-size: 14px; color: #e7e9ea; padding: 8px 16px 16px; line-height: 1.5; }
+  </style>
+</head>
+<body>
+
+  <div class="section">
+    <h2>Header Banner &nbsp;·&nbsp; 1500 × 500</h2>
+    <div class="header-wrap">
+      <img src="sns_header.svg" alt="SNS Header">
+    </div>
+  </div>
+
+  <div class="section">
+    <h2>Logo Mark &nbsp;·&nbsp; 400 × 400</h2>
+    <div class="logo-row">
+      <div class="logo-box">
+        <img src="sns_logo.svg" width="200" height="200" alt="Logo 200px">
+        <p>200px</p>
+      </div>
+      <div class="logo-box">
+        <img src="sns_logo.svg" width="100" height="100" alt="Logo 100px">
+        <p>100px</p>
+      </div>
+      <div class="logo-box">
+        <img src="sns_logo.svg" width="48" height="48" alt="Logo 48px">
+        <p>48px</p>
+      </div>
+    </div>
+  </div>
+
+  <div class="section">
+    <h2>X Profile Mock</h2>
+    <div class="twitter-mock">
+      <div class="mock-header">
+        <img src="sns_header.svg" alt="Header">
+      </div>
+      <div class="mock-profile-row">
+        <div class="mock-avatar">
+          <img src="sns_logo.svg" alt="Avatar">
+        </div>
+      </div>
+      <div class="mock-info">
+        <div class="mock-name">毎日 AI ラボ</div>
+        <div class="mock-handle">@daily_ai_lab</div>
+      </div>
+      <div class="mock-bio">
+        AI の作業・実験・発見を毎日お届け ✦ 機械学習 / Claude / ChatGPT / 自動化 / プロンプト設計
+      </div>
+    </div>
+  </div>
+
+</body>
+</html>
