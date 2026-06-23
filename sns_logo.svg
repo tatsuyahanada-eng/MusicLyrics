@@ -1,44 +1,34 @@
 <svg width="400" height="400" viewBox="0 0 400 400" xmlns="http://www.w3.org/2000/svg">
   <defs>
-    <!-- Background -->
     <radialGradient id="bgGrad" cx="50%" cy="50%" r="70%">
       <stop offset="0%"   stop-color="#0e0022"/>
       <stop offset="100%" stop-color="#020009"/>
     </radialGradient>
-
-    <!-- Orange (human/struggle) -->
     <linearGradient id="ogGrad" x1="0%" y1="100%" x2="100%" y2="0%">
       <stop offset="0%"   stop-color="#FF3D00"/>
       <stop offset="100%" stop-color="#FFAA00"/>
     </linearGradient>
-
-    <!-- Cyan (AI/precision) -->
     <linearGradient id="cyGrad" x1="0%" y1="100%" x2="100%" y2="0%">
       <stop offset="0%"   stop-color="#0099FF"/>
       <stop offset="100%" stop-color="#00FFE5"/>
     </linearGradient>
-
-    <!-- Hub ring gradient: orange → purple → cyan -->
     <linearGradient id="hubRingGrad" x1="0%" y1="100%" x2="100%" y2="0%">
       <stop offset="0%"   stop-color="#FF6B00"/>
       <stop offset="45%"  stop-color="#9333EA"/>
       <stop offset="100%" stop-color="#00E5FF"/>
     </linearGradient>
-
-    <!-- Split diagonal gradient for center fill -->
     <linearGradient id="splitGrad" x1="0%" y1="100%" x2="100%" y2="0%">
       <stop offset="0%"   stop-color="#1a0500"/>
       <stop offset="48%"  stop-color="#0a0018"/>
       <stop offset="100%" stop-color="#00050f"/>
     </linearGradient>
 
-    <!-- Glow filters -->
     <filter id="ogGlow" x="-80%" y="-80%" width="260%" height="260%">
-      <feGaussianBlur stdDeviation="7" result="b"/>
+      <feGaussianBlur stdDeviation="6" result="b"/>
       <feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge>
     </filter>
     <filter id="cyGlow" x="-80%" y="-80%" width="260%" height="260%">
-      <feGaussianBlur stdDeviation="7" result="b"/>
+      <feGaussianBlur stdDeviation="6" result="b"/>
       <feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge>
     </filter>
     <filter id="hubGlow" x="-50%" y="-50%" width="200%" height="200%">
@@ -49,181 +39,362 @@
       <feGaussianBlur stdDeviation="4" result="b"/>
       <feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge>
     </filter>
-
+    <filter id="pulseGlow" x="-100%" y="-100%" width="300%" height="300%">
+      <feGaussianBlur stdDeviation="3" result="b"/>
+      <feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
     <clipPath id="circ">
       <circle cx="200" cy="200" r="192"/>
     </clipPath>
   </defs>
 
-  <!-- ── Background ── -->
+  <!-- Background -->
   <circle cx="200" cy="200" r="200" fill="url(#bgGrad)"/>
 
   <g clip-path="url(#circ)">
 
     <!-- Fine dot grid -->
     <pattern id="dp" x="0" y="0" width="20" height="20" patternUnits="userSpaceOnUse">
-      <circle cx="10" cy="10" r="0.9" fill="#2D1060" opacity="0.55"/>
+      <circle cx="10" cy="10" r="0.9" fill="#2D1060" opacity="0.5"/>
     </pattern>
     <rect width="400" height="400" fill="url(#dp)"/>
 
-    <!-- Diagonal split glow (bottom-left orange, top-right cyan) -->
-    <ellipse cx="100" cy="310" rx="180" ry="140" fill="#FF3D00" opacity="0.06"/>
-    <ellipse cx="300" cy="90"  rx="170" ry="130" fill="#0099FF" opacity="0.07"/>
+    <!-- Subtle hexagonal grid overlay -->
+    <pattern id="hexgrid" x="0" y="0" width="34" height="40" patternUnits="userSpaceOnUse">
+      <polygon points="17,2 30,9 30,23 17,30 4,23 4,9"
+               fill="none" stroke="#1E0A50" stroke-width="0.6" opacity="0.5"/>
+    </pattern>
+    <rect width="400" height="400" fill="url(#hexgrid)" opacity="0.45"/>
 
-    <!-- ═══════════════════════════════════════
-         ORANGE CLUSTER — bottom-left
-         Represents the struggling SE side
-    ═══════════════════════════════════════ -->
+    <!-- Background glow -->
+    <ellipse cx="100" cy="310" rx="180" ry="140" fill="#FF3D00" opacity="0.055"/>
+    <ellipse cx="300" cy="90"  rx="170" ry="130" fill="#0099FF" opacity="0.065"/>
 
-    <!-- Branch 1: center → deep left-bottom -->
-    <line x1="200" y1="200" x2="155" y2="248" stroke="#FF6B00" stroke-width="1.8" opacity="0.7"/>
-    <line x1="155" y1="248" x2="108" y2="268" stroke="#FF5500" stroke-width="1.5" opacity="0.65"/>
-    <line x1="108" y1="268" x2="72"  y2="308" stroke="#FF4000" stroke-width="1.3" opacity="0.6"/>
-    <line x1="72"  y1="308" x2="50"  y2="350" stroke="#FF3D00" stroke-width="1.1" opacity="0.5"/>
-    <line x1="72"  y1="308" x2="100" y2="345" stroke="#FF6B00" stroke-width="1.1" opacity="0.5"/>
+    <!-- ═══════════════════════════════════════════
+         ORANGE CLUSTER — PCB-style right-angle traces
+    ════════════════════════════════════════════ -->
 
-    <!-- Branch 2: center → left -->
-    <line x1="200" y1="200" x2="138" y2="210" stroke="#FF8C00" stroke-width="1.6" opacity="0.65"/>
-    <line x1="138" y1="210" x2="88"  y2="232" stroke="#FF6B00" stroke-width="1.3" opacity="0.6"/>
-    <line x1="88"  y1="232" x2="58"  y2="260" stroke="#FF5500" stroke-width="1.1" opacity="0.55"/>
-    <line x1="88"  y1="232" x2="68"  y2="195" stroke="#FFAA00" stroke-width="1.1" opacity="0.5"/>
+    <!-- Center → (155,248): go down then left -->
+    <path d="M 200,200 L 200,248 L 155,248"
+          fill="none" stroke="#FF6B00" stroke-width="1.8" opacity="0.72"/>
+    <circle cx="200" cy="248" r="2.5" fill="#FF8C00" opacity="0.85"/><!-- via -->
 
-    <!-- Branch 3: center → bottom -->
-    <line x1="200" y1="200" x2="190" y2="265" stroke="#FF9500" stroke-width="1.6" opacity="0.65"/>
-    <line x1="190" y1="265" x2="162" y2="318" stroke="#FF6B00" stroke-width="1.3" opacity="0.6"/>
-    <line x1="162" y1="318" x2="130" y2="352" stroke="#FF4500" stroke-width="1.1" opacity="0.55"/>
-    <line x1="190" y1="265" x2="228" y2="315" stroke="#FFAA00" stroke-width="1.1" opacity="0.5"/>
+    <!-- Center → (138,210): go left, tiny jog down -->
+    <path d="M 200,200 L 138,200 L 138,210"
+          fill="none" stroke="#FF8C00" stroke-width="1.6" opacity="0.68"/>
+    <circle cx="138" cy="200" r="2"   fill="#FFAA00" opacity="0.8"/><!-- via -->
 
-    <!-- Cross-connections (orange cluster) -->
-    <line x1="155" y1="248" x2="138" y2="210" stroke="#FF8C00" stroke-width="0.9" opacity="0.4"/>
-    <line x1="108" y1="268" x2="88"  y2="232" stroke="#FF6B00" stroke-width="0.9" opacity="0.35"/>
-    <line x1="72"  y1="308" x2="58"  y2="260" stroke="#FF5500" stroke-width="0.8" opacity="0.3"/>
-    <line x1="162" y1="318" x2="100" y2="345" stroke="#FF3D00" stroke-width="0.8" opacity="0.3"/>
+    <!-- Center → (190,265): left jog then down -->
+    <path d="M 200,200 L 190,200 L 190,265"
+          fill="none" stroke="#FF9500" stroke-width="1.6" opacity="0.68"/>
+    <circle cx="190" cy="200" r="2"   fill="#FF9500" opacity="0.8"/><!-- via -->
 
-    <!-- Orange nodes (large primary) -->
+    <!-- (155,248) → (108,268): left then down -->
+    <path d="M 155,248 L 108,248 L 108,268"
+          fill="none" stroke="#FF5500" stroke-width="1.5" opacity="0.62"/>
+    <circle cx="108" cy="248" r="2"   fill="#FF6B00" opacity="0.75"/><!-- via -->
+
+    <!-- (108,268) → (72,308): left then down -->
+    <path d="M 108,268 L 72,268 L 72,308"
+          fill="none" stroke="#FF4000" stroke-width="1.3" opacity="0.6"/>
+    <circle cx="72"  cy="268" r="2"   fill="#FF5500" opacity="0.7"/><!-- via -->
+
+    <!-- (72,308) → (50,350): down then left -->
+    <path d="M 72,308 L 72,350 L 50,350"
+          fill="none" stroke="#FF3D00" stroke-width="1.1" opacity="0.52"/>
+    <circle cx="72"  cy="350" r="1.8" fill="#FF4000" opacity="0.65"/><!-- via -->
+
+    <!-- (72,308) → (100,345): right then down -->
+    <path d="M 72,308 L 100,308 L 100,345"
+          fill="none" stroke="#FF6B00" stroke-width="1.1" opacity="0.5"/>
+    <circle cx="100" cy="308" r="1.8" fill="#FF6B00" opacity="0.6"/><!-- via -->
+
+    <!-- (138,210) → (88,232): left then down -->
+    <path d="M 138,210 L 88,210 L 88,232"
+          fill="none" stroke="#FF6B00" stroke-width="1.3" opacity="0.6"/>
+    <circle cx="88"  cy="210" r="2"   fill="#FF7B00" opacity="0.7"/><!-- via -->
+
+    <!-- (88,232) → (58,260): left then down -->
+    <path d="M 88,232 L 58,232 L 58,260"
+          fill="none" stroke="#FF5500" stroke-width="1.1" opacity="0.55"/>
+    <circle cx="58"  cy="232" r="1.8" fill="#FF6B00" opacity="0.65"/><!-- via -->
+
+    <!-- (88,232) → (68,195): left then up -->
+    <path d="M 88,232 L 68,232 L 68,195"
+          fill="none" stroke="#FFAA00" stroke-width="1.1" opacity="0.5"/>
+    <circle cx="68"  cy="232" r="1.8" fill="#FFAA00" opacity="0.6"/><!-- via -->
+
+    <!-- (190,265) → (162,318): left then down -->
+    <path d="M 190,265 L 162,265 L 162,318"
+          fill="none" stroke="#FF6B00" stroke-width="1.3" opacity="0.6"/>
+    <circle cx="162" cy="265" r="2"   fill="#FF8C00" opacity="0.7"/><!-- via -->
+
+    <!-- (162,318) → (130,352): left then down -->
+    <path d="M 162,318 L 130,318 L 130,352"
+          fill="none" stroke="#FF4500" stroke-width="1.1" opacity="0.52"/>
+    <circle cx="130" cy="318" r="1.8" fill="#FF5500" opacity="0.6"/><!-- via -->
+
+    <!-- (190,265) → (228,315): right then down -->
+    <path d="M 190,265 L 228,265 L 228,315"
+          fill="none" stroke="#FFAA00" stroke-width="1.1" opacity="0.5"/>
+    <circle cx="228" cy="265" r="1.8" fill="#FFAA00" opacity="0.6"/><!-- via -->
+
+    <!-- ── Orange signal pulse rings ── -->
+    <!-- Pulse around (108,268) -->
+    <circle cx="108" cy="268" r="16" fill="none" stroke="#FF4000" stroke-width="0.8"
+            stroke-dasharray="3 6" opacity="0.35" filter="url(#pulseGlow)"/>
+    <circle cx="108" cy="268" r="24" fill="none" stroke="#FF4000" stroke-width="0.5"
+            stroke-dasharray="2 8" opacity="0.2"/>
+
+    <!-- Pulse around (88,232) -->
+    <circle cx="88" cy="232" r="13" fill="none" stroke="#FF6B00" stroke-width="0.8"
+            stroke-dasharray="3 5" opacity="0.3" filter="url(#pulseGlow)"/>
+    <circle cx="88" cy="232" r="20" fill="none" stroke="#FF6B00" stroke-width="0.5"
+            stroke-dasharray="2 7" opacity="0.18"/>
+
+    <!-- ── Tiny binary text near orange nodes ── -->
+    <text x="55" y="307"
+          font-family="'Courier New','Lucida Console',monospace"
+          font-size="5.5" fill="#FF6B00" opacity="0.55" letter-spacing="0.5">01101</text>
+    <text x="115" y="282"
+          font-family="'Courier New','Lucida Console',monospace"
+          font-size="5" fill="#FFAA00" opacity="0.5" letter-spacing="0.5">1001</text>
+    <text x="60" y="248"
+          font-family="'Courier New','Lucida Console',monospace"
+          font-size="5" fill="#FF5500" opacity="0.45" letter-spacing="0.5">0x3F</text>
+
+    <!-- ── Orange nodes ── -->
+    <!-- Large primary -->
     <circle cx="155" cy="248" r="9"  fill="#0e0015" stroke="#FF8C00" stroke-width="2.5" filter="url(#ogGlow)"/>
     <circle cx="138" cy="210" r="8"  fill="#0e0015" stroke="#FF6B00" stroke-width="2.2" filter="url(#ogGlow)"/>
     <circle cx="190" cy="265" r="8"  fill="#0e0015" stroke="#FFAA00" stroke-width="2.2" filter="url(#ogGlow)"/>
-
-    <!-- Orange nodes (medium) -->
-    <circle cx="108" cy="268" r="7"  fill="#0e0015" stroke="#FF5500" stroke-width="2" filter="url(#nodeGlow)"/>
+    <!-- Medium -->
+    <circle cx="108" cy="268" r="7"  fill="#0e0015" stroke="#FF5500" stroke-width="2"   filter="url(#nodeGlow)"/>
     <circle cx="88"  cy="232" r="6"  fill="#0e0015" stroke="#FF6B00" stroke-width="1.8" filter="url(#nodeGlow)"/>
-    <circle cx="162" cy="318" r="7"  fill="#0e0015" stroke="#FF6B00" stroke-width="2" filter="url(#nodeGlow)"/>
+    <circle cx="162" cy="318" r="7"  fill="#0e0015" stroke="#FF6B00" stroke-width="2"   filter="url(#nodeGlow)"/>
     <circle cx="228" cy="315" r="5"  fill="#0e0015" stroke="#FFAA00" stroke-width="1.6"/>
-
-    <!-- Orange nodes (small outer) -->
+    <!-- Small outer -->
     <circle cx="72"  cy="308" r="6"  fill="#0e0015" stroke="#FF4000" stroke-width="1.8" filter="url(#nodeGlow)"/>
     <circle cx="58"  cy="260" r="5"  fill="#0e0015" stroke="#FF5500" stroke-width="1.5"/>
     <circle cx="50"  cy="350" r="4"  fill="#0e0015" stroke="#FF3D00" stroke-width="1.4" opacity="0.8"/>
     <circle cx="100" cy="345" r="4"  fill="#0e0015" stroke="#FF6B00" stroke-width="1.4" opacity="0.8"/>
     <circle cx="68"  cy="195" r="4"  fill="#0e0015" stroke="#FFAA00" stroke-width="1.4" opacity="0.7"/>
     <circle cx="130" cy="352" r="4"  fill="#0e0015" stroke="#FF4500" stroke-width="1.3" opacity="0.7"/>
+    <!-- Square pads (system/chip feel) at two junction nodes -->
+    <rect x="149" y="242" width="12" height="12" rx="2" fill="#0e0015" stroke="#FF8C00" stroke-width="2" filter="url(#ogGlow)"/>
+    <rect x="182" y="259" width="12" height="12" rx="2" fill="#0e0015" stroke="#FFAA00" stroke-width="2" filter="url(#nodeGlow)"/>
 
-    <!-- ═══════════════════════════════════════
-         CYAN CLUSTER — top-right
-         Represents the AI/precision side
-    ═══════════════════════════════════════ -->
 
-    <!-- Branch 1: center → top-right -->
-    <line x1="200" y1="200" x2="248" y2="152" stroke="#00BFFF" stroke-width="1.8" opacity="0.7"/>
-    <line x1="248" y1="152" x2="292" y2="130" stroke="#00D4FF" stroke-width="1.5" opacity="0.65"/>
-    <line x1="292" y1="130" x2="330" y2="95"  stroke="#00E5FF" stroke-width="1.3" opacity="0.6"/>
-    <line x1="330" y1="95"  x2="355" y2="60"  stroke="#00FFE5" stroke-width="1.1" opacity="0.5"/>
-    <line x1="330" y1="95"  x2="360" y2="118" stroke="#00BFFF" stroke-width="1.1" opacity="0.5"/>
+    <!-- ═══════════════════════════════════════════
+         CYAN CLUSTER — PCB-style right-angle traces
+    ════════════════════════════════════════════ -->
 
-    <!-- Branch 2: center → right -->
-    <line x1="200" y1="200" x2="264" y2="192" stroke="#00BFFF" stroke-width="1.6" opacity="0.65"/>
-    <line x1="264" y1="192" x2="318" y2="172" stroke="#00D4FF" stroke-width="1.3" opacity="0.6"/>
-    <line x1="318" y1="172" x2="348" y2="148" stroke="#00E5FF" stroke-width="1.1" opacity="0.55"/>
-    <line x1="318" y1="172" x2="335" y2="205" stroke="#0099FF" stroke-width="1.1" opacity="0.5"/>
+    <!-- Center → (248,152): right then up -->
+    <path d="M 200,200 L 248,200 L 248,152"
+          fill="none" stroke="#00BFFF" stroke-width="1.8" opacity="0.72"/>
+    <circle cx="248" cy="200" r="2.5" fill="#00D4FF" opacity="0.85"/><!-- via -->
 
-    <!-- Branch 3: center → top -->
-    <line x1="200" y1="200" x2="210" y2="138" stroke="#0099FF" stroke-width="1.6" opacity="0.65"/>
-    <line x1="210" y1="138" x2="240" y2="88"  stroke="#00BFFF" stroke-width="1.3" opacity="0.6"/>
-    <line x1="240" y1="88"  x2="272" y2="52"  stroke="#00E5FF" stroke-width="1.1" opacity="0.55"/>
-    <line x1="210" y1="138" x2="168" y2="90"  stroke="#0099FF" stroke-width="1.1" opacity="0.5"/>
+    <!-- Center → (264,192): right tiny jog up -->
+    <path d="M 200,200 L 264,200 L 264,192"
+          fill="none" stroke="#0099FF" stroke-width="1.6" opacity="0.68"/>
+    <circle cx="264" cy="200" r="2"   fill="#00BFFF" opacity="0.8"/><!-- via -->
 
-    <!-- Cross-connections (cyan — more rectilinear, ordered) -->
-    <line x1="248" y1="152" x2="264" y2="192" stroke="#00BFFF" stroke-width="0.9" opacity="0.4"/>
-    <line x1="292" y1="130" x2="318" y2="172" stroke="#00D4FF" stroke-width="0.9" opacity="0.35"/>
-    <line x1="330" y1="95"  x2="348" y2="148" stroke="#00E5FF" stroke-width="0.8" opacity="0.3"/>
-    <line x1="240" y1="88"  x2="292" y2="130" stroke="#00BFFF" stroke-width="0.8" opacity="0.3"/>
+    <!-- Center → (210,138): up then right -->
+    <path d="M 200,200 L 200,138 L 210,138"
+          fill="none" stroke="#0099FF" stroke-width="1.6" opacity="0.68"/>
+    <circle cx="200" cy="138" r="2"   fill="#00BFFF" opacity="0.8"/><!-- via -->
 
-    <!-- Cyan nodes (large primary) -->
+    <!-- (248,152) → (292,130): right then up -->
+    <path d="M 248,152 L 292,152 L 292,130"
+          fill="none" stroke="#00D4FF" stroke-width="1.5" opacity="0.62"/>
+    <circle cx="292" cy="152" r="2"   fill="#00D4FF" opacity="0.75"/><!-- via -->
+
+    <!-- (292,130) → (330,95): right then up -->
+    <path d="M 292,130 L 330,130 L 330,95"
+          fill="none" stroke="#00E5FF" stroke-width="1.3" opacity="0.6"/>
+    <circle cx="330" cy="130" r="2"   fill="#00E5FF" opacity="0.7"/><!-- via -->
+
+    <!-- (330,95) → (355,60): right then up -->
+    <path d="M 330,95 L 355,95 L 355,60"
+          fill="none" stroke="#00FFE5" stroke-width="1.1" opacity="0.52"/>
+    <circle cx="355" cy="95"  r="1.8" fill="#00FFE5" opacity="0.65"/><!-- via -->
+
+    <!-- (330,95) → (360,118): right then down -->
+    <path d="M 330,95 L 360,95 L 360,118"
+          fill="none" stroke="#00BFFF" stroke-width="1.1" opacity="0.5"/>
+    <circle cx="360" cy="95"  r="1.8" fill="#00BFFF" opacity="0.6"/><!-- via -->
+
+    <!-- (264,192) → (318,172): right then up -->
+    <path d="M 264,192 L 318,192 L 318,172"
+          fill="none" stroke="#00BFFF" stroke-width="1.3" opacity="0.6"/>
+    <circle cx="318" cy="192" r="2"   fill="#00BFFF" opacity="0.7"/><!-- via -->
+
+    <!-- (318,172) → (348,148): right then up -->
+    <path d="M 318,172 L 348,172 L 348,148"
+          fill="none" stroke="#00E5FF" stroke-width="1.1" opacity="0.55"/>
+    <circle cx="348" cy="172" r="1.8" fill="#00E5FF" opacity="0.65"/><!-- via -->
+
+    <!-- (318,172) → (335,205): right then down -->
+    <path d="M 318,172 L 335,172 L 335,205"
+          fill="none" stroke="#0099FF" stroke-width="1.1" opacity="0.5"/>
+    <circle cx="335" cy="172" r="1.8" fill="#0099FF" opacity="0.6"/><!-- via -->
+
+    <!-- (210,138) → (240,88): right then up -->
+    <path d="M 210,138 L 240,138 L 240,88"
+          fill="none" stroke="#00BFFF" stroke-width="1.3" opacity="0.6"/>
+    <circle cx="240" cy="138" r="2"   fill="#00D4FF" opacity="0.7"/><!-- via -->
+
+    <!-- (240,88) → (272,52): right then up -->
+    <path d="M 240,88 L 272,88 L 272,52"
+          fill="none" stroke="#00E5FF" stroke-width="1.1" opacity="0.52"/>
+    <circle cx="272" cy="88"  r="1.8" fill="#00E5FF" opacity="0.6"/><!-- via -->
+
+    <!-- (210,138) → (168,90): left then up -->
+    <path d="M 210,138 L 168,138 L 168,90"
+          fill="none" stroke="#0099FF" stroke-width="1.1" opacity="0.5"/>
+    <circle cx="168" cy="138" r="1.8" fill="#0099FF" opacity="0.6"/><!-- via -->
+
+    <!-- ── Cyan signal pulse rings ── -->
+    <!-- Pulse around (292,130) -->
+    <circle cx="292" cy="130" r="16" fill="none" stroke="#00E5FF" stroke-width="0.8"
+            stroke-dasharray="3 6" opacity="0.35" filter="url(#pulseGlow)"/>
+    <circle cx="292" cy="130" r="24" fill="none" stroke="#00E5FF" stroke-width="0.5"
+            stroke-dasharray="2 8" opacity="0.2"/>
+
+    <!-- Pulse around (248,152) -->
+    <circle cx="248" cy="152" r="13" fill="none" stroke="#00BFFF" stroke-width="0.8"
+            stroke-dasharray="3 5" opacity="0.3" filter="url(#pulseGlow)"/>
+    <circle cx="248" cy="152" r="20" fill="none" stroke="#00BFFF" stroke-width="0.5"
+            stroke-dasharray="2 7" opacity="0.18"/>
+
+    <!-- ── Tiny hex/system text near cyan nodes ── -->
+    <text x="300" y="116"
+          font-family="'Courier New','Lucida Console',monospace"
+          font-size="5.5" fill="#00E5FF" opacity="0.55" letter-spacing="0.5">0xFF</text>
+    <text x="340" y="84"
+          font-family="'Courier New','Lucida Console',monospace"
+          font-size="5" fill="#00FFE5" opacity="0.5" letter-spacing="0.5">ACK</text>
+    <text x="268" y="176"
+          font-family="'Courier New','Lucida Console',monospace"
+          font-size="5" fill="#0099FF" opacity="0.45" letter-spacing="0.5">SYN</text>
+
+    <!-- ── Cyan nodes ── -->
+    <!-- Large primary -->
     <circle cx="248" cy="152" r="9"  fill="#000a18" stroke="#00BFFF" stroke-width="2.5" filter="url(#cyGlow)"/>
     <circle cx="264" cy="192" r="8"  fill="#000a18" stroke="#0099FF" stroke-width="2.2" filter="url(#cyGlow)"/>
     <circle cx="210" cy="138" r="8"  fill="#000a18" stroke="#00D4FF" stroke-width="2.2" filter="url(#cyGlow)"/>
-
-    <!-- Cyan nodes (medium) -->
+    <!-- Medium -->
     <circle cx="292" cy="130" r="7"  fill="#000a18" stroke="#00D4FF" stroke-width="2"   filter="url(#nodeGlow)"/>
     <circle cx="318" cy="172" r="6"  fill="#000a18" stroke="#00BFFF" stroke-width="1.8" filter="url(#nodeGlow)"/>
     <circle cx="240" cy="88"  r="7"  fill="#000a18" stroke="#00E5FF" stroke-width="2"   filter="url(#nodeGlow)"/>
     <circle cx="168" cy="90"  r="5"  fill="#000a18" stroke="#0099FF" stroke-width="1.6"/>
-
-    <!-- Cyan nodes (small outer) -->
+    <!-- Small outer -->
     <circle cx="330" cy="95"  r="6"  fill="#000a18" stroke="#00E5FF" stroke-width="1.8" filter="url(#nodeGlow)"/>
     <circle cx="348" cy="148" r="5"  fill="#000a18" stroke="#00BFFF" stroke-width="1.5"/>
     <circle cx="355" cy="60"  r="4"  fill="#000a18" stroke="#00FFE5" stroke-width="1.4" opacity="0.8"/>
     <circle cx="360" cy="118" r="4"  fill="#000a18" stroke="#00BFFF" stroke-width="1.4" opacity="0.8"/>
     <circle cx="335" cy="205" r="4"  fill="#000a18" stroke="#0099FF" stroke-width="1.4" opacity="0.7"/>
     <circle cx="272" cy="52"  r="4"  fill="#000a18" stroke="#00FFE5" stroke-width="1.3" opacity="0.7"/>
+    <!-- Square pads (chip feel) -->
+    <rect x="242" y="146" width="12" height="12" rx="2" fill="#000a18" stroke="#00BFFF" stroke-width="2" filter="url(#cyGlow)"/>
+    <rect x="204" y="132" width="12" height="12" rx="2" fill="#000a18" stroke="#00D4FF" stroke-width="2" filter="url(#nodeGlow)"/>
 
-    <!-- ═══════════════════════════════════════
-         DIAGONAL SPLIT LINE (subtle)
-    ═══════════════════════════════════════ -->
-    <line x1="80" y1="80" x2="320" y2="320"
-          stroke="#6D28D9" stroke-width="0.6" opacity="0.3" stroke-dasharray="4 8"/>
 
-    <!-- ═══════════════════════════════════════
+    <!-- ═══════════════════════════════════════════
+         DIAGONAL SPLIT + HUB BROADCAST RINGS
+    ════════════════════════════════════════════ -->
+
+    <!-- Diagonal split reference line -->
+    <line x1="80"  y1="80"  x2="320" y2="320"
+          stroke="#6D28D9" stroke-width="0.5" opacity="0.25" stroke-dasharray="3 9"/>
+
+    <!-- Broadcast semicircles from hub (suggesting signal emission) -->
+    <path d="M 165,200 A 35,35 0 0 0 235,200"
+          fill="none" stroke="#FF6B00" stroke-width="0.7" stroke-dasharray="4 6" opacity="0.3"/>
+    <path d="M 158,200 A 42,42 0 0 0 242,200"
+          fill="none" stroke="#FF5500" stroke-width="0.5" stroke-dasharray="3 8" opacity="0.2"/>
+    <path d="M 165,200 A 35,35 0 0 1 235,200"
+          fill="none" stroke="#00BFFF" stroke-width="0.7" stroke-dasharray="4 6" opacity="0.3"/>
+    <path d="M 158,200 A 42,42 0 0 1 242,200"
+          fill="none" stroke="#00E5FF" stroke-width="0.5" stroke-dasharray="3 8" opacity="0.2"/>
+
+    <!-- ═══════════════════════════════════════════
          CENTRAL HEXAGONAL HUB
-    ═══════════════════════════════════════ -->
+    ════════════════════════════════════════════ -->
 
     <!-- Hex glow aura -->
     <polygon points="200,155 236,177 236,223 200,245 164,223 164,177"
-             fill="#9333EA" opacity="0.12" filter="url(#hubGlow)"/>
+             fill="#9333EA" opacity="0.1" filter="url(#hubGlow)"/>
 
-    <!-- Hex outer track (background hex, slightly larger) -->
+    <!-- Outer hex ring -->
     <polygon points="200,152 238,174 238,226 200,248 162,226 162,174"
              fill="url(#splitGrad)" stroke="url(#hubRingGrad)" stroke-width="3"/>
 
-    <!-- Inner hex (slightly inset) -->
+    <!-- Inner hex fill -->
     <polygon points="200,158 233,178 233,222 200,242 167,222 167,178"
              fill="#06000e" stroke="#2D1060" stroke-width="0.8"/>
 
-    <!-- Circuit traces inside hex (decorative) -->
-    <!-- Horizontal center trace -->
-    <line x1="172" y1="200" x2="228" y2="200" stroke="#3B1F8C" stroke-width="1.5" opacity="0.6"/>
-    <!-- Left corner traces -->
-    <line x1="172" y1="200" x2="165" y2="188" stroke="#FF6B00" stroke-width="1" opacity="0.4"/>
-    <line x1="172" y1="200" x2="165" y2="212" stroke="#FF6B00" stroke-width="1" opacity="0.4"/>
-    <!-- Right corner traces -->
-    <line x1="228" y1="200" x2="235" y2="188" stroke="#00BFFF" stroke-width="1" opacity="0.4"/>
-    <line x1="228" y1="200" x2="235" y2="212" stroke="#00BFFF" stroke-width="1" opacity="0.4"/>
-    <!-- Small contact pads -->
-    <circle cx="172" cy="200" r="2.5" fill="#FF8C00" opacity="0.7"/>
-    <circle cx="228" cy="200" r="2.5" fill="#00BFFF" opacity="0.7"/>
-    <!-- Top/bottom traces -->
-    <line x1="200" y1="162" x2="200" y2="175" stroke="#6D28D9" stroke-width="1" opacity="0.5"/>
-    <line x1="200" y1="225" x2="200" y2="238" stroke="#6D28D9" stroke-width="1" opacity="0.5"/>
-    <circle cx="200" cy="175" r="2" fill="#9333EA" opacity="0.6"/>
-    <circle cx="200" cy="225" r="2" fill="#9333EA" opacity="0.6"/>
+    <!-- ── Circuit traces inside hex ── -->
+    <!-- Horizontal bus line -->
+    <line x1="172" y1="200" x2="228" y2="200"
+          stroke="#3B1F8C" stroke-width="1.5" opacity="0.6"/>
+    <!-- Left traces (L-shaped, orange) -->
+    <path d="M 172,200 L 167,200 L 167,190"
+          fill="none" stroke="#FF6B00" stroke-width="1" opacity="0.45"/>
+    <path d="M 172,200 L 167,200 L 167,210"
+          fill="none" stroke="#FF6B00" stroke-width="1" opacity="0.45"/>
+    <!-- Right traces (L-shaped, cyan) -->
+    <path d="M 228,200 L 233,200 L 233,190"
+          fill="none" stroke="#00BFFF" stroke-width="1" opacity="0.45"/>
+    <path d="M 228,200 L 233,200 L 233,210"
+          fill="none" stroke="#00BFFF" stroke-width="1" opacity="0.45"/>
+    <!-- Top trace -->
+    <path d="M 200,162 L 200,175 L 193,175 L 193,180"
+          fill="none" stroke="#9333EA" stroke-width="1" opacity="0.45"/>
+    <path d="M 200,162 L 200,175 L 207,175 L 207,180"
+          fill="none" stroke="#9333EA" stroke-width="1" opacity="0.45"/>
+    <!-- Bottom trace -->
+    <path d="M 200,238 L 200,225 L 193,225 L 193,220"
+          fill="none" stroke="#9333EA" stroke-width="1" opacity="0.45"/>
+    <path d="M 200,238 L 200,225 L 207,225 L 207,220"
+          fill="none" stroke="#9333EA" stroke-width="1" opacity="0.45"/>
+    <!-- SMD pad contacts -->
+    <rect x="168" y="196" width="6" height="8" rx="1" fill="#FF8C00" opacity="0.6"/>
+    <rect x="226" y="196" width="6" height="8" rx="1" fill="#00BFFF" opacity="0.6"/>
+    <rect x="197" y="158" width="6" height="6" rx="1" fill="#9333EA" opacity="0.5"/>
+    <rect x="197" y="236" width="6" height="6" rx="1" fill="#9333EA" opacity="0.5"/>
+    <!-- Center crosshair dot -->
+    <line x1="196" y1="200" x2="204" y2="200" stroke="#6D28D9" stroke-width="0.8" opacity="0.4"/>
+    <line x1="200" y1="196" x2="200" y2="204" stroke="#6D28D9" stroke-width="0.8" opacity="0.4"/>
 
-    <!-- "A" — orange, bold -->
-    <text x="182" y="214"
+    <!-- "A" orange + "I" cyan -->
+    <text x="181" y="215"
           font-family="'SF Pro Display','Helvetica Neue',Arial,sans-serif"
-          font-size="36" font-weight="900" letter-spacing="-1"
+          font-size="37" font-weight="900" letter-spacing="-1"
           fill="#FF8C00" filter="url(#ogGlow)">A</text>
-
-    <!-- "I" — cyan, bold -->
-    <text x="211" y="214"
+    <text x="210" y="215"
           font-family="'SF Pro Display','Helvetica Neue',Arial,sans-serif"
-          font-size="36" font-weight="900"
+          font-size="37" font-weight="900"
           fill="#00E5FF" filter="url(#cyGlow)">I</text>
 
   </g><!-- end clip -->
 
-  <!-- Outer border ring -->
+  <!-- Outer border with tick marks -->
   <circle cx="200" cy="200" r="192" fill="none" stroke="url(#hubRingGrad)" stroke-width="2.5" opacity="0.65"/>
-  <!-- Very faint outer ring -->
   <circle cx="200" cy="200" r="189" fill="none" stroke="#4C1D95" stroke-width="0.6" opacity="0.3"/>
+  <!-- Tick marks at 12 positions -->
+  <g stroke="url(#hubRingGrad)" stroke-width="1.5" opacity="0.5">
+    <line x1="200" y1="8"   x2="200" y2="18"/>  <!-- top -->
+    <line x1="200" y1="382" x2="200" y2="392"/> <!-- bottom -->
+    <line x1="8"   y1="200" x2="18"  y2="200"/> <!-- left -->
+    <line x1="382" y1="200" x2="392" y2="200"/> <!-- right -->
+  </g>
+  <g stroke="#9333EA" stroke-width="1" opacity="0.35">
+    <line x1="332" y1="46"  x2="327" y2="55"/>  <!-- top-right -->
+    <line x1="354" y1="68"  x2="346" y2="75"/>
+    <line x1="68"  y1="354" x2="75"  y2="346"/> <!-- bottom-left -->
+    <line x1="46"  y1="332" x2="55"  y2="327"/>
+    <line x1="332" y1="354" x2="327" y2="345"/> <!-- bottom-right -->
+    <line x1="68"  y1="46"  x2="75"  y2="55"/>  <!-- top-left -->
+  </g>
 </svg>
