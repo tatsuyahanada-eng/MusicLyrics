@@ -66,6 +66,162 @@
     </pattern>
     <rect width="400" height="400" fill="url(#hexgrid)" opacity="0.45"/>
 
+    <!-- ═══════════════════════════════════════════
+         MATRIX TEXT LAYER — commands / rain / binary
+    ════════════════════════════════════════════ -->
+
+    <!-- ── Vertical rain columns ── -->
+    <!-- Column A (left edge) — classic Matrix rain, green -->
+    <g font-family="'Courier New','Lucida Console',monospace" font-size="7" text-anchor="middle" letter-spacing="0">
+      <text x="22" y="55"  fill="#00FF41" opacity="0.06">ア</text>
+      <text x="22" y="65"  fill="#00FF41" opacity="0.07">1</text>
+      <text x="22" y="75"  fill="#00FF41" opacity="0.08">0</text>
+      <text x="22" y="85"  fill="#00FF41" opacity="0.09">イ</text>
+      <text x="22" y="95"  fill="#00FF41" opacity="0.10">F</text>
+      <text x="22" y="105" fill="#00FF41" opacity="0.11">3</text>
+      <text x="22" y="115" fill="#00FF41" opacity="0.12">ウ</text>
+      <text x="22" y="125" fill="#00FF41" opacity="0.13">E</text>
+      <text x="22" y="135" fill="#00FF41" opacity="0.14">B</text>
+      <text x="22" y="145" fill="#00FF41" opacity="0.14">エ</text>
+      <text x="22" y="155" fill="#00FF41" opacity="0.13">7</text>
+      <text x="22" y="165" fill="#00FF41" opacity="0.12">2</text>
+      <text x="22" y="175" fill="#00FF41" opacity="0.11">オ</text>
+      <text x="22" y="185" fill="#39FF14" opacity="0.16">9</text><!-- bright head -->
+      <text x="22" y="195" fill="#FFFFFF" opacity="0.20">$</text><!-- brightest head -->
+    </g>
+
+    <!-- Column B (left, offset) — orange-tinted for SE side -->
+    <g font-family="'Courier New','Lucida Console',monospace" font-size="6.5" text-anchor="middle">
+      <text x="38" y="300" fill="#FF8C00" opacity="0.08">サ</text>
+      <text x="38" y="310" fill="#FF8C00" opacity="0.09">0</text>
+      <text x="38" y="320" fill="#FF8C00" opacity="0.10">シ</text>
+      <text x="38" y="330" fill="#FF8C00" opacity="0.11">1</text>
+      <text x="38" y="340" fill="#FF8C00" opacity="0.12">ス</text>
+      <text x="38" y="350" fill="#FF8C00" opacity="0.13">D</text>
+      <text x="38" y="360" fill="#FF9500" opacity="0.14">A</text>
+      <text x="38" y="370" fill="#FFAA00" opacity="0.16">セ</text><!-- bright head -->
+    </g>
+
+    <!-- Column C (right edge) — cyan-tinted for AI side -->
+    <g font-family="'Courier New','Lucida Console',monospace" font-size="7" text-anchor="middle">
+      <text x="378" y="200" fill="#00E5FF" opacity="0.06">ソ</text>
+      <text x="378" y="210" fill="#00E5FF" opacity="0.07">C</text>
+      <text x="378" y="220" fill="#00E5FF" opacity="0.08">タ</text>
+      <text x="378" y="230" fill="#00E5FF" opacity="0.09">F</text>
+      <text x="378" y="240" fill="#00E5FF" opacity="0.10">チ</text>
+      <text x="378" y="250" fill="#00E5FF" opacity="0.11">F</text>
+      <text x="378" y="260" fill="#00E5FF" opacity="0.12">ツ</text>
+      <text x="378" y="270" fill="#00E5FF" opacity="0.13">0</text>
+      <text x="378" y="280" fill="#00BFFF" opacity="0.15">テ</text>
+      <text x="378" y="290" fill="#FFFFFF" opacity="0.18">_</text><!-- bright head -->
+    </g>
+
+    <!-- Column D (upper right, short) -->
+    <g font-family="'Courier New','Lucida Console',monospace" font-size="6.5" text-anchor="middle">
+      <text x="362" y="42"  fill="#00FF41" opacity="0.07">ト</text>
+      <text x="362" y="52"  fill="#00FF41" opacity="0.09">A</text>
+      <text x="362" y="62"  fill="#00FF41" opacity="0.11">ナ</text>
+      <text x="362" y="72"  fill="#00FF41" opacity="0.13">I</text>
+      <text x="362" y="82"  fill="#39FF14" opacity="0.16">ニ</text>
+      <text x="362" y="92"  fill="#FFFFFF" opacity="0.20">></text><!-- bright head -->
+    </g>
+
+    <!-- Column E (bottom center-left) -->
+    <g font-family="'Courier New','Lucida Console',monospace" font-size="6.5" text-anchor="middle">
+      <text x="178" y="360" fill="#00FF41" opacity="0.07">ヌ</text>
+      <text x="178" y="370" fill="#00FF41" opacity="0.09">1</text>
+      <text x="178" y="380" fill="#39FF14" opacity="0.13">ネ</text>
+    </g>
+
+    <!-- ── Scattered command text ── -->
+    <!-- Top-left area -->
+    <text transform="translate(44,60) rotate(-4)"
+          font-family="'Courier New','Lucida Console',monospace"
+          font-size="6" fill="#00FF41" opacity="0.13">$ chmod 755 deploy.sh</text>
+
+    <text transform="translate(30,78) rotate(3)"
+          font-family="'Courier New','Lucida Console',monospace"
+          font-size="5.5" fill="#00FF41" opacity="0.11">#!/usr/bin/env python3</text>
+
+    <text transform="translate(48,118) rotate(-2)"
+          font-family="'Courier New','Lucida Console',monospace"
+          font-size="5.5" fill="#39FF14" opacity="0.10">sudo systemctl restart</text>
+
+    <!-- Left-mid area -->
+    <text transform="translate(25,175) rotate(5)"
+          font-family="'Courier New','Lucida Console',monospace"
+          font-size="5.5" fill="#00FF41" opacity="0.10">grep -rn &quot;model&quot; ./src</text>
+
+    <text transform="translate(30,250) rotate(-3)"
+          font-family="'Courier New','Lucida Console',monospace"
+          font-size="5.5" fill="#FF8C00" opacity="0.12">ps aux | grep python</text>
+
+    <!-- Bottom-left -->
+    <text transform="translate(40,338) rotate(4)"
+          font-family="'Courier New','Lucida Console',monospace"
+          font-size="6" fill="#00FF41" opacity="0.12">$ git push origin main</text>
+
+    <text transform="translate(55,385) rotate(-3)"
+          font-family="'Courier New','Lucida Console',monospace"
+          font-size="5.5" fill="#00FF41" opacity="0.10">tail -f /var/log/ai.log</text>
+
+    <!-- Bottom-center -->
+    <text transform="translate(150,392) rotate(2)"
+          font-family="'Courier New','Lucida Console',monospace"
+          font-size="5.5" fill="#00FF41" opacity="0.11">01001000 01100101 01101100</text>
+
+    <text transform="translate(200,375) rotate(-2)"
+          font-family="'Courier New','Lucida Console',monospace"
+          font-size="5.5" fill="#39FF14" opacity="0.09">0xDEAD 0xBEEF 0xC0DE</text>
+
+    <!-- Bottom-right -->
+    <text transform="translate(250,388) rotate(3)"
+          font-family="'Courier New','Lucida Console',monospace"
+          font-size="6" fill="#00FF41" opacity="0.12">$ pip install anthropic</text>
+
+    <text transform="translate(278,365) rotate(-4)"
+          font-family="'Courier New','Lucida Console',monospace"
+          font-size="5.5" fill="#00BFFF" opacity="0.11">import torch, transformers</text>
+
+    <!-- Right-mid area -->
+    <text transform="translate(315,290) rotate(3)"
+          font-family="'Courier New','Lucida Console',monospace"
+          font-size="5.5" fill="#00E5FF" opacity="0.11">model.fit(X_train, y)</text>
+
+    <text transform="translate(330,315) rotate(-5)"
+          font-family="'Courier New','Lucida Console',monospace"
+          font-size="5.5" fill="#00FF41" opacity="0.10">ssh -i key.pem admin@</text>
+
+    <!-- Top-right area -->
+    <text transform="translate(290,35) rotate(-3)"
+          font-family="'Courier New','Lucida Console',monospace"
+          font-size="5.5" fill="#00FF41" opacity="0.11">$ python3 train.py --epochs</text>
+
+    <text transform="translate(310,55) rotate(4)"
+          font-family="'Courier New','Lucida Console',monospace"
+          font-size="5.5" fill="#00E5FF" opacity="0.10">import anthropic as ai</text>
+
+    <text transform="translate(295,72) rotate(-2)"
+          font-family="'Courier New','Lucida Console',monospace"
+          font-size="5" fill="#00FF41" opacity="0.09">FF:AC:DE:AD:BE:EF</text>
+
+    <!-- Small scattered bits -->
+    <text transform="translate(60,158) rotate(8)"
+          font-family="'Courier New','Lucida Console',monospace"
+          font-size="5" fill="#FF8C00" opacity="0.09">netstat -tulpn</text>
+
+    <text transform="translate(340,168) rotate(-6)"
+          font-family="'Courier New','Lucida Console',monospace"
+          font-size="5" fill="#00E5FF" opacity="0.09">ACK SYN FIN RST</text>
+
+    <text transform="translate(125,38) rotate(5)"
+          font-family="'Courier New','Lucida Console',monospace"
+          font-size="5" fill="#00FF41" opacity="0.08">ls -la /usr/local/bin</text>
+
+    <text transform="translate(90,378) rotate(-5)"
+          font-family="'Courier New','Lucida Console',monospace"
+          font-size="5" fill="#39FF14" opacity="0.09">&gt; /dev/null 2&gt;&amp;1</text>
+
     <!-- Background glow -->
     <ellipse cx="100" cy="310" rx="180" ry="140" fill="#FF3D00" opacity="0.055"/>
     <ellipse cx="300" cy="90"  rx="170" ry="130" fill="#0099FF" opacity="0.065"/>
