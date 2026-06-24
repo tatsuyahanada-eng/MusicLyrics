@@ -1,6 +1,6 @@
-# Whispr — 音声文字起こしアプリ
+# VoideT — 音声文字起こしアプリ
 
-「話すだけで、文字に。」
+画面上の表示名は「Voice transcription」。
 Android 端末のマイクで話した内容をリアルタイムに文字起こしする Android アプリです。
 端末標準の音声認識エンジン（`android.speech.SpeechRecognizer`）を利用しているため、
 外部 API キーやサーバーは不要です。
@@ -23,6 +23,32 @@ Android 端末のマイクで話した内容をリアルタイムに文字起こ
 - **保存**: テキストファイル (.txt) として端末に保存（ストレージ権限不要・SAF 利用）
 - **クリア**: 結果を消去
 - テキスト欄は手動編集も可能です（大きめの文字で表示）
+
+### 自動アップデート確認
+
+サーバーに `version.json` を 1 つ置いておくと、アプリ起動時に新しいバージョンを確認し、
+あれば「アップデートしますか？」と確認 → ダウンロードしてインストーラを起動します。
+
+1. APK をサーバーに配置（例: `https://example.com/whispr/voice-transcriber.apk`）
+2. 同じ場所に `version.json` を置く:
+
+   ```json
+   {
+     "versionCode": 2,
+     "versionName": "1.1",
+     "apkUrl": "https://example.com/whispr/voice-transcriber.apk",
+     "notes": "バグ修正と新機能"
+   }
+   ```
+
+3. アプリ側に確認先 URL を設定する
+   `app/src/main/res/values/strings.xml` の `update_manifest_url` に `version.json` の URL を記入。
+   （空のままだとアップデート確認は行いません）
+4. 新しい版をリリースするたびに、`app/build.gradle.kts` の `versionCode` を増やしてビルドし、
+   APK と `version.json`（`versionCode` を同じ値に更新）をサーバーへアップロード。
+
+> アプリは端末の `versionCode` より `version.json` の `versionCode` が大きいときだけ更新と判定します。
+> インストール時に「提供元不明のアプリ」の許可を求められることがあります（端末の設定で許可してください）。
 
 ## 動作要件
 

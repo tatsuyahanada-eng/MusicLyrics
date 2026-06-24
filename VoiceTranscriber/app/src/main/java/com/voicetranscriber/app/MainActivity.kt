@@ -37,11 +37,13 @@ import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Mic
 import androidx.compose.material.icons.filled.Save
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CenterAlignedTopAppBar
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -70,7 +72,9 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -135,6 +139,62 @@ private fun TranscriberScreen(viewModel: TranscriptionViewModel = viewModel()) {
         }
     }
 
+    // ----- 自動アップデート確認 -----
+    var updateInfo by remember { mutableStateOf<UpdateManager.UpdateInfo?>(null) }
+    var isDownloading by remember { mutableStateOf(false) }
+    val updateUrl = stringResource(R.string.update_manifest_url)
+    LaunchedEffect(Unit) {
+        updateInfo = UpdateManager.checkForUpdate(context, updateUrl)
+    }
+
+    updateInfo?.let { info ->
+        AlertDialog(
+            onDismissRequest = { if (!isDownloading) updateInfo = null },
+            title = { Text("アップデートがあります") },
+            text = {
+                Column {
+                    Text("新しいバージョン ${info.versionName} が利用可能です。")
+                    if (info.notes.isNotBlank()) {
+                        Spacer(Modifier.height(8.dp))
+                        Text(info.notes, style = MaterialTheme.typography.bodyMedium)
+                    }
+                    if (isDownloading) {
+                        Spacer(Modifier.height(16.dp))
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            CircularProgressIndicator(modifier = Modifier.size(20.dp))
+                            Spacer(Modifier.width(12.dp))
+                            Text("ダウンロード中…")
+                        }
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(
+                    enabled = !isDownloading,
+                    onClick = {
+                        scope.launch {
+                            isDownloading = true
+                            val file = UpdateManager.downloadApk(context, info.apkUrl)
+                            isDownloading = false
+                            if (file != null) {
+                                UpdateManager.installApk(context, file)
+                                updateInfo = null
+                            } else {
+                                snackbarHostState.showSnackbar("ダウンロードに失敗しました")
+                            }
+                        }
+                    },
+                ) { Text("アップデート") }
+            },
+            dismissButton = {
+                TextButton(
+                    enabled = !isDownloading,
+                    onClick = { updateInfo = null },
+                ) { Text("後で") }
+            },
+        )
+    }
+
     fun requireMicThen(action: () -> Unit) {
         if (hasMicPermission) {
             action()
@@ -148,20 +208,13 @@ private fun TranscriberScreen(viewModel: TranscriptionViewModel = viewModel()) {
         topBar = {
             CenterAlignedTopAppBar(
                 title = {
-                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        Text(
-                            "Whispr",
-                            fontSize = 24.sp,
-                            fontWeight = FontWeight.ExtraBold,
-                            letterSpacing = 1.sp,
-                            color = MaterialTheme.colorScheme.primary,
-                        )
-                        Text(
-                            "話すだけで、文字に。",
-                            fontSize = 12.sp,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
-                    }
+                    Text(
+                        "Voice transcription",
+                        fontSize = 22.sp,
+                        fontWeight = FontWeight.ExtraBold,
+                        letterSpacing = 0.5.sp,
+                        color = MaterialTheme.colorScheme.primary,
+                    )
                 },
                 colors = TopAppBarDefaults.centerAlignedTopAppBarColors(
                     containerColor = MaterialTheme.colorScheme.background,
@@ -283,8 +336,8 @@ private fun Content(
                     .weight(1f)
                     .focusRequester(focusRequester),
                 textStyle = MaterialTheme.typography.bodyLarge.copy(
-                    fontSize = 22.sp,
-                    lineHeight = 32.sp,
+                    fontSize = 26.sp,
+                    lineHeight = 38.sp,
                 ),
                 shape = RoundedCornerShape(16.dp),
                 colors = OutlinedTextFieldDefaults.colors(
@@ -348,24 +401,24 @@ private fun TranscriptDisplay(
                 Text(
                     "ここに文字起こしされた内容が表示されます。\nマイクボタンで話しかけてください。",
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    fontSize = 18.sp,
-                    lineHeight = 28.sp,
+                    fontSize = 20.sp,
+                    lineHeight = 30.sp,
                 )
             } else {
                 if (transcript.isNotBlank()) {
                     Text(
                         transcript,
                         color = MaterialTheme.colorScheme.onSurface,
-                        fontSize = 22.sp,
-                        lineHeight = 32.sp,
+                        fontSize = 26.sp,
+                        lineHeight = 38.sp,
                     )
                 }
                 if (partial.isNotBlank()) {
                     Text(
                         partial,
                         color = MaterialTheme.colorScheme.primary,
-                        fontSize = 22.sp,
-                        lineHeight = 32.sp,
+                        fontSize = 26.sp,
+                        lineHeight = 38.sp,
                         fontWeight = FontWeight.Medium,
                     )
                 }
@@ -397,70 +450,82 @@ private fun ModeButtons(
     onToggleContinuous: () -> Unit,
 ) {
     val continuousActive = state.mode == Mode.CONTINUOUS
-    // Hold-to-talk: a plain Box (not a Button) so its clickable does not consume
-    // the press before our detectTapGestures sees it. onPress fires immediately,
-    // tryAwaitRelease suspends until the finger lifts.
     val holdInteractive = enabled && state.mode != Mode.CONTINUOUS
     val holdColor = if (state.mode == Mode.HOLD)
         MaterialTheme.colorScheme.error
     else MaterialTheme.colorScheme.primary
-    Box(
-        contentAlignment = Alignment.Center,
-        modifier = Modifier
-            .fillMaxWidth()
-            .height(72.dp)
-            .clip(RoundedCornerShape(20.dp))
-            .background(if (holdInteractive) holdColor else holdColor.copy(alpha = 0.4f))
-            .pointerInput(holdInteractive) {
-                if (!holdInteractive) return@pointerInput
-                detectTapGestures(
-                    onPress = {
-                        onHoldStart()
-                        tryAwaitRelease()
-                        onHoldStop()
-                    },
+
+    // 左右に並べる：左＝押している間だけ / 右＝連続
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(12.dp),
+    ) {
+        // 左：Hold-to-talk。Button ではなく Box にして、子の clickable が
+        // 押下イベントを横取りしないようにする（onPress → tryAwaitRelease）。
+        Box(
+            contentAlignment = Alignment.Center,
+            modifier = Modifier
+                .weight(1f)
+                .height(104.dp)
+                .clip(RoundedCornerShape(20.dp))
+                .background(if (holdInteractive) holdColor else holdColor.copy(alpha = 0.4f))
+                .pointerInput(holdInteractive) {
+                    if (!holdInteractive) return@pointerInput
+                    detectTapGestures(
+                        onPress = {
+                            onHoldStart()
+                            tryAwaitRelease()
+                            onHoldStop()
+                        },
+                    )
+                },
+        ) {
+            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                Icon(
+                    Icons.Filled.Mic,
+                    contentDescription = null,
+                    tint = Color.White,
+                    modifier = Modifier.size(26.dp),
                 )
-            },
-    ) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Icon(
-                Icons.Filled.Mic,
-                contentDescription = null,
-                tint = Color.White,
-                modifier = Modifier.size(22.dp),
-            )
-            Spacer(Modifier.width(8.dp))
-            Text(
-                if (state.mode == Mode.HOLD) "録音中… 離すと停止" else "押している間だけ文字起こし",
-                color = Color.White,
-                fontSize = 15.sp,
-                fontWeight = FontWeight.Bold,
-            )
+                Spacer(Modifier.height(6.dp))
+                Text(
+                    if (state.mode == Mode.HOLD) "録音中…\n離すと停止" else "押している間\n文字起こし",
+                    color = Color.White,
+                    fontSize = 15.sp,
+                    fontWeight = FontWeight.Bold,
+                    textAlign = TextAlign.Center,
+                    lineHeight = 18.sp,
+                )
+            }
         }
-    }
 
-    Spacer(Modifier.height(12.dp))
-
-    Button(
-        onClick = onToggleContinuous,
-        enabled = enabled && state.mode != Mode.HOLD,
-        shape = RoundedCornerShape(20.dp),
-        modifier = Modifier
-            .fillMaxWidth()
-            .height(72.dp),
-        colors = ButtonDefaults.buttonColors(
-            containerColor = if (continuousActive)
-                MaterialTheme.colorScheme.error
-            else MaterialTheme.colorScheme.secondary,
-        ),
-    ) {
-        Icon(Icons.Filled.Mic, contentDescription = null, modifier = Modifier.size(22.dp))
-        Spacer(Modifier.width(8.dp))
-        Text(
-            if (continuousActive) "連続文字起こしを停止" else "連続文字起こしを開始",
-            fontSize = 15.sp,
-            fontWeight = FontWeight.Bold,
-        )
+        // 右：連続文字起こし（タップでトグル）
+        Button(
+            onClick = onToggleContinuous,
+            enabled = enabled && state.mode != Mode.HOLD,
+            shape = RoundedCornerShape(20.dp),
+            contentPadding = PaddingValues(8.dp),
+            modifier = Modifier
+                .weight(1f)
+                .height(104.dp),
+            colors = ButtonDefaults.buttonColors(
+                containerColor = if (continuousActive)
+                    MaterialTheme.colorScheme.error
+                else MaterialTheme.colorScheme.secondary,
+            ),
+        ) {
+            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                Icon(Icons.Filled.Mic, contentDescription = null, modifier = Modifier.size(26.dp))
+                Spacer(Modifier.height(6.dp))
+                Text(
+                    if (continuousActive) "連続停止" else "連続で\n文字起こし",
+                    fontSize = 15.sp,
+                    fontWeight = FontWeight.Bold,
+                    textAlign = TextAlign.Center,
+                    lineHeight = 18.sp,
+                )
+            }
+        }
     }
 }
 
