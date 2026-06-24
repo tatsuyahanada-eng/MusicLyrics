@@ -87,11 +87,14 @@ import com.voicetranscriber.app.ui.theme.VoiceTranscriberTheme
 import kotlinx.coroutines.launch
 import java.io.OutputStreamWriter
 
-// シックなブランドカラー（ライト/ダーク共通。白文字が映える落ち着いた色）
-private val HoldButtonColor = Color(0xFF3D3B47)       // グラファイト
-private val ContinuousButtonColor = Color(0xFF4F6F6A) // ミュートセージ
-private val StopButtonColor = Color(0xFF9E5B54)        // ミュートテラコッタ
-private val BrandAccentColor = Color(0xFF8C7A5B)       // 真鍮（タイトルのアクセント）
+// シックなブランドカラー（ライト/ダーク共通）。ボタンは色相で分け、文字色も個別に。
+private val HoldButtonColor = Color(0xFF3F4A6B)        // 押す＝ミュート・インディゴ
+private val HoldTextColor = Color(0xFFF1E6C9)          //   文字＝ペールゴールド
+private val ContinuousButtonColor = Color(0xFF4E6E63) // 連続＝ミュート・セージグリーン
+private val ContinuousTextColor = Color(0xFFE2EFE5)   //   文字＝ペールミント
+private val StopButtonColor = Color(0xFF9E5B54)        // 停止＝ミュート・テラコッタ
+private val StopTextColor = Color(0xFFF6EBE6)          //   文字＝ペールクリーム
+private val BrandAccentColor = Color(0xFF8C7A5B)       // タイトルのアクセント（真鍮）
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -242,19 +245,11 @@ private fun TranscriberScreen(viewModel: TranscriptionViewModel = viewModel()) {
                         val voiceColor = MaterialTheme.colorScheme.onSurface
                         Text(
                             buildAnnotatedString {
-                                withStyle(
-                                    SpanStyle(
-                                        color = voiceColor,
-                                        fontWeight = FontWeight.ExtraBold,
-                                    ),
-                                ) { append("Voice") }
-                                withStyle(
-                                    SpanStyle(
-                                        color = BrandAccentColor,
-                                        fontWeight = FontWeight.Light,
-                                    ),
-                                ) { append(" Transcription") }
+                                // フォント（太さ）は統一し、色だけ2トーンにする
+                                withStyle(SpanStyle(color = voiceColor)) { append("Voice") }
+                                withStyle(SpanStyle(color = BrandAccentColor)) { append(" Transcription") }
                             },
+                            fontWeight = FontWeight.SemiBold,
                             fontSize = 22.sp,
                             letterSpacing = 0.5.sp,
                         )
@@ -496,6 +491,8 @@ private fun ModeButtons(
     val continuousActive = state.mode == Mode.CONTINUOUS
     val holdInteractive = enabled && state.mode != Mode.CONTINUOUS
     val holdColor = if (state.mode == Mode.HOLD) StopButtonColor else HoldButtonColor
+    val holdTextColor = if (state.mode == Mode.HOLD) StopTextColor else HoldTextColor
+    val continuousTextColor = if (continuousActive) StopTextColor else ContinuousTextColor
 
     // 左右に並べる：左＝押している間だけ / 右＝連続
     Row(
@@ -526,13 +523,13 @@ private fun ModeButtons(
                 Icon(
                     Icons.Filled.Mic,
                     contentDescription = null,
-                    tint = Color.White,
+                    tint = holdTextColor,
                     modifier = Modifier.size(26.dp),
                 )
                 Spacer(Modifier.height(6.dp))
                 Text(
                     if (state.mode == Mode.HOLD) "録音中…\n離すと停止" else "押している間\n文字起こし",
-                    color = Color.White,
+                    color = holdTextColor,
                     fontSize = 15.sp,
                     fontWeight = FontWeight.Bold,
                     textAlign = TextAlign.Center,
@@ -552,7 +549,7 @@ private fun ModeButtons(
                 .height(104.dp),
             colors = ButtonDefaults.buttonColors(
                 containerColor = if (continuousActive) StopButtonColor else ContinuousButtonColor,
-                contentColor = Color.White,
+                contentColor = continuousTextColor,
             ),
         ) {
             Column(horizontalAlignment = Alignment.CenterHorizontally) {
