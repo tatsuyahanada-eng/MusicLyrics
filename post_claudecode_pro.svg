@@ -1,0 +1,365 @@
+<svg width="1200" height="675" viewBox="0 0 1200 675" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%"   stop-color="#060012"/>
+      <stop offset="55%"  stop-color="#08001a"/>
+      <stop offset="100%" stop-color="#000a10"/>
+    </linearGradient>
+    <linearGradient id="ogGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%"   stop-color="#FF4500"/>
+      <stop offset="100%" stop-color="#FFAA00"/>
+    </linearGradient>
+    <linearGradient id="cyGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%"   stop-color="#00BFFF"/>
+      <stop offset="100%" stop-color="#00FFE5"/>
+    </linearGradient>
+    <linearGradient id="brandGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%"   stop-color="#FF6B00"/>
+      <stop offset="45%"  stop-color="#A855F7"/>
+      <stop offset="100%" stop-color="#00E5FF"/>
+    </linearGradient>
+    <linearGradient id="termBg" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%"   stop-color="#0d0025"/>
+      <stop offset="100%" stop-color="#060014"/>
+    </linearGradient>
+    <linearGradient id="cardBg" x1="135deg" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%"   stop-color="#0a001f"/>
+      <stop offset="100%" stop-color="#001520"/>
+    </linearGradient>
+    <linearGradient id="proBadge" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%"   stop-color="#FF8C00"/>
+      <stop offset="100%" stop-color="#FFD700"/>
+    </linearGradient>
+
+    <filter id="glow" x="-30%" y="-30%" width="160%" height="160%">
+      <feGaussianBlur stdDeviation="6" result="b"/>
+      <feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+    <filter id="softGlow" x="-50%" y="-50%" width="200%" height="200%">
+      <feGaussianBlur stdDeviation="18" result="b"/>
+      <feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+    <filter id="textGlow" x="-20%" y="-60%" width="140%" height="220%">
+      <feGaussianBlur stdDeviation="5" result="b"/>
+      <feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+    <filter id="orangeGlow" x="-30%" y="-60%" width="160%" height="220%">
+      <feGaussianBlur stdDeviation="10" result="b"/>
+      <feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+  </defs>
+
+  <!-- Background -->
+  <rect width="1200" height="675" fill="url(#bg)"/>
+
+  <!-- Dot grid -->
+  <pattern id="dots" x="0" y="0" width="26" height="26" patternUnits="userSpaceOnUse">
+    <circle cx="13" cy="13" r="0.9" fill="#1E0A50" opacity="0.5"/>
+  </pattern>
+  <rect width="1200" height="675" fill="url(#dots)"/>
+
+  <!-- Matrix text background — faint -->
+  <g font-family="'Courier New',monospace" font-size="8" fill="#00FF41" opacity="0.07">
+    <text x="10"  y="40">$ claude --model claude-sonnet-4-6</text>
+    <text x="10"  y="80">import anthropic</text>
+    <text x="10"  y="120">01101000 01100101 01101100</text>
+    <text x="10"  y="160">$ git commit -m "AI assisted"</text>
+    <text x="10"  y="200">0xFF 0xAI 0xSE 0x00</text>
+    <text x="10"  y="560">chmod +x deploy.sh</text>
+    <text x="10"  y="600">ps aux | grep claude</text>
+    <text x="10"  y="640">ACK SYN FIN RST</text>
+
+    <text x="940" y="580">$ pip install anthropic</text>
+    <text x="940" y="620">model.fit(X_train, y)</text>
+    <text x="940" y="658">0xDEAD 0xBEEF</text>
+  </g>
+
+  <!-- Background glow blobs -->
+  <ellipse cx="200" cy="340" rx="280" ry="200" fill="#FF4500" opacity="0.05" filter="url(#softGlow)"/>
+  <ellipse cx="1000" cy="330" rx="280" ry="200" fill="#00BFFF" opacity="0.06" filter="url(#softGlow)"/>
+  <ellipse cx="600"  cy="650" rx="400" ry="180" fill="#7C3AED" opacity="0.05"/>
+
+  <!-- ════════════════════════════════
+       LEFT: Terminal window mockup
+  ════════════════════════════════ -->
+  <rect x="40" y="60" width="620" height="555" rx="12" fill="url(#termBg)" stroke="#2D1060" stroke-width="1.5" opacity="0.95"/>
+
+  <!-- Terminal title bar -->
+  <rect x="40" y="60" width="620" height="38" rx="12" fill="#12003a"/>
+  <rect x="40" y="80" width="620" height="18" fill="#12003a"/>
+  <!-- Traffic lights -->
+  <circle cx="68"  cy="79" r="7" fill="#FF5F57"/>
+  <circle cx="90"  cy="79" r="7" fill="#FFBD2E"/>
+  <circle cx="112" cy="79" r="7" fill="#28C840"/>
+  <!-- Title -->
+  <text x="330" y="84"
+        font-family="'SF Pro Display','Helvetica Neue',Arial,sans-serif"
+        font-size="12" fill="#8B7CB3" text-anchor="middle" letter-spacing="1">claude — おじさんSEのAI奮闘記</text>
+
+  <!-- Terminal content -->
+  <text x="64" y="130"
+        font-family="'Courier New','Lucida Console',monospace"
+        font-size="13" fill="#8B7CB3">~/projects/se-ai-lab</text>
+  <text x="64" y="130"
+        font-family="'Courier New','Lucida Console',monospace"
+        font-size="13" fill="#00FF41" opacity="0.9">❯ </text>
+  <text x="88" y="130"
+        font-family="'Courier New','Lucida Console',monospace"
+        font-size="13" fill="#FFFFFF">claude</text>
+
+  <!-- Claude Code banner -->
+  <rect x="64" y="145" width="572" height="1" fill="#2D1060" opacity="0.8"/>
+  <text x="64" y="172"
+        font-family="'Courier New','Lucida Console',monospace"
+        font-size="13" fill="#A855F7">  ██████╗██╗      █████╗ ██╗   ██╗██████╗ ███████╗</text>
+  <text x="64" y="188"
+        font-family="'Courier New','Lucida Console',monospace"
+        font-size="13" fill="#9333EA"> ██╔════╝██║     ██╔══██╗██║   ██║██╔══██╗██╔════╝</text>
+  <text x="64" y="204"
+        font-family="'Courier New','Lucida Console',monospace"
+        font-size="13" fill="#7C3AED"> ██║     ██║     ███████║██║   ██║██║  ██║█████╗</text>
+  <text x="64" y="220"
+        font-family="'Courier New','Lucida Console',monospace"
+        font-size="13" fill="#6D28D9"> ██║     ██║     ██╔══██║██║   ██║██║  ██║██╔══╝</text>
+  <text x="64" y="236"
+        font-family="'Courier New','Lucida Console',monospace"
+        font-size="13" fill="#5B21B6"> ╚██████╗███████╗██║  ██║╚██████╔╝██████╔╝███████╗</text>
+  <text x="64" y="252"
+        font-family="'Courier New','Lucida Console',monospace"
+        font-size="13" fill="#4C1D95">  ╚═════╝╚══════╝╚═╝  ╚═╝ ╚═════╝ ╚═════╝ ╚══════╝</text>
+
+  <text x="64" y="276"
+        font-family="'Courier New','Lucida Console',monospace"
+        font-size="12" fill="#6B7280"> Claude Code  ✦  </text>
+  <text x="196" y="276"
+        font-family="'Courier New','Lucida Console',monospace"
+        font-size="12" fill="#FFD700">Pro</text>
+  <text x="228" y="276"
+        font-family="'Courier New','Lucida Console',monospace"
+        font-size="12" fill="#6B7280">  Plan Active</text>
+  <text x="64" y="293"
+        font-family="'Courier New','Lucida Console',monospace"
+        font-size="11" fill="#4B5563"> Model: claude-sonnet-4-6  |  Context: 200K tokens</text>
+
+  <rect x="64" y="305" width="572" height="1" fill="#2D1060" opacity="0.8"/>
+
+  <!-- Conversation -->
+  <!-- Human message -->
+  <text x="64" y="332"
+        font-family="'Courier New','Lucida Console',monospace"
+        font-size="12" fill="#FF8C00">おじさんSE:</text>
+  <text x="64" y="350"
+        font-family="'Courier New','Lucida Console',monospace"
+        font-size="12" fill="#E2E8F0">  このバグの原因を特定してPRのレビューもして。</text>
+  <text x="64" y="366"
+        font-family="'Courier New','Lucida Console',monospace"
+        font-size="12" fill="#E2E8F0">  あとテストも書いといて。よろしく。</text>
+
+  <!-- Claude response -->
+  <text x="64" y="396"
+        font-family="'Courier New','Lucida Console',monospace"
+        font-size="12" fill="#00E5FF">Claude:</text>
+  <text x="64" y="414"
+        font-family="'Courier New','Lucida Console',monospace"
+        font-size="12" fill="#94A3B8">  承知しました！バグを確認しました。</text>
+  <text x="64" y="430"
+        font-family="'Courier New','Lucida Console',monospace"
+        font-size="12" fill="#94A3B8">  L.247: null チェックが抜けています。</text>
+  <text x="64" y="446"
+        font-family="'Courier New','Lucida Console',monospace"
+        font-size="12" fill="#94A3B8">  修正版 + テスト3件 + PRコメント を</text>
+  <text x="64" y="462"
+        font-family="'Courier New','Lucida Console',monospace"
+        font-size="12" fill="#94A3B8">  生成します...</text>
+
+  <!-- Code block -->
+  <rect x="64" y="474" width="572" height="80" rx="6" fill="#0a001a" stroke="#3B1F8C" stroke-width="1"/>
+  <text x="78" y="494"
+        font-family="'Courier New','Lucida Console',monospace"
+        font-size="11" fill="#A78BFA">if</text>
+  <text x="98" y="494"
+        font-family="'Courier New','Lucida Console',monospace"
+        font-size="11" fill="#E2E8F0"> (user</text>
+  <text x="136" y="494"
+        font-family="'Courier New','Lucida Console',monospace"
+        font-size="11" fill="#94A3B8"> === </text>
+  <text x="168" y="494"
+        font-family="'Courier New','Lucida Console',monospace"
+        font-size="11" fill="#86EFAC">null</text>
+  <text x="194" y="494"
+        font-family="'Courier New','Lucida Console',monospace"
+        font-size="11" fill="#E2E8F0"> || user.id</text>
+  <text x="264" y="494"
+        font-family="'Courier New','Lucida Console',monospace"
+        font-size="11" fill="#94A3B8"> === </text>
+  <text x="296" y="494"
+        font-family="'Courier New','Lucida Console',monospace"
+        font-size="11" fill="#86EFAC">undefined</text>
+  <text x="366" y="494"
+        font-family="'Courier New','Lucida Console',monospace"
+        font-size="11" fill="#E2E8F0">) {</text>
+  <text x="78" y="512"
+        font-family="'Courier New','Lucida Console',monospace"
+        font-size="11" fill="#E2E8F0">  </text>
+  <text x="90" y="512"
+        font-family="'Courier New','Lucida Console',monospace"
+        font-size="11" fill="#A78BFA">throw new</text>
+  <text x="158" y="512"
+        font-family="'Courier New','Lucida Console',monospace"
+        font-size="11" fill="#FCA5A5"> Error</text>
+  <text x="192" y="512"
+        font-family="'Courier New','Lucida Console',monospace"
+        font-size="11" fill="#E2E8F0">(</text>
+  <text x="198" y="512"
+        font-family="'Courier New','Lucida Console',monospace"
+        font-size="11" fill="#86EFAC">'User not found'</text>
+  <text x="302" y="512"
+        font-family="'Courier New','Lucida Console',monospace"
+        font-size="11" fill="#E2E8F0">);</text>
+  <text x="78" y="530"
+        font-family="'Courier New','Lucida Console',monospace"
+        font-size="11" fill="#E2E8F0">}</text>
+  <text x="100" y="530"
+        font-family="'Courier New','Lucida Console',monospace"
+        font-size="11" fill="#4B5563">  ← ここが抜けてました ✓</text>
+  <text x="78" y="546"
+        font-family="'Courier New','Lucida Console',monospace"
+        font-size="11" fill="#4B5563">// test_user_validation.test.js も生成済み ✓</text>
+
+  <!-- Cursor blink -->
+  <rect x="64" y="574" width="8" height="16" fill="#00E5FF" opacity="0.9"/>
+
+  <!-- Bottom bar -->
+  <rect x="40" y="600" width="620" height="15" rx="0" fill="#0a0020" opacity="0.8"/>
+  <rect x="40" y="607" width="620" height="8" rx="0" fill="#12003a"/>
+  <text x="55" y="615"
+        font-family="'Courier New','Lucida Console',monospace"
+        font-size="9" fill="#4B5563">claude-sonnet-4-6  ✦  Pro  ✦  Tokens: 12,847 / 200,000</text>
+  <text x="530" y="615"
+        font-family="'Courier New','Lucida Console',monospace"
+        font-size="9" fill="#22D3EE">● Connected</text>
+
+  <!-- ════════════════════════════════
+       RIGHT: Info card
+  ════════════════════════════════ -->
+  <rect x="690" y="60" width="470" height="555" rx="12" fill="url(#cardBg)" stroke="#1E3A5F" stroke-width="1.5"/>
+
+  <!-- PRO badge -->
+  <rect x="730" y="90" width="120" height="36" rx="18" fill="url(#proBadge)"/>
+  <text x="790" y="114"
+        font-family="'SF Pro Display','Helvetica Neue',Arial,sans-serif"
+        font-size="16" font-weight="900" letter-spacing="3"
+        fill="#1a0800" text-anchor="middle">PRO</text>
+
+  <text x="866" y="100"
+        font-family="'SF Pro Display','Helvetica Neue',Arial,sans-serif"
+        font-size="11" fill="#FFD700" opacity="0.8">Plan</text>
+  <text x="866" y="116"
+        font-family="'SF Pro Display','Helvetica Neue',Arial,sans-serif"
+        font-size="11" fill="#94A3B8">Active ✓</text>
+
+  <!-- Headline -->
+  <text x="730" y="158"
+        font-family="'SF Pro Display','Helvetica Neue',Arial,sans-serif"
+        font-size="22" font-weight="700" fill="#FFFFFF" filter="url(#textGlow)">Claude Code に</text>
+  <text x="730" y="186"
+        font-family="'SF Pro Display','Helvetica Neue',Arial,sans-serif"
+        font-size="22" font-weight="700" fill="url(#ogGrad)" filter="url(#orangeGlow)">課金しました。</text>
+
+  <rect x="730" y="200" width="390" height="1.5" fill="url(#brandGrad)" opacity="0.7" rx="1"/>
+
+  <!-- Reason list -->
+  <text x="730" y="228"
+        font-family="'SF Pro Display','Helvetica Neue',Arial,sans-serif"
+        font-size="13" fill="#94A3B8">課金を決めた理由</text>
+
+  <!-- items -->
+  <circle cx="742" cy="252" r="3.5" fill="#FF8C00"/>
+  <text x="752" y="257"
+        font-family="'SF Pro Display','Helvetica Neue',Arial,sans-serif"
+        font-size="13.5" fill="#E2E8F0">バグ特定が</text>
+  <text x="856" y="257"
+        font-family="'SF Pro Display','Helvetica Neue',Arial,sans-serif"
+        font-size="13.5" fill="#00E5FF" font-weight="700">圧倒的</text>
+  <text x="906" y="257"
+        font-family="'SF Pro Display','Helvetica Neue',Arial,sans-serif"
+        font-size="13.5" fill="#E2E8F0">に速い</text>
+
+  <circle cx="742" cy="280" r="3.5" fill="#FF8C00"/>
+  <text x="752" y="285"
+        font-family="'SF Pro Display','Helvetica Neue',Arial,sans-serif"
+        font-size="13.5" fill="#E2E8F0">コードベース全体を</text>
+  <text x="898" y="285"
+        font-family="'SF Pro Display','Helvetica Neue',Arial,sans-serif"
+        font-size="13.5" fill="#00E5FF" font-weight="700">丸ごと理解</text>
+
+  <circle cx="742" cy="308" r="3.5" fill="#FF8C00"/>
+  <text x="752" y="313"
+        font-family="'SF Pro Display','Helvetica Neue',Arial,sans-serif"
+        font-size="13.5" fill="#E2E8F0">コンテキスト</text>
+  <text x="858" y="313"
+        font-family="'SF Pro Display','Helvetica Neue',Arial,sans-serif"
+        font-size="13.5" fill="#00E5FF" font-weight="700">200K トークン</text>
+
+  <circle cx="742" cy="336" r="3.5" fill="#FF8C00"/>
+  <text x="752" y="341"
+        font-family="'SF Pro Display','Helvetica Neue',Arial,sans-serif"
+        font-size="13.5" fill="#E2E8F0">残業 1h 削減 →</text>
+  <text x="882" y="341"
+        font-family="'SF Pro Display','Helvetica Neue',Arial,sans-serif"
+        font-size="13.5" fill="#FFAA00" font-weight="700">元が取れる</text>
+
+  <circle cx="742" cy="364" r="3.5" fill="#FF8C00"/>
+  <text x="752" y="369"
+        font-family="'SF Pro Display','Helvetica Neue',Arial,sans-serif"
+        font-size="13.5" fill="#E2E8F0">レビュー・テスト・ドキュメント</text>
+  <text x="752" y="387"
+        font-family="'SF Pro Display','Helvetica Neue',Arial,sans-serif"
+        font-size="13.5" fill="#00E5FF" font-weight="700">全部自動生成</text>
+
+  <rect x="730" y="406" width="390" height="1" fill="#1E3A5F" opacity="0.8"/>
+
+  <!-- Honest take -->
+  <rect x="730" y="420" width="390" height="90" rx="8" fill="#0d0025" stroke="#3B1F8C" stroke-width="1"/>
+  <text x="748" y="445"
+        font-family="'SF Pro Display','Helvetica Neue',Arial,sans-serif"
+        font-size="12" fill="#6B7280">おじさんSEのホンネ</text>
+  <text x="748" y="465"
+        font-family="'SF Pro Display','Helvetica Neue',Arial,sans-serif"
+        font-size="13" fill="#E2E8F0">「高い」と迷った。でも使ったら</text>
+  <text x="748" y="483"
+        font-family="'SF Pro Display','Helvetica Neue',Arial,sans-serif"
+        font-size="13" fill="#E2E8F0">毎日 AI なしで働けなくなった。</text>
+  <text x="748" y="501"
+        font-family="'SF Pro Display','Helvetica Neue',Arial,sans-serif"
+        font-size="13" fill="#FFAA00">これはアリです。</text>
+
+  <!-- Hashtags -->
+  <text x="730" y="542"
+        font-family="'Courier New','Lucida Console',monospace"
+        font-size="11" fill="#4B5563">#ClaudeCode   #生成AI   #AI活用   #Claude</text>
+  <text x="730" y="560"
+        font-family="'Courier New','Lucida Console',monospace"
+        font-size="11" fill="#4B5563">#SE   #エンジニア   #毎日投稿   #業務効率化</text>
+
+  <!-- Account handle -->
+  <text x="730" y="596"
+        font-family="'SF Pro Display','Helvetica Neue',Arial,sans-serif"
+        font-size="13" fill="#6B7280">@ojisan_se_ai</text>
+
+  <!-- Small logo mark in right card -->
+  <g transform="translate(1080, 575)">
+    <circle cx="0" cy="0" r="28" fill="#06000e" stroke="url(#brandGrad)" stroke-width="2"/>
+    <text x="-13" y="8"
+          font-family="'SF Pro Display','Helvetica Neue',Arial,sans-serif"
+          font-size="16" font-weight="900"
+          fill="#FF8C00">A</text>
+    <text x="2"  y="8"
+          font-family="'SF Pro Display','Helvetica Neue',Arial,sans-serif"
+          font-size="16" font-weight="900"
+          fill="#00E5FF">I</text>
+  </g>
+
+  <!-- Bottom brand bar -->
+  <rect x="0" y="669" width="1200" height="6" fill="url(#brandGrad)" opacity="0.85" rx="3"/>
+</svg>
