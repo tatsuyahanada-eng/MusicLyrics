@@ -49,7 +49,9 @@ private val DarkColors = darkColorScheme(
     surfaceVariant = Color(0xFF2E2B34),
     onSurfaceVariant = Color(0xFFB0ABB8),
     outline = Color(0xFF4A4651),
-)@Composable
+)
+
+@Composable
 fun VoiceTranscriberTheme(
     darkTheme: Boolean = isSystemInDarkTheme(),
     content: @Composable () -> Unit,
