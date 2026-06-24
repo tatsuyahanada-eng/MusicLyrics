@@ -3,19 +3,10 @@
 
     <uses-permission android:name="android.permission.RECORD_AUDIO" />
 
-    <!-- Needed on Android 11+ so the app can resolve the system speech service
-         and the email/share apps used by the export feature. -->
+    <!-- Needed on Android 11+ so the app can resolve the system speech service. -->
     <queries>
         <intent>
             <action android:name="android.speech.RecognitionService" />
-        </intent>
-        <intent>
-            <action android:name="android.intent.action.SEND" />
-            <data android:mimeType="text/plain" />
-        </intent>
-        <intent>
-            <action android:name="android.intent.action.SENDTO" />
-            <data android:scheme="mailto" />
         </intent>
     </queries>
 

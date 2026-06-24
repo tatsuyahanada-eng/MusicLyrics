@@ -4,7 +4,6 @@ import android.Manifest
 import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Context
-import android.content.Intent
 import android.content.pm.PackageManager
 import android.net.Uri
 import android.os.Bundle
@@ -33,23 +32,23 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.Delete
-import androidx.compose.material.icons.filled.Email
 import androidx.compose.material.icons.filled.Mic
 import androidx.compose.material.icons.filled.Save
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.CenterAlignedTopAppBar
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
-import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -61,6 +60,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
@@ -138,12 +138,27 @@ private fun TranscriberScreen(viewModel: TranscriptionViewModel = viewModel()) {
     }
 
     Scaffold(
+        containerColor = MaterialTheme.colorScheme.background,
         topBar = {
-            TopAppBar(
-                title = { Text("音声文字起こし") },
-                colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = MaterialTheme.colorScheme.primary,
-                    titleContentColor = Color.White,
+            CenterAlignedTopAppBar(
+                title = {
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        Text(
+                            "Whispr",
+                            fontSize = 24.sp,
+                            fontWeight = FontWeight.ExtraBold,
+                            letterSpacing = 1.sp,
+                            color = MaterialTheme.colorScheme.primary,
+                        )
+                        Text(
+                            "話すだけで、文字に。",
+                            fontSize = 12.sp,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                },
+                colors = TopAppBarDefaults.centerAlignedTopAppBarColors(
+                    containerColor = MaterialTheme.colorScheme.background,
                 ),
             )
         },
@@ -165,7 +180,6 @@ private fun TranscriberScreen(viewModel: TranscriptionViewModel = viewModel()) {
             onSave = {
                 saveLauncher.launch("transcription_${System.currentTimeMillis()}.txt")
             },
-            onEmail = { sendEmail(context, fullText(state)) },
         )
     }
 }
@@ -182,15 +196,21 @@ private fun Content(
     onClear: () -> Unit,
     onCopy: () -> Unit,
     onSave: () -> Unit,
-    onEmail: () -> Unit,
 ) {
     val scroll = rememberScrollState()
+    val bgBrush = Brush.verticalGradient(
+        colors = listOf(
+            MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.45f),
+            MaterialTheme.colorScheme.background,
+        ),
+    )
     Column(
         modifier = Modifier
             .fillMaxSize()
+            .background(bgBrush)
             .padding(innerPadding)
             .verticalScroll(scroll)
-            .padding(16.dp),
+            .padding(horizontal = 16.dp, vertical = 8.dp),
     ) {
         if (!recognitionAvailable) {
             Card(
@@ -233,7 +253,16 @@ private fun Content(
             onValueChange = onTranscriptChange,
             modifier = Modifier
                 .fillMaxWidth()
-                .height(220.dp),
+                .height(240.dp),
+            textStyle = MaterialTheme.typography.bodyLarge.copy(
+                fontSize = 22.sp,
+                lineHeight = 32.sp,
+            ),
+            shape = RoundedCornerShape(16.dp),
+            colors = OutlinedTextFieldDefaults.colors(
+                focusedContainerColor = MaterialTheme.colorScheme.surface,
+                unfocusedContainerColor = MaterialTheme.colorScheme.surface,
+            ),
             placeholder = { Text("ここに文字起こしされたテキストが表示されます（編集も可能）") },
         )
 
@@ -243,6 +272,7 @@ private fun Content(
                 "認識中: ${state.partial}",
                 color = MaterialTheme.colorScheme.primary,
                 fontWeight = FontWeight.Medium,
+                fontSize = 18.sp,
             )
         }
 
@@ -251,7 +281,6 @@ private fun Content(
             hasText = state.transcript.isNotBlank(),
             onCopy = onCopy,
             onSave = onSave,
-            onEmail = onEmail,
             onClear = onClear,
         )
     }
@@ -291,8 +320,8 @@ private fun ModeButtons(
         contentAlignment = Alignment.Center,
         modifier = Modifier
             .fillMaxWidth()
-            .height(96.dp)
-            .clip(RoundedCornerShape(16.dp))
+            .height(72.dp)
+            .clip(RoundedCornerShape(20.dp))
             .background(if (holdInteractive) holdColor else holdColor.copy(alpha = 0.4f))
             .pointerInput(holdInteractive) {
                 if (!holdInteractive) return@pointerInput
@@ -310,13 +339,13 @@ private fun ModeButtons(
                 Icons.Filled.Mic,
                 contentDescription = null,
                 tint = Color.White,
-                modifier = Modifier.size(28.dp),
+                modifier = Modifier.size(22.dp),
             )
             Spacer(Modifier.width(8.dp))
             Text(
                 if (state.mode == Mode.HOLD) "録音中… 離すと停止" else "押している間だけ文字起こし",
                 color = Color.White,
-                fontSize = 16.sp,
+                fontSize = 15.sp,
                 fontWeight = FontWeight.Bold,
             )
         }
@@ -327,20 +356,21 @@ private fun ModeButtons(
     Button(
         onClick = onToggleContinuous,
         enabled = enabled && state.mode != Mode.HOLD,
+        shape = RoundedCornerShape(20.dp),
         modifier = Modifier
             .fillMaxWidth()
-            .height(96.dp),
+            .height(72.dp),
         colors = ButtonDefaults.buttonColors(
             containerColor = if (continuousActive)
                 MaterialTheme.colorScheme.error
             else MaterialTheme.colorScheme.secondary,
         ),
     ) {
-        Icon(Icons.Filled.Mic, contentDescription = null, modifier = Modifier.size(28.dp))
+        Icon(Icons.Filled.Mic, contentDescription = null, modifier = Modifier.size(22.dp))
         Spacer(Modifier.width(8.dp))
         Text(
             if (continuousActive) "連続文字起こしを停止" else "連続文字起こしを開始",
-            fontSize = 16.sp,
+            fontSize = 15.sp,
             fontWeight = FontWeight.Bold,
         )
     }
@@ -351,29 +381,35 @@ private fun ExportButtons(
     hasText: Boolean,
     onCopy: () -> Unit,
     onSave: () -> Unit,
-    onEmail: () -> Unit,
     onClear: () -> Unit,
 ) {
     Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-        OutlinedButton(onClick = onCopy, enabled = hasText, modifier = Modifier.weight(1f)) {
+        OutlinedButton(
+            onClick = onCopy,
+            enabled = hasText,
+            shape = RoundedCornerShape(14.dp),
+            modifier = Modifier.weight(1f),
+        ) {
             Icon(Icons.Filled.ContentCopy, contentDescription = null, modifier = Modifier.size(18.dp))
             Spacer(Modifier.width(4.dp))
             Text("コピー")
         }
-        OutlinedButton(onClick = onSave, enabled = hasText, modifier = Modifier.weight(1f)) {
+        OutlinedButton(
+            onClick = onSave,
+            enabled = hasText,
+            shape = RoundedCornerShape(14.dp),
+            modifier = Modifier.weight(1f),
+        ) {
             Icon(Icons.Filled.Save, contentDescription = null, modifier = Modifier.size(18.dp))
             Spacer(Modifier.width(4.dp))
             Text("保存")
         }
-    }
-    Spacer(Modifier.height(8.dp))
-    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-        OutlinedButton(onClick = onEmail, enabled = hasText, modifier = Modifier.weight(1f)) {
-            Icon(Icons.Filled.Email, contentDescription = null, modifier = Modifier.size(18.dp))
-            Spacer(Modifier.width(4.dp))
-            Text("メール")
-        }
-        OutlinedButton(onClick = onClear, enabled = hasText, modifier = Modifier.weight(1f)) {
+        OutlinedButton(
+            onClick = onClear,
+            enabled = hasText,
+            shape = RoundedCornerShape(14.dp),
+            modifier = Modifier.weight(1f),
+        ) {
             Icon(Icons.Filled.Delete, contentDescription = null, modifier = Modifier.size(18.dp))
             Spacer(Modifier.width(4.dp))
             Text("クリア")
@@ -397,13 +433,4 @@ private fun writeTextToUri(context: Context, uri: Uri, text: String): Boolean = 
     true
 } catch (e: Exception) {
     false
-}
-
-private fun sendEmail(context: Context, text: String) {
-    val intent = Intent(Intent.ACTION_SEND).apply {
-        type = "text/plain"
-        putExtra(Intent.EXTRA_SUBJECT, "音声文字起こし")
-        putExtra(Intent.EXTRA_TEXT, text)
-    }
-    context.startActivity(Intent.createChooser(intent, "メールで送信"))
 }
