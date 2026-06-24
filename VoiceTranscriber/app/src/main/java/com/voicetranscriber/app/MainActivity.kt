@@ -13,6 +13,7 @@ import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -30,8 +31,10 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Mic
 import androidx.compose.material.icons.filled.Save
 import androidx.compose.material3.Button
@@ -49,6 +52,7 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -60,6 +64,8 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.pointerInput
@@ -197,7 +203,8 @@ private fun Content(
     onCopy: () -> Unit,
     onSave: () -> Unit,
 ) {
-    val scroll = rememberScrollState()
+    var isEditing by remember { mutableStateOf(false) }
+    val focusRequester = remember { FocusRequester() }
     val bgBrush = Brush.verticalGradient(
         colors = listOf(
             MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.45f),
@@ -209,7 +216,6 @@ private fun Content(
             .fillMaxSize()
             .background(bgBrush)
             .padding(innerPadding)
-            .verticalScroll(scroll)
             .padding(horizontal = 16.dp, vertical = 8.dp),
     ) {
         if (!recognitionAvailable) {
@@ -229,7 +235,7 @@ private fun Content(
         }
 
         StatusBanner(state)
-        Spacer(Modifier.height(16.dp))
+        Spacer(Modifier.height(12.dp))
 
         ModeButtons(
             state = state,
@@ -239,50 +245,132 @@ private fun Content(
             onToggleContinuous = onToggleContinuous,
         )
 
-        Spacer(Modifier.height(20.dp))
+        Spacer(Modifier.height(16.dp))
 
-        Text(
-            "文字起こし結果",
-            style = MaterialTheme.typography.titleMedium,
-            fontWeight = FontWeight.Bold,
-        )
+        // 見出し行 + 小さな編集トグル
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Text(
+                "文字起こし結果",
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.Bold,
+            )
+            Spacer(Modifier.weight(1f))
+            TextButton(
+                onClick = { isEditing = !isEditing },
+                enabled = isEditing || state.transcript.isNotBlank(),
+            ) {
+                Icon(
+                    if (isEditing) Icons.Filled.Check else Icons.Filled.Edit,
+                    contentDescription = null,
+                    modifier = Modifier.size(18.dp),
+                )
+                Spacer(Modifier.width(4.dp))
+                Text(if (isEditing) "完了" else "編集")
+            }
+        }
         Spacer(Modifier.height(8.dp))
 
-        OutlinedTextField(
-            value = state.transcript,
-            onValueChange = onTranscriptChange,
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(240.dp),
-            textStyle = MaterialTheme.typography.bodyLarge.copy(
-                fontSize = 22.sp,
-                lineHeight = 32.sp,
-            ),
-            shape = RoundedCornerShape(16.dp),
-            colors = OutlinedTextFieldDefaults.colors(
-                focusedContainerColor = MaterialTheme.colorScheme.surface,
-                unfocusedContainerColor = MaterialTheme.colorScheme.surface,
-            ),
-            placeholder = { Text("ここに文字起こしされたテキストが表示されます（編集も可能）") },
-        )
-
-        if (state.partial.isNotBlank()) {
-            Spacer(Modifier.height(8.dp))
-            Text(
-                "認識中: ${state.partial}",
-                color = MaterialTheme.colorScheme.primary,
-                fontWeight = FontWeight.Medium,
-                fontSize = 18.sp,
+        // 表示領域（残りの高さいっぱいに広げる）
+        if (isEditing) {
+            OutlinedTextField(
+                value = state.transcript,
+                onValueChange = onTranscriptChange,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .weight(1f)
+                    .focusRequester(focusRequester),
+                textStyle = MaterialTheme.typography.bodyLarge.copy(
+                    fontSize = 22.sp,
+                    lineHeight = 32.sp,
+                ),
+                shape = RoundedCornerShape(16.dp),
+                colors = OutlinedTextFieldDefaults.colors(
+                    focusedContainerColor = MaterialTheme.colorScheme.surface,
+                    unfocusedContainerColor = MaterialTheme.colorScheme.surface,
+                ),
+            )
+            LaunchedEffect(Unit) { focusRequester.requestFocus() }
+        } else {
+            TranscriptDisplay(
+                transcript = state.transcript,
+                partial = state.partial,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .weight(1f),
             )
         }
 
-        Spacer(Modifier.height(20.dp))
+        Spacer(Modifier.height(12.dp))
         ExportButtons(
             hasText = state.transcript.isNotBlank(),
             onCopy = onCopy,
             onSave = onSave,
-            onClear = onClear,
+            onClear = {
+                onClear()
+                isEditing = false
+            },
         )
+    }
+}
+
+/** キーボードを出さずに文字起こし結果を表示する読み取り専用の枠。 */
+@Composable
+private fun TranscriptDisplay(
+    transcript: String,
+    partial: String,
+    modifier: Modifier = Modifier,
+) {
+    val scroll = rememberScrollState()
+    // 新しい行が追加されたら自動で最下部へスクロール
+    LaunchedEffect(transcript, partial) {
+        scroll.animateScrollTo(scroll.maxValue)
+    }
+    Box(
+        modifier = modifier
+            .clip(RoundedCornerShape(16.dp))
+            .background(MaterialTheme.colorScheme.surface)
+            .border(
+                width = 1.dp,
+                color = MaterialTheme.colorScheme.outline,
+                shape = RoundedCornerShape(16.dp),
+            ),
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .verticalScroll(scroll)
+                .padding(16.dp),
+        ) {
+            if (transcript.isBlank() && partial.isBlank()) {
+                Text(
+                    "ここに文字起こしされた内容が表示されます。\nマイクボタンで話しかけてください。",
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    fontSize = 18.sp,
+                    lineHeight = 28.sp,
+                )
+            } else {
+                if (transcript.isNotBlank()) {
+                    Text(
+                        transcript,
+                        color = MaterialTheme.colorScheme.onSurface,
+                        fontSize = 22.sp,
+                        lineHeight = 32.sp,
+                    )
+                }
+                if (partial.isNotBlank()) {
+                    Text(
+                        partial,
+                        color = MaterialTheme.colorScheme.primary,
+                        fontSize = 22.sp,
+                        lineHeight = 32.sp,
+                        fontWeight = FontWeight.Medium,
+                    )
+                }
+            }
+        }
     }
 }
 
