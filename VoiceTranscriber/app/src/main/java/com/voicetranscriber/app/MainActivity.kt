@@ -35,6 +35,7 @@ import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.GraphicEq
 import androidx.compose.material.icons.filled.Mic
 import androidx.compose.material.icons.filled.Save
 import androidx.compose.material3.AlertDialog
@@ -73,8 +74,11 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -82,6 +86,12 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.voicetranscriber.app.ui.theme.VoiceTranscriberTheme
 import kotlinx.coroutines.launch
 import java.io.OutputStreamWriter
+
+// シックなブランドカラー（ライト/ダーク共通。白文字が映える落ち着いた色）
+private val HoldButtonColor = Color(0xFF3D3B47)       // グラファイト
+private val ContinuousButtonColor = Color(0xFF4F6F6A) // ミュートセージ
+private val StopButtonColor = Color(0xFF9E5B54)        // ミュートテラコッタ
+private val BrandAccentColor = Color(0xFF8C7A5B)       // 真鍮（タイトルのアクセント）
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -208,13 +218,45 @@ private fun TranscriberScreen(viewModel: TranscriptionViewModel = viewModel()) {
         topBar = {
             CenterAlignedTopAppBar(
                 title = {
-                    Text(
-                        "Voice transcription",
-                        fontSize = 22.sp,
-                        fontWeight = FontWeight.ExtraBold,
-                        letterSpacing = 0.5.sp,
-                        color = MaterialTheme.colorScheme.primary,
-                    )
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Box(
+                            contentAlignment = Alignment.Center,
+                            modifier = Modifier
+                                .size(36.dp)
+                                .clip(RoundedCornerShape(11.dp))
+                                .background(
+                                    Brush.verticalGradient(
+                                        listOf(HoldButtonColor, ContinuousButtonColor),
+                                    ),
+                                ),
+                        ) {
+                            Icon(
+                                Icons.Filled.GraphicEq,
+                                contentDescription = null,
+                                tint = Color.White,
+                                modifier = Modifier.size(20.dp),
+                            )
+                        }
+                        Spacer(Modifier.width(10.dp))
+                        Text(
+                            buildAnnotatedString {
+                                withStyle(
+                                    SpanStyle(
+                                        color = MaterialTheme.colorScheme.onSurface,
+                                        fontWeight = FontWeight.ExtraBold,
+                                    ),
+                                ) { append("Voice") }
+                                withStyle(
+                                    SpanStyle(
+                                        color = BrandAccentColor,
+                                        fontWeight = FontWeight.Light,
+                                    ),
+                                ) { append(" Transcription") }
+                            },
+                            fontSize = 22.sp,
+                            letterSpacing = 0.5.sp,
+                        )
+                    }
                 },
                 colors = TopAppBarDefaults.centerAlignedTopAppBarColors(
                     containerColor = MaterialTheme.colorScheme.background,
@@ -451,9 +493,7 @@ private fun ModeButtons(
 ) {
     val continuousActive = state.mode == Mode.CONTINUOUS
     val holdInteractive = enabled && state.mode != Mode.CONTINUOUS
-    val holdColor = if (state.mode == Mode.HOLD)
-        MaterialTheme.colorScheme.error
-    else MaterialTheme.colorScheme.primary
+    val holdColor = if (state.mode == Mode.HOLD) StopButtonColor else HoldButtonColor
 
     // 左右に並べる：左＝押している間だけ / 右＝連続
     Row(
@@ -509,9 +549,8 @@ private fun ModeButtons(
                 .weight(1f)
                 .height(104.dp),
             colors = ButtonDefaults.buttonColors(
-                containerColor = if (continuousActive)
-                    MaterialTheme.colorScheme.error
-                else MaterialTheme.colorScheme.secondary,
+                containerColor = if (continuousActive) StopButtonColor else ContinuousButtonColor,
+                contentColor = Color.White,
             ),
         ) {
             Column(horizontalAlignment = Alignment.CenterHorizontally) {
