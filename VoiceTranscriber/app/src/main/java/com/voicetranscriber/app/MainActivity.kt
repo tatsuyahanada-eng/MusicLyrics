@@ -238,11 +238,13 @@ private fun TranscriberScreen(viewModel: TranscriptionViewModel = viewModel()) {
                             )
                         }
                         Spacer(Modifier.width(10.dp))
+                        // 色は composable 文脈で先に取り出しておく（annotatedString 内では読めない）
+                        val voiceColor = MaterialTheme.colorScheme.onSurface
                         Text(
                             buildAnnotatedString {
                                 withStyle(
                                     SpanStyle(
-                                        color = MaterialTheme.colorScheme.onSurface,
+                                        color = voiceColor,
                                         fontWeight = FontWeight.ExtraBold,
                                     ),
                                 ) { append("Voice") }
