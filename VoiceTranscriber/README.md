@@ -1,4 +1,4 @@
-# VoideT — 音声文字起こしアプリ
+# VoiceT — 音声文字起こしアプリ
 
 画面上の表示名は「Voice transcription」。
 Android 端末のマイクで話した内容をリアルタイムに文字起こしする Android アプリです。

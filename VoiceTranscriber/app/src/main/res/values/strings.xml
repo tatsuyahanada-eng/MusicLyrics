@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="app_name">VoideT</string>
+    <string name="app_name">VoiceT</string>
     <!-- 自動アップデート確認用の version.json の URL。空にすると確認しない。
          例: https://example.com/whispr/version.json -->
     <string name="update_manifest_url"></string>
