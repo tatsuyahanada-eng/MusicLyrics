@@ -87,13 +87,13 @@ import com.voicetranscriber.app.ui.theme.VoiceTranscriberTheme
 import kotlinx.coroutines.launch
 import java.io.OutputStreamWriter
 
-// シックなブランドカラー（ライト/ダーク共通）。ボタンは色相で分け、文字色も個別に。
-private val HoldButtonColor = Color(0xFF3F4A6B)        // 押す＝ミュート・インディゴ
-private val HoldTextColor = Color(0xFFF1E6C9)          //   文字＝ペールゴールド
-private val ContinuousButtonColor = Color(0xFF4E6E63) // 連続＝ミュート・セージグリーン
-private val ContinuousTextColor = Color(0xFFE2EFE5)   //   文字＝ペールミント
+// シックなブランドカラー（ライト/ダーク共通）。ボタンは色相で分け、文字色もはっきり対比。
+private val HoldButtonColor = Color(0xFF38406A)        // 押す＝ディープ・インディゴ
+private val HoldTextColor = Color(0xFFFFCE5C)          //   文字＝ゴールド（はっきり）
+private val ContinuousButtonColor = Color(0xFF3D6E5B) // 連続＝ディープ・グリーン
+private val ContinuousTextColor = Color(0xFF8EE8BE)   //   文字＝ミント（はっきり）
 private val StopButtonColor = Color(0xFF9E5B54)        // 停止＝ミュート・テラコッタ
-private val StopTextColor = Color(0xFFF6EBE6)          //   文字＝ペールクリーム
+private val StopTextColor = Color(0xFFFFE8DF)          //   文字＝ペールクリーム
 private val BrandAccentColor = Color(0xFF8C7A5B)       // タイトルのアクセント（真鍮）
 
 class MainActivity : ComponentActivity() {
