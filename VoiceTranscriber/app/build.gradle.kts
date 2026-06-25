@@ -12,13 +12,28 @@ android {
         applicationId = "com.voicetranscriber.app"
         minSdk = 26
         targetSdk = 35
-        versionCode = 1
-        versionName = "1.0"
+        versionCode = 2
+        versionName = "1.1"
+    }
+
+    // 固定の署名鍵。これにより毎回のビルドが同じ署名になり、
+    // 既存アプリへの「上書きアップデート」が可能になる（アンインストール不要）。
+    signingConfigs {
+        create("shared") {
+            storeFile = file("voicet-signing.jks")
+            storePassword = "voicet-app-2026"
+            keyAlias = "voicet"
+            keyPassword = "voicet-app-2026"
+        }
     }
 
     buildTypes {
+        debug {
+            signingConfig = signingConfigs.getByName("shared")
+        }
         release {
             isMinifyEnabled = false
+            signingConfig = signingConfigs.getByName("shared")
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
