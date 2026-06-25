@@ -296,6 +296,7 @@ private fun Content(
     onSave: () -> Unit,
 ) {
     var isEditing by remember { mutableStateOf(false) }
+    var showClearConfirm by remember { mutableStateOf(false) }
     val focusRequester = remember { FocusRequester() }
     val bgBrush = Brush.verticalGradient(
         colors = listOf(
@@ -400,9 +401,26 @@ private fun Content(
             hasText = state.transcript.isNotBlank(),
             onCopy = onCopy,
             onSave = onSave,
-            onClear = {
-                onClear()
-                isEditing = false
+            onClear = { showClearConfirm = true },
+        )
+    }
+
+    if (showClearConfirm) {
+        AlertDialog(
+            onDismissRequest = { showClearConfirm = false },
+            title = { Text("文字起こしを消去") },
+            text = { Text("表示中の文字起こし内容を消去します。よろしいですか？") },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        onClear()
+                        isEditing = false
+                        showClearConfirm = false
+                    },
+                ) { Text("消去する") }
+            },
+            dismissButton = {
+                TextButton(onClick = { showClearConfirm = false }) { Text("キャンセル") }
             },
         )
     }
@@ -439,7 +457,7 @@ private fun TranscriptDisplay(
             if (transcript.isBlank() && partial.isBlank()) {
                 Text(
                     "ここに文字起こしされた内容が表示されます。\nマイクボタンで話しかけてください。",
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.45f),
                     fontSize = 20.sp,
                     lineHeight = 30.sp,
                 )
