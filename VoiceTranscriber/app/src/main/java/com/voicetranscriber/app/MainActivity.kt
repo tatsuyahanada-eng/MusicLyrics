@@ -27,6 +27,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
@@ -388,8 +389,9 @@ private fun Content(
             LaunchedEffect(Unit) { focusRequester.requestFocus() }
         } else {
             TranscriptDisplay(
-                transcript = state.transcript,
+                segments = state.segments,
                 partial = state.partial,
+                partialMode = state.mode,
                 modifier = Modifier
                     .fillMaxWidth()
                     .weight(1f),
@@ -426,16 +428,22 @@ private fun Content(
     }
 }
 
-/** キーボードを出さずに文字起こし結果を表示する読み取り専用の枠。 */
+/**
+ * キーボードを出さずに文字起こし結果を表示する読み取り専用の枠。
+ * LINE のように、どのモードで起こしたかで左右に分けて色付き吹き出しで表示する。
+ *  - 押している間 … 左寄せ・インディゴ地にゴールド文字
+ *  - 連続で      … 右寄せ・グリーン地にミント文字
+ */
 @Composable
 private fun TranscriptDisplay(
-    transcript: String,
+    segments: List<TranscriptSegment>,
     partial: String,
+    partialMode: Mode,
     modifier: Modifier = Modifier,
 ) {
     val scroll = rememberScrollState()
-    // 新しい行が追加されたら自動で最下部へスクロール
-    LaunchedEffect(transcript, partial) {
+    // 新しい吹き出しが追加されたら自動で最下部へスクロール
+    LaunchedEffect(segments.size, partial) {
         scroll.animateScrollTo(scroll.maxValue)
     }
     Box(
@@ -448,38 +456,64 @@ private fun TranscriptDisplay(
                 shape = RoundedCornerShape(16.dp),
             ),
     ) {
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .verticalScroll(scroll)
-                .padding(16.dp),
-        ) {
-            if (transcript.isBlank() && partial.isBlank()) {
-                Text(
-                    "ここに文字起こしされた内容が表示されます。\nマイクボタンで話しかけてください。",
-                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.45f),
-                    fontSize = 20.sp,
-                    lineHeight = 30.sp,
-                )
-            } else {
-                if (transcript.isNotBlank()) {
-                    Text(
-                        transcript,
-                        color = MaterialTheme.colorScheme.onSurface,
-                        fontSize = 26.sp,
-                        lineHeight = 38.sp,
-                    )
+        if (segments.isEmpty() && partial.isBlank()) {
+            Text(
+                "ここに文字起こしされた内容が表示されます。\nマイクボタンで話しかけてください。",
+                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.45f),
+                fontSize = 20.sp,
+                lineHeight = 30.sp,
+                modifier = Modifier.padding(16.dp),
+            )
+        } else {
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .verticalScroll(scroll)
+                    .padding(12.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                segments.forEach { seg ->
+                    if (seg.text.isNotBlank()) {
+                        TranscriptBubble(seg.text, seg.mode, alpha = 1f)
+                    }
                 }
                 if (partial.isNotBlank()) {
-                    Text(
-                        partial,
-                        color = MaterialTheme.colorScheme.primary,
-                        fontSize = 26.sp,
-                        lineHeight = 38.sp,
-                        fontWeight = FontWeight.Medium,
-                    )
+                    TranscriptBubble(partial, partialMode, alpha = 0.55f)
                 }
             }
+        }
+    }
+}
+
+/** 1 つの吹き出し。mode に応じて色と左右の寄せを変える。 */
+@Composable
+private fun TranscriptBubble(text: String, mode: Mode, alpha: Float) {
+    val (bg, fg, alignStart) = when (mode) {
+        Mode.HOLD -> Triple(HoldButtonColor, HoldTextColor, true)
+        Mode.CONTINUOUS -> Triple(ContinuousButtonColor, ContinuousTextColor, false)
+        else -> Triple(
+            MaterialTheme.colorScheme.surfaceVariant,
+            MaterialTheme.colorScheme.onSurface,
+            true,
+        )
+    }
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = if (alignStart) Arrangement.Start else Arrangement.End,
+    ) {
+        Box(
+            modifier = Modifier
+                .widthIn(max = 300.dp)
+                .clip(RoundedCornerShape(16.dp))
+                .background(bg.copy(alpha = alpha))
+                .padding(horizontal = 14.dp, vertical = 10.dp),
+        ) {
+            Text(
+                text,
+                color = fg,
+                fontSize = 22.sp,
+                lineHeight = 30.sp,
+            )
         }
     }
 }
