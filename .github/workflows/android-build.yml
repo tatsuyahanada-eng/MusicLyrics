@@ -29,6 +29,12 @@ jobs:
           distribution: temurin
           java-version: "17"
 
+      - name: Set up Gradle (with dependency/build cache)
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          build-root-directory: VoiceTranscriber
+          cache-read-only: false
+
       - name: Set up Android SDK
         uses: android-actions/setup-android@v3
 
