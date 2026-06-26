@@ -93,8 +93,8 @@ private val HoldButtonColor = Color(0xFF38406A)        // 押す＝ディープ�
 private val HoldTextColor = Color(0xFFFFCE5C)          //   文字＝ゴールド（はっきり）
 private val ContinuousButtonColor = Color(0xFF3D6E5B) // 連続＝ディープ・グリーン
 private val ContinuousTextColor = Color(0xFF8EE8BE)   //   文字＝ミント（はっきり）
-private val StopButtonColor = Color(0xFF9E5B54)        // 停止＝ミュート・テラコッタ
-private val StopTextColor = Color(0xFFFFE8DF)          //   文字＝ペールクリーム
+private val StopButtonColor = Color(0xFFF15B4C)        // 録音中／停止＝明るいコーラルレッド（目立つ）
+private val StopTextColor = Color(0xFFFFFFFF)          //   文字＝ホワイト
 private val BrandAccentColor = Color(0xFF8C7A5B)       // タイトルのアクセント（真鍮）
 
 class MainActivity : ComponentActivity() {
@@ -347,7 +347,7 @@ private fun Content(
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Text(
-                "文字起こし結果",
+                "Result",
                 style = MaterialTheme.typography.titleMedium,
                 fontWeight = FontWeight.Bold,
             )
