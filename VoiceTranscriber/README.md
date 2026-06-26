@@ -34,9 +34,9 @@ Android 端末のマイクで話した内容をリアルタイムに文字起こ
 
    ```json
    {
-     "versionCode": 2,
-     "versionName": "1.1",
-     "apkUrl": "https://example.com/whispr/voice-transcriber.apk",
+     "versionCode": 4,
+     "versionName": "1.3",
+     "apkUrl": "https://github.com/tatsuyahanada-eng/MusicLyrics/releases/download/latest/voice-transcriber.apk",
      "notes": "バグ修正と新機能"
    }
    ```
@@ -79,16 +79,18 @@ Android 端末のマイクで話した内容をリアルタイムに文字起こ
 2. 完了した実行ページ下部の **Artifacts** から `voice-transcriber-apk` をダウンロード
 3. 中の `voice-transcriber.apk` を自分のサーバーにアップロードして配布
 
-### 方法2: Release としてダウンロード用に公開
+### 方法2: Release の固定URLからダウンロード（おすすめ）
 
-バージョンタグを push すると、APK が添付された Release が自動作成されます。
+push のたびに、固定タグ `latest` の Release が自動更新され、最新APKが添付されます。
+以下の**固定URL**から、誰でも直接ダウンロードできます（ログイン不要）:
 
-```bash
-git tag v1.0.0
-git push origin v1.0.0
+```
+https://github.com/tatsuyahanada-eng/MusicLyrics/releases/download/latest/voice-transcriber.apk
 ```
 
-→ リポジトリの **Releases** に `voice-transcriber.apk` が公開され、URL で直接配布できます。
+このURLは常に最新ビルドを指すので、自分のサーバーに置く `version.json` の `apkUrl` に
+そのまま使えます。バージョン番号付きの Release が必要なときは `vX.Y.Z` タグを push すると、
+そのタグ名の Release も別途作成されます。
 
 > 配布したい APK をサーバーに置き、利用者は Android 端末の Chrome 等でその URL を開いて
 > ダウンロード・インストールします（「提供元不明のアプリ」の許可が必要な場合があります）。
