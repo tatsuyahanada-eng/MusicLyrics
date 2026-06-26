@@ -1,12 +1,12 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- 音声＝波形（イコライザー）モチーフ。中央・左右対称でバランスよく配置。 -->
+<!-- Android 13+ のテーマ付きアイコン用（システムが単色でティントする）。 -->
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
     android:width="108dp"
     android:height="108dp"
     android:viewportWidth="108"
     android:viewportHeight="108">
     <path
-        android:strokeColor="#F3CE73"
+        android:strokeColor="#000000"
         android:strokeWidth="8"
         android:strokeLineCap="round"
         android:pathData="M30,44 L30,64 M42,36 L42,72 M54,30 L54,78 M66,36 L66,72 M78,44 L78,64" />
