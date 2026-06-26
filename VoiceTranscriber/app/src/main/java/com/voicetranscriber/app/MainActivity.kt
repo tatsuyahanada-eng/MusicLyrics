@@ -14,6 +14,7 @@ import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -93,9 +94,19 @@ private val HoldButtonColor = Color(0xFF38406A)        // 押す＝ディープ�
 private val HoldTextColor = Color(0xFFFFCE5C)          //   文字＝ゴールド（はっきり）
 private val ContinuousButtonColor = Color(0xFF3D6E5B) // 連続＝ディープ・グリーン
 private val ContinuousTextColor = Color(0xFF8EE8BE)   //   文字＝ミント（はっきり）
-private val StopButtonColor = Color(0xFFF15B4C)        // 録音中／停止＝明るいコーラルレッド（目立つ）
+private val StopButtonColor = Color(0xFF22B5D6)        // 録音中／停止＝明るいアクア（水色・目立つ）
 private val StopTextColor = Color(0xFFFFFFFF)          //   文字＝ホワイト
 private val BrandAccentColor = Color(0xFF8C7A5B)       // タイトルのアクセント（真鍮）
+
+// 文字起こし吹き出しの優しいパステル配色（ライト/ダークで切替え・文字は読みやすく）
+private val HoldBubbleBgLight = Color(0xFFE7EAF8)
+private val HoldBubbleFgLight = Color(0xFF36406E)
+private val HoldBubbleBgDark = Color(0xFF323A5C)
+private val HoldBubbleFgDark = Color(0xFFDCE2FF)
+private val ContBubbleBgLight = Color(0xFFDEF1E8)
+private val ContBubbleFgLight = Color(0xFF2C6A52)
+private val ContBubbleBgDark = Color(0xFF2D4B41)
+private val ContBubbleFgDark = Color(0xFFCFEFDD)
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -488,9 +499,18 @@ private fun TranscriptDisplay(
 /** 1 つの吹き出し。mode に応じて色と左右の寄せを変える。 */
 @Composable
 private fun TranscriptBubble(text: String, mode: Mode, alpha: Float) {
+    val dark = isSystemInDarkTheme()
     val (bg, fg, alignStart) = when (mode) {
-        Mode.HOLD -> Triple(HoldButtonColor, HoldTextColor, true)
-        Mode.CONTINUOUS -> Triple(ContinuousButtonColor, ContinuousTextColor, false)
+        Mode.HOLD -> Triple(
+            if (dark) HoldBubbleBgDark else HoldBubbleBgLight,
+            if (dark) HoldBubbleFgDark else HoldBubbleFgLight,
+            true,
+        )
+        Mode.CONTINUOUS -> Triple(
+            if (dark) ContBubbleBgDark else ContBubbleBgLight,
+            if (dark) ContBubbleFgDark else ContBubbleFgLight,
+            false,
+        )
         else -> Triple(
             MaterialTheme.colorScheme.surfaceVariant,
             MaterialTheme.colorScheme.onSurface,
