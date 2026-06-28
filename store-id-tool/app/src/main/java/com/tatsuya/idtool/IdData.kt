@@ -12,26 +12,44 @@ package com.tatsuya.idtool
  *   → 9 桁すべてを 1 桁ずつ足した合計の末尾 1 桁。
  *     店舗番号が未入力（5 桁未満）なら空白。
  */
-enum class Brand(val label: String, val kikaku: Int) {
-    MONSTERA("MONSTERA（モンステラ）", 4),
-    RELIER("Relier（ルリエ）", 5)
-}
-
-/** ch 番号 → Ch設定値（G,H,I の 3 桁コード）。両ブランド共通の固定表。 */
+/** ch 番号 → Ch設定値（G,H,I の 3 桁コード）。 */
 data class ChannelDef(val ch: Int, val code: String)
 
-val CHANNELS: List<ChannelDef> = listOf(
-    ChannelDef(1, "101"),
-    ChannelDef(6, "106"),
-    ChannelDef(13, "113"),
-    ChannelDef(36, "001"),
-    ChannelDef(40, "002"),
-    ChannelDef(44, "003"),
-    ChannelDef(48, "004"),
-    ChannelDef(100, "009"),
-    ChannelDef(120, "014"),
-    ChannelDef(124, "015"),
-)
+/**
+ * ブランド。規格（F 列）と、シートごとに異なる ch リストを保持する。
+ *   - Monstera（Sheet1）: 36,40,44,48,1,6,13
+ *   - Relier（ﾃﾞﾆｰｽﾞ）  : 1,6,13,36,40,44,48,100,120,124
+ * ch → Ch設定値コードは共通だが、ブランドで使う ch の並び・種類が異なる。
+ */
+enum class Brand(val label: String, val kikaku: Int, val channels: List<ChannelDef>) {
+    MONSTERA(
+        "Monstera", 4,
+        listOf(
+            ChannelDef(36, "001"),
+            ChannelDef(40, "002"),
+            ChannelDef(44, "003"),
+            ChannelDef(48, "004"),
+            ChannelDef(1, "101"),
+            ChannelDef(6, "106"),
+            ChannelDef(13, "113"),
+        )
+    ),
+    RELIER(
+        "Relier", 5,
+        listOf(
+            ChannelDef(1, "101"),
+            ChannelDef(6, "106"),
+            ChannelDef(13, "113"),
+            ChannelDef(36, "001"),
+            ChannelDef(40, "002"),
+            ChannelDef(44, "003"),
+            ChannelDef(48, "004"),
+            ChannelDef(100, "009"),
+            ChannelDef(120, "014"),
+            ChannelDef(124, "015"),
+        )
+    )
+}
 
 data class IdRow(
     val ch: Int,
@@ -56,7 +74,7 @@ fun isValidStoreNumber(storeNumber: String): Boolean =
  */
 fun buildRows(brand: Brand, storeNumber: String): List<IdRow> {
     val valid = isValidStoreNumber(storeNumber)
-    return CHANNELS.map { c ->
+    return brand.channels.map { c ->
         if (!valid) {
             IdRow(ch = c.ch, kikaku = brand.kikaku.toString(), chCode = c.code, store = "", cd = "")
         } else {
