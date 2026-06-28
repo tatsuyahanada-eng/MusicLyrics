@@ -372,6 +372,10 @@ private fun saveRecords(context: Context, key: String, records: List<Record>) {
     context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit().putString(key, data).apply()
 }
 
+/** 結果入力タブから距離記録を読むための公開関数。 */
+fun loadDistanceRecords(context: Context): List<Record> =
+    loadRecords(context, "records_${MeasureType.DISTANCE.name}")
+
 private fun loadRecords(context: Context, key: String): List<Record> {
     val data = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).getString(key, "") ?: ""
     if (data.isBlank()) return emptyList()

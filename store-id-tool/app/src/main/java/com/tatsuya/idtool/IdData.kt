@@ -1,5 +1,7 @@
 package com.tatsuya.idtool
 
+import android.content.Context
+
 /**
  * 元データ（Relier「ﾃﾞﾆｰｽﾞ」シート / MONSTERA「Sheet1」）の構造を再現したロジック。
  *
@@ -72,6 +74,26 @@ fun isValidStoreNumber(storeNumber: String): Boolean =
  * 選択ブランドと店舗番号から、全 ch の行を生成する。
  * 店舗番号が 5 桁の数字でない場合は CD・店舗番号を空欄で返す。
  */
+/** タブ間共有用の店舗情報（ID計算→結果入力へ自動反映）。 */
+data class IdInfo(val brand: Brand, val storeNumber: String, val storeName: String)
+
+private const val ID_PREFS = "id_prefs"
+
+fun saveIdInfo(context: Context, brand: Brand, storeNumber: String, storeName: String) {
+    context.getSharedPreferences(ID_PREFS, Context.MODE_PRIVATE).edit()
+        .putString("brand", brand.name)
+        .putString("storeNumber", storeNumber)
+        .putString("storeName", storeName)
+        .apply()
+}
+
+fun loadIdInfo(context: Context): IdInfo {
+    val p = context.getSharedPreferences(ID_PREFS, Context.MODE_PRIVATE)
+    val brand = runCatching { Brand.valueOf(p.getString("brand", Brand.RELIER.name)!!) }
+        .getOrDefault(Brand.RELIER)
+    return IdInfo(brand, p.getString("storeNumber", "") ?: "", p.getString("storeName", "") ?: "")
+}
+
 fun buildRows(brand: Brand, storeNumber: String): List<IdRow> {
     val valid = isValidStoreNumber(storeNumber)
     return brand.channels.map { c ->

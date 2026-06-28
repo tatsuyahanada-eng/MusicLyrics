@@ -40,6 +40,7 @@ import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -102,7 +103,7 @@ class MainActivity : ComponentActivity() {
 @Composable
 fun AppRoot() {
     var tab by remember { mutableIntStateOf(0) }
-    val titles = listOf("無線チャンネル変更APP", "距離測定", "面積測定（部屋）")
+    val titles = listOf("無線チャンネル変更APP", "距離測定", "結果入力（無線テスト結果表）")
     Scaffold(
         topBar = {
             TopAppBar(
@@ -125,7 +126,7 @@ fun AppRoot() {
                 )
                 NavigationBarItem(
                     selected = tab == 2, onClick = { tab = 2 },
-                    icon = { Text("⬛") }, label = { Text("面積") }
+                    icon = { Text("📝") }, label = { Text("結果") }
                 )
             }
         }
@@ -134,7 +135,7 @@ fun AppRoot() {
             when (tab) {
                 0 -> IdContent()
                 1 -> MeasureScreen(MeasureType.DISTANCE)
-                else -> MeasureScreen(MeasureType.AREA)
+                else -> ResultScreen()
             }
         }
     }
@@ -151,6 +152,11 @@ fun IdContent() {
 
     val rows = buildRows(brand, storeNumber)
     val valid = isValidStoreNumber(storeNumber)
+
+    // 結果入力タブへ自動反映するため店舗情報を保存
+    LaunchedEffect(brand, storeNumber, storeName) {
+        saveIdInfo(context, brand, storeNumber, storeName)
+    }
 
     Column(
         modifier = Modifier
