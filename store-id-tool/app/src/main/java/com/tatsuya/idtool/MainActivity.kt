@@ -3,7 +3,6 @@ package com.tatsuya.idtool
 import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Context
-import android.content.Intent
 import android.os.Bundle
 import android.widget.Toast
 import androidx.activity.ComponentActivity
@@ -32,15 +31,17 @@ import androidx.compose.material3.ExposedDropdownMenuDefaults
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.MenuAnchorType
+import androidx.compose.material3.NavigationBar
+import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
-import androidx.compose.material3.darkColorScheme
+import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -55,31 +56,31 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 
-// ───── シックな業務用ダークテーマ ─────
-private val Accent = Color(0xFF26A69A)
-private val DarkScheme = darkColorScheme(
+// ───── 業務用ライト（薄い灰色）テーマ ─────
+private val Accent = Color(0xFF00897B)
+private val LightScheme = lightColorScheme(
     primary = Accent,
-    onPrimary = Color(0xFF00251A),
-    primaryContainer = Color(0xFF18222A),
-    onPrimaryContainer = Color(0xFFDCE3E8),
-    secondaryContainer = Color(0xFF005048),
-    onSecondaryContainer = Color(0xFFB8F1E8),
-    background = Color(0xFF121417),
-    onBackground = Color(0xFFE2E5E8),
-    surface = Color(0xFF1B1F24),
-    onSurface = Color(0xFFE2E5E8),
-    surfaceVariant = Color(0xFF2A2F36),
-    onSurfaceVariant = Color(0xFFAEB6BE),
-    outline = Color(0xFF49525B),
+    onPrimary = Color.White,
+    primaryContainer = Color(0xFFB2DFDB),
+    onPrimaryContainer = Color(0xFF00332C),
+    secondaryContainer = Color(0xFFCDEFEA),
+    onSecondaryContainer = Color(0xFF00332C),
+    background = Color(0xFFECEFF1),
+    onBackground = Color(0xFF1B1B1B),
+    surface = Color(0xFFF5F6F8),
+    onSurface = Color(0xFF1B1B1B),
+    surfaceVariant = Color(0xFFE1E5E8),
+    onSurfaceVariant = Color(0xFF49454F),
+    outline = Color(0xFFAFB6BC),
 )
 
-// セクションごとの色（規格a / 規格b / Ch設定値 / 番号 / CD）— 見た目を明確に分ける
-private val ColKikakuA = Color(0xFF455A64) // ブルーグレー
-private val ColKikakuB = Color(0xFF5D4037) // ブラウン
-private val ColCh = Color(0xFF37474F)
-private val ColNum = Color(0xFF263238)
-private val ColCd = Accent
-private val ColEmpty = Color(0xFF20242A)
+// セクションごとの色（規格a / 規格b / Ch設定値 / 番号 / CD）— 淡色で区別、文字は濃色
+private val ColKikakuA = Color(0xFFB0BEC5) // ブルーグレー
+private val ColKikakuB = Color(0xFFD7CCC8) // ブラウン
+private val ColCh = Color(0xFFCFD8DC)
+private val ColNum = Color(0xFFE3E7EA)
+private val ColCd = Color(0xFF80CBC4)      // ティール（CD強調）
+private val ColEmpty = Color(0xFFEEF1F3)
 
 // 表のレイアウト寸法
 private val CELL_H = 36.dp
@@ -90,8 +91,8 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
         setContent {
-            MaterialTheme(colorScheme = DarkScheme) {
-                IdToolScreen()
+            MaterialTheme(colorScheme = LightScheme) {
+                AppRoot()
             }
         }
     }
@@ -99,7 +100,49 @@ class MainActivity : ComponentActivity() {
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun IdToolScreen() {
+fun AppRoot() {
+    var tab by remember { mutableIntStateOf(0) }
+    val titles = listOf("無線チャンネル変更APP", "距離測定", "面積測定（部屋）")
+    Scaffold(
+        topBar = {
+            TopAppBar(
+                title = { Text(titles[tab], fontWeight = FontWeight.SemiBold) },
+                colors = TopAppBarDefaults.topAppBarColors(
+                    containerColor = MaterialTheme.colorScheme.surface,
+                    titleContentColor = MaterialTheme.colorScheme.onSurface
+                )
+            )
+        },
+        bottomBar = {
+            NavigationBar(containerColor = MaterialTheme.colorScheme.surface) {
+                NavigationBarItem(
+                    selected = tab == 0, onClick = { tab = 0 },
+                    icon = { Text("🔢") }, label = { Text("ID計算") }
+                )
+                NavigationBarItem(
+                    selected = tab == 1, onClick = { tab = 1 },
+                    icon = { Text("📏") }, label = { Text("距離") }
+                )
+                NavigationBarItem(
+                    selected = tab == 2, onClick = { tab = 2 },
+                    icon = { Text("⬛") }, label = { Text("面積") }
+                )
+            }
+        }
+    ) { padding ->
+        Box(modifier = Modifier.fillMaxSize().padding(padding)) {
+            when (tab) {
+                0 -> IdContent()
+                1 -> MeasureScreen(MeasureType.DISTANCE)
+                else -> MeasureScreen(MeasureType.AREA)
+            }
+        }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun IdContent() {
     var brand by remember { mutableStateOf(Brand.RELIER) }
     var storeName by remember { mutableStateOf("") }
     var storeNumber by remember { mutableStateOf("") }
@@ -109,29 +152,12 @@ fun IdToolScreen() {
     val rows = buildRows(brand, storeNumber)
     val valid = isValidStoreNumber(storeNumber)
 
-    Scaffold(
-        topBar = {
-            TopAppBar(
-                title = { Text("無線チャンネル変更APP", fontWeight = FontWeight.SemiBold) },
-                actions = {
-                    TextButton(onClick = {
-                        context.startActivity(Intent(context, DistanceActivity::class.java))
-                    }) { Text("距離測定") }
-                },
-                colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = MaterialTheme.colorScheme.surface,
-                    titleContentColor = MaterialTheme.colorScheme.onSurface
-                )
-            )
-        }
-    ) { padding ->
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(padding)
-                .verticalScroll(rememberScrollState())
-                .padding(horizontal = 16.dp)
-        ) {
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .verticalScroll(rememberScrollState())
+            .padding(horizontal = 16.dp)
+    ) {
             // ── ブランド選択（プルダウン）──
             ExposedDropdownMenuBox(
                 expanded = expanded,
@@ -208,7 +234,6 @@ fun IdToolScreen() {
                 modifier = Modifier.padding(bottom = 16.dp)
             )
         }
-    }
 }
 
 @Composable
@@ -310,8 +335,7 @@ private fun androidx.compose.foundation.layout.RowScope.DigitCell(
             fontFamily = FontFamily.Monospace,
             fontWeight = if (cd) FontWeight.Bold else FontWeight.Medium,
             fontSize = if (cd) 16.sp else 14.sp,
-            color = if (cd) MaterialTheme.colorScheme.onPrimary
-            else MaterialTheme.colorScheme.onSurface
+            color = MaterialTheme.colorScheme.onSurface
         )
     }
 }
