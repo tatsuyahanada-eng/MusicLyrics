@@ -13,6 +13,7 @@ import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -28,14 +29,17 @@ import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.FilterChip
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -59,6 +63,15 @@ import io.github.sceneview.rememberEngine
 import kotlin.math.sqrt
 
 private val Teal = Color(0xFF26A69A)
+
+enum class MeasureType { DISTANCE, AREA }
+
+data class Record(val type: MeasureType, val memo: String, val value: Float, val detail: String) {
+    fun display(): String = when (type) {
+        MeasureType.DISTANCE -> "%.2f m".format(value)
+        MeasureType.AREA -> "%.2f m²".format(value) + if (detail.isNotEmpty()) "（$detail）" else ""
+    }
+}
 
 class DistanceActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -89,10 +102,7 @@ private fun DistanceScreen() {
         MeasureContent()
     } else {
         Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .background(MaterialTheme.colorScheme.background)
-                .padding(24.dp),
+            modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(24.dp),
             verticalArrangement = Arrangement.Center,
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
@@ -107,23 +117,65 @@ private fun DistanceScreen() {
 private fun MeasureContent() {
     val context = LocalContext.current
 
+    val records = remember { mutableStateListOf<Record>().apply { addAll(loadRecords(context)) } }
+    var remeasureIndex by remember { mutableIntStateOf(-1) }
+    var mode by remember { mutableStateOf(MeasureType.DISTANCE) }
     var memo by remember { mutableStateOf("") }
+
     var measuring by remember { mutableStateOf(false) }
-    var requestStart by remember { mutableStateOf(false) }
+    var requestAddPoint by remember { mutableStateOf(false) }
     var tracking by remember { mutableStateOf(false) }
-    var startWorld by remember { mutableStateOf<FloatArray?>(null) }
-    var liveDist by remember { mutableStateOf<Float?>(null) }
-    var startScreen by remember { mutableStateOf<Offset?>(null) }
-    val results = remember { mutableStateListOf<Pair<String, Float>>() }
+    val pts = remember { mutableStateListOf<FloatArray>() }   // 記録済みの点（始点/角）
+    var ptsScreen by remember { mutableStateOf<List<Offset?>>(emptyList()) }
+    var liveBig by remember { mutableStateOf("") }            // 画面中央の大きな数字
+    var liveDist by remember { mutableStateOf(0f) }           // 距離モードの確定用
 
     var viewW by remember { mutableStateOf(0f) }
     var viewH by remember { mutableStateOf(0f) }
 
     val engine = rememberEngine()
 
+    fun persist() = saveRecords(context, records)
+
+    fun resetMeasure() {
+        measuring = false
+        requestAddPoint = false
+        pts.clear()
+        ptsScreen = emptyList()
+        liveBig = ""
+        liveDist = 0f
+    }
+
+    fun confirm() {
+        val name = memo.ifBlank {
+            if (remeasureIndex in records.indices) records[remeasureIndex].memo
+            else "計測${records.size + 1}"
+        }
+        val rec: Record? = when (mode) {
+            MeasureType.DISTANCE ->
+                if (pts.isNotEmpty()) Record(MeasureType.DISTANCE, name, liveDist, "") else null
+            MeasureType.AREA ->
+                if (pts.size >= 3) {
+                    val a = dist3(pts[0], pts[1])
+                    val b = dist3(pts[1], pts[2])
+                    Record(MeasureType.AREA, name, a * b, "%.2f×%.2f".format(a, b))
+                } else null
+        }
+        if (rec != null) {
+            if (remeasureIndex in records.indices) records[remeasureIndex] = rec
+            else records.add(0, rec)
+            persist()
+            Toast.makeText(context, "記録: ${rec.display()}", Toast.LENGTH_SHORT).show()
+        } else {
+            Toast.makeText(context, "点が足りません", Toast.LENGTH_SHORT).show()
+        }
+        remeasureIndex = -1
+        memo = ""
+        resetMeasure()
+    }
+
     Box(
-        modifier = Modifier
-            .fillMaxSize()
+        modifier = Modifier.fillMaxSize()
             .onSizeChanged { viewW = it.width.toFloat(); viewH = it.height.toFloat() }
     ) {
         ARScene(
@@ -139,16 +191,27 @@ private fun MeasureContent() {
                 val cam = frame.camera
                 if (cam.trackingState == TrackingState.TRACKING) {
                     tracking = true
-                    val p = cam.pose
-                    val cur = floatArrayOf(p.tx(), p.ty(), p.tz())
-                    if (requestStart) {
-                        startWorld = cur
-                        requestStart = false
+                    val pose = cam.pose
+                    val cur = floatArrayOf(pose.tx(), pose.ty(), pose.tz())
+                    if (requestAddPoint) {
+                        pts.add(cur)
+                        requestAddPoint = false
                     }
-                    val s = startWorld
-                    if (measuring && s != null) {
-                        liveDist = dist3(s, cur)
-                        startScreen = if (viewW > 0f && viewH > 0f) worldToScreen(cam, viewW, viewH, s) else null
+                    if (measuring && pts.isNotEmpty()) {
+                        ptsScreen = pts.map { worldToScreen(cam, viewW, viewH, it) }
+                        when (mode) {
+                            MeasureType.DISTANCE -> {
+                                liveDist = dist3(pts[0], cur)
+                                liveBig = "%.2f m".format(liveDist)
+                            }
+                            MeasureType.AREA -> {
+                                liveBig = when (pts.size) {
+                                    1 -> "辺A: %.2f m".format(dist3(pts[0], cur))
+                                    2 -> "面積(暫定): %.2f m²".format(dist3(pts[0], pts[1]) * dist3(pts[1], cur))
+                                    else -> "%.2f m²".format(dist3(pts[0], pts[1]) * dist3(pts[1], pts[2]))
+                                }
+                            }
+                        }
                     }
                 } else {
                     tracking = false
@@ -156,33 +219,35 @@ private fun MeasureContent() {
             }
         )
 
-        // AR上の線と中央レチクル
+        // AR上の線・点・中央レチクル
         Canvas(modifier = Modifier.fillMaxSize()) {
             val center = Offset(size.width / 2f, size.height / 2f)
             drawCircle(color = Color.White, radius = 14f, center = center, style = Stroke(width = 3f))
             drawCircle(color = Teal, radius = 4f, center = center)
-            val s = startScreen
-            if (measuring && s != null) {
-                drawLine(color = Teal, start = s, end = center, strokeWidth = 7f)
-                drawCircle(color = Color(0xFFFFCA28), radius = 13f, center = s)
+            val sp = ptsScreen
+            // 記録済みの点どうしを連結
+            for (i in 0 until sp.size - 1) {
+                val a = sp[i]; val b = sp[i + 1]
+                if (a != null && b != null) drawLine(Teal, a, b, strokeWidth = 7f)
             }
+            // 最後の点から現在地（中央）へライブ線
+            if (measuring && sp.isNotEmpty()) {
+                sp.last()?.let { drawLine(Teal, it, center, strokeWidth = 7f) }
+            }
+            sp.forEach { it?.let { o -> drawCircle(Color(0xFFFFCA28), 13f, o) } }
         }
 
-        // 画面中央上に距離を大きく表示
-        if (measuring) {
+        // 画面中央上に大きく数値表示
+        if (measuring && liveBig.isNotEmpty()) {
             Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.TopCenter) {
                 Box(
-                    modifier = Modifier
-                        .padding(top = 84.dp)
+                    modifier = Modifier.padding(top = 84.dp)
                         .background(Color(0xCC000000), RoundedCornerShape(10.dp))
                         .padding(horizontal = 16.dp, vertical = 6.dp)
                 ) {
                     Text(
-                        text = "%.2f m".format(liveDist ?: 0f),
-                        color = Color.White,
-                        fontWeight = FontWeight.Bold,
-                        fontFamily = FontFamily.Monospace,
-                        fontSize = 40.sp
+                        liveBig, color = Color.White, fontWeight = FontWeight.Bold,
+                        fontFamily = FontFamily.Monospace, fontSize = 34.sp
                     )
                 }
             }
@@ -190,17 +255,36 @@ private fun MeasureContent() {
 
         // 操作オーバーレイ
         Column(modifier = Modifier.fillMaxSize().padding(12.dp)) {
+            // モード切替
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                FilterChip(
+                    selected = mode == MeasureType.DISTANCE,
+                    onClick = { if (!measuring) mode = MeasureType.DISTANCE },
+                    label = { Text("距離") }
+                )
+                FilterChip(
+                    selected = mode == MeasureType.AREA,
+                    onClick = { if (!measuring) mode = MeasureType.AREA },
+                    label = { Text("面積（部屋）") }
+                )
+            }
+
+            Spacer(Modifier.height(6.dp))
+
             Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .background(Color(0xCC000000), RoundedCornerShape(8.dp))
-                    .padding(10.dp)
+                modifier = Modifier.fillMaxWidth()
+                    .background(Color(0xCC000000), RoundedCornerShape(8.dp)).padding(8.dp)
             ) {
+                val msg = when {
+                    !tracking -> "周囲を映してゆっくり動かしてください…"
+                    remeasureIndex in records.indices -> "再測定: ${records[remeasureIndex].memo}（記録一覧から解除可）"
+                    mode == MeasureType.DISTANCE -> "メモ→計測→移動→終点確定"
+                    else -> "角を3点記録（角1→角2→角3）して面積を確定"
+                }
                 Text(
-                    if (tracking) "トラッキング中：メモ→計測→移動→終点確定"
-                    else "周囲を映してゆっくり動かしてください…",
+                    msg,
                     color = if (tracking) Color(0xFF80CBC4) else Color(0xFFFFB74D),
-                    fontWeight = FontWeight.Bold, fontSize = 13.sp
+                    fontWeight = FontWeight.Bold, fontSize = 12.sp
                 )
             }
 
@@ -209,91 +293,116 @@ private fun MeasureContent() {
             OutlinedTextField(
                 value = memo,
                 onValueChange = { memo = it },
-                placeholder = { Text("メモ（例：入口→レジ）") },
+                placeholder = { Text("メモ（例：入口→レジ / 会議室）") },
                 singleLine = true,
                 enabled = !measuring,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .background(Color(0x88000000), RoundedCornerShape(8.dp))
+                modifier = Modifier.fillMaxWidth().background(Color(0x88000000), RoundedCornerShape(8.dp))
             )
 
             Spacer(Modifier.height(8.dp))
 
-            Button(
-                onClick = {
-                    if (!measuring) {
-                        if (tracking) {
-                            startWorld = null
-                            startScreen = null
-                            liveDist = 0f
-                            requestStart = true
-                            measuring = true
-                        } else {
-                            Toast.makeText(context, "トラッキング後に押してください", Toast.LENGTH_SHORT).show()
-                        }
-                    } else {
-                        val d = liveDist
-                        if (d != null) {
-                            results.add(0, memo.ifBlank { "計測${results.size + 1}" } to d)
-                            Toast.makeText(context, "記録: %.2f m".format(d), Toast.LENGTH_SHORT).show()
-                        }
-                        measuring = false
-                        startWorld = null
-                        startScreen = null
-                        liveDist = null
-                        memo = ""
-                    }
-                },
-                colors = ButtonDefaults.buttonColors(
-                    containerColor = if (measuring) Color(0xFFE57373) else Teal
-                ),
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                Text(
-                    if (measuring) "終点を確定して記録" else "計測（始点をセット）",
-                    fontWeight = FontWeight.Bold, fontSize = 16.sp
-                )
+            // モード別の操作ボタン
+            if (mode == MeasureType.DISTANCE) {
+                Button(
+                    onClick = {
+                        if (!measuring) {
+                            if (tracking) {
+                                pts.clear(); ptsScreen = emptyList()
+                                requestAddPoint = true; measuring = true; liveDist = 0f
+                                liveBig = "0.00 m"
+                            } else Toast.makeText(context, "トラッキング後に押してください", Toast.LENGTH_SHORT).show()
+                        } else confirm()
+                    },
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = if (measuring) Color(0xFFE57373) else Teal
+                    ),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Text(
+                        if (measuring) "終点を確定して記録" else "計測（始点をセット）",
+                        fontWeight = FontWeight.Bold, fontSize = 16.sp
+                    )
+                }
+            } else {
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Button(
+                        onClick = {
+                            if (tracking) { requestAddPoint = true; measuring = true }
+                            else Toast.makeText(context, "トラッキング後に押してください", Toast.LENGTH_SHORT).show()
+                        },
+                        modifier = Modifier.weight(1f)
+                    ) { Text("角を記録（${pts.size}/3）", fontWeight = FontWeight.Bold) }
+
+                    Button(
+                        onClick = { confirm() },
+                        enabled = pts.size >= 3,
+                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFE57373)),
+                        modifier = Modifier.weight(1f)
+                    ) { Text("面積を確定", fontWeight = FontWeight.Bold) }
+                }
             }
 
-            Spacer(Modifier.height(8.dp))
+            if (measuring) {
+                TextButton(onClick = { resetMeasure() }) { Text("やり直し", color = Color(0xFFFFAB91)) }
+            }
 
-            if (results.isNotEmpty()) {
+            Spacer(Modifier.height(6.dp))
+
+            // 記録一覧
+            if (records.isNotEmpty()) {
                 LazyColumn(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .heightIn(max = 160.dp)
-                        .background(Color(0xCC000000), RoundedCornerShape(8.dp))
-                        .padding(6.dp)
+                    modifier = Modifier.fillMaxWidth().heightIn(max = 180.dp)
+                        .background(Color(0xCC000000), RoundedCornerShape(8.dp)).padding(6.dp)
                 ) {
-                    itemsIndexed(results) { i, item ->
+                    itemsIndexed(records) { i, item ->
+                        val isTarget = remeasureIndex == i
                         Row(
-                            modifier = Modifier.fillMaxWidth().padding(vertical = 2.dp),
+                            modifier = Modifier.fillMaxWidth()
+                                .background(
+                                    if (isTarget) Color(0x3326A69A) else Color.Transparent,
+                                    RoundedCornerShape(6.dp)
+                                )
+                                .clickable {
+                                    remeasureIndex = if (isTarget) -1 else i
+                                    if (!isTarget) {
+                                        mode = item.type
+                                        memo = item.memo
+                                    }
+                                }
+                                .padding(horizontal = 4.dp, vertical = 3.dp),
                             verticalAlignment = Alignment.CenterVertically
                         ) {
                             Text(
-                                "${results.size - i}. ${item.first}",
-                                color = Color.White, fontSize = 13.sp,
-                                modifier = Modifier.weight(1f)
+                                "${i + 1}. ${item.memo}",
+                                color = Color.White, fontSize = 13.sp, modifier = Modifier.weight(1f)
                             )
                             Text(
-                                "%.2f m".format(item.second),
-                                color = Color(0xFF80CBC4),
-                                fontFamily = FontFamily.Monospace,
-                                fontWeight = FontWeight.Bold, fontSize = 14.sp
+                                item.display(),
+                                color = Color(0xFF80CBC4), fontFamily = FontFamily.Monospace,
+                                fontWeight = FontWeight.Bold, fontSize = 13.sp
                             )
+                            TextButton(onClick = {
+                                records.removeAt(i)
+                                if (remeasureIndex == i) remeasureIndex = -1
+                                persist()
+                            }) { Text("×", color = Color(0xFFEF9A9A)) }
                         }
                     }
                 }
-                Spacer(Modifier.height(8.dp))
+                Spacer(Modifier.height(6.dp))
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     OutlinedButton(
-                        onClick = { copyText(context, buildReport(results)) },
+                        onClick = { copyText(context, buildReport(records)) },
                         modifier = Modifier.weight(1f)
                     ) { Text("コピー") }
                     OutlinedButton(
-                        onClick = { shareText(context, buildReport(results)) },
+                        onClick = { shareText(context, buildReport(records)) },
                         modifier = Modifier.weight(1f)
-                    ) { Text("共有（保存）") }
+                    ) { Text("共有") }
+                    OutlinedButton(
+                        onClick = { records.clear(); remeasureIndex = -1; persist() },
+                        modifier = Modifier.weight(1f)
+                    ) { Text("全消去") }
                 }
             }
         }
@@ -314,22 +423,45 @@ private fun worldToScreen(cam: Camera, w: Float, h: Float, p: FloatArray): Offse
     if (clip[3] <= 0f) return null
     val ndcX = clip[0] / clip[3]
     val ndcY = clip[1] / clip[3]
-    val sx = (ndcX * 0.5f + 0.5f) * w
-    val sy = (1f - (ndcY * 0.5f + 0.5f)) * h
-    return Offset(sx, sy)
+    return Offset((ndcX * 0.5f + 0.5f) * w, (1f - (ndcY * 0.5f + 0.5f)) * h)
 }
 
-private fun buildReport(results: List<Pair<String, Float>>): String {
-    val sb = StringBuilder("距離測定結果\n")
-    results.asReversed().forEachIndexed { i, item ->
-        sb.append("${i + 1}. ${item.first}: %.2f m\n".format(item.second))
+private fun buildReport(records: List<Record>): String {
+    val sb = StringBuilder("測定結果\n")
+    records.asReversed().forEachIndexed { i, r ->
+        sb.append("${i + 1}. ${r.memo}: ${r.display()}\n")
     }
     return sb.toString().trimEnd()
 }
 
+// ── 端末内に保存（自動）──
+private const val PREFS = "distance_prefs"
+private const val KEY = "records"
+private const val FS = ""
+private const val RS = ""
+
+private fun saveRecords(context: Context, records: List<Record>) {
+    val data = records.joinToString(RS) { r ->
+        listOf(r.type.name, r.value.toString(), r.detail, r.memo.replace("\n", " ")).joinToString(FS)
+    }
+    context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit().putString(KEY, data).apply()
+}
+
+private fun loadRecords(context: Context): List<Record> {
+    val data = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).getString(KEY, "") ?: ""
+    if (data.isBlank()) return emptyList()
+    return data.split(RS).mapNotNull { line ->
+        val f = line.split(FS)
+        if (f.size < 4) return@mapNotNull null
+        val type = runCatching { MeasureType.valueOf(f[0]) }.getOrNull() ?: return@mapNotNull null
+        val value = f[1].toFloatOrNull() ?: return@mapNotNull null
+        Record(type, f[3], value, f[2])
+    }
+}
+
 private fun copyText(context: Context, text: String) {
     val cm = context.getSystemService(Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager
-    cm.setPrimaryClip(android.content.ClipData.newPlainText("距離測定", text))
+    cm.setPrimaryClip(android.content.ClipData.newPlainText("測定結果", text))
     Toast.makeText(context, "コピーしました", Toast.LENGTH_SHORT).show()
 }
 
@@ -338,5 +470,5 @@ private fun shareText(context: Context, text: String) {
         type = "text/plain"
         putExtra(Intent.EXTRA_TEXT, text)
     }
-    context.startActivity(Intent.createChooser(intent, "距離測定結果を保存・共有"))
+    context.startActivity(Intent.createChooser(intent, "測定結果を保存・共有"))
 }
