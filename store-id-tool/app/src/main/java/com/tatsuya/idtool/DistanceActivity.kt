@@ -59,7 +59,7 @@ class DistanceActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContent {
-            MaterialTheme(colorScheme = darkColorScheme(primary = Accent)) {
+            MaterialTheme(colorScheme = darkColorScheme(primary = Color(0xFF26A69A))) {
                 DistanceScreen()
             }
         }
