@@ -233,38 +233,53 @@ private fun TableRow(row: IdRow, onClick: () -> Unit) {
     val kikakuB = row.chCode.take(1)     // G（規格b）
     val chSet = row.chCode.drop(1)       // H,I（Ch設定値 2桁）
 
-    Row(
+    Column(
         modifier = Modifier
             .fillMaxWidth()
             .clickable(enabled = row.fullId.isNotEmpty(), onClick = onClick)
-            .padding(vertical = 3.dp),
-        verticalAlignment = Alignment.CenterVertically
+            .padding(vertical = 3.dp)
     ) {
-        Box(modifier = Modifier.width(LABEL_W), contentAlignment = Alignment.Center) {
-            Text(
-                "ch:${row.ch}",
-                fontSize = 12.sp,
-                fontWeight = FontWeight.Bold,
-                color = MaterialTheme.colorScheme.primary
-            )
-        }
-        Row(modifier = Modifier.weight(1f)) {
-            DigitCell(kikakuA, ColKikakuA)                              // 規格a
-            DigitCell(kikakuB, ColKikakuB)                             // 規格b
-            DigitCell(chSet.getOrNull(0)?.toString() ?: "", ColCh)    // Ch設定値 H
-            DigitCell(chSet.getOrNull(1)?.toString() ?: "", ColCh)    // Ch設定値 I
-            repeat(5) { i ->                                           // 番号 J〜N
-                DigitCell(
-                    if (hasStore) row.store[i].toString() else "",
-                    if (hasStore) ColNum else ColEmpty
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Box(modifier = Modifier.width(LABEL_W), contentAlignment = Alignment.Center) {
+                Text(
+                    "ch:${row.ch}",
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.primary
                 )
             }
-            DigitCell(                                                 // CD
-                row.cd,
-                if (row.cd.isNotEmpty()) ColCd else ColEmpty,
-                cd = true
-            )
+            Row(modifier = Modifier.weight(1f)) {
+                DigitCell(kikakuA, ColKikakuA)                              // 規格a
+                DigitCell(kikakuB, ColKikakuB)                             // 規格b
+                DigitCell(chSet.getOrNull(0)?.toString() ?: "", ColCh)    // Ch設定値 H
+                DigitCell(chSet.getOrNull(1)?.toString() ?: "", ColCh)    // Ch設定値 I
+                repeat(5) { i ->                                           // 番号 J〜N
+                    DigitCell(
+                        if (hasStore) row.store[i].toString() else "",
+                        if (hasStore) ColNum else ColEmpty
+                    )
+                }
+                DigitCell(                                                 // CD
+                    row.cd,
+                    if (row.cd.isNotEmpty()) ColCd else ColEmpty,
+                    cd = true
+                )
+            }
         }
+        // 各行の下に 10 桁 ID（規格a+規格b+Ch設定値+番号+CD）
+        Text(
+            text = if (row.fullId.isNotEmpty()) row.fullId else "----------",
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(top = 2.dp),
+            fontFamily = FontFamily.Monospace,
+            fontWeight = FontWeight.Bold,
+            fontSize = 15.sp,
+            letterSpacing = 1.sp,
+            textAlign = TextAlign.Center,
+            color = if (row.fullId.isNotEmpty()) MaterialTheme.colorScheme.onSurface
+            else MaterialTheme.colorScheme.outline
+        )
     }
 }
 
