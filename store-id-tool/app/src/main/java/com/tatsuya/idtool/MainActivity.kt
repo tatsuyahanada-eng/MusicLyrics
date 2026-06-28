@@ -3,6 +3,7 @@ package com.tatsuya.idtool
 import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Context
+import android.content.Intent
 import android.os.Bundle
 import android.widget.Toast
 import androidx.activity.ComponentActivity
@@ -34,6 +35,7 @@ import androidx.compose.material3.MenuAnchorType
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.material3.darkColorScheme
@@ -111,6 +113,11 @@ fun IdToolScreen() {
         topBar = {
             TopAppBar(
                 title = { Text("無線チャンネル変更APP", fontWeight = FontWeight.SemiBold) },
+                actions = {
+                    TextButton(onClick = {
+                        context.startActivity(Intent(context, DistanceActivity::class.java))
+                    }) { Text("距離測定") }
+                },
                 colors = TopAppBarDefaults.topAppBarColors(
                     containerColor = MaterialTheme.colorScheme.surface,
                     titleContentColor = MaterialTheme.colorScheme.onSurface

@@ -47,5 +47,9 @@ dependencies {
     implementation("androidx.compose.ui:ui-tooling-preview")
     implementation("androidx.compose.material3:material3")
 
+    // AR（屋内の距離測定：ARCore モーショントラッキング）
+    implementation("io.github.sceneview:arsceneview:2.2.1")
+    implementation("com.google.ar:core:1.46.0")
+
     debugImplementation("androidx.compose.ui:ui-tooling")
 }
