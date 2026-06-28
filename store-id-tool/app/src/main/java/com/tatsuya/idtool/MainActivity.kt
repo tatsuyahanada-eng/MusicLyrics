@@ -11,8 +11,6 @@ import androidx.activity.enableEdgeToEdge
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.horizontalScroll
-import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -73,19 +71,17 @@ private val DarkScheme = darkColorScheme(
     outline = Color(0xFF49525B),
 )
 
-// セクションごとの色（規格 / Ch設定値 / 番号 / CD）
-private val ColKikaku = Color(0xFF37474F)
-private val ColCh = Color(0xFF2C3E50)
-private val ColNum = Color(0xFF243B49)
+// セクションごとの色（規格a / 規格b / Ch設定値 / 番号 / CD）— 見た目を明確に分ける
+private val ColKikakuA = Color(0xFF455A64) // ブルーグレー
+private val ColKikakuB = Color(0xFF5D4037) // ブラウン
+private val ColCh = Color(0xFF37474F)
+private val ColNum = Color(0xFF263238)
 private val ColCd = Accent
 private val ColEmpty = Color(0xFF20242A)
 
 // 表のレイアウト寸法
-private val BOX = 30.dp
-private val CELL_H = 38.dp
-private val LABEL_W = 104.dp
-private val IDCOL_W = 118.dp
-private val GROUP_GAP = 6.dp
+private val CELL_H = 36.dp
+private val LABEL_W = 52.dp
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -171,27 +167,22 @@ fun IdToolScreen() {
             OutlinedTextField(
                 value = storeNumber,
                 onValueChange = { input -> storeNumber = input.filter { it.isDigit() }.take(5) },
-                label = { Text("店舗番号 5桁（中央の 67200 部分）") },
+                label = { Text("店舗番号（5桁）") },
                 singleLine = true,
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                 isError = storeNumber.isNotEmpty() && !valid,
-                supportingText = {
-                    Text(
-                        if (valid || storeNumber.isEmpty())
-                            "規格・Ch設定値 は固定。番号を入れると下の表（10桁ID）が自動計算されます。"
-                        else "5桁の数字を入力してください（残り ${5 - storeNumber.length} 桁）"
-                    )
-                },
+                supportingText = if (storeNumber.isNotEmpty() && !valid) {
+                    { Text("5桁の数字を入力してください（残り ${5 - storeNumber.length} 桁）") }
+                } else null,
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(top = 4.dp)
             )
 
-            Spacer(Modifier.height(12.dp))
+            Spacer(Modifier.height(10.dp))
 
-            // ── 表（Excel のセル並びを再現。横スクロール可）──
-            val hScroll = rememberScrollState()
-            Column(modifier = Modifier.horizontalScroll(hScroll)) {
+            // ── 表（Excel のセル並びを再現。画面幅に収める）──
+            Column(modifier = Modifier.fillMaxWidth()) {
                 TableHeader()
                 HorizontalDivider(color = MaterialTheme.colorScheme.outline)
                 rows.forEach { row ->
@@ -202,12 +193,12 @@ fun IdToolScreen() {
                 }
             }
 
-            Spacer(Modifier.height(8.dp))
+            Spacer(Modifier.height(6.dp))
             Text(
-                "行をタップすると10桁IDをコピーします。",
-                fontSize = 12.sp,
+                "行をタップで10桁IDをコピー",
+                fontSize = 11.sp,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.padding(bottom = 20.dp)
+                modifier = Modifier.padding(bottom = 16.dp)
             )
         }
     }
@@ -216,123 +207,103 @@ fun IdToolScreen() {
 @Composable
 private fun TableHeader() {
     Row(
-        modifier = Modifier.padding(vertical = 6.dp),
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 4.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        HeaderText("規格 / ch", LABEL_W)
-        GroupCaption("規格", 1)
-        Spacer(Modifier.width(GROUP_GAP))
-        GroupCaption("Ch設定値", 3)
-        Spacer(Modifier.width(GROUP_GAP))
-        GroupCaption("番号", 5)
-        Spacer(Modifier.width(GROUP_GAP))
-        GroupCaption("CD", 1)
-        Spacer(Modifier.width(GROUP_GAP))
-        HeaderText("ID（10桁）", IDCOL_W)
+        Box(modifier = Modifier.width(LABEL_W), contentAlignment = Alignment.Center) {
+            Text("ch", fontSize = 11.sp, fontWeight = FontWeight.Bold,
+                color = MaterialTheme.colorScheme.onSurfaceVariant)
+        }
+        Row(modifier = Modifier.weight(1f)) {
+            HeaderCell("規格a", 1f)
+            HeaderCell("規格b", 1f)
+            HeaderCell("Ch設定値", 2f)
+            HeaderCell("番号", 5f)
+            HeaderCell("CD", 1f)
+        }
     }
 }
 
 @Composable
 private fun TableRow(row: IdRow, onClick: () -> Unit) {
+    val hasStore = row.store.isNotEmpty()
+    val kikakuA = row.kikaku             // F（規格a）
+    val kikakuB = row.chCode.take(1)     // G（規格b）
+    val chSet = row.chCode.drop(1)       // H,I（Ch設定値 2桁）
+
     Row(
         modifier = Modifier
+            .fillMaxWidth()
             .clickable(enabled = row.fullId.isNotEmpty(), onClick = onClick)
-            .padding(vertical = 8.dp),
+            .padding(vertical = 3.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        // 左ラベル：規格：a b / ｃｈ：N
-        Column(modifier = Modifier.width(LABEL_W)) {
-            Text("規格：a b", fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurface)
+        Box(modifier = Modifier.width(LABEL_W), contentAlignment = Alignment.Center) {
             Text(
-                "ｃｈ：${row.ch}",
-                fontSize = 13.sp,
+                "ch:${row.ch}",
+                fontSize = 12.sp,
                 fontWeight = FontWeight.Bold,
                 color = MaterialTheme.colorScheme.primary
             )
         }
-
-        val hasStore = row.store.isNotEmpty()
-
-        // 規格（1桁・常に表示）
-        DigitGroup(row.kikaku.toList().map { it.toString() }, ColKikaku)
-        Spacer(Modifier.width(GROUP_GAP))
-        // Ch設定値（3桁・常に表示）
-        DigitGroup(row.chCode.toList().map { it.toString() }, ColCh)
-        Spacer(Modifier.width(GROUP_GAP))
-        // 番号（5桁・未入力なら空欄）
-        DigitGroup(
-            if (hasStore) row.store.toList().map { it.toString() } else List(5) { "" },
-            if (hasStore) ColNum else ColEmpty
-        )
-        Spacer(Modifier.width(GROUP_GAP))
-        // CD（1桁・自動／未入力なら空欄）
-        DigitGroup(listOf(row.cd.ifEmpty { "" }), if (row.cd.isNotEmpty()) ColCd else ColEmpty, cd = true)
-        Spacer(Modifier.width(GROUP_GAP))
-
-        // 10桁ID（連結表示）
-        Box(modifier = Modifier.width(IDCOL_W), contentAlignment = Alignment.Center) {
-            Text(
-                text = row.fullId.ifEmpty { "—" },
-                fontFamily = FontFamily.Monospace,
-                fontWeight = FontWeight.Bold,
-                fontSize = 15.sp,
-                color = if (row.fullId.isNotEmpty()) MaterialTheme.colorScheme.onSurface
-                else MaterialTheme.colorScheme.onSurfaceVariant
+        Row(modifier = Modifier.weight(1f)) {
+            DigitCell(kikakuA, ColKikakuA)                              // 規格a
+            DigitCell(kikakuB, ColKikakuB)                             // 規格b
+            DigitCell(chSet.getOrNull(0)?.toString() ?: "", ColCh)    // Ch設定値 H
+            DigitCell(chSet.getOrNull(1)?.toString() ?: "", ColCh)    // Ch設定値 I
+            repeat(5) { i ->                                           // 番号 J〜N
+                DigitCell(
+                    if (hasStore) row.store[i].toString() else "",
+                    if (hasStore) ColNum else ColEmpty
+                )
+            }
+            DigitCell(                                                 // CD
+                row.cd,
+                if (row.cd.isNotEmpty()) ColCd else ColEmpty,
+                cd = true
             )
         }
     }
 }
 
 @Composable
-private fun DigitGroup(digits: List<String>, tint: Color, cd: Boolean = false) {
-    Row {
-        digits.forEach { d ->
-            Box(
-                modifier = Modifier
-                    .width(BOX)
-                    .height(CELL_H)
-                    .background(tint, RoundedCornerShape(3.dp))
-                    .border(0.7.dp, MaterialTheme.colorScheme.outline, RoundedCornerShape(3.dp)),
-                contentAlignment = Alignment.Center
-            ) {
-                Text(
-                    text = d,
-                    fontFamily = FontFamily.Monospace,
-                    fontWeight = if (cd) FontWeight.Bold else FontWeight.Medium,
-                    fontSize = if (cd) 18.sp else 16.sp,
-                    color = if (cd) MaterialTheme.colorScheme.onPrimary
-                    else MaterialTheme.colorScheme.onSurface
-                )
-            }
-        }
-    }
-}
-
-@Composable
-private fun HeaderText(text: String, width: androidx.compose.ui.unit.Dp) {
-    Box(modifier = Modifier.width(width), contentAlignment = Alignment.Center) {
+private fun androidx.compose.foundation.layout.RowScope.DigitCell(
+    d: String,
+    tint: Color,
+    cd: Boolean = false
+) {
+    Box(
+        modifier = Modifier
+            .weight(1f)
+            .height(CELL_H)
+            .padding(1.dp)
+            .background(tint, RoundedCornerShape(3.dp))
+            .border(0.7.dp, MaterialTheme.colorScheme.outline, RoundedCornerShape(3.dp)),
+        contentAlignment = Alignment.Center
+    ) {
         Text(
-            text = text,
-            fontSize = 12.sp,
-            fontWeight = FontWeight.Bold,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            textAlign = TextAlign.Center
+            text = d,
+            fontFamily = FontFamily.Monospace,
+            fontWeight = if (cd) FontWeight.Bold else FontWeight.Medium,
+            fontSize = if (cd) 16.sp else 14.sp,
+            color = if (cd) MaterialTheme.colorScheme.onPrimary
+            else MaterialTheme.colorScheme.onSurface
         )
     }
 }
 
 @Composable
-private fun GroupCaption(text: String, cells: Int) {
-    Box(
-        modifier = Modifier.width(BOX * cells),
-        contentAlignment = Alignment.Center
-    ) {
+private fun androidx.compose.foundation.layout.RowScope.HeaderCell(text: String, weight: Float) {
+    Box(modifier = Modifier.weight(weight), contentAlignment = Alignment.Center) {
         Text(
             text = text,
-            fontSize = 11.sp,
+            fontSize = 9.sp,
             fontWeight = FontWeight.Bold,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
-            textAlign = TextAlign.Center
+            textAlign = TextAlign.Center,
+            maxLines = 1
         )
     }
 }
