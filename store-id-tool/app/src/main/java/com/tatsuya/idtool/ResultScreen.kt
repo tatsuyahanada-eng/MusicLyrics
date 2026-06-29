@@ -108,7 +108,7 @@ fun ResultScreen(modifier: Modifier = Modifier) {
         TextField2("備考", data, set, single = false)
 
         Spacer(Modifier.height(6.dp))
-        Text("対象ブランド: ${idInfo.brand.label}", fontSize = 13.sp,
+        Text("対象機器: ${idInfo.brand.label}", fontSize = 13.sp,
             fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
         if (!isValidStoreNumber(idInfo.storeNumber)) {
             Text("※ ID計算タブで店舗番号5桁を入力すると10桁IDが反映されます",
@@ -260,7 +260,7 @@ private fun buildCsv(idInfo: IdInfo, rows: List<IdRow>, data: Map<String, String
     sb.append("終了時間,${csvEscape(data["終了時間"].orEmpty())}\n")
     sb.append("作業員,${csvEscape(data["作業員"].orEmpty())}\n")
     sb.append("備考,${csvEscape(data["備考"].orEmpty())}\n")
-    sb.append("ブランド,${csvEscape(idInfo.brand.label)}\n\n")
+    sb.append("対象機器,${csvEscape(idInfo.brand.label)}\n\n")
     sb.append("場所,Ch,ID,結果,電波強度送信,電波強度受信,ノイズ送信,ノイズ受信,送信ﾊﾟｹ,受信ﾊﾟｹ\n")
     for (loc in 1..LOC_COUNT) {
         rows.forEach { row ->

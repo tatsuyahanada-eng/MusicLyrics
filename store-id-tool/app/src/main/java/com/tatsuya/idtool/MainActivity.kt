@@ -175,7 +175,7 @@ fun IdContent() {
                     value = brand.label,
                     onValueChange = {},
                     readOnly = true,
-                    label = { Text("ブランド") },
+                    label = { Text("対象機器") },
                     trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded) },
                     modifier = Modifier
                         .menuAnchor(MenuAnchorType.PrimaryNotEditable)
@@ -207,7 +207,7 @@ fun IdContent() {
             OutlinedTextField(
                 value = storeNumber,
                 onValueChange = { input -> storeNumber = input.filter { it.isDigit() }.take(5) },
-                label = { Text("店舗番号（5桁）") },
+                label = { Text("共通番号（5桁）") },
                 singleLine = true,
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                 isError = storeNumber.isNotEmpty() && !valid,
@@ -221,15 +221,19 @@ fun IdContent() {
 
             Spacer(Modifier.height(10.dp))
 
-            // ── 表（Excel のセル並びを再現。画面幅に収める）──
-            Column(modifier = Modifier.fillMaxWidth()) {
-                TableHeader()
-                HorizontalDivider(color = MaterialTheme.colorScheme.outline)
-                rows.forEach { row ->
-                    TableRow(row = row, onClick = {
+            // ── 表（現行ID/変更後ID・規格a/b・ch・10桁ID）──
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .border(1.dp, Color(0xFF2E7D32), RoundedCornerShape(4.dp))
+            ) {
+                rows.forEachIndexed { index, row ->
+                    TableRow(index = index, row = row, onClick = {
                         if (row.fullId.isNotEmpty()) copyToClipboard(context, row.fullId)
                     })
-                    HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.4f))
+                    if (index < rows.size - 1) {
+                        HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.5f))
+                    }
                 }
             }
 
@@ -243,120 +247,63 @@ fun IdContent() {
         }
 }
 
+// 規格a/b を表す小箱（該当側を黒で強調）
+private val LetterA = Color(0xFFE65100) // a の文字色（橙）
+private val LetterB = Color(0xFF1565C0) // b の文字色（青）
+
 @Composable
-private fun TableHeader() {
-    Row(
+private fun ABCell(letter: String, active: Boolean, letterColor: Color) {
+    Box(
         modifier = Modifier
-            .fillMaxWidth()
-            .padding(vertical = 4.dp),
-        verticalAlignment = Alignment.CenterVertically
+            .width(30.dp)
+            .height(30.dp)
+            .background(if (active) Color(0xFF111111) else Color.White, RoundedCornerShape(3.dp))
+            .border(0.8.dp, MaterialTheme.colorScheme.outline, RoundedCornerShape(3.dp)),
+        contentAlignment = Alignment.Center
     ) {
-        Box(modifier = Modifier.width(LABEL_W), contentAlignment = Alignment.Center) {
-            Text("ch", fontSize = 11.sp, fontWeight = FontWeight.Bold,
-                color = MaterialTheme.colorScheme.onSurfaceVariant)
-        }
-        Row(modifier = Modifier.weight(1f)) {
-            HeaderCell("規格a", 1f)
-            HeaderCell("規格b", 1f)
-            HeaderCell("Ch設定値", 2f)
-            HeaderCell("番号", 5f)
-            HeaderCell("CD", 1f)
-        }
+        Text(letter, color = letterColor, fontWeight = FontWeight.Bold, fontSize = 16.sp)
     }
 }
 
 @Composable
-private fun TableRow(row: IdRow, onClick: () -> Unit) {
-    val hasStore = row.store.isNotEmpty()
-    val kikakuA = row.kikaku             // F（規格a）
-    val kikakuB = row.chCode.take(1)     // G（規格b）
-    val chSet = row.chCode.drop(1)       // H,I（Ch設定値 2桁）
+private fun TableRow(index: Int, row: IdRow, onClick: () -> Unit) {
+    val kikakuB = row.chCode.take(1)     // G（規格b）: "0"→a側, "1"→b側
+    val aActive = kikakuB == "0"
+    val label = when (index) {
+        0 -> "現行ID"
+        1 -> "変更後ID"
+        else -> ""
+    }
 
     Column(
         modifier = Modifier
             .fillMaxWidth()
             .clickable(enabled = row.fullId.isNotEmpty(), onClick = onClick)
-            .padding(vertical = 3.dp)
+            .padding(vertical = 4.dp, horizontal = 6.dp)
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
-            Box(modifier = Modifier.width(LABEL_W), contentAlignment = Alignment.Center) {
-                Text(
-                    "ch:${row.ch}",
-                    fontSize = 12.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = MaterialTheme.colorScheme.primary
-                )
+            Box(modifier = Modifier.width(64.dp)) {
+                Text(label, fontSize = 12.sp, fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.onSurface)
             }
-            Row(modifier = Modifier.weight(1f)) {
-                DigitCell(kikakuA, ColKikakuA)                              // 規格a
-                DigitCell(kikakuB, ColKikakuB)                             // 規格b
-                DigitCell(chSet.getOrNull(0)?.toString() ?: "", ColCh)    // Ch設定値 H
-                DigitCell(chSet.getOrNull(1)?.toString() ?: "", ColCh)    // Ch設定値 I
-                repeat(5) { i ->                                           // 番号 J〜N
-                    DigitCell(
-                        if (hasStore) row.store[i].toString() else "",
-                        if (hasStore) ColNum else ColEmpty
-                    )
-                }
-                DigitCell(                                                 // CD
-                    row.cd,
-                    if (row.cd.isNotEmpty()) ColCd else ColEmpty,
-                    cd = true
-                )
-            }
+            ABCell("a", aActive, LetterA)
+            Spacer(Modifier.width(4.dp))
+            ABCell("b", !aActive, LetterB)
+            Spacer(Modifier.width(10.dp))
+            Text("ch: ${row.ch}", fontSize = 16.sp, fontWeight = FontWeight.Bold,
+                color = MaterialTheme.colorScheme.onSurface)
         }
-        // 各行の下に 10 桁 ID（規格a+規格b+Ch設定値+番号+CD）
+        // 10桁ID（改行して表示）
         Text(
             text = if (row.fullId.isNotEmpty()) row.fullId else "----------",
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(top = 2.dp),
+            modifier = Modifier.fillMaxWidth().padding(top = 2.dp),
             fontFamily = FontFamily.Monospace,
             fontWeight = FontWeight.Bold,
-            fontSize = 15.sp,
+            fontSize = 14.sp,
             letterSpacing = 1.sp,
             textAlign = TextAlign.Center,
-            color = if (row.fullId.isNotEmpty()) MaterialTheme.colorScheme.onSurface
+            color = if (row.fullId.isNotEmpty()) MaterialTheme.colorScheme.primary
             else MaterialTheme.colorScheme.outline
-        )
-    }
-}
-
-@Composable
-private fun androidx.compose.foundation.layout.RowScope.DigitCell(
-    d: String,
-    tint: Color,
-    cd: Boolean = false
-) {
-    Box(
-        modifier = Modifier
-            .weight(1f)
-            .height(CELL_H)
-            .padding(1.dp)
-            .background(tint, RoundedCornerShape(3.dp))
-            .border(0.7.dp, MaterialTheme.colorScheme.outline, RoundedCornerShape(3.dp)),
-        contentAlignment = Alignment.Center
-    ) {
-        Text(
-            text = d,
-            fontFamily = FontFamily.Monospace,
-            fontWeight = if (cd) FontWeight.Bold else FontWeight.Medium,
-            fontSize = if (cd) 16.sp else 14.sp,
-            color = MaterialTheme.colorScheme.onSurface
-        )
-    }
-}
-
-@Composable
-private fun androidx.compose.foundation.layout.RowScope.HeaderCell(text: String, weight: Float) {
-    Box(modifier = Modifier.weight(weight), contentAlignment = Alignment.Center) {
-        Text(
-            text = text,
-            fontSize = 9.sp,
-            fontWeight = FontWeight.Bold,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            textAlign = TextAlign.Center,
-            maxLines = 1
         )
     }
 }
