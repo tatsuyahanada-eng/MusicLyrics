@@ -6,6 +6,7 @@ import android.content.Context
 import android.content.Intent
 import android.widget.Toast
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
@@ -26,7 +27,6 @@ import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExposedDropdownMenuBox
 import androidx.compose.material3.ExposedDropdownMenuDefaults
-import androidx.compose.material3.FilterChip
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.MenuAnchorType
 import androidx.compose.material3.OutlinedButton
@@ -40,6 +40,7 @@ import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontFamily
@@ -55,6 +56,8 @@ import java.util.Date
 import java.util.Locale
 
 private val ResultOptions = listOf("最適", "良", "圏外")
+private val GRID_LEFT_W = 96.dp
+private val GRID_CELL_W = 178.dp
 
 private fun stamp(): String = SimpleDateFormat("yyyyMMdd_HHmm", Locale.JAPAN).format(Date())
 
@@ -70,7 +73,6 @@ fun ResultScreen(modifier: Modifier = Modifier) {
     val data = remember { mutableStateMapOf<String, String>().apply { putAll(loadResultMap(context)) } }
     val set: (String, String) -> Unit = { k, v -> data[k] = v; saveResultMap(context, data) }
 
-    var loc by remember { mutableIntStateOf(1) }
     var locCount by remember { mutableIntStateOf((data["場所数"]?.toIntOrNull() ?: 5).coerceAtLeast(5)) }
 
     LaunchedEffect(Unit) {
@@ -121,58 +123,33 @@ fun ResultScreen(modifier: Modifier = Modifier) {
                 fontSize = 11.sp, color = MaterialTheme.colorScheme.error)
         }
 
-        // ── 場所切替（始点→終点で計測した地点ごと、デフォルト5）──
+        // ── 結果入力グリッド（左=検証場所 / 上=Ch）──
         Spacer(Modifier.height(10.dp))
-        Text("場所を選択（始点→終点の計測地点ごと）", fontWeight = FontWeight.Bold, fontSize = 13.sp,
-            color = MaterialTheme.colorScheme.onBackground)
-        Row(modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
-            horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            (1..locCount).forEach { n ->
-                FilterChip(selected = loc == n, onClick = { loc = n },
-                    label = { Text("場所$n") })
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text("検証場所 × Ch（結果入力）", fontWeight = FontWeight.Bold, fontSize = 14.sp,
+                color = MaterialTheme.colorScheme.onBackground)
+            Spacer(Modifier.weight(1f))
+            OutlinedButton(onClick = { locCount += 1; set("場所数", locCount.toString()) }) { Text("＋場所追加") }
+        }
+        Text("場所をタップで計測距離を表示", fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        Spacer(Modifier.height(6.dp))
+
+        Column(modifier = Modifier.horizontalScroll(rememberScrollState())) {
+            // ヘッダー行（左上 + 各Ch）
+            Row {
+                GridCorner()
+                rows.forEach { row -> GridChHeader(row) }
             }
-            FilterChip(selected = false, onClick = { locCount += 1; set("場所数", locCount.toString()) },
-                label = { Text("＋追加") })
-        }
-        // 対応する距離記録（測定順：場所1=最初に測定）
-        ordered.getOrNull(loc - 1)?.let {
-            Text("距離(${loc}番目の測定): ${it.memo} = ${it.display()}", fontSize = 12.sp,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.padding(top = 4.dp))
-        }
-
-        Spacer(Modifier.height(8.dp))
-        Text("Ch別 結果入力（場所$loc）", fontWeight = FontWeight.Bold, fontSize = 14.sp,
-            color = MaterialTheme.colorScheme.onBackground)
-
-        rows.forEach { row ->
-            val idText = if (row.fullId.isNotEmpty()) row.fullId else "（番号未入力）"
-            fun key(f: String) = "loc${loc}_ch${row.ch}_$f"
-            Column(
-                modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp)
-                    .background(MaterialTheme.colorScheme.surface, RoundedCornerShape(8.dp))
-                    .padding(8.dp)
-            ) {
-                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                    Text("ch:${row.ch}", fontWeight = FontWeight.Bold, fontSize = 14.sp,
-                        color = MaterialTheme.colorScheme.primary)
-                    Text(idText, fontFamily = FontFamily.Monospace, fontWeight = FontWeight.Bold,
-                        fontSize = 14.sp, color = MaterialTheme.colorScheme.onSurface)
-                }
-                Spacer(Modifier.height(4.dp))
-                ResultDropdown(data[key("結果")] ?: "", { set(key("結果"), it) })
-                Spacer(Modifier.height(4.dp))
-                Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                    NumField("電波送信", data[key("電波強度送信")] ?: "", { set(key("電波強度送信"), it) }, Modifier.weight(1f))
-                    NumField("電波受信", data[key("電波強度受信")] ?: "", { set(key("電波強度受信"), it) }, Modifier.weight(1f))
-                }
-                Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                    NumField("ﾉｲｽﾞ送信", data[key("ノイズ送信")] ?: "", { set(key("ノイズ送信"), it) }, Modifier.weight(1f))
-                    NumField("ﾉｲｽﾞ受信", data[key("ノイズ受信")] ?: "", { set(key("ノイズ受信"), it) }, Modifier.weight(1f))
-                }
-                Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                    NumField("送信ﾊﾟｹ", data[key("送信ﾊﾟｹ")] ?: "", { set(key("送信ﾊﾟｹ"), it) }, Modifier.weight(1f))
-                    NumField("受信ﾊﾟｹ", data[key("受信ﾊﾟｹ")] ?: "", { set(key("受信ﾊﾟｹ"), it) }, Modifier.weight(1f))
+            // 場所ごとの行
+            (1..locCount).forEach { l ->
+                Row {
+                    val rec = ordered.getOrNull(l - 1)
+                    GridLocCell(l, rec) {
+                        Toast.makeText(context,
+                            if (rec != null) "場所$l: ${rec.memo} = ${rec.display()}" else "場所$l: 距離記録なし",
+                            Toast.LENGTH_SHORT).show()
+                    }
+                    rows.forEach { row -> GridCell(l, row, data, set) }
                 }
             }
         }
@@ -189,6 +166,75 @@ fun ResultScreen(modifier: Modifier = Modifier) {
             ) { Text("CSV出力") }
         }
         Spacer(Modifier.height(24.dp))
+    }
+}
+
+@Composable
+private fun GridCorner() {
+    Box(modifier = Modifier.width(GRID_LEFT_W).height(54.dp)
+        .border(0.7.dp, MaterialTheme.colorScheme.outline), contentAlignment = Alignment.Center) {
+        Text("場所＼Ch", fontSize = 11.sp, fontWeight = FontWeight.Bold,
+            color = MaterialTheme.colorScheme.onSurfaceVariant)
+    }
+}
+
+@Composable
+private fun GridChHeader(row: IdRow) {
+    Column(
+        modifier = Modifier.width(GRID_CELL_W).height(54.dp)
+            .border(0.7.dp, MaterialTheme.colorScheme.outline).padding(4.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.Center
+    ) {
+        Text("ch:${row.ch}", fontWeight = FontWeight.Bold, fontSize = 13.sp,
+            color = MaterialTheme.colorScheme.primary)
+        Text(if (row.fullId.isNotEmpty()) row.fullId else "（番号未入力）",
+            fontFamily = FontFamily.Monospace, fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurface)
+    }
+}
+
+@Composable
+private fun GridLocCell(loc: Int, rec: Record?, onClick: () -> Unit) {
+    Column(
+        modifier = Modifier.width(GRID_LEFT_W)
+            .border(0.7.dp, MaterialTheme.colorScheme.outline)
+            .clickable { onClick() }.padding(4.dp)
+    ) {
+        Text("場所$loc", fontWeight = FontWeight.Bold, fontSize = 14.sp,
+            color = MaterialTheme.colorScheme.onBackground)
+        if (rec != null) {
+            Text(rec.memo, fontSize = 10.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Text(rec.display(), fontSize = 11.sp, fontWeight = FontWeight.Bold,
+                color = MaterialTheme.colorScheme.primary)
+        }
+    }
+}
+
+@Composable
+private fun GridCell(
+    loc: Int, row: IdRow,
+    data: androidx.compose.runtime.snapshots.SnapshotStateMap<String, String>,
+    set: (String, String) -> Unit
+) {
+    fun key(f: String) = "loc${loc}_ch${row.ch}_$f"
+    Column(
+        modifier = Modifier.width(GRID_CELL_W)
+            .border(0.7.dp, MaterialTheme.colorScheme.outline).padding(4.dp)
+    ) {
+        ResultDropdown(data[key("結果")] ?: "") { set(key("結果"), it) }
+        Spacer(Modifier.height(3.dp))
+        Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+            NumField("電波送", data[key("電波強度送信")] ?: "", { set(key("電波強度送信"), it) }, Modifier.weight(1f))
+            NumField("電波受", data[key("電波強度受信")] ?: "", { set(key("電波強度受信"), it) }, Modifier.weight(1f))
+        }
+        Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+            NumField("ﾉｲｽﾞ送", data[key("ノイズ送信")] ?: "", { set(key("ノイズ送信"), it) }, Modifier.weight(1f))
+            NumField("ﾉｲｽﾞ受", data[key("ノイズ受信")] ?: "", { set(key("ノイズ受信"), it) }, Modifier.weight(1f))
+        }
+        Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+            NumField("ﾊﾟｹ送", data[key("送信ﾊﾟｹ")] ?: "", { set(key("送信ﾊﾟｹ"), it) }, Modifier.weight(1f))
+            NumField("ﾊﾟｹ受", data[key("受信ﾊﾟｹ")] ?: "", { set(key("受信ﾊﾟｹ"), it) }, Modifier.weight(1f))
+        }
     }
 }
 
