@@ -103,7 +103,7 @@ class MainActivity : ComponentActivity() {
 @Composable
 fun AppRoot() {
     var tab by remember { mutableIntStateOf(0) }
-    val titles = listOf("無線チャンネル変更APP", "距離測定", "結果入力（無線テスト結果表）")
+    val titles = listOf("無線チャンネル変更APP", "距離測定", "作図（見取り図）", "結果入力（無線テスト結果表）")
     Scaffold(
         topBar = {
             TopAppBar(
@@ -126,6 +126,10 @@ fun AppRoot() {
                 )
                 NavigationBarItem(
                     selected = tab == 2, onClick = { tab = 2 },
+                    icon = { Text("🗺️") }, label = { Text("作図") }
+                )
+                NavigationBarItem(
+                    selected = tab == 3, onClick = { tab = 3 },
                     icon = { Text("📝") }, label = { Text("結果") }
                 )
             }
@@ -135,6 +139,7 @@ fun AppRoot() {
             when (tab) {
                 0 -> IdContent()
                 1 -> MeasureScreen(MeasureType.DISTANCE)
+                2 -> DrawScreen()
                 else -> ResultScreen()
             }
         }
