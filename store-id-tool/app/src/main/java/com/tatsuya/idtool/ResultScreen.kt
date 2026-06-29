@@ -76,7 +76,7 @@ fun ResultScreen(modifier: Modifier = Modifier) {
     var locCount by remember { mutableIntStateOf((data["場所数"]?.toIntOrNull() ?: 5).coerceAtLeast(5)) }
 
     LaunchedEffect(Unit) {
-        if (data["店番"].isNullOrBlank() && idInfo.storeNumber.isNotBlank()) data["店番"] = idInfo.storeNumber
+        if (data["共通番号"].isNullOrBlank() && idInfo.storeNumber.isNotBlank()) data["共通番号"] = idInfo.storeNumber
         if (data["店舗名"].isNullOrBlank() && idInfo.storeName.isNotBlank()) data["店舗名"] = idInfo.storeName
         saveResultMap(context, data)
     }
@@ -90,7 +90,7 @@ fun ResultScreen(modifier: Modifier = Modifier) {
         Spacer(Modifier.height(8.dp))
 
         // ── ヘッダー ──
-        TextField2("店番", data, set)
+        TextField2("共通番号", data, set)
         TextField2("店舗名", data, set)
 
         // 日付（カレンダー）
@@ -310,7 +310,7 @@ private fun buildCsv(
     locCount: Int, ordered: List<Record>
 ): String {
     val sb = StringBuilder()
-    sb.append("店番,${csvEscape(data["店番"].orEmpty())}\n")
+    sb.append("共通番号,${csvEscape(data["共通番号"].orEmpty())}\n")
     sb.append("店舗名,${csvEscape(data["店舗名"].orEmpty())}\n")
     sb.append("日付,${csvEscape(data["日付"].orEmpty())}\n")
     sb.append("開始時間,${csvEscape(data["開始時間"].orEmpty())}\n")
