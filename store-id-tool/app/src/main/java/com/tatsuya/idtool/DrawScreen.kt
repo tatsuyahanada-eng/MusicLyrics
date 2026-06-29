@@ -45,7 +45,6 @@ import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
@@ -67,11 +66,11 @@ import kotlin.math.atan2
 import kotlin.math.cos
 import kotlin.math.sin
 
-private enum class DTool { MARK, PEN, TEXT, DISTANCE, MOVE }
+private enum class DTool { MARK, PEN, TEXT, DISTANCE, MOVE, DELETE }
 private enum class PenMode { FREE, LINE, DASH, ARROW }
 
-private val MarkTypes = listOf("RST", "EST", "RPR", "EPR", "RMD", "EMD")
-private val TableTypes = listOf("卓小", "卓中", "卓大")
+private val DeviceTypes = listOf("RST", "EST", "RPR", "EPR", "RMD", "EMD", "PC", "Router", "HUB")
+private val ShapeTypes = listOf("正方形", "長方形")
 private val Palette = listOf(0xFF000000L, 0xFFD32F2FL, 0xFF1565C0L, 0xFF2E7D32L, 0xFFEF6C00L, 0xFF6A1B9AL)
 
 private fun typeColor(type: String): Long = when (type) {
@@ -81,10 +80,28 @@ private fun typeColor(type: String): Long = when (type) {
     "EPR" -> 0xFFEF6C00
     "RMD" -> 0xFF00838F
     "EMD" -> 0xFFC62828
+    "PC" -> 0xFF3949AB
+    "Router" -> 0xFF00796B
+    "HUB" -> 0xFF5D4037
     else -> 0xFF546E7A
 }
 
-private data class MarkT(val x: Float, val y: Float, val type: String, val num: Int)
+private fun isShape(type: String) = type == "正方形" || type == "長方形"
+
+// 図形の半幅・半高（px）
+private fun shapeHalf(type: String, size: String): Pair<Float, Float> {
+    val s = when (size) { "S" -> 0; "L" -> 2; else -> 1 }
+    return if (type == "長方形") {
+        listOf(Pair(50f, 28f), Pair(84f, 46f), Pair(130f, 68f))[s]
+    } else {
+        listOf(Pair(28f, 28f), Pair(46f, 46f), Pair(72f, 72f))[s]
+    }
+}
+
+private data class MarkT(
+    val x: Float, val y: Float, val type: String, val num: Int,
+    val label: String = "", val size: String = "M"
+)
 private data class TextT(val x: Float, val y: Float, val s: String, val sizeF: Float, val colorL: Long, val boxed: Boolean)
 private data class StrokeT(val pts: List<Offset>, val mode: PenMode, val colorL: Long)
 
@@ -95,7 +112,7 @@ fun DrawScreen(modifier: Modifier = Modifier) {
     val marks = remember { mutableStateListOf<MarkT>() }
     val texts = remember { mutableStateListOf<TextT>() }
     val strokes = remember { mutableStateListOf<StrokeT>() }
-    val ops = remember { mutableStateListOf<String>() } // 操作履歴（undo用）
+    val ops = remember { mutableStateListOf<String>() }
     remember { loadDraw(context, marks, texts, strokes, ops); 0 }
 
     var bg by remember { mutableStateOf<Bitmap?>(null) }
@@ -105,6 +122,7 @@ fun DrawScreen(modifier: Modifier = Modifier) {
     var selNum by remember { mutableIntStateOf(1) }
     var selColor by remember { mutableStateOf(0xFFD32F2FL) }
     var selTextSize by remember { mutableStateOf(36f) }
+    var selSize by remember { mutableStateOf("M") }
 
     var live by remember { mutableStateOf<List<Offset>>(emptyList()) }
     var dragStart by remember { mutableStateOf(Offset.Zero) }
@@ -116,6 +134,8 @@ fun DrawScreen(modifier: Modifier = Modifier) {
     var textInput by remember { mutableStateOf("") }
     var distPoint by remember { mutableStateOf<Offset?>(null) }
     var showClear by remember { mutableStateOf(false) }
+    var nameIdx by remember { mutableIntStateOf(-1) }
+    var nameInput by remember { mutableStateOf("") }
 
     val distance = remember { loadDistanceRecords(context) }
     val picker = rememberLauncherForActivityResult(ActivityResultContracts.PickVisualMedia()) { uri: Uri? ->
@@ -124,30 +144,50 @@ fun DrawScreen(modifier: Modifier = Modifier) {
 
     fun persist() = saveDraw(context, marks, texts, strokes, ops)
 
+    fun deleteAt(kind: String, idx: Int) {
+        when (kind) {
+            "M" -> if (idx in marks.indices) marks.removeAt(idx)
+            "T" -> if (idx in texts.indices) texts.removeAt(idx)
+            "S" -> if (idx in strokes.indices) strokes.removeAt(idx)
+        }
+        val li = ops.lastIndexOf(kind); if (li >= 0) ops.removeAt(li)
+        persist()
+    }
+
     Column(modifier = modifier.fillMaxSize().padding(8.dp)) {
         // ツール
         Row(modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
             horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-            FilterChip(tool == DTool.MARK, { tool = DTool.MARK }, label = { Text("機器") })
+            FilterChip(tool == DTool.MARK, { tool = DTool.MARK }, label = { Text("アイテム") })
             FilterChip(tool == DTool.PEN, { tool = DTool.PEN }, label = { Text("ペン") })
             FilterChip(tool == DTool.TEXT, { tool = DTool.TEXT }, label = { Text("文字") })
             FilterChip(tool == DTool.DISTANCE, { tool = DTool.DISTANCE }, label = { Text("距離") })
             FilterChip(tool == DTool.MOVE, { tool = DTool.MOVE }, label = { Text("移動") })
+            FilterChip(tool == DTool.DELETE, { tool = DTool.DELETE }, label = { Text("削除") })
         }
 
-        // サブ設定
         when (tool) {
             DTool.MARK -> {
                 Row(modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
                     horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                    (MarkTypes + TableTypes).forEach { t ->
+                    (DeviceTypes + ShapeTypes).forEach { t ->
                         FilterChip(selType == t, { selType = t }, label = { Text(t) })
                     }
                 }
-                Row(modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
-                    horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                    (1..10).forEach { n -> FilterChip(selNum == n, { selNum = n }, label = { Text("$n") }) }
+                if (isShape(selType)) {
+                    Row(modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
+                        horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                        FilterChip(selSize == "S", { selSize = "S" }, label = { Text("小") })
+                        FilterChip(selSize == "M", { selSize = "M" }, label = { Text("中") })
+                        FilterChip(selSize == "L", { selSize = "L" }, label = { Text("大") })
+                    }
+                } else {
+                    Row(modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
+                        horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                        (1..10).forEach { n -> FilterChip(selNum == n, { selNum = n }, label = { Text("$n") }) }
+                    }
                 }
+                Text("長押しでアイテム名を登録できます", fontSize = 11.sp)
             }
             DTool.PEN -> {
                 Row(modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
@@ -168,8 +208,8 @@ fun DrawScreen(modifier: Modifier = Modifier) {
                 }
                 ColorPalette(selColor) { selColor = it }
             }
-            DTool.MOVE -> Text("図形/マークをドラッグして移動できます", fontSize = 11.sp)
-            else -> {}
+            DTool.MOVE -> Text("アイテム/線/文字をドラッグして移動", fontSize = 11.sp)
+            DTool.DELETE -> Text("消したいアイテム/線/文字をタップ", fontSize = 11.sp)
         }
 
         Spacer(Modifier.height(6.dp))
@@ -180,7 +220,7 @@ fun DrawScreen(modifier: Modifier = Modifier) {
                 .weight(1f)
                 .background(Color.White, RoundedCornerShape(4.dp))
                 .border(1.dp, Color(0xFFBDBDBD), RoundedCornerShape(4.dp))
-                .pointerInput(tool, penMode, selType, selNum, selColor, selTextSize) {
+                .pointerInput(tool, penMode, selType, selNum, selColor, selTextSize, selSize) {
                     when (tool) {
                         DTool.PEN -> detectDragGestures(
                             onDragStart = { off -> dragStart = norm(off, size.width, size.height); live = listOf(dragStart) },
@@ -209,15 +249,28 @@ fun DrawScreen(modifier: Modifier = Modifier) {
                             },
                             onDragEnd = { persist(); moveKind = null }
                         )
-                        else -> detectTapGestures { off ->
-                            val p = norm(off, size.width, size.height)
-                            when (tool) {
-                                DTool.MARK -> { marks.add(MarkT(p.x, p.y, selType, selNum)); ops.add("M"); persist() }
-                                DTool.TEXT -> { textPoint = p; textInput = "" }
-                                DTool.DISTANCE -> { distPoint = p }
-                                else -> {}
+                        else -> detectTapGestures(
+                            onLongPress = { off ->
+                                val p = norm(off, size.width, size.height)
+                                val mi = nearestMark(p, marks)
+                                if (mi >= 0) { nameIdx = mi; nameInput = marks[mi].label }
+                            },
+                            onTap = { off ->
+                                val p = norm(off, size.width, size.height)
+                                when (tool) {
+                                    DTool.MARK -> {
+                                        marks.add(MarkT(p.x, p.y, selType, selNum, "", selSize)); ops.add("M"); persist()
+                                    }
+                                    DTool.TEXT -> { textPoint = p; textInput = "" }
+                                    DTool.DISTANCE -> { distPoint = p }
+                                    DTool.DELETE -> {
+                                        val n = nearestKind(p, marks, texts, strokes)
+                                        if (n != null) deleteAt(n.first, n.second)
+                                    }
+                                    else -> {}
+                                }
                             }
-                        }
+                        )
                     }
                 }
         ) {
@@ -255,13 +308,11 @@ fun DrawScreen(modifier: Modifier = Modifier) {
                 }
             }) { Text("取消") }
             OutlinedButton(onClick = { showClear = true }) { Text("全消去") }
-            OutlinedButton(onClick = {
-                exportPng(context, marks, texts, strokes, bg)
-            }) { Text("保存・共有") }
+            OutlinedButton(onClick = { exportImage(context, marks, texts, strokes, bg, pdf = false) }) { Text("画像保存") }
+            OutlinedButton(onClick = { exportImage(context, marks, texts, strokes, bg, pdf = true) }) { Text("PDF保存") }
         }
     }
 
-    // 文字入力
     if (textPoint != null) {
         AlertDialog(
             onDismissRequest = { textPoint = null },
@@ -278,7 +329,6 @@ fun DrawScreen(modifier: Modifier = Modifier) {
         )
     }
 
-    // 距離挿入（メモ改行＋距離、白背景□）
     if (distPoint != null) {
         AlertDialog(
             onDismissRequest = { distPoint = null },
@@ -300,12 +350,26 @@ fun DrawScreen(modifier: Modifier = Modifier) {
         )
     }
 
-    // 全消去の確認
+    if (nameIdx >= 0) {
+        AlertDialog(
+            onDismissRequest = { nameIdx = -1 },
+            title = { Text("アイテム名を登録") },
+            text = { OutlinedTextField(value = nameInput, onValueChange = { nameInput = it }, singleLine = true) },
+            confirmButton = {
+                TextButton(onClick = {
+                    if (nameIdx in marks.indices) { marks[nameIdx] = marks[nameIdx].copy(label = nameInput); persist() }
+                    nameIdx = -1
+                }) { Text("登録") }
+            },
+            dismissButton = { TextButton(onClick = { nameIdx = -1 }) { Text("取消") } }
+        )
+    }
+
     if (showClear) {
         AlertDialog(
             onDismissRequest = { showClear = false },
             title = { Text("全消去の確認") },
-            text = { Text("配置した機器・線・文字をすべて消去します。よろしいですか？") },
+            text = { Text("配置したアイテム・線・文字をすべて消去します。よろしいですか？") },
             confirmButton = {
                 TextButton(onClick = {
                     marks.clear(); texts.clear(); strokes.clear(); ops.clear(); persist(); showClear = false
@@ -321,14 +385,10 @@ private fun ColorPalette(sel: Long, onPick: (Long) -> Unit) {
     Row(modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(top = 2.dp),
         horizontalArrangement = Arrangement.spacedBy(8.dp)) {
         Palette.forEach { c ->
-            Box(
-                modifier = Modifier
-                    .size(28.dp)
-                    .background(Color(c), CircleShape)
-                    .border(if (sel == c) 3.dp else 1.dp,
-                        if (sel == c) Color(0xFF111111) else Color(0xFFBBBBBB), CircleShape)
-                    .clickable { onPick(c) }
-            )
+            Box(modifier = Modifier.size(28.dp).background(Color(c), CircleShape)
+                .border(if (sel == c) 3.dp else 1.dp,
+                    if (sel == c) Color(0xFF111111) else Color(0xFFBBBBBB), CircleShape)
+                .clickable { onPick(c) })
         }
     }
 }
@@ -336,15 +396,16 @@ private fun ColorPalette(sel: Long, onPick: (Long) -> Unit) {
 private fun norm(off: Offset, w: Int, h: Int) =
     Offset(if (w > 0) off.x / w else 0f, if (h > 0) off.y / h else 0f)
 
-private fun d2(a: Offset, b: Offset): Float {
-    val dx = a.x - b.x; val dy = a.y - b.y; return dx * dx + dy * dy
+private fun d2(a: Offset, b: Offset): Float { val dx = a.x - b.x; val dy = a.y - b.y; return dx * dx + dy * dy }
+
+private fun nearestMark(p: Offset, marks: List<MarkT>): Int {
+    var bi = -1; var bd = Float.MAX_VALUE
+    marks.forEachIndexed { i, m -> val d = d2(p, Offset(m.x, m.y)); if (d < bd) { bd = d; bi = i } }
+    return if (bd <= 0.08f * 0.08f) bi else -1
 }
 
-private fun nearestKind(
-    p: Offset, marks: List<MarkT>, texts: List<TextT>, strokes: List<StrokeT>
-): Pair<String, Int>? {
-    var best: Pair<String, Int>? = null
-    var bestD = Float.MAX_VALUE
+private fun nearestKind(p: Offset, marks: List<MarkT>, texts: List<TextT>, strokes: List<StrokeT>): Pair<String, Int>? {
+    var best: Pair<String, Int>? = null; var bestD = Float.MAX_VALUE
     marks.forEachIndexed { i, m -> val d = d2(p, Offset(m.x, m.y)); if (d < bestD) { bestD = d; best = "M" to i } }
     texts.forEachIndexed { i, t -> val d = d2(p, Offset(t.x, t.y)); if (d < bestD) { bestD = d; best = "T" to i } }
     strokes.forEachIndexed { i, s ->
@@ -361,8 +422,7 @@ private fun applyMove(
     when (kind) {
         "M" -> if (idx in marks.indices) marks[idx] = marks[idx].copy(x = marks[idx].x + dx, y = marks[idx].y + dy)
         "T" -> if (idx in texts.indices) texts[idx] = texts[idx].copy(x = texts[idx].x + dx, y = texts[idx].y + dy)
-        "S" -> if (idx in strokes.indices)
-            strokes[idx] = strokes[idx].copy(pts = strokes[idx].pts.map { Offset(it.x + dx, it.y + dy) })
+        "S" -> if (idx in strokes.indices) strokes[idx] = strokes[idx].copy(pts = strokes[idx].pts.map { Offset(it.x + dx, it.y + dy) })
     }
 }
 
@@ -378,8 +438,7 @@ private fun DrawScope.drawStroke(st: StrokeT, w: Float, h: Float) {
         PenMode.ARROW -> {
             val a = pts.first(); val b = pts.last()
             drawLine(col, a, b, strokeWidth = 5f)
-            val ang = atan2((b.y - a.y).toDouble(), (b.x - a.x).toDouble())
-            val len = 26f
+            val ang = atan2((b.y - a.y).toDouble(), (b.x - a.x).toDouble()); val len = 26f
             listOf(ang + 2.6, ang - 2.6).forEach { s ->
                 drawLine(col, b, Offset(b.x + (cos(s) * len).toFloat(), b.y + (sin(s) * len).toFloat()), strokeWidth = 5f)
             }
@@ -389,17 +448,29 @@ private fun DrawScope.drawStroke(st: StrokeT, w: Float, h: Float) {
 
 private fun DrawScope.drawMark(m: MarkT, w: Float, h: Float) {
     val cx = m.x * w; val cy = m.y * h
-    val col = Color(typeColor(m.type))
-    val half = when (m.type) { "卓小" -> 18f; "卓中" -> 28f; "卓大" -> 40f; else -> 24f }
-    drawRect(col, topLeft = Offset(cx - half, cy - half), size = Size(half * 2, half * 2))
-    drawContext.canvas.nativeCanvas.apply {
-        drawText("${m.num}", cx, cy + 9f, Paint().apply {
+    val nc = drawContext.canvas.nativeCanvas
+    if (isShape(m.type)) {
+        val (hw, hh) = shapeHalf(m.type, m.size)
+        drawRect(Color.White, topLeft = Offset(cx - hw, cy - hh), size = Size(hw * 2, hh * 2))
+        drawRect(Color(0xFF333333), topLeft = Offset(cx - hw, cy - hh), size = Size(hw * 2, hh * 2), style = Stroke(3f))
+        if (m.label.isNotBlank()) nc.drawText(m.label, cx, cy + 8f, Paint().apply {
+            color = android.graphics.Color.BLACK; textSize = 26f; isAntiAlias = true
+            typeface = Typeface.DEFAULT_BOLD; textAlign = Paint.Align.CENTER
+        })
+    } else {
+        val half = 24f
+        drawRect(Color(typeColor(m.type)), topLeft = Offset(cx - half, cy - half), size = Size(half * 2, half * 2))
+        nc.drawText("${m.num}", cx, cy + 9f, Paint().apply {
             color = android.graphics.Color.WHITE; textSize = 26f; isAntiAlias = true
             typeface = Typeface.DEFAULT_BOLD; textAlign = Paint.Align.CENTER
         })
-        if (!m.type.startsWith("卓")) drawText(m.type, cx, cy + half + 26f, Paint().apply {
+        nc.drawText(m.type, cx, cy + half + 24f, Paint().apply {
             color = android.graphics.Color.BLACK; textSize = 22f; isAntiAlias = true
             typeface = Typeface.DEFAULT_BOLD; textAlign = Paint.Align.CENTER
+        })
+        if (m.label.isNotBlank()) nc.drawText(m.label, cx, cy + half + 48f, Paint().apply {
+            color = android.graphics.Color.rgb(0x33, 0x33, 0x33); textSize = 22f; isAntiAlias = true
+            textAlign = Paint.Align.CENTER
         })
     }
 }
@@ -407,25 +478,17 @@ private fun DrawScope.drawMark(m: MarkT, w: Float, h: Float) {
 private fun DrawScope.drawTextItem(t: TextT, w: Float, h: Float) {
     val x = t.x * w; val y = t.y * h
     val nc = drawContext.canvas.nativeCanvas
-    val paint = Paint().apply {
-        color = t.colorL.toInt(); textSize = t.sizeF; isAntiAlias = true; typeface = Typeface.DEFAULT_BOLD
-    }
+    val paint = Paint().apply { color = t.colorL.toInt(); textSize = t.sizeF; isAntiAlias = true; typeface = Typeface.DEFAULT_BOLD }
     if (t.boxed) {
-        val lines = t.s.split("\n")
-        val pad = 12f
-        val lineH = t.sizeF * 1.25f
+        val lines = t.s.split("\n"); val pad = 12f; val lineH = t.sizeF * 1.25f
         val maxW = lines.maxOf { paint.measureText(it) }
         val boxW = maxW + pad * 2; val boxH = lineH * lines.size + pad * 2
         val left = x - boxW / 2; val top = y - boxH / 2
         drawRect(Color.White, topLeft = Offset(left, top), size = Size(boxW, boxH))
-        drawRect(Color(0xFF333333), topLeft = Offset(left, top), size = Size(boxW, boxH), style = Stroke(width = 2f))
+        drawRect(Color(0xFF333333), topLeft = Offset(left, top), size = Size(boxW, boxH), style = Stroke(2f))
         paint.textAlign = Paint.Align.CENTER
-        lines.forEachIndexed { i, ln ->
-            nc.drawText(ln, x, top + pad + lineH * (i + 1) - lineH * 0.25f, paint)
-        }
-    } else {
-        nc.drawText(t.s, x, y, paint)
-    }
+        lines.forEachIndexed { i, ln -> nc.drawText(ln, x, top + pad + lineH * (i + 1) - lineH * 0.25f, paint) }
+    } else nc.drawText(t.s, x, y, paint)
 }
 
 private fun loadBitmap(context: Context, uri: Uri): Bitmap? = try {
@@ -434,73 +497,103 @@ private fun loadBitmap(context: Context, uri: Uri): Bitmap? = try {
     }
 } catch (e: Exception) { null }
 
-private fun exportPng(
-    context: Context, marks: List<MarkT>, texts: List<TextT>, strokes: List<StrokeT>, bg: Bitmap?
+// PNG / PDF 出力（android.graphics で同じ描画）
+private fun renderToCanvas(
+    c: android.graphics.Canvas, w: Int, h: Int,
+    marks: List<MarkT>, texts: List<TextT>, strokes: List<StrokeT>, bg: Bitmap?
 ) {
-    try {
-        val w = 1080; val h = 1440
-        val bmp = Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888)
-        val c = android.graphics.Canvas(bmp)
-        c.drawColor(android.graphics.Color.WHITE)
-        bg?.let {
-            c.drawBitmap(it, android.graphics.Rect(0, 0, it.width, it.height),
-                android.graphics.Rect(0, 0, w, h), null)
+    c.drawColor(android.graphics.Color.WHITE)
+    bg?.let { c.drawBitmap(it, android.graphics.Rect(0, 0, it.width, it.height), android.graphics.Rect(0, 0, w, h), null) }
+    strokes.forEach { st ->
+        val p = Paint().apply {
+            color = st.colorL.toInt(); strokeWidth = 6f; isAntiAlias = true
+            if (st.mode == PenMode.DASH) pathEffect = DashPathEffect(floatArrayOf(24f, 16f), 0f)
         }
-        strokes.forEach { st ->
-            val p = Paint().apply {
-                color = st.colorL.toInt(); strokeWidth = 6f; isAntiAlias = true
-                if (st.mode == PenMode.DASH) pathEffect = DashPathEffect(floatArrayOf(24f, 16f), 0f)
-            }
-            val pts = st.pts.map { Offset(it.x * w, it.y * h) }
-            if (pts.size >= 2) when (st.mode) {
-                PenMode.FREE -> for (i in 0 until pts.size - 1) c.drawLine(pts[i].x, pts[i].y, pts[i + 1].x, pts[i + 1].y, p)
-                else -> {
-                    c.drawLine(pts.first().x, pts.first().y, pts.last().x, pts.last().y, p)
-                    if (st.mode == PenMode.ARROW) {
-                        val a = pts.first(); val b = pts.last()
-                        val ang = atan2((b.y - a.y).toDouble(), (b.x - a.x).toDouble()); val len = 30f
-                        val ph = Paint().apply { color = st.colorL.toInt(); strokeWidth = 6f; isAntiAlias = true }
-                        listOf(ang + 2.6, ang - 2.6).forEach { s ->
-                            c.drawLine(b.x, b.y, b.x + (cos(s) * len).toFloat(), b.y + (sin(s) * len).toFloat(), ph)
-                        }
+        val pts = st.pts.map { Offset(it.x * w, it.y * h) }
+        if (pts.size >= 2) when (st.mode) {
+            PenMode.FREE -> for (i in 0 until pts.size - 1) c.drawLine(pts[i].x, pts[i].y, pts[i + 1].x, pts[i + 1].y, p)
+            else -> {
+                c.drawLine(pts.first().x, pts.first().y, pts.last().x, pts.last().y, p)
+                if (st.mode == PenMode.ARROW) {
+                    val a = pts.first(); val b = pts.last()
+                    val ang = atan2((b.y - a.y).toDouble(), (b.x - a.x).toDouble()); val len = 30f
+                    val ph = Paint().apply { color = st.colorL.toInt(); strokeWidth = 6f; isAntiAlias = true }
+                    listOf(ang + 2.6, ang - 2.6).forEach { s ->
+                        c.drawLine(b.x, b.y, b.x + (cos(s) * len).toFloat(), b.y + (sin(s) * len).toFloat(), ph)
                     }
                 }
             }
         }
-        marks.forEach { m ->
-            val cx = m.x * w; val cy = m.y * h
-            val half = when (m.type) { "卓小" -> 22f; "卓中" -> 34f; "卓大" -> 48f; else -> 30f }
-            c.drawRect(cx - half, cy - half, cx + half, cy + half, Paint().apply { color = typeColor(m.type).toInt(); isAntiAlias = true })
-            c.drawText("${m.num}", cx, cy + 11f, Paint().apply {
-                color = android.graphics.Color.WHITE; textSize = 32f; isAntiAlias = true
-                typeface = Typeface.DEFAULT_BOLD; textAlign = Paint.Align.CENTER
+    }
+    marks.forEach { m ->
+        val cx = m.x * w; val cy = m.y * h
+        if (isShape(m.type)) {
+            val (hw, hh) = shapeHalf(m.type, m.size)
+            c.drawRect(cx - hw, cy - hh, cx + hw, cy + hh, Paint().apply { color = android.graphics.Color.WHITE })
+            c.drawRect(cx - hw, cy - hh, cx + hw, cy + hh, Paint().apply {
+                color = android.graphics.Color.rgb(0x33, 0x33, 0x33); style = Paint.Style.STROKE; strokeWidth = 3f
             })
-            if (!m.type.startsWith("卓")) c.drawText(m.type, cx, cy + half + 30f, Paint().apply {
+            if (m.label.isNotBlank()) c.drawText(m.label, cx, cy + 8f, Paint().apply {
                 color = android.graphics.Color.BLACK; textSize = 26f; isAntiAlias = true
                 typeface = Typeface.DEFAULT_BOLD; textAlign = Paint.Align.CENTER
             })
+        } else {
+            val half = 26f
+            c.drawRect(cx - half, cy - half, cx + half, cy + half, Paint().apply { color = typeColor(m.type).toInt(); isAntiAlias = true })
+            c.drawText("${m.num}", cx, cy + 10f, Paint().apply {
+                color = android.graphics.Color.WHITE; textSize = 30f; isAntiAlias = true
+                typeface = Typeface.DEFAULT_BOLD; textAlign = Paint.Align.CENTER
+            })
+            c.drawText(m.type, cx, cy + half + 26f, Paint().apply {
+                color = android.graphics.Color.BLACK; textSize = 24f; isAntiAlias = true
+                typeface = Typeface.DEFAULT_BOLD; textAlign = Paint.Align.CENTER
+            })
+            if (m.label.isNotBlank()) c.drawText(m.label, cx, cy + half + 52f, Paint().apply {
+                color = android.graphics.Color.rgb(0x33, 0x33, 0x33); textSize = 24f; isAntiAlias = true; textAlign = Paint.Align.CENTER
+            })
         }
-        texts.forEach { t ->
-            val x = t.x * w; val y = t.y * h
-            val paint = Paint().apply { color = t.colorL.toInt(); textSize = t.sizeF; isAntiAlias = true; typeface = Typeface.DEFAULT_BOLD }
-            if (t.boxed) {
-                val lines = t.s.split("\n"); val pad = 14f; val lineH = t.sizeF * 1.25f
-                val maxW = lines.maxOf { paint.measureText(it) }
-                val boxW = maxW + pad * 2; val boxH = lineH * lines.size + pad * 2
-                val left = x - boxW / 2; val top = y - boxH / 2
-                c.drawRect(left, top, left + boxW, top + boxH, Paint().apply { color = android.graphics.Color.WHITE })
-                c.drawRect(left, top, left + boxW, top + boxH, Paint().apply {
-                    color = android.graphics.Color.rgb(0x33, 0x33, 0x33); style = Paint.Style.STROKE; strokeWidth = 3f
-                })
-                paint.textAlign = Paint.Align.CENTER
-                lines.forEachIndexed { i, ln -> c.drawText(ln, x, top + pad + lineH * (i + 1) - lineH * 0.25f, paint) }
-            } else c.drawText(t.s, x, y, paint)
+    }
+    texts.forEach { t ->
+        val x = t.x * w; val y = t.y * h
+        val paint = Paint().apply { color = t.colorL.toInt(); textSize = t.sizeF; isAntiAlias = true; typeface = Typeface.DEFAULT_BOLD }
+        if (t.boxed) {
+            val lines = t.s.split("\n"); val pad = 14f; val lineH = t.sizeF * 1.25f
+            val maxW = lines.maxOf { paint.measureText(it) }
+            val boxW = maxW + pad * 2; val boxH = lineH * lines.size + pad * 2
+            val left = x - boxW / 2; val top = y - boxH / 2
+            c.drawRect(left, top, left + boxW, top + boxH, Paint().apply { color = android.graphics.Color.WHITE })
+            c.drawRect(left, top, left + boxW, top + boxH, Paint().apply {
+                color = android.graphics.Color.rgb(0x33, 0x33, 0x33); style = Paint.Style.STROKE; strokeWidth = 3f
+            })
+            paint.textAlign = Paint.Align.CENTER
+            lines.forEachIndexed { i, ln -> c.drawText(ln, x, top + pad + lineH * (i + 1) - lineH * 0.25f, paint) }
+        } else c.drawText(t.s, x, y, paint)
+    }
+}
+
+private fun exportImage(
+    context: Context, marks: List<MarkT>, texts: List<TextT>, strokes: List<StrokeT>, bg: Bitmap?, pdf: Boolean
+) {
+    try {
+        val w = 1080; val h = 1440
+        val file: File
+        if (pdf) {
+            val doc = android.graphics.pdf.PdfDocument()
+            val page = doc.startPage(android.graphics.pdf.PdfDocument.PageInfo.Builder(w, h, 1).create())
+            renderToCanvas(page.canvas, w, h, marks, texts, strokes, bg)
+            doc.finishPage(page)
+            file = File(context.cacheDir, "見取り図.pdf")
+            file.outputStream().use { doc.writeTo(it) }; doc.close()
+        } else {
+            val bmp = Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888)
+            renderToCanvas(android.graphics.Canvas(bmp), w, h, marks, texts, strokes, bg)
+            file = File(context.cacheDir, "見取り図.png")
+            file.outputStream().use { bmp.compress(Bitmap.CompressFormat.PNG, 100, it) }
         }
-        val file = File(context.cacheDir, "見取り図.png")
-        file.outputStream().use { bmp.compress(Bitmap.CompressFormat.PNG, 100, it) }
         val uri = FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", file)
         context.startActivity(Intent.createChooser(Intent(Intent.ACTION_SEND).apply {
-            type = "image/png"; putExtra(Intent.EXTRA_STREAM, uri); addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+            type = if (pdf) "application/pdf" else "image/png"
+            putExtra(Intent.EXTRA_STREAM, uri); addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
         }, "見取り図を保存・共有"))
     } catch (e: Exception) {
         Toast.makeText(context, "出力に失敗: ${e.message}", Toast.LENGTH_LONG).show()
@@ -510,17 +603,11 @@ private fun exportPng(
 // ── 端末内保存 ──
 private const val DRAW_PREFS = "draw_prefs"
 
-private fun saveDraw(
-    context: Context, marks: List<MarkT>, texts: List<TextT>, strokes: List<StrokeT>, ops: List<String>
-) {
+private fun saveDraw(context: Context, marks: List<MarkT>, texts: List<TextT>, strokes: List<StrokeT>, ops: List<String>) {
     val sb = StringBuilder()
-    marks.forEach { sb.append("M|${it.x}|${it.y}|${it.type}|${it.num}\n") }
-    texts.forEach {
-        sb.append("T|${it.x}|${it.y}|${it.sizeF}|${it.colorL}|${if (it.boxed) 1 else 0}|${it.s.replace("\n", "~~").replace("|", "/")}\n")
-    }
-    strokes.forEach { st ->
-        sb.append("S|${st.mode.name}|${st.colorL}|").append(st.pts.joinToString(";") { "${it.x},${it.y}" }).append("\n")
-    }
+    marks.forEach { sb.append("M|${it.x}|${it.y}|${it.type}|${it.num}|${it.size}|${it.label.replace("\n", " ").replace("|", "/")}\n") }
+    texts.forEach { sb.append("T|${it.x}|${it.y}|${it.sizeF}|${it.colorL}|${if (it.boxed) 1 else 0}|${it.s.replace("\n", "~~").replace("|", "/")}\n") }
+    strokes.forEach { st -> sb.append("S|${st.mode.name}|${st.colorL}|").append(st.pts.joinToString(";") { "${it.x},${it.y}" }).append("\n") }
     sb.append("O|${ops.joinToString(",")}\n")
     context.getSharedPreferences(DRAW_PREFS, Context.MODE_PRIVATE).edit().putString("data", sb.toString()).apply()
 }
@@ -534,10 +621,13 @@ private fun loadDraw(
     s.split("\n").forEach { line ->
         val f = line.split("|")
         when {
-            f[0] == "M" && f.size >= 5 -> marks.add(MarkT(f[1].toFloat(), f[2].toFloat(), f[3], f[4].toInt()))
-            f[0] == "T" && f.size >= 7 ->
-                texts.add(TextT(f[1].toFloat(), f[2].toFloat(), f[6].replace("~~", "\n"),
-                    f[3].toFloat(), f[4].toLong(), f[5] == "1"))
+            f[0] == "M" && f.size >= 5 -> marks.add(MarkT(
+                f[1].toFloat(), f[2].toFloat(), f[3], f[4].toInt(),
+                if (f.size >= 7) f[6] else "", if (f.size >= 6) f[5] else "M"
+            ))
+            f[0] == "T" && f.size >= 7 -> texts.add(TextT(
+                f[1].toFloat(), f[2].toFloat(), f[6].replace("~~", "\n"), f[3].toFloat(), f[4].toLong(), f[5] == "1"
+            ))
             f[0] == "S" && f.size >= 4 -> {
                 val mode = runCatching { PenMode.valueOf(f[1]) }.getOrDefault(PenMode.FREE)
                 val pts = f[3].split(";").mapNotNull { p ->
@@ -548,10 +638,5 @@ private fun loadDraw(
             f[0] == "O" && f.size >= 2 -> ops.addAll(f[1].split(",").filter { it.isNotBlank() })
         }
     }
-    // 旧データ（O行なし）の場合は概算で履歴を復元
-    if (ops.isEmpty()) {
-        repeat(marks.size) { ops.add("M") }
-        repeat(texts.size) { ops.add("T") }
-        repeat(strokes.size) { ops.add("S") }
-    }
+    if (ops.isEmpty()) { repeat(marks.size) { ops.add("M") }; repeat(texts.size) { ops.add("T") }; repeat(strokes.size) { ops.add("S") } }
 }
