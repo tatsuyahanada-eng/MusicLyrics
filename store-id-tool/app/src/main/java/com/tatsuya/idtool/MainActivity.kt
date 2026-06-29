@@ -144,11 +144,12 @@ fun AppRoot() {
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun IdContent() {
-    var brand by remember { mutableStateOf(Brand.RELIER) }
-    var storeName by remember { mutableStateOf("") }
-    var storeNumber by remember { mutableStateOf("") }
-    var expanded by remember { mutableStateOf(false) }
     val context = LocalContext.current
+    val saved = remember { loadIdInfo(context) }
+    var brand by remember { mutableStateOf(saved.brand) }
+    var storeName by remember { mutableStateOf(saved.storeName) }
+    var storeNumber by remember { mutableStateOf(saved.storeNumber) }
+    var expanded by remember { mutableStateOf(false) }
 
     val rows = buildRows(brand, storeNumber)
     val valid = isValidStoreNumber(storeNumber)

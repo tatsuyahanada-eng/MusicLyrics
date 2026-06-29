@@ -110,6 +110,7 @@ private fun MeasureBody(type: MeasureType, modifier: Modifier) {
     val records = remember { mutableStateListOf<Record>().apply { addAll(loadRecords(context, prefsKey)) } }
     var remeasureIndex by remember { mutableIntStateOf(-1) }
     var memo by remember { mutableStateOf("") }
+    var showList by remember { mutableStateOf(false) }
 
     var measuring by remember { mutableStateOf(false) }
     var requestAddPoint by remember { mutableStateOf(false) }
@@ -211,7 +212,7 @@ private fun MeasureBody(type: MeasureType, modifier: Modifier) {
         if (measuring && liveBig.isNotEmpty()) {
             Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.TopCenter) {
                 Box(
-                    modifier = Modifier.padding(top = 16.dp)
+                    modifier = Modifier.padding(top = 104.dp)
                         .background(Panel, RoundedCornerShape(10.dp))
                         .padding(horizontal = 16.dp, vertical = 6.dp)
                 ) {
@@ -294,8 +295,30 @@ private fun MeasureBody(type: MeasureType, modifier: Modifier) {
             Spacer(Modifier.height(6.dp))
 
             if (records.isNotEmpty()) {
+                // 記録は折りたたみ（増えても画面を圧迫しない）
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    TextButton(onClick = { showList = !showList }) {
+                        Text("記録一覧 (${records.size}) ${if (showList) "▲" else "▼"}",
+                            color = TealDark, fontWeight = FontWeight.Bold)
+                    }
+                    Spacer(Modifier.weight(1f))
+                    if (remeasureIndex in records.indices) {
+                        TextButton(onClick = {
+                            val cur = records[remeasureIndex]
+                            records[remeasureIndex] = cur.copy(memo = memo.ifBlank { cur.memo })
+                            persist()
+                            Toast.makeText(context, "メモ更新", Toast.LENGTH_SHORT).show()
+                        }) { Text("メモ更新", color = TealDark) }
+                    }
+                }
+            }
+
+            if (records.isNotEmpty() && showList) {
                 LazyColumn(
-                    modifier = Modifier.fillMaxWidth().heightIn(max = 180.dp)
+                    modifier = Modifier.fillMaxWidth().heightIn(max = 200.dp)
                         .background(Panel, RoundedCornerShape(8.dp)).padding(6.dp)
                 ) {
                     itemsIndexed(records) { i, item ->
