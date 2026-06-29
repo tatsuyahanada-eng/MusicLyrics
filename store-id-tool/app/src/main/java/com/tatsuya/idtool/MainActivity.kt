@@ -226,18 +226,20 @@ fun IdContent() {
 
             Spacer(Modifier.height(10.dp))
 
-            // ── 表（現行ID/変更後ID・規格a/b・ch・10桁ID）──
+            // ── 表（規格a/b・ch・10桁IDの□枠／ヘッダーは最上部に1回）──
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
                     .border(1.dp, Color(0xFF2E7D32), RoundedCornerShape(4.dp))
             ) {
+                IdTableHeader()
+                HorizontalDivider(color = MaterialTheme.colorScheme.outline)
                 rows.forEachIndexed { index, row ->
-                    TableRow(index = index, row = row, onClick = {
+                    TableRow(row = row, onClick = {
                         if (row.fullId.isNotEmpty()) copyToClipboard(context, row.fullId)
                     })
                     if (index < rows.size - 1) {
-                        HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.5f))
+                        HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.4f))
                     }
                 }
             }
@@ -252,63 +254,126 @@ fun IdContent() {
         }
 }
 
-// 規格a/b を表す小箱（該当側を黒で強調）
-private val LetterA = Color(0xFFE65100) // a の文字色（橙）
-private val LetterB = Color(0xFF1565C0) // b の文字色（青）
+private val LEFT_W = 58.dp
+private val DCELL_H = 30.dp
 
+// 規格a/b を表す小箱（選択側＝黒塗り＋白文字で明確に、非選択＝淡色）
 @Composable
-private fun ABCell(letter: String, active: Boolean, letterColor: Color) {
+private fun ABCell(letter: String, active: Boolean) {
     Box(
         modifier = Modifier
-            .width(30.dp)
-            .height(30.dp)
-            .background(if (active) Color(0xFF111111) else Color.White, RoundedCornerShape(3.dp))
-            .border(0.8.dp, MaterialTheme.colorScheme.outline, RoundedCornerShape(3.dp)),
+            .width(24.dp)
+            .height(24.dp)
+            .background(if (active) Color(0xFF111111) else Color(0xFFF0F0F0), RoundedCornerShape(3.dp))
+            .border(
+                if (active) 1.5.dp else 0.8.dp,
+                if (active) Color(0xFF111111) else Color(0xFFCCCCCC),
+                RoundedCornerShape(3.dp)
+            ),
         contentAlignment = Alignment.Center
     ) {
-        Text(letter, color = letterColor, fontWeight = FontWeight.Bold, fontSize = 16.sp)
+        Text(
+            letter,
+            color = if (active) Color.White else Color(0xFFBDBDBD),
+            fontWeight = FontWeight.Bold,
+            fontSize = 15.sp
+        )
     }
 }
 
 @Composable
-private fun TableRow(index: Int, row: IdRow, onClick: () -> Unit) {
+private fun IdTableHeader() {
+    Row(
+        modifier = Modifier.fillMaxWidth().padding(vertical = 3.dp, horizontal = 4.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Box(modifier = Modifier.width(LEFT_W), contentAlignment = Alignment.Center) {
+            Text("規格", fontSize = 10.sp, fontWeight = FontWeight.Bold,
+                color = MaterialTheme.colorScheme.onSurfaceVariant)
+        }
+        Row(modifier = Modifier.weight(1f)) {
+            HeaderCell("規格", 2f)
+            HeaderCell("Ch設定値", 2f)
+            HeaderCell("番号", 5f)
+            HeaderCell("CD", 1f)
+        }
+    }
+}
+
+@Composable
+private fun TableRow(row: IdRow, onClick: () -> Unit) {
     val kikakuB = row.chCode.take(1)     // G（規格b）: "0"→a側, "1"→b側
     val aActive = kikakuB == "0"
-    val label = when (index) {
-        0 -> "現行ID"
-        1 -> "変更後ID"
-        else -> ""
-    }
+    val hasStore = row.store.isNotEmpty()
+    val chSet = row.chCode.drop(1)       // H,I（Ch設定値 2桁）
 
-    Column(
+    Row(
         modifier = Modifier
             .fillMaxWidth()
             .clickable(enabled = row.fullId.isNotEmpty(), onClick = onClick)
-            .padding(vertical = 4.dp, horizontal = 6.dp)
+            .padding(vertical = 2.dp, horizontal = 4.dp),
+        verticalAlignment = Alignment.CenterVertically
     ) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Box(modifier = Modifier.width(64.dp)) {
-                Text(label, fontSize = 12.sp, fontWeight = FontWeight.Bold,
-                    color = MaterialTheme.colorScheme.onSurface)
+        // 左: a/b（選択側を強調）＋ ch を下に
+        Column(
+            modifier = Modifier.width(LEFT_W),
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            Row(horizontalArrangement = Arrangement.spacedBy(3.dp)) {
+                ABCell("a", aActive)
+                ABCell("b", !aActive)
             }
-            ABCell("a", aActive, LetterA)
-            Spacer(Modifier.width(4.dp))
-            ABCell("b", !aActive, LetterB)
-            Spacer(Modifier.width(10.dp))
-            Text("ch: ${row.ch}", fontSize = 16.sp, fontWeight = FontWeight.Bold,
-                color = MaterialTheme.colorScheme.onSurface)
+            Text("ch:${row.ch}", fontSize = 11.sp, fontWeight = FontWeight.Bold,
+                color = MaterialTheme.colorScheme.primary)
         }
-        // 10桁ID（改行して表示）
+        // 右: 10桁を□枠で
+        Row(modifier = Modifier.weight(1f)) {
+            DigitCell(row.kikaku, ColKikakuA)
+            DigitCell(kikakuB, ColKikakuB)
+            DigitCell(chSet.getOrNull(0)?.toString() ?: "", ColCh)
+            DigitCell(chSet.getOrNull(1)?.toString() ?: "", ColCh)
+            repeat(5) { i ->
+                DigitCell(
+                    if (hasStore) row.store[i].toString() else "",
+                    if (hasStore) ColNum else ColEmpty
+                )
+            }
+            DigitCell(row.cd, if (row.cd.isNotEmpty()) ColCd else ColEmpty, cd = true)
+        }
+    }
+}
+
+@Composable
+private fun androidx.compose.foundation.layout.RowScope.DigitCell(d: String, tint: Color, cd: Boolean = false) {
+    Box(
+        modifier = Modifier
+            .weight(1f)
+            .height(DCELL_H)
+            .padding(1.dp)
+            .background(tint, RoundedCornerShape(3.dp))
+            .border(0.7.dp, MaterialTheme.colorScheme.outline, RoundedCornerShape(3.dp)),
+        contentAlignment = Alignment.Center
+    ) {
         Text(
-            text = if (row.fullId.isNotEmpty()) row.fullId else "----------",
-            modifier = Modifier.fillMaxWidth().padding(top = 2.dp),
+            text = d,
             fontFamily = FontFamily.Monospace,
+            fontWeight = if (cd) FontWeight.Bold else FontWeight.Medium,
+            fontSize = if (cd) 15.sp else 13.sp,
+            color = MaterialTheme.colorScheme.onSurface
+        )
+    }
+}
+
+@Composable
+private fun androidx.compose.foundation.layout.RowScope.HeaderCell(text: String, weight: Float) {
+    Box(modifier = Modifier.weight(weight), contentAlignment = Alignment.Center) {
+        Text(
+            text = text,
+            fontSize = 9.sp,
             fontWeight = FontWeight.Bold,
-            fontSize = 14.sp,
-            letterSpacing = 1.sp,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
             textAlign = TextAlign.Center,
-            color = if (row.fullId.isNotEmpty()) MaterialTheme.colorScheme.primary
-            else MaterialTheme.colorScheme.outline
+            maxLines = 1
         )
     }
 }
