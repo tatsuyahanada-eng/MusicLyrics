@@ -208,6 +208,7 @@ fun DrawScreen(modifier: Modifier = Modifier) {
                 }
                 ColorPalette(selColor) { selColor = it }
             }
+            DTool.DISTANCE -> Text("距離を入れたい場所をタップ（距離タブの記録から選択）", fontSize = 11.sp)
             DTool.MOVE -> Text("アイテム/線/文字をドラッグして移動", fontSize = 11.sp)
             DTool.DELETE -> Text("消したいアイテム/線/文字をタップ", fontSize = 11.sp)
         }
