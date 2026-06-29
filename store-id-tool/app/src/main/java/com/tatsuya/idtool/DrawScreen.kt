@@ -1,7 +1,9 @@
 package com.tatsuya.idtool
 
+import android.Manifest
 import android.content.Context
 import android.content.Intent
+import android.content.pm.PackageManager
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.graphics.DashPathEffect
@@ -62,6 +64,9 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.content.FileProvider
 import java.io.File
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 import kotlin.math.atan2
 import kotlin.math.cos
 import kotlin.math.sin
@@ -137,9 +142,24 @@ fun DrawScreen(modifier: Modifier = Modifier) {
     var nameIdx by remember { mutableIntStateOf(-1) }
     var nameInput by remember { mutableStateOf("") }
 
+    var showPhotoChoice by remember { mutableStateOf(false) }
+    var photoFile by remember { mutableStateOf<File?>(null) }
+
     val distance = remember { loadDistanceRecords(context) }
     val picker = rememberLauncherForActivityResult(ActivityResultContracts.PickVisualMedia()) { uri: Uri? ->
         if (uri != null) bg = loadBitmap(context, uri)
+    }
+    val cameraLauncher = rememberLauncherForActivityResult(ActivityResultContracts.TakePicture()) { ok ->
+        if (ok) photoFile?.let { bg = loadBitmapFile(it) }
+    }
+    val launchCamera: () -> Unit = {
+        val f = File(context.cacheDir, "capture_${System.currentTimeMillis()}.jpg")
+        photoFile = f
+        val uri = FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", f)
+        cameraLauncher.launch(uri)
+    }
+    val camPerm = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
+        if (granted) launchCamera() else Toast.makeText(context, "カメラ権限が必要です", Toast.LENGTH_SHORT).show()
     }
 
     fun persist() = saveDraw(context, marks, texts, strokes, ops)
@@ -294,9 +314,7 @@ fun DrawScreen(modifier: Modifier = Modifier) {
         Spacer(Modifier.height(6.dp))
         Row(modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
             horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-            OutlinedButton(onClick = {
-                picker.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly))
-            }) { Text("写真取込") }
+            OutlinedButton(onClick = { showPhotoChoice = true }) { Text("写真取込") }
             OutlinedButton(onClick = { bg = null }) { Text("背景白") }
             OutlinedButton(onClick = {
                 if (ops.isNotEmpty()) {
@@ -363,6 +381,27 @@ fun DrawScreen(modifier: Modifier = Modifier) {
                 }) { Text("登録") }
             },
             dismissButton = { TextButton(onClick = { nameIdx = -1 }) { Text("取消") } }
+        )
+    }
+
+    if (showPhotoChoice) {
+        AlertDialog(
+            onDismissRequest = { showPhotoChoice = false },
+            title = { Text("写真の取り込み") },
+            text = { Text("撮影するか、ファイルから選びます。") },
+            confirmButton = {
+                TextButton(onClick = {
+                    showPhotoChoice = false
+                    if (context.checkSelfPermission(Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED)
+                        launchCamera() else camPerm.launch(Manifest.permission.CAMERA)
+                }) { Text("撮影") }
+            },
+            dismissButton = {
+                TextButton(onClick = {
+                    showPhotoChoice = false
+                    picker.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly))
+                }) { Text("ファイルから") }
+            }
         )
     }
 
@@ -498,6 +537,12 @@ private fun loadBitmap(context: Context, uri: Uri): Bitmap? = try {
     }
 } catch (e: Exception) { null }
 
+private fun loadBitmapFile(file: File): Bitmap? = try {
+    BitmapFactory.decodeFile(file.absolutePath, BitmapFactory.Options().apply { inSampleSize = 2 })
+} catch (e: Exception) { null }
+
+private fun stamp(): String = SimpleDateFormat("yyyyMMdd_HHmm", Locale.JAPAN).format(Date())
+
 // PNG / PDF 出力（android.graphics で同じ描画）
 private fun renderToCanvas(
     c: android.graphics.Canvas, w: Int, h: Int,
@@ -583,12 +628,12 @@ private fun exportImage(
             val page = doc.startPage(android.graphics.pdf.PdfDocument.PageInfo.Builder(w, h, 1).create())
             renderToCanvas(page.canvas, w, h, marks, texts, strokes, bg)
             doc.finishPage(page)
-            file = File(context.cacheDir, "見取り図.pdf")
+            file = File(context.cacheDir, "見取り図_${stamp()}.pdf")
             file.outputStream().use { doc.writeTo(it) }; doc.close()
         } else {
             val bmp = Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888)
             renderToCanvas(android.graphics.Canvas(bmp), w, h, marks, texts, strokes, bg)
-            file = File(context.cacheDir, "見取り図.png")
+            file = File(context.cacheDir, "見取り図_${stamp()}.png")
             file.outputStream().use { bmp.compress(Bitmap.CompressFormat.PNG, 100, it) }
         }
         val uri = FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", file)

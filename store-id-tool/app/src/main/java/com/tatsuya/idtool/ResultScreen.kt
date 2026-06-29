@@ -49,10 +49,14 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.content.FileProvider
 import java.io.File
+import java.text.SimpleDateFormat
 import java.util.Calendar
+import java.util.Date
+import java.util.Locale
 
-private const val LOC_COUNT = 5
 private val ResultOptions = listOf("最適", "良", "圏外")
+
+private fun stamp(): String = SimpleDateFormat("yyyyMMdd_HHmm", Locale.JAPAN).format(Date())
 
 @Composable
 fun ResultScreen(modifier: Modifier = Modifier) {
@@ -60,12 +64,14 @@ fun ResultScreen(modifier: Modifier = Modifier) {
 
     val idInfo = remember { loadIdInfo(context) }
     val rows = remember { buildRows(idInfo.brand, idInfo.storeNumber) }
-    val distance = remember { loadDistanceRecords(context) }
+    // 測定順（古い順）。距離タブは新しい順に保存されるため反転して場所1=最初の測定に合わせる
+    val ordered = remember { loadDistanceRecords(context).asReversed() }
 
     val data = remember { mutableStateMapOf<String, String>().apply { putAll(loadResultMap(context)) } }
     val set: (String, String) -> Unit = { k, v -> data[k] = v; saveResultMap(context, data) }
 
     var loc by remember { mutableIntStateOf(1) }
+    var locCount by remember { mutableIntStateOf((data["場所数"]?.toIntOrNull() ?: 5).coerceAtLeast(5)) }
 
     LaunchedEffect(Unit) {
         if (data["店番"].isNullOrBlank() && idInfo.storeNumber.isNotBlank()) data["店番"] = idInfo.storeNumber
@@ -121,14 +127,16 @@ fun ResultScreen(modifier: Modifier = Modifier) {
             color = MaterialTheme.colorScheme.onBackground)
         Row(modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
             horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            (1..LOC_COUNT).forEach { n ->
+            (1..locCount).forEach { n ->
                 FilterChip(selected = loc == n, onClick = { loc = n },
                     label = { Text("場所$n") })
             }
+            FilterChip(selected = false, onClick = { locCount += 1; set("場所数", locCount.toString()) },
+                label = { Text("＋追加") })
         }
-        // 対応する距離記録（あれば）
-        distance.getOrNull(loc - 1)?.let {
-            Text("距離: ${it.memo} = ${it.display()}", fontSize = 12.sp,
+        // 対応する距離記録（測定順：場所1=最初に測定）
+        ordered.getOrNull(loc - 1)?.let {
+            Text("距離(${loc}番目の測定): ${it.memo} = ${it.display()}", fontSize = 12.sp,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.padding(top = 4.dp))
         }
@@ -172,11 +180,11 @@ fun ResultScreen(modifier: Modifier = Modifier) {
         Spacer(Modifier.height(12.dp))
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             OutlinedButton(
-                onClick = { copyText(context, buildCsv(idInfo, rows, data)) },
+                onClick = { copyText(context, buildCsv(idInfo, rows, data, locCount, ordered)) },
                 modifier = Modifier.weight(1f)
             ) { Text("CSVコピー") }
             OutlinedButton(
-                onClick = { exportCsv(context, buildCsv(idInfo, rows, data)) },
+                onClick = { exportCsv(context, buildCsv(idInfo, rows, data, locCount, ordered)) },
                 modifier = Modifier.weight(1f)
             ) { Text("CSV出力") }
         }
@@ -251,7 +259,10 @@ private fun csvEscape(s: String): String =
     if (s.contains(',') || s.contains('"') || s.contains('\n'))
         "\"" + s.replace("\"", "\"\"") + "\"" else s
 
-private fun buildCsv(idInfo: IdInfo, rows: List<IdRow>, data: Map<String, String>): String {
+private fun buildCsv(
+    idInfo: IdInfo, rows: List<IdRow>, data: Map<String, String>,
+    locCount: Int, ordered: List<Record>
+): String {
     val sb = StringBuilder()
     sb.append("店番,${csvEscape(data["店番"].orEmpty())}\n")
     sb.append("店舗名,${csvEscape(data["店舗名"].orEmpty())}\n")
@@ -261,8 +272,11 @@ private fun buildCsv(idInfo: IdInfo, rows: List<IdRow>, data: Map<String, String
     sb.append("作業員,${csvEscape(data["作業員"].orEmpty())}\n")
     sb.append("備考,${csvEscape(data["備考"].orEmpty())}\n")
     sb.append("対象機器,${csvEscape(idInfo.brand.label)}\n\n")
-    sb.append("場所,Ch,ID,結果,電波強度送信,電波強度受信,ノイズ送信,ノイズ受信,送信ﾊﾟｹ,受信ﾊﾟｹ\n")
-    for (loc in 1..LOC_COUNT) {
+    sb.append("場所,距離メモ,距離,Ch,ID,結果,電波強度送信,電波強度受信,ノイズ送信,ノイズ受信,送信ﾊﾟｹ,受信ﾊﾟｹ\n")
+    for (loc in 1..locCount) {
+        val rec = ordered.getOrNull(loc - 1)
+        val distMemo = rec?.memo ?: ""
+        val distVal = rec?.display() ?: ""
         rows.forEach { row ->
             fun v(f: String) = data["loc${loc}_ch${row.ch}_$f"].orEmpty()
             val fields = listOf(
@@ -271,7 +285,7 @@ private fun buildCsv(idInfo: IdInfo, rows: List<IdRow>, data: Map<String, String
             )
             if (fields.any { it.isNotEmpty() }) {
                 val id = if (row.fullId.isNotEmpty()) row.fullId else ""
-                sb.append("場所$loc,${row.ch},$id,")
+                sb.append("場所$loc,${csvEscape(distMemo)},${csvEscape(distVal)},${row.ch},$id,")
                 sb.append(fields.joinToString(",") { csvEscape(it) })
                 sb.append("\n")
             }
@@ -282,7 +296,7 @@ private fun buildCsv(idInfo: IdInfo, rows: List<IdRow>, data: Map<String, String
 
 private fun exportCsv(context: Context, csv: String) {
     try {
-        val file = File(context.cacheDir, "無線テスト結果.csv")
+        val file = File(context.cacheDir, "無線テスト結果_${stamp()}.csv")
         file.writeText("\uFEFF$csv") // BOM付きでExcel文字化け防止
         val uri = FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", file)
         val intent = Intent(Intent.ACTION_SEND).apply {
