@@ -318,24 +318,26 @@ private fun buildCsv(
     sb.append("作業員,${csvEscape(data["作業員"].orEmpty())}\n")
     sb.append("備考,${csvEscape(data["備考"].orEmpty())}\n")
     sb.append("対象機器,${csvEscape(idInfo.brand.label)}\n\n")
-    sb.append("場所,距離メモ,距離,Ch,ID,結果,電波強度送信,電波強度受信,ノイズ送信,ノイズ受信,送信ﾊﾟｹ,受信ﾊﾟｹ\n")
+
+    // 画面と同じ「場所=縦 / Ch=横」レイアウト
+    // ヘッダー: 1列目は項目、以降は各Ch（ch番号＋10桁ID）
+    val fieldDefs = listOf("結果", "電波強度送信", "電波強度受信", "ノイズ送信", "ノイズ受信", "送信ﾊﾟｹ", "受信ﾊﾟｹ")
+    sb.append("項目＼Ch")
+    rows.forEach { row -> sb.append(",${csvEscape("ch:${row.ch} (${row.fullId.ifEmpty { "-" }})")}") }
+    sb.append("\n")
+
     for (loc in 1..locCount) {
         val rec = ordered.getOrNull(loc - 1)
-        val distMemo = rec?.memo ?: ""
-        val distVal = rec?.display() ?: ""
-        rows.forEach { row ->
-            fun v(f: String) = data["loc${loc}_ch${row.ch}_$f"].orEmpty()
-            val fields = listOf(
-                v("結果"), v("電波強度送信"), v("電波強度受信"),
-                v("ノイズ送信"), v("ノイズ受信"), v("送信ﾊﾟｹ"), v("受信ﾊﾟｹ")
-            )
-            if (fields.any { it.isNotEmpty() }) {
-                val id = if (row.fullId.isNotEmpty()) row.fullId else ""
-                sb.append("場所$loc,${csvEscape(distMemo)},${csvEscape(distVal)},${row.ch},$id,")
-                sb.append(fields.joinToString(",") { csvEscape(it) })
-                sb.append("\n")
-            }
+        val distLabel = if (rec != null) "${rec.memo} = ${rec.display()}" else ""
+        // 場所見出し行（距離メモ＋距離）
+        sb.append("【場所$loc】,${csvEscape(distLabel)}\n")
+        // 項目ごとの行（Ch列に値）
+        fieldDefs.forEach { f ->
+            sb.append(csvEscape(f))
+            rows.forEach { row -> sb.append(",${csvEscape(data["loc${loc}_ch${row.ch}_$f"].orEmpty())}") }
+            sb.append("\n")
         }
+        sb.append("\n")
     }
     return sb.toString().trimEnd()
 }
