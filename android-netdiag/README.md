@@ -39,7 +39,25 @@
 
 ---
 
-## ビルド方法
+## APK をダウンロードしてインストール（ビルド不要）
+
+GitHub Actions が自動でデバッグAPKをビルドします。以下のいずれかから取得できます。
+
+1. **Release から（推奨・固定リンク）**
+   リポジトリの **Releases → `netdiag-latest`** の `netdiag-debug.apk` をスマホで開く。
+2. **Actions の成果物から**
+   **Actions** タブ → 最新の「Build NetDiag APK」実行 → 下部 *Artifacts* の
+   `netdiag-debug-apk` をダウンロード（zip）して展開。
+
+### インストール手順（Android端末）
+1. APK を端末にダウンロード
+2. 初回は「提供元不明のアプリ（不明なアプリのインストール）」を許可
+3. APK をタップしてインストール
+
+> デバッグ署名のAPKです。個人利用は問題ありませんが、Google Play配布には
+> リリース署名が別途必要です。
+
+## ソースからビルドする方法
 
 Android SDK が必要です（このリポジトリにはSDKは含まれません）。
 

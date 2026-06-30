@@ -1,0 +1,59 @@
+name: Build NetDiag APK
+
+# Builds the debug APK on GitHub's runners (which, unlike the dev sandbox,
+# can reach the Android SDK), then publishes it two ways:
+#   1. as a workflow artifact (download from the Actions run page)
+#   2. as an asset on the "netdiag-latest" GitHub Release (stable link)
+on:
+  push:
+    branches: [ "claude/network-diagnostic-tool-i7ez8a" ]
+    paths:
+      - "android-netdiag/**"
+      - ".github/workflows/android-build.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Install SDK packages
+        run: sdkmanager "platform-tools" "platforms;android-35" "build-tools;35.0.0"
+
+      - name: Build debug APK
+        working-directory: android-netdiag
+        run: ./gradlew assembleDebug --stacktrace --no-daemon
+
+      - name: Stage APK
+        run: cp android-netdiag/app/build/outputs/apk/debug/app-debug.apk netdiag-debug.apk
+
+      - name: Upload APK artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: netdiag-debug-apk
+          path: netdiag-debug.apk
+          if-no-files-found: error
+
+      - name: Publish to "netdiag-latest" release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release create netdiag-latest netdiag-debug.apk \
+            --title "NetDiag latest build" \
+            --notes "ネット調査ツール デバッグAPK。提供元不明アプリのインストールを許可した端末でインストールできます。" \
+            --target "$GITHUB_SHA" \
+          || gh release upload netdiag-latest netdiag-debug.apk --clobber
