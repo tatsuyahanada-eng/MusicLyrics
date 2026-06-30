@@ -29,6 +29,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.netdiag.core.net.Hop
 import com.netdiag.ui.LabeledValue
 import com.netdiag.ui.MonoSmall
+import com.netdiag.ui.OctetIpField
 import com.netdiag.ui.SectionCard
 
 @OptIn(ExperimentalLayoutApi::class)
@@ -44,13 +45,7 @@ fun DiagnoseScreen(vm: DiagnoseViewModel = viewModel()) {
         // ---- Ping ----
         item {
             SectionCard("高度なPing（ロス率・ジッター）") {
-                OutlinedTextField(
-                    value = s.pingHost,
-                    onValueChange = vm::setPingHost,
-                    label = { Text("宛先 (IP / ホスト名)") },
-                    singleLine = true,
-                    modifier = Modifier.fillMaxWidth(),
-                )
+                OctetIpField("宛先 IP", s.pingHost, vm::setPingHost)
                 Spacer(Modifier.height(8.dp))
                 FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     NumField("回数", s.pingCount, vm::setPingCount)
@@ -87,13 +82,7 @@ fun DiagnoseScreen(vm: DiagnoseViewModel = viewModel()) {
         // ---- Traceroute ----
         item {
             SectionCard("Traceroute（経路追跡）") {
-                OutlinedTextField(
-                    value = s.traceHost,
-                    onValueChange = vm::setTraceHost,
-                    label = { Text("宛先 (IP / ホスト名)") },
-                    singleLine = true,
-                    modifier = Modifier.fillMaxWidth(),
-                )
+                OctetIpField("宛先 IP", s.traceHost, vm::setTraceHost)
                 Spacer(Modifier.height(8.dp))
                 FlowRow(
                     horizontalArrangement = Arrangement.spacedBy(8.dp),
@@ -142,14 +131,7 @@ fun DiagnoseScreen(vm: DiagnoseViewModel = viewModel()) {
                     modifier = Modifier.fillMaxWidth(),
                 )
                 Spacer(Modifier.height(8.dp))
-                OutlinedTextField(
-                    value = s.dnsServer,
-                    onValueChange = vm::setDnsServer,
-                    label = { Text("比較用DNSサーバー") },
-                    singleLine = true,
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                    modifier = Modifier.fillMaxWidth(),
-                )
+                OctetIpField("比較用DNSサーバー IP", s.dnsServer, vm::setDnsServer)
                 Spacer(Modifier.height(8.dp))
                 Button(onClick = vm::runDns, enabled = !s.dnsRunning) { Text("DNS テスト") }
 

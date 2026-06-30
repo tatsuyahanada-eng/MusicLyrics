@@ -55,5 +55,16 @@ class TrafficMonitor(context: Context) {
         }
 
         fun formatRate(bytesPerSec: Long): String = formatBytes(bytesPerSec) + "/s"
+
+        /** Link-speed style formatting in bits/sec (1000-based: Kbps/Mbps/Gbps). */
+        fun formatBitsRate(bytesPerSec: Long): String {
+            var value = bytesPerSec * 8.0
+            val units = arrayOf("bps", "Kbps", "Mbps", "Gbps")
+            var i = 0
+            while (value >= 1000 && i < units.size - 1) {
+                value /= 1000; i++
+            }
+            return String.format("%.1f %s", value, units[i])
+        }
     }
 }
