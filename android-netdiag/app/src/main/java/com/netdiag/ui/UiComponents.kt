@@ -23,6 +23,10 @@ import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 
+/** Distinct, high-contrast colour for device/host names so they stand out
+ *  from the phosphor body text. */
+val NameColor: Color = Color(0xFFFFFFFF)
+
 @Composable
 fun SectionCard(
     title: String,
@@ -31,21 +35,27 @@ fun SectionCard(
     content: @Composable () -> Unit,
 ) {
     Card(modifier = modifier.fillMaxWidth()) {
-        Column(Modifier.padding(16.dp)) {
+        Column {
+            // Retro window-style title bar: filled accent bar with dark text.
             Row(
-                Modifier.fillMaxWidth(),
+                Modifier
+                    .fillMaxWidth()
+                    .background(MaterialTheme.colorScheme.primary)
+                    .padding(horizontal = 12.dp, vertical = 6.dp),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 Text(
-                    title,
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.SemiBold,
+                    "▌ $title",
+                    style = MaterialTheme.typography.titleSmall,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.onPrimary,
                 )
                 trailing?.invoke()
             }
-            Spacer(Modifier.height(12.dp))
-            content()
+            Column(Modifier.padding(16.dp)) {
+                content()
+            }
         }
     }
 }

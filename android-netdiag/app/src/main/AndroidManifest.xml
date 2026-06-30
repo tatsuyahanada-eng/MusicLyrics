@@ -15,10 +15,6 @@
     <uses-permission android:name="android.permission.NEARBY_WIFI_DEVICES"
         android:usesPermissionFlags="neverForLocation" />
 
-    <!-- Per-app data usage (granted by the user via Settings > Usage access) -->
-    <uses-permission android:name="android.permission.PACKAGE_USAGE_STATS"
-        tools:ignore="ProtectedPermissions" />
-
     <application
         android:allowBackup="false"
         android:icon="@mipmap/ic_launcher"

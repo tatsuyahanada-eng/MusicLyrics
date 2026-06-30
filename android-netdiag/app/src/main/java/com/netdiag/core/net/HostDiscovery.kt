@@ -18,6 +18,7 @@ data class DiscoveredHost(
     val ip: String,
     val hostname: String? = null,
     val mac: String? = null,
+    val vendor: String? = null,
     val openPorts: List<Int> = emptyList(),
     val isGateway: Boolean = false,
     val isSelf: Boolean = false,
@@ -66,11 +67,11 @@ object HostDiscovery {
                 }
             }
             for ((idx, d) in deferred.withIndex()) {
-                val reachable = d.await()
+                val alivePort = d.await()
                 scanned++
-                if (reachable) {
+                if (alivePort != PROBE_DEAD) {
                     alive++
-                    val host = enrich(hosts[idx], info, arp)
+                    val host = enrich(hosts[idx], info, arp, alivePort)
                     emit(ScanEvent.Found(host))
                 }
                 emit(ScanEvent.Progress(scanned, total))
@@ -79,9 +80,17 @@ object HostDiscovery {
         emit(ScanEvent.Done(alive, total))
     }.flowOn(Dispatchers.IO)
 
-    private fun probe(ip: String, timeoutMs: Int): Boolean {
+    private const val PROBE_DEAD = -1
+    private const val PROBE_ICMP = 0
+
+    /**
+     * Returns [PROBE_DEAD] if the host did not respond, [PROBE_ICMP] if it
+     * answered ICMP, or the TCP port number that proved it alive. The port is
+     * later used as a free hint for device classification.
+     */
+    private fun probe(ip: String, timeoutMs: Int): Int {
         try {
-            if (InetAddress.getByName(ip).isReachable(timeoutMs)) return true
+            if (InetAddress.getByName(ip).isReachable(timeoutMs)) return PROBE_ICMP
         } catch (_: Exception) {
             // fall through to TCP probing
         }
@@ -93,28 +102,31 @@ object HostDiscovery {
                 Socket().use { s ->
                     s.connect(InetSocketAddress(ip, port), perPort)
                 }
-                return true // handshake completed -> host up
+                return port // handshake completed -> host up
             } catch (e: java.net.ConnectException) {
                 // "Connection refused" means the host is up but the port is closed.
-                if (e.message?.contains("refused", ignoreCase = true) == true) return true
+                if (e.message?.contains("refused", ignoreCase = true) == true) return PROBE_ICMP
             } catch (_: Exception) {
                 // timeout / unreachable -> try next port
             }
         }
-        return false
+        return PROBE_DEAD
     }
 
-    private fun enrich(ip: String, info: NetInfo, arp: Map<String, String>): DiscoveredHost {
+    private fun enrich(ip: String, info: NetInfo, arp: Map<String, String>, alivePort: Int): DiscoveredHost {
         val hostname = try {
             val name = InetAddress.getByName(ip).canonicalHostName
             if (name == ip) null else name
         } catch (_: Exception) {
             null
         }
+        val mac = arp[ip]
         return DiscoveredHost(
             ip = ip,
             hostname = hostname,
-            mac = arp[ip],
+            mac = mac,
+            vendor = OuiVendors.lookup(mac),
+            openPorts = if (alivePort > 0) listOf(alivePort) else emptyList(),
             isGateway = ip == info.gateway,
             isSelf = ip == info.ipv4,
         )

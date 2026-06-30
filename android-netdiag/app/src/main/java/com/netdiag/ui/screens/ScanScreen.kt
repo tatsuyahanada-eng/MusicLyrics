@@ -20,21 +20,35 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Computer
+import androidx.compose.material.icons.filled.DevicesOther
+import androidx.compose.material.icons.filled.Lightbulb
+import androidx.compose.material.icons.filled.Print
 import androidx.compose.material.icons.filled.Router
 import androidx.compose.material.icons.filled.Smartphone
-import androidx.compose.material.icons.filled.DevicesOther
+import androidx.compose.material.icons.filled.Storage
+import androidx.compose.material.icons.filled.Tv
+import androidx.compose.material.icons.filled.Videocam
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import android.content.Intent
+import android.net.Uri
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.netdiag.core.net.DeviceClassifier
+import com.netdiag.core.net.DeviceKind
 import com.netdiag.core.net.DiscoveredHost
 import com.netdiag.core.net.PortScanner
 import com.netdiag.ui.LabeledValue
+import com.netdiag.ui.NameColor
 import com.netdiag.ui.SectionCard
 import com.netdiag.ui.Tag
 
@@ -128,36 +142,34 @@ fun ScanScreen(vm: ScanViewModel = viewModel()) {
 @OptIn(androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
 @Composable
 private fun HostCard(host: DiscoveredHost, scanning: Boolean, onPortScan: () -> Unit) {
+    val context = LocalContext.current
+    val type = remember(host) { DeviceClassifier.classify(host) }
     Card(Modifier.fillMaxWidth()) {
         Column(Modifier.padding(16.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                val icon = when {
-                    host.isGateway -> Icons.Filled.Router
-                    host.isSelf -> Icons.Filled.Smartphone
-                    else -> Icons.Filled.DevicesOther
-                }
-                Icon(icon, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
+                Icon(iconFor(type.kind), contentDescription = null,
+                    tint = MaterialTheme.colorScheme.primary)
                 Spacer(Modifier.width(10.dp))
                 Column(Modifier.weight(1f)) {
                     Text(
                         host.ip,
                         fontFamily = FontFamily.Monospace,
-                        fontWeight = FontWeight.SemiBold,
+                        fontWeight = FontWeight.Bold,
+                        color = NameColor,
                         style = MaterialTheme.typography.bodyLarge,
                     )
                     host.hostname?.let {
-                        Text(it, style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Text(it, color = NameColor, style = MaterialTheme.typography.bodySmall)
                     }
                 }
-                when {
-                    host.isGateway -> Tag("ゲートウェイ", MaterialTheme.colorScheme.primary)
-                    host.isSelf -> Tag("この端末", MaterialTheme.colorScheme.secondary)
-                    else -> {}
-                }
+                Tag(type.label, MaterialTheme.colorScheme.primary)
+            }
+            host.vendor?.let {
+                Spacer(Modifier.height(6.dp))
+                LabeledValue("メーカー", it)
             }
             host.mac?.let {
-                Spacer(Modifier.height(6.dp))
+                Spacer(Modifier.height(2.dp))
                 LabeledValue("MAC", it, monospace = true)
             }
             if (host.openPorts.isNotEmpty()) {
@@ -169,17 +181,39 @@ private fun HostCard(host: DiscoveredHost, scanning: Boolean, onPortScan: () -> 
                 }
             }
             Spacer(Modifier.height(8.dp))
-            if (scanning) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalAlignment = Alignment.CenterVertically) {
+                if (scanning) {
                     CircularProgressIndicator(Modifier.height(18.dp).width(18.dp), strokeWidth = 2.dp)
                     Spacer(Modifier.width(8.dp))
                     Text("ポート調査中…", style = MaterialTheme.typography.bodySmall)
+                } else {
+                    OutlinedButton(onClick = onPortScan) {
+                        Text(if (host.openPorts.size <= 1) "ポート調査" else "再調査")
+                    }
                 }
-            } else {
-                OutlinedButton(onClick = onPortScan) {
-                    Text(if (host.openPorts.isEmpty()) "ポート調査" else "再調査")
+                if (host.isGateway) {
+                    OutlinedButton(onClick = {
+                        runCatching {
+                            context.startActivity(
+                                Intent(Intent.ACTION_VIEW, Uri.parse("http://${host.ip}"))
+                            )
+                        }
+                    }) { Text("管理画面") }
                 }
             }
         }
     }
+}
+
+private fun iconFor(kind: DeviceKind): ImageVector = when (kind) {
+    DeviceKind.SELF, DeviceKind.PHONE -> Icons.Filled.Smartphone
+    DeviceKind.ROUTER -> Icons.Filled.Router
+    DeviceKind.PRINTER -> Icons.Filled.Print
+    DeviceKind.NAS -> Icons.Filled.Storage
+    DeviceKind.PC -> Icons.Filled.Computer
+    DeviceKind.TV -> Icons.Filled.Tv
+    DeviceKind.CAMERA -> Icons.Filled.Videocam
+    DeviceKind.IOT -> Icons.Filled.Lightbulb
+    DeviceKind.UNKNOWN -> Icons.Filled.DevicesOther
 }

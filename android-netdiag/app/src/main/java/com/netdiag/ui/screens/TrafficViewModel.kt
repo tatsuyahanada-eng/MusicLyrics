@@ -3,7 +3,6 @@ package com.netdiag.ui.screens
 import android.app.Application
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
-import com.netdiag.core.traffic.AppTraffic
 import com.netdiag.core.traffic.TrafficMonitor
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -18,15 +17,12 @@ data class TrafficUiState(
     val txRate: Long = 0,
     val peakRxRate: Long = 0,
     val peakTxRate: Long = 0,
-    val hasUsageAccess: Boolean = false,
-    val apps: List<AppTraffic> = emptyList(),
-    val loadingApps: Boolean = false,
 )
 
 class TrafficViewModel(app: Application) : AndroidViewModel(app) {
 
     private val monitor = TrafficMonitor(app)
-    private val _state = MutableStateFlow(TrafficUiState(hasUsageAccess = monitor.hasUsageAccess()))
+    private val _state = MutableStateFlow(TrafficUiState())
     val state: StateFlow<TrafficUiState> = _state.asStateFlow()
 
     private var tpJob: Job? = null
@@ -57,21 +53,5 @@ class TrafficViewModel(app: Application) : AndroidViewModel(app) {
         tpJob?.cancel()
         tpJob = null
         _state.update { it.copy(monitoring = false, rxRate = 0, txRate = 0) }
-    }
-
-    /** Re-checks the usage-access grant (e.g. after returning from Settings). */
-    fun refreshPermission() {
-        val has = monitor.hasUsageAccess()
-        _state.update { it.copy(hasUsageAccess = has) }
-        if (has) loadApps()
-    }
-
-    fun loadApps() {
-        if (!monitor.hasUsageAccess()) return
-        _state.update { it.copy(loadingApps = true) }
-        viewModelScope.launch {
-            val apps = monitor.wifiUsageByApp()
-            _state.update { it.copy(apps = apps, loadingApps = false) }
-        }
     }
 }

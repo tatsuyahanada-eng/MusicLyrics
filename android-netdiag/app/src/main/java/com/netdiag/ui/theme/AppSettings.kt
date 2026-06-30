@@ -7,13 +7,13 @@ import androidx.compose.ui.graphics.Color
 enum class Accent(val label: String, val bright: Color, val dim: Color) {
     GREEN("蛍光グリーン", Color(0xFF00FF66), Color(0xFF1F9E55)),
     CYAN("蛍光シアン", Color(0xFF00E5FF), Color(0xFF1C8FA3)),
-    PINK("蛍光ピンク", Color(0xFFFF2EA6), Color(0xFFA8276E)),
+    YELLOW("蛍光イエロー", Color(0xFFFFF200), Color(0xFFA39800)),
 }
 
-/** Background shade behind the phosphor text. */
+/** Background shade behind the phosphor text (kept clearly distinct). */
 enum class AppBackground(val label: String, val bg: Color, val surface: Color, val track: Color) {
-    BLACK("ブラック", Color(0xFF000000), Color(0xFF0E0E0E), Color(0xFF1E1E1E)),
-    GRAY("グレー", Color(0xFF161616), Color(0xFF242424), Color(0xFF333333)),
+    BLACK("ブラック", Color(0xFF000000), Color(0xFF101010), Color(0xFF242424)),
+    GRAY("グレー", Color(0xFF2E2E2E), Color(0xFF3D3D3D), Color(0xFF565656)),
 }
 
 data class AppSettings(
