@@ -55,7 +55,7 @@ fun TrafficScreen(vm: TrafficViewModel = viewModel()) {
                     color = MaterialTheme.colorScheme.onSurfaceVariant)
                 Spacer(Modifier.height(4.dp))
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    listOf(10, 30, 60, 120).forEach { sec ->
+                    listOf(10, 30, 60).forEach { sec ->
                         val selected = s.durationSec == sec
                         if (selected) {
                             Button(onClick = { vm.setDuration(sec) }, enabled = !s.monitoring) {

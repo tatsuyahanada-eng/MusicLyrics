@@ -17,6 +17,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
@@ -147,6 +148,17 @@ private fun splitOctets(ip: String): List<String> {
 fun OctetIpField(label: String, value: String, onChange: (String) -> Unit) {
     val octets = remember { mutableStateListOf(*splitOctets(value).toTypedArray()) }
     val focus = remember { List(4) { FocusRequester() } }
+
+    // Sync when the value is changed from outside (e.g. a RESET button). We
+    // skip the case where it already matches what we emitted, so normal typing
+    // isn't disturbed.
+    LaunchedEffect(value) {
+        val current = octets.joinToString(".") { (it.ifEmpty { "0" }).toInt().toString() }
+        if (value != current) {
+            val parts = splitOctets(value)
+            for (i in 0..3) octets[i] = parts[i]
+        }
+    }
 
     Column {
         Text(

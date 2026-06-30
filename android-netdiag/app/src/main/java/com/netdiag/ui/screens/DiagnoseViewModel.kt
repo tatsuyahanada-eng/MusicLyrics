@@ -11,12 +11,14 @@ import com.netdiag.core.net.PingTool
 import com.netdiag.core.net.SystemDnsResult
 import com.netdiag.core.net.TraceEvent
 import com.netdiag.core.net.Traceroute
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 data class DiagnoseUiState(
     // Ping
@@ -44,6 +46,23 @@ data class DiagnoseUiState(
     val dnsRunning: Boolean = false,
     val systemDns: SystemDnsResult? = null,
     val serverDns: DnsServerResult? = null,
+    // External reachability (internet) test
+    val extRunning: Boolean = false,
+    val extResults: List<ExtResult> = DiagnoseViewModel.EXTERNAL_TARGETS.map {
+        ExtResult(it.first, it.second)
+    },
+    val wanIp: String? = null,
+    val wanLoading: Boolean = false,
+)
+
+/** Result of an internet-reachability ping to a well-known host. */
+data class ExtResult(
+    val label: String,
+    val host: String,
+    val running: Boolean = false,
+    val reachable: Boolean? = null,
+    val lossPercent: Double? = null,
+    val avgMs: Double? = null,
 )
 
 class DiagnoseViewModel(app: Application) : AndroidViewModel(app) {
@@ -92,11 +111,12 @@ class DiagnoseViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
-    /** Clears the ping results so a fresh run can start from scratch. */
+    /** Clears the ping results AND the target IP so a fresh run starts blank. */
     fun resetPing() {
         pingJob?.cancel()
         _state.update {
             it.copy(
+                pingHost = "",
                 pingRunning = false,
                 pingReplies = emptyList(),
                 pingSummary = null,
@@ -127,6 +147,69 @@ class DiagnoseViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
+    /**
+     * Pings well-known external hosts (Google / Yahoo) and fetches the public
+     * (WAN) IP, to confirm the device really reaches the internet — not just
+     * the LAN.
+     */
+    fun runExternalTests() {
+        if (_state.value.extRunning) return
+        _state.update {
+            it.copy(
+                extRunning = true,
+                wanLoading = true,
+                wanIp = null,
+                extResults = EXTERNAL_TARGETS.map { t -> ExtResult(t.first, t.second, running = true) },
+            )
+        }
+        viewModelScope.launch {
+            val wanJob = launch {
+                val ip = fetchPublicIp()
+                _state.update { it.copy(wanIp = ip, wanLoading = false) }
+            }
+            val pingJobs = EXTERNAL_TARGETS.mapIndexed { index, target ->
+                launch {
+                    var summary: PingEvent.Summary? = null
+                    var error = false
+                    PingTool.ping(target.second, count = 4, perPacketTimeoutSec = 2)
+                        .collect { ev ->
+                            when (ev) {
+                                is PingEvent.Summary -> summary = ev
+                                is PingEvent.Error -> error = true
+                                else -> {}
+                            }
+                        }
+                    val reachable = !error && (summary?.received ?: 0) > 0
+                    _state.update { s ->
+                        s.copy(extResults = s.extResults.toMutableList().also { list ->
+                            list[index] = list[index].copy(
+                                running = false,
+                                reachable = reachable,
+                                lossPercent = summary?.lossPercent,
+                                avgMs = summary?.avgMs,
+                            )
+                        })
+                    }
+                }
+            }
+            pingJobs.forEach { it.join() }
+            wanJob.join()
+            _state.update { it.copy(extRunning = false) }
+        }
+    }
+
+    private suspend fun fetchPublicIp(): String? = withContext(Dispatchers.IO) {
+        try {
+            val conn = (java.net.URL("https://api.ipify.org").openConnection() as java.net.HttpURLConnection)
+            conn.connectTimeout = 5000
+            conn.readTimeout = 5000
+            conn.requestMethod = "GET"
+            conn.inputStream.bufferedReader().use { it.readText().trim() }.takeIf { it.isNotBlank() }
+        } catch (_: Exception) {
+            null
+        }
+    }
+
     fun runDns() {
         if (_state.value.dnsRunning) return
         val s = _state.value
@@ -137,5 +220,14 @@ class DiagnoseViewModel(app: Application) : AndroidViewModel(app) {
             val server = DnsTool.queryServer(s.dnsServer.trim(), s.dnsHost.trim())
             _state.update { it.copy(serverDns = server, dnsRunning = false) }
         }
+    }
+
+    companion object {
+        /** label -> host. Mix of an IP (DNS) and names (DNS resolution + reach). */
+        val EXTERNAL_TARGETS: List<Pair<String, String>> = listOf(
+            "Google DNS" to "8.8.8.8",
+            "Google" to "www.google.com",
+            "Yahoo! JAPAN" to "www.yahoo.co.jp",
+        )
     }
 }

@@ -30,6 +30,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.netdiag.core.net.Hop
 import com.netdiag.ui.LabeledValue
 import com.netdiag.ui.MonoSmall
+import com.netdiag.ui.NameColor
 import com.netdiag.ui.OctetIpField
 import com.netdiag.ui.SectionCard
 
@@ -78,6 +79,67 @@ fun DiagnoseScreen(vm: DiagnoseViewModel = viewModel()) {
                     Spacer(Modifier.height(10.dp))
                     s.pingReplies.takeLast(12).forEach { r ->
                         MonoSmall("seq=${r.seq}  ttl=${r.ttl ?: "-"}  time=${"%.1f".format(r.rttMs)} ms")
+                    }
+                }
+            }
+        }
+
+        // ---- External reachability ----
+        item {
+            SectionCard("外部疎通テスト（インターネット接続確認）") {
+                Text(
+                    "Google / Yahoo へ実際に通信できるか、外（インターネット）への到達性を確認します。",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                Spacer(Modifier.height(8.dp))
+                Button(onClick = vm::runExternalTests, enabled = !s.extRunning) {
+                    Text(if (s.extRunning) "テスト中…" else "テスト実行")
+                }
+                Spacer(Modifier.height(10.dp))
+                LabeledValue(
+                    "グローバルIP",
+                    when {
+                        s.wanLoading -> "取得中…"
+                        s.wanIp != null -> s.wanIp!!
+                        else -> "-"
+                    },
+                    monospace = true,
+                )
+                Spacer(Modifier.height(6.dp))
+                s.extResults.forEach { r ->
+                    val mark = when {
+                        r.running -> "…"
+                        r.reachable == true -> "✓"
+                        r.reachable == false -> "✗"
+                        else -> "-"
+                    }
+                    val color = when (r.reachable) {
+                        true -> MaterialTheme.colorScheme.primary
+                        false -> MaterialTheme.colorScheme.error
+                        else -> MaterialTheme.colorScheme.onSurfaceVariant
+                    }
+                    Row(Modifier.fillMaxWidth().padding(vertical = 3.dp),
+                        verticalAlignment = Alignment.CenterVertically) {
+                        Text(mark, color = color, fontFamily = FontFamily.Monospace,
+                            style = MaterialTheme.typography.titleMedium)
+                        Spacer(Modifier.width(10.dp))
+                        Column(Modifier.weight(1f)) {
+                            Text(r.label, color = NameColor,
+                                style = MaterialTheme.typography.bodyMedium)
+                            Text(r.host, style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        }
+                        if (r.reachable == true) {
+                            Text(
+                                "loss ${"%.0f".format(r.lossPercent ?: 0.0)}% / ${fmt(r.avgMs)}ms",
+                                style = MaterialTheme.typography.bodySmall,
+                                fontFamily = FontFamily.Monospace,
+                            )
+                        } else if (r.reachable == false) {
+                            Text("到達不可", color = MaterialTheme.colorScheme.error,
+                                style = MaterialTheme.typography.bodySmall)
+                        }
                     }
                 }
             }
