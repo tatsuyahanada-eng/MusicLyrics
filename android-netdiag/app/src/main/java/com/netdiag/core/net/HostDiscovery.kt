@@ -80,7 +80,7 @@ object HostDiscovery {
     }.flowOn(Dispatchers.IO)
 
     private fun probe(ip: String, timeoutMs: Int): Boolean {
-        return try {
+        try {
             if (InetAddress.getByName(ip).isReachable(timeoutMs)) return true
         } catch (_: Exception) {
             // fall through to TCP probing
