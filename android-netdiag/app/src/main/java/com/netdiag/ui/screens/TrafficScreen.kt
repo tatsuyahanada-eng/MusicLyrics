@@ -11,6 +11,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.material3.Button
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -49,14 +50,35 @@ fun TrafficScreen(vm: TrafficViewModel = viewModel()) {
                     peak = s.peakTxRate,
                     color = MaterialTheme.colorScheme.secondary,
                 )
-                Spacer(Modifier.height(16.dp))
+                Spacer(Modifier.height(14.dp))
+                Text("計測時間", style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Spacer(Modifier.height(4.dp))
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    listOf(10, 30, 60, 120).forEach { sec ->
+                        val selected = s.durationSec == sec
+                        if (selected) {
+                            Button(onClick = { vm.setDuration(sec) }, enabled = !s.monitoring) {
+                                Text("${sec}秒")
+                            }
+                        } else {
+                            OutlinedButton(onClick = { vm.setDuration(sec) }, enabled = !s.monitoring) {
+                                Text("${sec}秒")
+                            }
+                        }
+                    }
+                }
+                Spacer(Modifier.height(12.dp))
                 Button(onClick = { vm.toggleMonitoring() }, modifier = Modifier.fillMaxWidth()) {
-                    Text(if (s.monitoring) "■ STOP（計測停止）" else "▶ START（計測開始）")
+                    Text(
+                        if (s.monitoring) "■ STOP（残り ${s.remainingSec}秒）"
+                        else "▶ START（${s.durationSec}秒間 計測）"
+                    )
                 }
                 Spacer(Modifier.height(8.dp))
                 Text(
-                    "B/s = 1秒あたりのバイト数、Mbps = 回線速度（ビット毎秒）。" +
-                        "異常な大量通信（暴走DL・ブロードキャスト等）の早期発見に。",
+                    "STARTすると指定時間で自動的に停止します。" +
+                        "B/s=バイト毎秒、Mbps=回線速度（ビット毎秒）。",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )

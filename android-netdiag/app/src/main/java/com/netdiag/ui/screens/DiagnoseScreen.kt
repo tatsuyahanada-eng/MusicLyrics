@@ -14,6 +14,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.Button
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
@@ -54,8 +55,11 @@ fun DiagnoseScreen(vm: DiagnoseViewModel = viewModel()) {
                     NumField("待機s", s.pingTimeoutSec, vm::setPingTimeout)
                 }
                 Spacer(Modifier.height(8.dp))
-                Button(onClick = vm::runPing) {
-                    Text(if (s.pingRunning) "停止" else "Ping 実行")
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Button(onClick = vm::runPing) {
+                        Text(if (s.pingRunning) "停止" else "Ping 実行")
+                    }
+                    OutlinedButton(onClick = vm::resetPing) { Text("RESET") }
                 }
                 s.pingError?.let {
                     Spacer(Modifier.height(8.dp))

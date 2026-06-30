@@ -19,6 +19,7 @@ data class DiscoveredHost(
     val hostname: String? = null,
     val mac: String? = null,
     val vendor: String? = null,
+    val ttl: Int? = null,
     val openPorts: List<Int> = emptyList(),
     val isGateway: Boolean = false,
     val isSelf: Boolean = false,
@@ -40,22 +41,41 @@ object HostDiscovery {
 
     private val PROBE_PORTS = intArrayOf(80, 443, 22, 445, 139, 53, 8080, 7, 9100, 62078)
 
+    /** Scans the whole subnet the device is attached to. */
     fun scan(
         info: NetInfo,
         parallelism: Int = 64,
         reachableTimeoutMs: Int = 600,
-    ): Flow<ScanEvent> = flow {
+    ): Flow<ScanEvent> {
         val ip = info.ipv4
         val prefix = info.prefixLength
-        if (ip == null || prefix == null) {
+        if (ip == null || prefix == null) return flow { emit(ScanEvent.Done(0, 0)) }
+        return sweep(NetUtils.hostAddresses(ip, prefix), info, parallelism, reachableTimeoutMs)
+    }
+
+    /** Scans an explicit, user-specified IPv4 range (inclusive). */
+    fun scanRange(
+        info: NetInfo,
+        startIp: String,
+        endIp: String,
+        parallelism: Int = 64,
+        reachableTimeoutMs: Int = 600,
+    ): Flow<ScanEvent> =
+        sweep(NetUtils.rangeAddresses(startIp, endIp), info, parallelism, reachableTimeoutMs)
+
+    private fun sweep(
+        hosts: List<String>,
+        info: NetInfo,
+        parallelism: Int,
+        reachableTimeoutMs: Int,
+    ): Flow<ScanEvent> = flow {
+        val total = hosts.size
+        emit(ScanEvent.Progress(0, total))
+        if (total == 0) {
             emit(ScanEvent.Done(0, 0))
             return@flow
         }
-        val hosts = NetUtils.hostAddresses(ip, prefix)
-        val total = hosts.size
-        emit(ScanEvent.Progress(0, total))
 
-        val arp = ArpTable.snapshot()
         val gate = Semaphore(parallelism)
         var scanned = 0
         var alive = 0
@@ -71,7 +91,9 @@ object HostDiscovery {
                 scanned++
                 if (alivePort != PROBE_DEAD) {
                     alive++
-                    val host = enrich(hosts[idx], info, arp, alivePort)
+                    // Read ARP per alive host: the cache is populated only
+                    // after we have just exchanged packets with it.
+                    val host = enrich(hosts[idx], info, ArpTable.lookup(hosts[idx]), alivePort)
                     emit(ScanEvent.Found(host))
                 }
                 emit(ScanEvent.Progress(scanned, total))
@@ -113,14 +135,13 @@ object HostDiscovery {
         return PROBE_DEAD
     }
 
-    private fun enrich(ip: String, info: NetInfo, arp: Map<String, String>, alivePort: Int): DiscoveredHost {
+    private fun enrich(ip: String, info: NetInfo, mac: String?, alivePort: Int): DiscoveredHost {
         val hostname = try {
             val name = InetAddress.getByName(ip).canonicalHostName
             if (name == ip) null else name
         } catch (_: Exception) {
             null
         }
-        val mac = arp[ip]
         return DiscoveredHost(
             ip = ip,
             hostname = hostname,

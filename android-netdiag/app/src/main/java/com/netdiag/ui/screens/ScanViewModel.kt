@@ -7,6 +7,8 @@ import com.netdiag.core.net.DiscoveredHost
 import com.netdiag.core.net.HostDiscovery
 import com.netdiag.core.net.NetInfo
 import com.netdiag.core.net.NetworkInfoProvider
+import com.netdiag.core.net.NetUtils
+import com.netdiag.core.net.PingTool
 import com.netdiag.core.net.PortScanner
 import com.netdiag.core.net.ScanEvent
 import com.netdiag.core.net.mdns.MdnsDiscovery
@@ -24,6 +26,10 @@ data class ScanUiState(
     val total: Int = 0,
     val hosts: List<DiscoveredHost> = emptyList(),
     val portScanning: Set<String> = emptySet(),
+    // User-specified scan range
+    val rangeMode: Boolean = false,
+    val rangeStart: String = "",
+    val rangeEnd: String = "",
 )
 
 class ScanViewModel(app: Application) : AndroidViewModel(app) {
@@ -34,15 +40,39 @@ class ScanViewModel(app: Application) : AndroidViewModel(app) {
     private val _state = MutableStateFlow(ScanUiState(info = infoProvider.current()))
     val state: StateFlow<ScanUiState> = _state.asStateFlow()
 
+    init {
+        seedRangeDefaults(_state.value.info)
+    }
+
     private var scanJob: Job? = null
 
     fun refreshInfo() {
-        _state.update { it.copy(info = infoProvider.current()) }
+        val info = infoProvider.current()
+        _state.update { it.copy(info = info) }
+        seedRangeDefaults(info)
+    }
+
+    fun setRangeMode(v: Boolean) = _state.update { it.copy(rangeMode = v) }
+    fun setRangeStart(v: String) = _state.update { it.copy(rangeStart = v) }
+    fun setRangeEnd(v: String) = _state.update { it.copy(rangeEnd = v) }
+
+    /** Pre-fills the range boxes with the current subnet's first/last host. */
+    private fun seedRangeDefaults(info: NetInfo) {
+        val ip = info.ipv4 ?: return
+        val prefix = info.prefixLength ?: return
+        val hosts = NetUtils.hostAddresses(ip, prefix)
+        if (hosts.isEmpty()) return
+        _state.update {
+            if (it.rangeStart.isBlank() || it.rangeEnd.isBlank()) {
+                it.copy(rangeStart = hosts.first(), rangeEnd = hosts.last())
+            } else it
+        }
     }
 
     fun startScan() {
         if (_state.value.scanning) return
         val info = infoProvider.current()
+        val s = _state.value
         _state.update {
             it.copy(info = info, scanning = true, hosts = emptyList(), progress = 0, total = 0)
         }
@@ -61,7 +91,12 @@ class ScanViewModel(app: Application) : AndroidViewModel(app) {
                 }
             }
 
-            HostDiscovery.scan(info).collect { event ->
+            val flow = if (s.rangeMode && s.rangeStart.isNotBlank() && s.rangeEnd.isNotBlank()) {
+                HostDiscovery.scanRange(info, s.rangeStart, s.rangeEnd)
+            } else {
+                HostDiscovery.scan(info)
+            }
+            flow.collect { event ->
                 when (event) {
                     is ScanEvent.Progress ->
                         _state.update { it.copy(progress = event.scanned, total = event.total) }
@@ -85,10 +120,13 @@ class ScanViewModel(app: Application) : AndroidViewModel(app) {
         _state.update { it.copy(portScanning = it.portScanning + ip) }
         viewModelScope.launch {
             val open = runCatching { PortScanner.scan(ip) }.getOrDefault(emptyList())
+            val ttl = runCatching { PingTool.probeTtl(ip) }.getOrNull()
             _state.update { s ->
                 s.copy(
                     portScanning = s.portScanning - ip,
-                    hosts = s.hosts.map { if (it.ip == ip) it.copy(openPorts = open) else it },
+                    hosts = s.hosts.map {
+                        if (it.ip == ip) it.copy(openPorts = open, ttl = ttl ?: it.ttl) else it
+                    },
                 )
             }
         }

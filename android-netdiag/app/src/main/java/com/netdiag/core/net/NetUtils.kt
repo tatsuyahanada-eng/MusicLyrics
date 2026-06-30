@@ -42,6 +42,25 @@ object NetUtils {
         return result
     }
 
+    /**
+     * Every address in the inclusive range [startIp]..[endIp] (order-tolerant),
+     * capped at [maxHosts]. Used for user-specified scan ranges.
+     */
+    fun rangeAddresses(startIp: String, endIp: String, maxHosts: Int = 4096): List<String> {
+        val a = runCatching { ipToInt(startIp) }.getOrNull() ?: return emptyList()
+        val b = runCatching { ipToInt(endIp) }.getOrNull() ?: return emptyList()
+        val lo = minOf(a, b)
+        val hi = maxOf(a, b)
+        val result = ArrayList<String>()
+        var addr = lo
+        while (addr <= hi && result.size < maxHosts) {
+            result.add(intToIp(addr))
+            if (addr == hi) break // guard against Int overflow at 255.255.255.255
+            addr++
+        }
+        return result
+    }
+
     /** Human readable subnet mask for a CIDR prefix, e.g. 24 -> 255.255.255.0 */
     fun prefixToMask(prefix: Int): String {
         val mask = if (prefix == 0) 0 else (-1 shl (32 - prefix))

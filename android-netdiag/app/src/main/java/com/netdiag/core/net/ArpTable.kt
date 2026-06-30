@@ -33,5 +33,22 @@ object ArpTable {
         }
     }
 
+    /** Looks up a single IP's MAC from the live ARP cache (best-effort). */
+    fun lookup(ip: String): String? {
+        val file = File("/proc/net/arp")
+        if (!file.canRead()) return null
+        return try {
+            file.useLines { lines ->
+                lines.drop(1)
+                    .map { it.trim().split(Regex("\\s+")) }
+                    .filter { it.size >= 4 && it[0] == ip }
+                    .map { it[3].lowercase() }
+                    .firstOrNull { it != "00:00:00:00:00:00" && it.matches(MAC_REGEX) }
+            }
+        } catch (_: Exception) {
+            null
+        }
+    }
+
     private val MAC_REGEX = Regex("([0-9a-f]{2}:){5}[0-9a-f]{2}")
 }

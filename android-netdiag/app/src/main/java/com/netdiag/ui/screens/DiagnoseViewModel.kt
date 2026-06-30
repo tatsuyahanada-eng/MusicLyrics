@@ -92,6 +92,19 @@ class DiagnoseViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
+    /** Clears the ping results so a fresh run can start from scratch. */
+    fun resetPing() {
+        pingJob?.cancel()
+        _state.update {
+            it.copy(
+                pingRunning = false,
+                pingReplies = emptyList(),
+                pingSummary = null,
+                pingError = null,
+            )
+        }
+    }
+
     fun runTrace() {
         if (_state.value.traceRunning) { traceJob?.cancel(); _state.update { it.copy(traceRunning = false) }; return }
         val host = _state.value.traceHost.trim()

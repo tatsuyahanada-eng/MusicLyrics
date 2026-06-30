@@ -18,6 +18,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Computer
@@ -46,9 +47,11 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.netdiag.core.net.DeviceClassifier
 import com.netdiag.core.net.DeviceKind
 import com.netdiag.core.net.DiscoveredHost
+import com.netdiag.core.net.OsGuesser
 import com.netdiag.core.net.PortScanner
 import com.netdiag.ui.LabeledValue
 import com.netdiag.ui.NameColor
+import com.netdiag.ui.OctetIpField
 import com.netdiag.ui.SectionCard
 import com.netdiag.ui.Tag
 
@@ -78,6 +81,18 @@ fun ScanScreen(vm: ScanViewModel = viewModel()) {
                         color = MaterialTheme.colorScheme.error,
                         style = MaterialTheme.typography.bodyMedium,
                     )
+                }
+                Spacer(Modifier.height(12.dp))
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text("範囲を指定", style = MaterialTheme.typography.bodyMedium)
+                    Spacer(Modifier.width(8.dp))
+                    Switch(checked = state.rangeMode, onCheckedChange = vm::setRangeMode)
+                }
+                if (state.rangeMode) {
+                    Spacer(Modifier.height(8.dp))
+                    OctetIpField("開始IP", state.rangeStart, vm::setRangeStart)
+                    Spacer(Modifier.height(8.dp))
+                    OctetIpField("終了IP", state.rangeEnd, vm::setRangeEnd)
                 }
                 Spacer(Modifier.height(12.dp))
                 Row(verticalAlignment = Alignment.CenterVertically) {
@@ -164,14 +179,15 @@ private fun HostCard(host: DiscoveredHost, scanning: Boolean, onPortScan: () -> 
                 }
                 Tag(type.label, MaterialTheme.colorScheme.primary)
             }
+            Spacer(Modifier.height(4.dp))
+            OsGuesser.guess(host)?.let {
+                LabeledValue("OS(推定)", it)
+            }
             host.vendor?.let {
-                Spacer(Modifier.height(6.dp))
                 LabeledValue("メーカー", it)
             }
-            host.mac?.let {
-                Spacer(Modifier.height(2.dp))
-                LabeledValue("MAC", it, monospace = true)
-            }
+            LabeledValue("MAC", host.mac ?: "取得不可", monospace = true)
+            host.ttl?.let { LabeledValue("TTL", it.toString(), monospace = true) }
             if (host.openPorts.isNotEmpty()) {
                 Spacer(Modifier.height(8.dp))
                 FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
@@ -189,7 +205,7 @@ private fun HostCard(host: DiscoveredHost, scanning: Boolean, onPortScan: () -> 
                     Text("ポート調査中…", style = MaterialTheme.typography.bodySmall)
                 } else {
                     OutlinedButton(onClick = onPortScan) {
-                        Text(if (host.openPorts.size <= 1) "ポート調査" else "再調査")
+                        Text(if (host.openPorts.size <= 1) "詳細取得" else "再取得")
                     }
                 }
                 if (host.isGateway) {

@@ -112,6 +112,19 @@ object PingTool {
         )
     }.flowOn(Dispatchers.IO)
 
+    /** Single ping to read the reply TTL (used for a rough OS guess). */
+    suspend fun probeTtl(host: String): Int? = kotlinx.coroutines.withContext(Dispatchers.IO) {
+        try {
+            val process = ProcessBuilder(listOf("ping", "-c", "1", "-W", "1", host))
+                .redirectErrorStream(true).start()
+            val text = process.inputStream.bufferedReader().use { it.readText() }
+            runCatching { process.waitFor() }
+            Regex("ttl=(\\d+)", RegexOption.IGNORE_CASE).find(text)?.groupValues?.get(1)?.toIntOrNull()
+        } catch (_: Exception) {
+            null
+        }
+    }
+
     private fun stddev(values: List<Double>): Double? {
         if (values.size < 2) return null
         val mean = values.average()
