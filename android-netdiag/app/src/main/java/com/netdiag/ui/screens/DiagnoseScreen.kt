@@ -2,6 +2,8 @@ package com.netdiag.ui.screens
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -13,9 +15,11 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.Button
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.input.KeyboardType
@@ -27,6 +31,7 @@ import com.netdiag.ui.LabeledValue
 import com.netdiag.ui.MonoSmall
 import com.netdiag.ui.SectionCard
 
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun DiagnoseScreen(vm: DiagnoseViewModel = viewModel()) {
     val s by vm.state.collectAsStateWithLifecycle()
@@ -46,6 +51,13 @@ fun DiagnoseScreen(vm: DiagnoseViewModel = viewModel()) {
                     singleLine = true,
                     modifier = Modifier.fillMaxWidth(),
                 )
+                Spacer(Modifier.height(8.dp))
+                FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    NumField("回数", s.pingCount, vm::setPingCount)
+                    NumField("サイズB", s.pingSize, vm::setPingSize)
+                    NumField("間隔ms", s.pingIntervalMs, vm::setPingInterval)
+                    NumField("待機s", s.pingTimeoutSec, vm::setPingTimeout)
+                }
                 Spacer(Modifier.height(8.dp))
                 Button(onClick = vm::runPing) {
                     Text(if (s.pingRunning) "停止" else "Ping 実行")
@@ -82,6 +94,19 @@ fun DiagnoseScreen(vm: DiagnoseViewModel = viewModel()) {
                     singleLine = true,
                     modifier = Modifier.fillMaxWidth(),
                 )
+                Spacer(Modifier.height(8.dp))
+                FlowRow(
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalArrangement = Arrangement.Center,
+                ) {
+                    NumField("最大ホップ", s.traceMaxHops, vm::setTraceMaxHops)
+                    NumField("待機s", s.traceTimeoutSec, vm::setTraceTimeout)
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Switch(checked = s.traceResolve, onCheckedChange = vm::setTraceResolve)
+                        Spacer(Modifier.width(4.dp))
+                        Text("名前解決", style = MaterialTheme.typography.bodySmall)
+                    }
+                }
                 Spacer(Modifier.height(8.dp))
                 Button(onClick = vm::runTrace) {
                     Text(if (s.traceRunning) "停止" else "経路を追跡")
@@ -181,3 +206,15 @@ private fun HopRow(hop: Hop) {
 }
 
 private fun fmt(v: Double?): String = v?.let { "%.1f".format(it) } ?: "-"
+
+@Composable
+private fun NumField(label: String, value: Int, onChange: (Int) -> Unit) {
+    OutlinedTextField(
+        value = value.toString(),
+        onValueChange = { text -> text.filter { it.isDigit() }.toIntOrNull()?.let(onChange) },
+        label = { Text(label, style = MaterialTheme.typography.labelSmall) },
+        singleLine = true,
+        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+        modifier = Modifier.width(96.dp),
+    )
+}

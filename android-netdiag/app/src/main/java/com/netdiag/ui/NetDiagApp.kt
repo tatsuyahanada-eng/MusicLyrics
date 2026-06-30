@@ -7,6 +7,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Lan
 import androidx.compose.material.icons.outlined.NetworkCheck
 import androidx.compose.material.icons.outlined.QueryStats
+import androidx.compose.material.icons.outlined.Settings
 import androidx.compose.material.icons.outlined.Wifi
 import androidx.compose.material3.Icon
 import androidx.compose.material3.NavigationBar
@@ -16,16 +17,20 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.LocalContext
 import com.netdiag.ui.screens.DiagnoseScreen
 import com.netdiag.ui.screens.ScanScreen
+import com.netdiag.ui.screens.SettingsScreen
 import com.netdiag.ui.screens.TrafficScreen
 import com.netdiag.ui.screens.WifiScreen
 import com.netdiag.ui.theme.NetDiagTheme
+import com.netdiag.ui.theme.SettingsRepository
 
 private data class Tab(val label: String, val icon: ImageVector)
 
@@ -34,11 +39,16 @@ private val tabs = listOf(
     Tab("診断", Icons.Outlined.NetworkCheck),
     Tab("Wi-Fi", Icons.Outlined.Wifi),
     Tab("通信量", Icons.Outlined.QueryStats),
+    Tab("設定", Icons.Outlined.Settings),
 )
 
 @Composable
 fun NetDiagApp() {
-    NetDiagTheme {
+    val context = LocalContext.current
+    val repo = remember { SettingsRepository(context) }
+    var settings by remember { mutableStateOf(repo.load()) }
+
+    NetDiagTheme(settings) {
         var selected by rememberSaveable { mutableIntStateOf(0) }
         Scaffold(
             bottomBar = {
@@ -59,7 +69,11 @@ fun NetDiagApp() {
                     0 -> ScanScreen()
                     1 -> DiagnoseScreen()
                     2 -> WifiScreen()
-                    else -> TrafficScreen()
+                    3 -> TrafficScreen()
+                    else -> SettingsScreen(
+                        settings = settings,
+                        onChange = { settings = it; repo.save(it) },
+                    )
                 }
             }
         }

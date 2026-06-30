@@ -92,6 +92,10 @@ fun WifiScreen(vm: WifiViewModel = viewModel()) {
             }
         }
 
+        if (s.aps.isNotEmpty()) {
+            item { WifiSpectrum(s.aps) }
+        }
+
         if (s.channelLoad.isNotEmpty()) {
             item {
                 SectionCard("チャンネル混雑（AP数）") {

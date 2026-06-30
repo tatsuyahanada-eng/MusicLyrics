@@ -23,12 +23,17 @@ data class DiagnoseUiState(
     val pingHost: String = "8.8.8.8",
     val pingCount: Int = 10,
     val pingSize: Int = 56,
+    val pingIntervalMs: Int = 1000,
+    val pingTimeoutSec: Int = 2,
     val pingRunning: Boolean = false,
     val pingReplies: List<PingEvent.Reply> = emptyList(),
     val pingSummary: PingEvent.Summary? = null,
     val pingError: String? = null,
     // Traceroute
     val traceHost: String = "8.8.8.8",
+    val traceMaxHops: Int = 30,
+    val traceTimeoutSec: Int = 2,
+    val traceResolve: Boolean = true,
     val traceRunning: Boolean = false,
     val hops: List<Hop> = emptyList(),
     val traceError: String? = null,
@@ -50,7 +55,14 @@ class DiagnoseViewModel(app: Application) : AndroidViewModel(app) {
     private var traceJob: Job? = null
 
     fun setPingHost(v: String) = _state.update { it.copy(pingHost = v) }
+    fun setPingCount(v: Int) = _state.update { it.copy(pingCount = v.coerceIn(1, 1000)) }
+    fun setPingSize(v: Int) = _state.update { it.copy(pingSize = v.coerceIn(1, 65500)) }
+    fun setPingInterval(v: Int) = _state.update { it.copy(pingIntervalMs = v.coerceIn(200, 10000)) }
+    fun setPingTimeout(v: Int) = _state.update { it.copy(pingTimeoutSec = v.coerceIn(1, 30)) }
     fun setTraceHost(v: String) = _state.update { it.copy(traceHost = v) }
+    fun setTraceMaxHops(v: Int) = _state.update { it.copy(traceMaxHops = v.coerceIn(1, 64)) }
+    fun setTraceTimeout(v: Int) = _state.update { it.copy(traceTimeoutSec = v.coerceIn(1, 30)) }
+    fun setTraceResolve(v: Boolean) = _state.update { it.copy(traceResolve = v) }
     fun setDnsHost(v: String) = _state.update { it.copy(dnsHost = v) }
     fun setDnsServer(v: String) = _state.update { it.copy(dnsServer = v) }
 
@@ -61,7 +73,13 @@ class DiagnoseViewModel(app: Application) : AndroidViewModel(app) {
             it.copy(pingRunning = true, pingReplies = emptyList(), pingSummary = null, pingError = null)
         }
         pingJob = viewModelScope.launch {
-            PingTool.ping(s.pingHost.trim(), count = s.pingCount, packetSizeBytes = s.pingSize)
+            PingTool.ping(
+                s.pingHost.trim(),
+                count = s.pingCount,
+                packetSizeBytes = s.pingSize,
+                intervalMs = s.pingIntervalMs,
+                perPacketTimeoutSec = s.pingTimeoutSec,
+            )
                 .collect { event ->
                     when (event) {
                         is PingEvent.Reply -> _state.update { it.copy(pingReplies = it.pingReplies + event) }
@@ -78,8 +96,14 @@ class DiagnoseViewModel(app: Application) : AndroidViewModel(app) {
         if (_state.value.traceRunning) { traceJob?.cancel(); _state.update { it.copy(traceRunning = false) }; return }
         val host = _state.value.traceHost.trim()
         _state.update { it.copy(traceRunning = true, hops = emptyList(), traceError = null, traceReached = null) }
+        val s = _state.value
         traceJob = viewModelScope.launch {
-            Traceroute.trace(host).collect { event ->
+            Traceroute.trace(
+                host,
+                maxHops = s.traceMaxHops,
+                perHopTimeoutSec = s.traceTimeoutSec,
+                resolveNames = s.traceResolve,
+            ).collect { event ->
                 when (event) {
                     is TraceEvent.HopFound -> _state.update { it.copy(hops = it.hops + event.hop) }
                     is TraceEvent.Done -> _state.update { it.copy(traceReached = event.reached) }

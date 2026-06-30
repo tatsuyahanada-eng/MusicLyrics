@@ -50,7 +50,17 @@ fun TrafficScreen(vm: TrafficViewModel = viewModel()) {
                 }
                 Spacer(Modifier.height(8.dp))
                 Text(
-                    "異常な大量通信（暴走ダウンロード・ブロードキャスト等）の早期発見に。",
+                    "最大 ↓ ${TrafficMonitor.formatRate(s.peakRxRate)} / ↑ ${TrafficMonitor.formatRate(s.peakTxRate)}",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                Spacer(Modifier.height(12.dp))
+                Button(onClick = { vm.toggleMonitoring() }) {
+                    Text(if (s.monitoring) "STOP" else "START")
+                }
+                Spacer(Modifier.height(8.dp))
+                Text(
+                    "STARTで計測開始。異常な大量通信（暴走ダウンロード・ブロードキャスト等）の早期発見に。",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
