@@ -94,6 +94,13 @@ fun loadIdInfo(context: Context): IdInfo {
     return IdInfo(brand, p.getString("storeNumber", "") ?: "", p.getString("storeName", "") ?: "")
 }
 
+/** 全タブの記録（ID情報・距離・結果・作図）を消去して初期状態に戻す。 */
+fun clearAllData(context: Context) {
+    listOf("id_prefs", "distance_prefs", "result_prefs", "draw_prefs").forEach { name ->
+        context.getSharedPreferences(name, Context.MODE_PRIVATE).edit().clear().apply()
+    }
+}
+
 fun buildRows(brand: Brand, storeNumber: String): List<IdRow> {
     val valid = isValidStoreNumber(storeNumber)
     return brand.channels.map { c ->

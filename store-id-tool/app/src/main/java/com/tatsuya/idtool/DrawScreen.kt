@@ -36,6 +36,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.FilterChip
+import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
@@ -92,6 +93,21 @@ private fun typeColor(type: String): Long = when (type) {
 }
 
 private fun isShape(type: String) = type == "正方形" || type == "長方形"
+
+// アイテム番号：MAIN/SUB は負の番号で表現し、他とは別色で強調する
+private const val NUM_MAIN = -1
+private const val NUM_SUB = -2
+private fun numLabel(n: Int): String = when (n) { NUM_MAIN -> "MAIN"; NUM_SUB -> "SUB"; else -> "$n" }
+private fun isMainSub(n: Int) = n < 0
+private fun numBoxColor(n: Int, type: String): Long = when (n) {
+    NUM_MAIN -> 0xFFD50000   // MAIN: 赤で強調
+    NUM_SUB -> 0xFFFFAB00    // SUB: アンバーで強調
+    else -> typeColor(type)
+}
+private fun numTextColorInt(n: Int): Int = when (n) {
+    NUM_SUB -> android.graphics.Color.BLACK  // 明るい背景には黒文字
+    else -> android.graphics.Color.WHITE
+}
 
 // 図形の半幅・半高（px）
 private fun shapeHalf(type: String, size: String): Pair<Float, Float> {
@@ -204,6 +220,14 @@ fun DrawScreen(modifier: Modifier = Modifier) {
                 } else {
                     Row(modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
                         horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                        FilterChip(selNum == NUM_MAIN, { selNum = NUM_MAIN }, label = { Text("MAIN") },
+                            colors = FilterChipDefaults.filterChipColors(
+                                selectedContainerColor = Color(0xFFD50000), selectedLabelColor = Color.White,
+                                containerColor = Color(0xFFFFCDD2), labelColor = Color(0xFFB71C1C)))
+                        FilterChip(selNum == NUM_SUB, { selNum = NUM_SUB }, label = { Text("SUB") },
+                            colors = FilterChipDefaults.filterChipColors(
+                                selectedContainerColor = Color(0xFFFFAB00), selectedLabelColor = Color.Black,
+                                containerColor = Color(0xFFFFECB3), labelColor = Color(0xFFE65100)))
                         (1..10).forEach { n -> FilterChip(selNum == n, { selNum = n }, label = { Text("$n") }) }
                     }
                 }
@@ -498,17 +522,19 @@ private fun DrawScope.drawMark(m: MarkT, w: Float, h: Float) {
             typeface = Typeface.DEFAULT_BOLD; textAlign = Paint.Align.CENTER
         })
     } else {
-        val half = 24f
-        drawRect(Color(typeColor(m.type)), topLeft = Offset(cx - half, cy - half), size = Size(half * 2, half * 2))
-        nc.drawText("${m.num}", cx, cy + 9f, Paint().apply {
-            color = android.graphics.Color.WHITE; textSize = 26f; isAntiAlias = true
+        val ms = isMainSub(m.num)
+        val halfW = if (ms) 44f else 24f
+        val halfH = 24f
+        drawRect(Color(numBoxColor(m.num, m.type)), topLeft = Offset(cx - halfW, cy - halfH), size = Size(halfW * 2, halfH * 2))
+        nc.drawText(numLabel(m.num), cx, cy + 9f, Paint().apply {
+            color = numTextColorInt(m.num); textSize = if (ms) 22f else 26f; isAntiAlias = true
             typeface = Typeface.DEFAULT_BOLD; textAlign = Paint.Align.CENTER
         })
-        nc.drawText(m.type, cx, cy + half + 24f, Paint().apply {
+        nc.drawText(m.type, cx, cy + halfH + 24f, Paint().apply {
             color = android.graphics.Color.BLACK; textSize = 22f; isAntiAlias = true
             typeface = Typeface.DEFAULT_BOLD; textAlign = Paint.Align.CENTER
         })
-        if (m.label.isNotBlank()) nc.drawText(m.label, cx, cy + half + 48f, Paint().apply {
+        if (m.label.isNotBlank()) nc.drawText(m.label, cx, cy + halfH + 48f, Paint().apply {
             color = android.graphics.Color.rgb(0x33, 0x33, 0x33); textSize = 22f; isAntiAlias = true
             textAlign = Paint.Align.CENTER
         })
@@ -584,17 +610,19 @@ private fun renderToCanvas(
                 typeface = Typeface.DEFAULT_BOLD; textAlign = Paint.Align.CENTER
             })
         } else {
-            val half = 26f
-            c.drawRect(cx - half, cy - half, cx + half, cy + half, Paint().apply { color = typeColor(m.type).toInt(); isAntiAlias = true })
-            c.drawText("${m.num}", cx, cy + 10f, Paint().apply {
-                color = android.graphics.Color.WHITE; textSize = 30f; isAntiAlias = true
+            val ms = isMainSub(m.num)
+            val halfW = if (ms) 48f else 26f
+            val halfH = 26f
+            c.drawRect(cx - halfW, cy - halfH, cx + halfW, cy + halfH, Paint().apply { color = numBoxColor(m.num, m.type).toInt(); isAntiAlias = true })
+            c.drawText(numLabel(m.num), cx, cy + 10f, Paint().apply {
+                color = numTextColorInt(m.num); textSize = if (ms) 26f else 30f; isAntiAlias = true
                 typeface = Typeface.DEFAULT_BOLD; textAlign = Paint.Align.CENTER
             })
-            c.drawText(m.type, cx, cy + half + 26f, Paint().apply {
+            c.drawText(m.type, cx, cy + halfH + 26f, Paint().apply {
                 color = android.graphics.Color.BLACK; textSize = 24f; isAntiAlias = true
                 typeface = Typeface.DEFAULT_BOLD; textAlign = Paint.Align.CENTER
             })
-            if (m.label.isNotBlank()) c.drawText(m.label, cx, cy + half + 52f, Paint().apply {
+            if (m.label.isNotBlank()) c.drawText(m.label, cx, cy + halfH + 52f, Paint().apply {
                 color = android.graphics.Color.rgb(0x33, 0x33, 0x33); textSize = 24f; isAntiAlias = true; textAlign = Paint.Align.CENTER
             })
         }

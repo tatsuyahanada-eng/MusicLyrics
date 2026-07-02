@@ -42,6 +42,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
@@ -57,7 +58,11 @@ import java.util.Locale
 
 private val ResultOptions = listOf("最適", "良", "圏外")
 private val GRID_LEFT_W = 96.dp
-private val GRID_CELL_W = 178.dp
+private val GRID_CELL_W = 190.dp
+private val GRID_HEADER_H = 62.dp
+// 表の見出し（1番左の列・1番上の行・左上角）に色を付ける
+private val GridHeaderBg = Color(0xFFCFD8DC)
+private val GridCornerBg = Color(0xFFB0BEC5)
 
 private fun stamp(): String = SimpleDateFormat("yyyyMMdd_HHmm", Locale.JAPAN).format(Date())
 
@@ -171,7 +176,8 @@ fun ResultScreen(modifier: Modifier = Modifier) {
 
 @Composable
 private fun GridCorner() {
-    Box(modifier = Modifier.width(GRID_LEFT_W).height(54.dp)
+    Box(modifier = Modifier.width(GRID_LEFT_W).height(GRID_HEADER_H)
+        .background(GridCornerBg)
         .border(0.7.dp, MaterialTheme.colorScheme.outline), contentAlignment = Alignment.Center) {
         Text("場所＼Ch", fontSize = 11.sp, fontWeight = FontWeight.Bold,
             color = MaterialTheme.colorScheme.onSurfaceVariant)
@@ -181,15 +187,17 @@ private fun GridCorner() {
 @Composable
 private fun GridChHeader(row: IdRow) {
     Column(
-        modifier = Modifier.width(GRID_CELL_W).height(54.dp)
-            .border(0.7.dp, MaterialTheme.colorScheme.outline).padding(4.dp),
+        modifier = Modifier.width(GRID_CELL_W).height(GRID_HEADER_H)
+            .background(GridHeaderBg)
+            .border(0.7.dp, MaterialTheme.colorScheme.outline).padding(horizontal = 4.dp, vertical = 6.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center
     ) {
         Text("ch:${row.ch}", fontWeight = FontWeight.Bold, fontSize = 13.sp,
             color = MaterialTheme.colorScheme.primary)
         Text(if (row.fullId.isNotEmpty()) row.fullId else "（番号未入力）",
-            fontFamily = FontFamily.Monospace, fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurface)
+            fontFamily = FontFamily.Monospace, fontSize = 12.sp, maxLines = 1, softWrap = false,
+            color = MaterialTheme.colorScheme.onSurface)
     }
 }
 
@@ -197,6 +205,7 @@ private fun GridChHeader(row: IdRow) {
 private fun GridLocCell(loc: Int, rec: Record?, onClick: () -> Unit) {
     Column(
         modifier = Modifier.width(GRID_LEFT_W)
+            .background(GridHeaderBg)
             .border(0.7.dp, MaterialTheme.colorScheme.outline)
             .clickable { onClick() }.padding(4.dp)
     ) {

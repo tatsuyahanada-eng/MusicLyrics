@@ -25,6 +25,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExposedDropdownMenuBox
@@ -37,11 +38,13 @@ import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.key
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -103,12 +106,18 @@ class MainActivity : ComponentActivity() {
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun AppRoot() {
+    val context = LocalContext.current
     var tab by remember { mutableIntStateOf(0) }
-    val titles = listOf("無線チャンネル変更APP", "距離測定", "作図（見取り図）", "結果入力（無線テスト結果表）")
+    var resetKey by remember { mutableIntStateOf(0) }
+    var showReset by remember { mutableStateOf(false) }
+    val titles = listOf("無線チャンネル変更", "距離測定", "作図（見取り図）", "結果入力（無線テスト結果表）")
     Scaffold(
         topBar = {
             TopAppBar(
                 title = { Text(titles[tab], fontWeight = FontWeight.SemiBold) },
+                actions = {
+                    TextButton(onClick = { showReset = true }) { Text("初期化") }
+                },
                 colors = TopAppBarDefaults.topAppBarColors(
                     containerColor = MaterialTheme.colorScheme.surface,
                     titleContentColor = MaterialTheme.colorScheme.onSurface
@@ -137,13 +146,32 @@ fun AppRoot() {
         }
     ) { padding ->
         Box(modifier = Modifier.fillMaxSize().padding(padding)) {
-            when (tab) {
-                0 -> IdContent()
-                1 -> MeasureScreen(MeasureType.DISTANCE)
-                2 -> DrawScreen()
-                else -> ResultScreen()
+            key(resetKey) {
+                when (tab) {
+                    0 -> IdContent()
+                    1 -> MeasureScreen(MeasureType.DISTANCE)
+                    2 -> DrawScreen()
+                    else -> ResultScreen()
+                }
             }
         }
+    }
+
+    if (showReset) {
+        AlertDialog(
+            onDismissRequest = { showReset = false },
+            title = { Text("初期化の確認") },
+            text = { Text("ID・距離・結果・作図のすべての記録を消去し、最初からやり直します。よろしいですか？") },
+            confirmButton = {
+                TextButton(onClick = {
+                    clearAllData(context)
+                    showReset = false
+                    tab = 0
+                    resetKey++ // 各タブを作り直して空の状態から再読込
+                }) { Text("初期化する") }
+            },
+            dismissButton = { TextButton(onClick = { showReset = false }) { Text("やめる") } }
+        )
     }
 }
 
