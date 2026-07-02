@@ -74,6 +74,7 @@ fun ResultScreen(modifier: Modifier = Modifier) {
     val rows = remember { buildRows(idInfo.brand, idInfo.storeNumber) }
     // 測定順（古い順）。距離タブは新しい順に保存されるため反転して場所1=最初の測定に合わせる
     val ordered = remember { loadDistanceRecords(context).asReversed() }
+    val unit = remember { loadDistUnit(context) }
 
     val data = remember { mutableStateMapOf<String, String>().apply { putAll(loadResultMap(context)) } }
     val set: (String, String) -> Unit = { k, v -> data[k] = v; saveResultMap(context, data) }
@@ -149,9 +150,9 @@ fun ResultScreen(modifier: Modifier = Modifier) {
             (1..locCount).forEach { l ->
                 Row {
                     val rec = ordered.getOrNull(l - 1)
-                    GridLocCell(l, rec) {
+                    GridLocCell(l, rec, unit) {
                         Toast.makeText(context,
-                            if (rec != null) "場所$l: ${rec.memo} = ${rec.display()}" else "場所$l: 距離記録なし",
+                            if (rec != null) "場所$l: ${rec.memo} = ${rec.display(unit)}" else "場所$l: 距離記録なし",
                             Toast.LENGTH_SHORT).show()
                     }
                     rows.forEach { row -> GridCell(l, row, data, set) }
@@ -162,11 +163,11 @@ fun ResultScreen(modifier: Modifier = Modifier) {
         Spacer(Modifier.height(12.dp))
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             OutlinedButton(
-                onClick = { copyText(context, buildCsv(idInfo, rows, data, locCount, ordered)) },
+                onClick = { copyText(context, buildCsv(idInfo, rows, data, locCount, ordered, unit)) },
                 modifier = Modifier.weight(1f)
             ) { Text("CSVコピー") }
             OutlinedButton(
-                onClick = { exportCsv(context, buildCsv(idInfo, rows, data, locCount, ordered)) },
+                onClick = { exportCsv(context, buildCsv(idInfo, rows, data, locCount, ordered, unit)) },
                 modifier = Modifier.weight(1f)
             ) { Text("CSV出力") }
         }
@@ -202,7 +203,7 @@ private fun GridChHeader(row: IdRow) {
 }
 
 @Composable
-private fun GridLocCell(loc: Int, rec: Record?, onClick: () -> Unit) {
+private fun GridLocCell(loc: Int, rec: Record?, unit: DistUnit, onClick: () -> Unit) {
     Column(
         modifier = Modifier.width(GRID_LEFT_W)
             .background(GridHeaderBg)
@@ -213,7 +214,7 @@ private fun GridLocCell(loc: Int, rec: Record?, onClick: () -> Unit) {
             color = MaterialTheme.colorScheme.onBackground)
         if (rec != null) {
             Text(rec.memo, fontSize = 10.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
-            Text(rec.display(), fontSize = 11.sp, fontWeight = FontWeight.Bold,
+            Text(rec.display(unit), fontSize = 11.sp, fontWeight = FontWeight.Bold,
                 color = MaterialTheme.colorScheme.primary)
         }
     }
@@ -316,7 +317,7 @@ private fun csvEscape(s: String): String =
 
 private fun buildCsv(
     idInfo: IdInfo, rows: List<IdRow>, data: Map<String, String>,
-    locCount: Int, ordered: List<Record>
+    locCount: Int, ordered: List<Record>, unit: DistUnit
 ): String {
     val sb = StringBuilder()
     sb.append("共通番号,${csvEscape(data["共通番号"].orEmpty())}\n")
@@ -337,7 +338,7 @@ private fun buildCsv(
 
     for (loc in 1..locCount) {
         val rec = ordered.getOrNull(loc - 1)
-        val distLabel = if (rec != null) "${rec.memo} = ${rec.display()}" else ""
+        val distLabel = if (rec != null) "${rec.memo} = ${rec.display(unit)}" else ""
         // 場所見出し行（距離メモ＋距離）
         sb.append("【場所$loc】,${csvEscape(distLabel)}\n")
         // 項目ごとの行（Ch列に値）

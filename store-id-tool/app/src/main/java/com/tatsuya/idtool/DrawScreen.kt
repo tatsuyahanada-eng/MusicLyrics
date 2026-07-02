@@ -76,7 +76,7 @@ private enum class DTool { MARK, PEN, TEXT, DISTANCE, MOVE, DELETE }
 private enum class PenMode { FREE, LINE, DASH, ARROW }
 
 private val DeviceTypes = listOf("RST", "EST", "RPR", "EPR", "RMD", "EMD", "PC", "Router", "HUB")
-private val ShapeTypes = listOf("正方形", "長方形")
+private val ShapeTypes = listOf("正方形", "横長方形", "縦長方形", "丸")
 private val Palette = listOf(0xFF000000L, 0xFFD32F2FL, 0xFF1565C0L, 0xFF2E7D32L, 0xFFEF6C00L, 0xFF6A1B9AL)
 
 private fun typeColor(type: String): Long = when (type) {
@@ -92,7 +92,7 @@ private fun typeColor(type: String): Long = when (type) {
     else -> 0xFF546E7A
 }
 
-private fun isShape(type: String) = type == "正方形" || type == "長方形"
+private fun isShape(type: String) = type in ShapeTypes
 
 // アイテム番号：MAIN/SUB は負の番号で表現し、他とは別色で強調する
 private const val NUM_MAIN = -1
@@ -112,10 +112,10 @@ private fun numTextColorInt(n: Int): Int = when (n) {
 // 図形の半幅・半高（px）
 private fun shapeHalf(type: String, size: String): Pair<Float, Float> {
     val s = when (size) { "S" -> 0; "L" -> 2; else -> 1 }
-    return if (type == "長方形") {
-        listOf(Pair(50f, 28f), Pair(84f, 46f), Pair(130f, 68f))[s]
-    } else {
-        listOf(Pair(28f, 28f), Pair(46f, 46f), Pair(72f, 72f))[s]
+    return when (type) {
+        "横長方形" -> listOf(Pair(50f, 28f), Pair(84f, 46f), Pair(130f, 68f))[s]
+        "縦長方形" -> listOf(Pair(28f, 50f), Pair(46f, 84f), Pair(68f, 130f))[s]
+        else -> listOf(Pair(28f, 28f), Pair(46f, 46f), Pair(72f, 72f))[s] // 正方形・丸
     }
 }
 
@@ -133,15 +133,16 @@ fun DrawScreen(modifier: Modifier = Modifier) {
     val marks = remember { mutableStateListOf<MarkT>() }
     val texts = remember { mutableStateListOf<TextT>() }
     val strokes = remember { mutableStateListOf<StrokeT>() }
-    val ops = remember { mutableStateListOf<String>() }
-    remember { loadDraw(context, marks, texts, strokes, ops); 0 }
+    // 取消用の履歴（追加・削除・移動すべてを1手ずつ元に戻せるよう、直前の全状態を保持）
+    val undoStack = remember { mutableStateListOf<Triple<List<MarkT>, List<TextT>, List<StrokeT>>>() }
+    remember { loadDraw(context, marks, texts, strokes); 0 }
 
     var bg by remember { mutableStateOf<Bitmap?>(null) }
     var tool by remember { mutableStateOf(DTool.MARK) }
     var penMode by remember { mutableStateOf(PenMode.FREE) }
     var selType by remember { mutableStateOf("RST") }
     var selNum by remember { mutableIntStateOf(1) }
-    var selColor by remember { mutableStateOf(0xFFD32F2FL) }
+    var selColor by remember { mutableStateOf(0xFF000000L) }
     var selTextSize by remember { mutableStateOf(36f) }
     var selSize by remember { mutableStateOf("M") }
 
@@ -162,6 +163,7 @@ fun DrawScreen(modifier: Modifier = Modifier) {
     var photoFile by remember { mutableStateOf<File?>(null) }
 
     val distance = remember { loadDistanceRecords(context) }
+    val distUnit = remember { loadDistUnit(context) }
     val picker = rememberLauncherForActivityResult(ActivityResultContracts.PickVisualMedia()) { uri: Uri? ->
         if (uri != null) bg = loadBitmap(context, uri)
     }
@@ -178,15 +180,30 @@ fun DrawScreen(modifier: Modifier = Modifier) {
         if (granted) launchCamera() else Toast.makeText(context, "カメラ権限が必要です", Toast.LENGTH_SHORT).show()
     }
 
-    fun persist() = saveDraw(context, marks, texts, strokes, ops)
+    fun persist() = saveDraw(context, marks, texts, strokes)
+
+    // 変更前の状態を履歴に積む（この直後に marks/texts/strokes を変更する）
+    fun pushUndo() {
+        undoStack.add(Triple(marks.toList(), texts.toList(), strokes.toList()))
+        if (undoStack.size > 40) undoStack.removeAt(0)
+    }
+
+    fun undo() {
+        if (undoStack.isEmpty()) return
+        val prev = undoStack.removeAt(undoStack.size - 1)
+        marks.clear(); marks.addAll(prev.first)
+        texts.clear(); texts.addAll(prev.second)
+        strokes.clear(); strokes.addAll(prev.third)
+        persist()
+    }
 
     fun deleteAt(kind: String, idx: Int) {
+        pushUndo()
         when (kind) {
             "M" -> if (idx in marks.indices) marks.removeAt(idx)
             "T" -> if (idx in texts.indices) texts.removeAt(idx)
             "S" -> if (idx in strokes.indices) strokes.removeAt(idx)
         }
-        val li = ops.lastIndexOf(kind); if (li >= 0) ops.removeAt(li)
         persist()
     }
 
@@ -275,8 +292,9 @@ fun DrawScreen(modifier: Modifier = Modifier) {
                             },
                             onDragEnd = {
                                 if (live.size >= 2) {
+                                    pushUndo()
                                     val pts = if (penMode == PenMode.FREE) live else listOf(live.first(), live.last())
-                                    strokes.add(StrokeT(pts, penMode, selColor)); ops.add("S"); persist()
+                                    strokes.add(StrokeT(pts, penMode, selColor)); persist()
                                 }
                                 live = emptyList()
                             }
@@ -286,13 +304,14 @@ fun DrawScreen(modifier: Modifier = Modifier) {
                                 val p = norm(off, size.width, size.height)
                                 val n = nearestKind(p, marks, texts, strokes)
                                 moveKind = n?.first; moveIdx = n?.second ?: -1; lastP = p
+                                if (moveKind != null) pushUndo() // 移動前の状態を1手として保存
                             },
                             onDrag = { ch, _ ->
                                 val np = norm(ch.position, size.width, size.height)
                                 applyMove(moveKind, moveIdx, np.x - lastP.x, np.y - lastP.y, marks, texts, strokes)
                                 lastP = np
                             },
-                            onDragEnd = { persist(); moveKind = null }
+                            onDragEnd = { if (moveKind != null) persist(); moveKind = null; moveIdx = -1 }
                         )
                         else -> detectTapGestures(
                             onLongPress = { off ->
@@ -304,7 +323,8 @@ fun DrawScreen(modifier: Modifier = Modifier) {
                                 val p = norm(off, size.width, size.height)
                                 when (tool) {
                                     DTool.MARK -> {
-                                        marks.add(MarkT(p.x, p.y, selType, selNum, "", selSize)); ops.add("M"); persist()
+                                        pushUndo()
+                                        marks.add(MarkT(p.x, p.y, selType, selNum, "", selSize)); persist()
                                     }
                                     DTool.TEXT -> { textPoint = p; textInput = "" }
                                     DTool.DISTANCE -> { distPoint = p }
@@ -332,6 +352,21 @@ fun DrawScreen(modifier: Modifier = Modifier) {
                 if (live.size >= 2) drawStroke(StrokeT(live, penMode, selColor), w, h)
                 marks.forEach { drawMark(it, w, h) }
                 texts.forEach { drawTextItem(it, w, h) }
+                // 移動中：つかんでいる対象をハイライトして分かりやすく
+                if (tool == DTool.MOVE && moveKind != null && moveIdx >= 0) {
+                    val hc: Offset? = when (moveKind) {
+                        "M" -> marks.getOrNull(moveIdx)?.let { Offset(it.x * w, it.y * h) }
+                        "T" -> texts.getOrNull(moveIdx)?.let { Offset(it.x * w, it.y * h) }
+                        "S" -> strokes.getOrNull(moveIdx)?.let { s ->
+                            Offset(s.pts.map { it.x }.average().toFloat() * w, s.pts.map { it.y }.average().toFloat() * h)
+                        }
+                        else -> null
+                    }
+                    hc?.let {
+                        drawCircle(Color(0x332196F3), radius = 54f, center = it)
+                        drawCircle(Color(0xFF2196F3), radius = 54f, center = it, style = Stroke(4f))
+                    }
+                }
             }
         }
 
@@ -340,16 +375,7 @@ fun DrawScreen(modifier: Modifier = Modifier) {
             horizontalArrangement = Arrangement.spacedBy(6.dp)) {
             OutlinedButton(onClick = { showPhotoChoice = true }) { Text("写真取込") }
             OutlinedButton(onClick = { bg = null }) { Text("背景白") }
-            OutlinedButton(onClick = {
-                if (ops.isNotEmpty()) {
-                    when (ops.removeAt(ops.size - 1)) {
-                        "M" -> if (marks.isNotEmpty()) marks.removeAt(marks.size - 1)
-                        "T" -> if (texts.isNotEmpty()) texts.removeAt(texts.size - 1)
-                        "S" -> if (strokes.isNotEmpty()) strokes.removeAt(strokes.size - 1)
-                    }
-                    persist()
-                }
-            }) { Text("取消") }
+            OutlinedButton(onClick = { undo() }, enabled = undoStack.isNotEmpty()) { Text("取消") }
             OutlinedButton(onClick = { showClear = true }) { Text("全消去") }
             OutlinedButton(onClick = { exportImage(context, marks, texts, strokes, bg, pdf = false) }) { Text("画像保存") }
             OutlinedButton(onClick = { exportImage(context, marks, texts, strokes, bg, pdf = true) }) { Text("PDF保存") }
@@ -364,7 +390,7 @@ fun DrawScreen(modifier: Modifier = Modifier) {
             confirmButton = {
                 TextButton(onClick = {
                     val p = textPoint!!
-                    if (textInput.isNotBlank()) { texts.add(TextT(p.x, p.y, textInput, selTextSize, selColor, false)); ops.add("T"); persist() }
+                    if (textInput.isNotBlank()) { pushUndo(); texts.add(TextT(p.x, p.y, textInput, selTextSize, selColor, false)); persist() }
                     textPoint = null
                 }) { Text("配置") }
             },
@@ -382,9 +408,10 @@ fun DrawScreen(modifier: Modifier = Modifier) {
                     distance.forEach { r ->
                         TextButton(onClick = {
                             val p = distPoint!!
-                            texts.add(TextT(p.x, p.y, "${r.memo}\n${r.display()}", 32f, 0xFF000000L, true)); ops.add("T"); persist()
+                            pushUndo()
+                            texts.add(TextT(p.x, p.y, "${r.memo}\n${r.display(distUnit)}", 32f, 0xFF000000L, true)); persist()
                             distPoint = null
-                        }) { Text("${r.memo}: ${r.display()}") }
+                        }) { Text("${r.memo}: ${r.display(distUnit)}") }
                     }
                 }
             },
@@ -400,7 +427,7 @@ fun DrawScreen(modifier: Modifier = Modifier) {
             text = { OutlinedTextField(value = nameInput, onValueChange = { nameInput = it }, singleLine = true) },
             confirmButton = {
                 TextButton(onClick = {
-                    if (nameIdx in marks.indices) { marks[nameIdx] = marks[nameIdx].copy(label = nameInput); persist() }
+                    if (nameIdx in marks.indices) { pushUndo(); marks[nameIdx] = marks[nameIdx].copy(label = nameInput); persist() }
                     nameIdx = -1
                 }) { Text("登録") }
             },
@@ -436,7 +463,7 @@ fun DrawScreen(modifier: Modifier = Modifier) {
             text = { Text("配置したアイテム・線・文字をすべて消去します。よろしいですか？") },
             confirmButton = {
                 TextButton(onClick = {
-                    marks.clear(); texts.clear(); strokes.clear(); ops.clear(); persist(); showClear = false
+                    pushUndo(); marks.clear(); texts.clear(); strokes.clear(); persist(); showClear = false
                 }) { Text("消去する") }
             },
             dismissButton = { TextButton(onClick = { showClear = false }) { Text("やめる") } }
@@ -515,8 +542,13 @@ private fun DrawScope.drawMark(m: MarkT, w: Float, h: Float) {
     val nc = drawContext.canvas.nativeCanvas
     if (isShape(m.type)) {
         val (hw, hh) = shapeHalf(m.type, m.size)
-        drawRect(Color.White, topLeft = Offset(cx - hw, cy - hh), size = Size(hw * 2, hh * 2))
-        drawRect(Color(0xFF333333), topLeft = Offset(cx - hw, cy - hh), size = Size(hw * 2, hh * 2), style = Stroke(3f))
+        if (m.type == "丸") {
+            drawCircle(Color.White, radius = hw, center = Offset(cx, cy))
+            drawCircle(Color(0xFF333333), radius = hw, center = Offset(cx, cy), style = Stroke(3f))
+        } else {
+            drawRect(Color.White, topLeft = Offset(cx - hw, cy - hh), size = Size(hw * 2, hh * 2))
+            drawRect(Color(0xFF333333), topLeft = Offset(cx - hw, cy - hh), size = Size(hw * 2, hh * 2), style = Stroke(3f))
+        }
         if (m.label.isNotBlank()) nc.drawText(m.label, cx, cy + 8f, Paint().apply {
             color = android.graphics.Color.BLACK; textSize = 26f; isAntiAlias = true
             typeface = Typeface.DEFAULT_BOLD; textAlign = Paint.Align.CENTER
@@ -601,10 +633,17 @@ private fun renderToCanvas(
         val cx = m.x * w; val cy = m.y * h
         if (isShape(m.type)) {
             val (hw, hh) = shapeHalf(m.type, m.size)
-            c.drawRect(cx - hw, cy - hh, cx + hw, cy + hh, Paint().apply { color = android.graphics.Color.WHITE })
-            c.drawRect(cx - hw, cy - hh, cx + hw, cy + hh, Paint().apply {
-                color = android.graphics.Color.rgb(0x33, 0x33, 0x33); style = Paint.Style.STROKE; strokeWidth = 3f
-            })
+            if (m.type == "丸") {
+                c.drawCircle(cx, cy, hw, Paint().apply { color = android.graphics.Color.WHITE; isAntiAlias = true })
+                c.drawCircle(cx, cy, hw, Paint().apply {
+                    color = android.graphics.Color.rgb(0x33, 0x33, 0x33); style = Paint.Style.STROKE; strokeWidth = 3f; isAntiAlias = true
+                })
+            } else {
+                c.drawRect(cx - hw, cy - hh, cx + hw, cy + hh, Paint().apply { color = android.graphics.Color.WHITE })
+                c.drawRect(cx - hw, cy - hh, cx + hw, cy + hh, Paint().apply {
+                    color = android.graphics.Color.rgb(0x33, 0x33, 0x33); style = Paint.Style.STROKE; strokeWidth = 3f
+                })
+            }
             if (m.label.isNotBlank()) c.drawText(m.label, cx, cy + 8f, Paint().apply {
                 color = android.graphics.Color.BLACK; textSize = 26f; isAntiAlias = true
                 typeface = Typeface.DEFAULT_BOLD; textAlign = Paint.Align.CENTER
@@ -677,18 +716,17 @@ private fun exportImage(
 // ── 端末内保存 ──
 private const val DRAW_PREFS = "draw_prefs"
 
-private fun saveDraw(context: Context, marks: List<MarkT>, texts: List<TextT>, strokes: List<StrokeT>, ops: List<String>) {
+private fun saveDraw(context: Context, marks: List<MarkT>, texts: List<TextT>, strokes: List<StrokeT>) {
     val sb = StringBuilder()
     marks.forEach { sb.append("M|${it.x}|${it.y}|${it.type}|${it.num}|${it.size}|${it.label.replace("\n", " ").replace("|", "/")}\n") }
     texts.forEach { sb.append("T|${it.x}|${it.y}|${it.sizeF}|${it.colorL}|${if (it.boxed) 1 else 0}|${it.s.replace("\n", "~~").replace("|", "/")}\n") }
     strokes.forEach { st -> sb.append("S|${st.mode.name}|${st.colorL}|").append(st.pts.joinToString(";") { "${it.x},${it.y}" }).append("\n") }
-    sb.append("O|${ops.joinToString(",")}\n")
     context.getSharedPreferences(DRAW_PREFS, Context.MODE_PRIVATE).edit().putString("data", sb.toString()).apply()
 }
 
 private fun loadDraw(
     context: Context, marks: MutableList<MarkT>, texts: MutableList<TextT>,
-    strokes: MutableList<StrokeT>, ops: MutableList<String>
+    strokes: MutableList<StrokeT>
 ) {
     val s = context.getSharedPreferences(DRAW_PREFS, Context.MODE_PRIVATE).getString("data", "") ?: ""
     if (s.isBlank()) return
@@ -709,8 +747,6 @@ private fun loadDraw(
                 }
                 if (pts.isNotEmpty()) strokes.add(StrokeT(pts, mode, f[2].toLong()))
             }
-            f[0] == "O" && f.size >= 2 -> ops.addAll(f[1].split(",").filter { it.isNotBlank() })
         }
     }
-    if (ops.isEmpty()) { repeat(marks.size) { ops.add("M") }; repeat(texts.size) { ops.add("T") }; repeat(strokes.size) { ops.add("S") } }
 }

@@ -25,8 +25,10 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.FilterChip
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
@@ -60,9 +62,19 @@ import kotlin.math.sqrt
 
 enum class MeasureType { DISTANCE, AREA }
 
+/** 距離の表示単位（既定はメートル）。 */
+enum class DistUnit(val label: String) { M("m"), CM("cm") }
+
+/** 距離(メートル)を選択単位でフォーマットする。 */
+fun formatDistance(meters: Float, unit: DistUnit): String = when (unit) {
+    DistUnit.M -> "%.2f m".format(meters)
+    DistUnit.CM -> "%.0f cm".format(meters * 100f)
+}
+
 data class Record(val type: MeasureType, val memo: String, val value: Float, val detail: String) {
-    fun display(): String = when (type) {
-        MeasureType.DISTANCE -> "%.2f m".format(value)
+    fun display(): String = display(DistUnit.M)
+    fun display(unit: DistUnit): String = when (type) {
+        MeasureType.DISTANCE -> formatDistance(value, unit)
         MeasureType.AREA -> "%.2f m²".format(value) + if (detail.isNotEmpty()) "（$detail）" else ""
     }
 }
@@ -111,6 +123,9 @@ private fun MeasureBody(type: MeasureType, modifier: Modifier) {
     var remeasureIndex by remember { mutableIntStateOf(-1) }
     var memo by remember { mutableStateOf("") }
     var showList by remember { mutableStateOf(false) }
+    var unit by remember { mutableStateOf(loadDistUnit(context)) }
+    var renameIdx by remember { mutableIntStateOf(-1) }
+    var renameInput by remember { mutableStateOf("") }
 
     var measuring by remember { mutableStateOf(false) }
     var requestAddPoint by remember { mutableStateOf(false) }
@@ -148,7 +163,7 @@ private fun MeasureBody(type: MeasureType, modifier: Modifier) {
         if (rec != null) {
             if (remeasureIndex in records.indices) records[remeasureIndex] = rec else records.add(0, rec)
             persist()
-            Toast.makeText(context, "記録: ${rec.display()}", Toast.LENGTH_SHORT).show()
+            Toast.makeText(context, "記録: ${rec.display(unit)}", Toast.LENGTH_SHORT).show()
         } else {
             Toast.makeText(context, "点が足りません", Toast.LENGTH_SHORT).show()
         }
@@ -180,7 +195,7 @@ private fun MeasureBody(type: MeasureType, modifier: Modifier) {
                         when (type) {
                             MeasureType.DISTANCE -> {
                                 liveDist = dist3(pts[0], cur)
-                                liveBig = "%.2f m".format(liveDist)
+                                liveBig = formatDistance(liveDist, unit)
                             }
                             MeasureType.AREA -> {
                                 liveBig = when (pts.size) {
@@ -241,6 +256,25 @@ private fun MeasureBody(type: MeasureType, modifier: Modifier) {
 
             Spacer(Modifier.weight(1f))
 
+            // 距離の表示単位（既定=m、cmにも切替可能）
+            Row(
+                modifier = Modifier.fillMaxWidth().background(Panel, RoundedCornerShape(8.dp))
+                    .padding(horizontal = 8.dp, vertical = 4.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(6.dp)
+            ) {
+                Text("単位", color = PanelText, fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                DistUnit.entries.forEach { u ->
+                    FilterChip(
+                        selected = unit == u,
+                        onClick = { unit = u; saveDistUnit(context, u) },
+                        label = { Text(u.label) }
+                    )
+                }
+            }
+
+            Spacer(Modifier.height(6.dp))
+
             OutlinedTextField(
                 value = memo,
                 onValueChange = { memo = it },
@@ -258,7 +292,7 @@ private fun MeasureBody(type: MeasureType, modifier: Modifier) {
                         if (!measuring) {
                             if (tracking) {
                                 pts.clear(); ptsScreen = emptyList()
-                                requestAddPoint = true; measuring = true; liveDist = 0f; liveBig = "0.00 m"
+                                requestAddPoint = true; measuring = true; liveDist = 0f; liveBig = formatDistance(0f, unit)
                             } else Toast.makeText(context, "トラッキング後に押してください", Toast.LENGTH_SHORT).show()
                         } else confirm()
                     },
@@ -338,8 +372,11 @@ private fun MeasureBody(type: MeasureType, modifier: Modifier) {
                         ) {
                             Text("${i + 1}. ${item.memo}", color = PanelText, fontSize = 13.sp,
                                 modifier = Modifier.weight(1f))
-                            Text(item.display(), color = TealDark, fontFamily = FontFamily.Monospace,
+                            Text(item.display(unit), color = TealDark, fontFamily = FontFamily.Monospace,
                                 fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                            TextButton(onClick = { renameIdx = i; renameInput = item.memo }) {
+                                Text("名称変更", color = TealDark, fontSize = 12.sp)
+                            }
                             TextButton(onClick = {
                                 records.removeAt(i)
                                 if (remeasureIndex == i) remeasureIndex = -1
@@ -350,15 +387,42 @@ private fun MeasureBody(type: MeasureType, modifier: Modifier) {
                 }
                 Spacer(Modifier.height(6.dp))
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    OutlinedButton(onClick = { copyText(context, buildReport(records)) },
+                    OutlinedButton(onClick = { copyText(context, buildReport(records, unit)) },
                         modifier = Modifier.weight(1f)) { Text("コピー") }
-                    OutlinedButton(onClick = { shareText(context, buildReport(records)) },
+                    OutlinedButton(onClick = { shareText(context, buildReport(records, unit)) },
                         modifier = Modifier.weight(1f)) { Text("共有") }
                     OutlinedButton(onClick = { records.clear(); remeasureIndex = -1; persist() },
                         modifier = Modifier.weight(1f)) { Text("全消去") }
                 }
             }
         }
+    }
+
+    // 計測済みの距離の「名称だけ」を変更するダイアログ（数値は変更しない）
+    if (renameIdx in records.indices) {
+        AlertDialog(
+            onDismissRequest = { renameIdx = -1 },
+            title = { Text("名称の変更") },
+            text = {
+                OutlinedTextField(
+                    value = renameInput,
+                    onValueChange = { renameInput = it },
+                    singleLine = true,
+                    placeholder = { Text("名称（例：入口→レジ）") }
+                )
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    if (renameIdx in records.indices && renameInput.isNotBlank()) {
+                        records[renameIdx] = records[renameIdx].copy(memo = renameInput)
+                        persist()
+                        Toast.makeText(context, "名称を変更しました", Toast.LENGTH_SHORT).show()
+                    }
+                    renameIdx = -1
+                }) { Text("変更") }
+            },
+            dismissButton = { TextButton(onClick = { renameIdx = -1 }) { Text("取消") } }
+        )
     }
 }
 
@@ -378,9 +442,9 @@ private fun worldToScreen(cam: Camera, w: Float, h: Float, p: FloatArray): Offse
     return Offset((ndcX * 0.5f + 0.5f) * w, (1f - (ndcY * 0.5f + 0.5f)) * h)
 }
 
-private fun buildReport(records: List<Record>): String {
+private fun buildReport(records: List<Record>, unit: DistUnit): String {
     val sb = StringBuilder("測定結果\n")
-    records.asReversed().forEachIndexed { i, r -> sb.append("${i + 1}. ${r.memo}: ${r.display()}\n") }
+    records.asReversed().forEachIndexed { i, r -> sb.append("${i + 1}. ${r.memo}: ${r.display(unit)}\n") }
     return sb.toString().trimEnd()
 }
 
@@ -398,6 +462,16 @@ private fun saveRecords(context: Context, key: String, records: List<Record>) {
 /** 結果入力タブから距離記録を読むための公開関数。 */
 fun loadDistanceRecords(context: Context): List<Record> =
     loadRecords(context, "records_${MeasureType.DISTANCE.name}")
+
+/** 選択中の距離表示単位を保存／読み出し（タブ間で共通）。 */
+fun saveDistUnit(context: Context, unit: DistUnit) {
+    context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit().putString("dist_unit", unit.name).apply()
+}
+
+fun loadDistUnit(context: Context): DistUnit {
+    val s = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).getString("dist_unit", DistUnit.M.name)
+    return runCatching { DistUnit.valueOf(s!!) }.getOrDefault(DistUnit.M)
+}
 
 private fun loadRecords(context: Context, key: String): List<Record> {
     val data = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).getString(key, "") ?: ""
