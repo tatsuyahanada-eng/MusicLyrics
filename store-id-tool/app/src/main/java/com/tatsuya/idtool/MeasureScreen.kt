@@ -28,7 +28,6 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
-import androidx.compose.material3.FilterChip
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
@@ -256,24 +255,28 @@ private fun MeasureBody(type: MeasureType, modifier: Modifier) {
 
             Spacer(Modifier.weight(1f))
 
-            // 距離の表示単位（既定=m、cmにも切替可能）
+            // 距離の表示単位（既定=m、cmにも切替可能）— 右寄せの小さなトグル
             Row(
-                modifier = Modifier.fillMaxWidth().background(Panel, RoundedCornerShape(8.dp))
-                    .padding(horizontal = 8.dp, vertical = 4.dp),
+                modifier = Modifier.fillMaxWidth(),
                 verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(6.dp)
+                horizontalArrangement = Arrangement.spacedBy(4.dp, Alignment.End)
             ) {
-                Text("単位", color = PanelText, fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                Text("単位", color = PanelText, fontWeight = FontWeight.Bold, fontSize = 11.sp)
                 DistUnit.entries.forEach { u ->
-                    FilterChip(
-                        selected = unit == u,
-                        onClick = { unit = u; saveDistUnit(context, u) },
-                        label = { Text(u.label) }
-                    )
+                    val sel = unit == u
+                    Box(
+                        modifier = Modifier
+                            .background(if (sel) Teal else Panel, RoundedCornerShape(6.dp))
+                            .clickable { unit = u; saveDistUnit(context, u) }
+                            .padding(horizontal = 10.dp, vertical = 3.dp)
+                    ) {
+                        Text(u.label, color = if (sel) Color.White else PanelText, fontSize = 12.sp,
+                            fontWeight = if (sel) FontWeight.Bold else FontWeight.Normal)
+                    }
                 }
             }
 
-            Spacer(Modifier.height(6.dp))
+            Spacer(Modifier.height(4.dp))
 
             OutlinedTextField(
                 value = memo,

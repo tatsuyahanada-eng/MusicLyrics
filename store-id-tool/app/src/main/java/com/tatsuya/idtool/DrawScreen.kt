@@ -151,6 +151,9 @@ fun DrawScreen(modifier: Modifier = Modifier) {
     var moveKind by remember { mutableStateOf<String?>(null) }
     var moveIdx by remember { mutableIntStateOf(-1) }
     var lastP by remember { mutableStateOf(Offset.Zero) }
+    // 移動モードで選択中の対象（タップで選択し、離してもハイライトを維持）
+    var selKind by remember { mutableStateOf<String?>(null) }
+    var selIdx by remember { mutableIntStateOf(-1) }
 
     var textPoint by remember { mutableStateOf<Offset?>(null) }
     var textInput by remember { mutableStateOf("") }
@@ -194,6 +197,7 @@ fun DrawScreen(modifier: Modifier = Modifier) {
         marks.clear(); marks.addAll(prev.first)
         texts.clear(); texts.addAll(prev.second)
         strokes.clear(); strokes.addAll(prev.third)
+        selKind = null; selIdx = -1
         persist()
     }
 
@@ -204,6 +208,7 @@ fun DrawScreen(modifier: Modifier = Modifier) {
             "T" -> if (idx in texts.indices) texts.removeAt(idx)
             "S" -> if (idx in strokes.indices) strokes.removeAt(idx)
         }
+        selKind = null; selIdx = -1
         persist()
     }
 
@@ -270,7 +275,7 @@ fun DrawScreen(modifier: Modifier = Modifier) {
                 ColorPalette(selColor) { selColor = it }
             }
             DTool.DISTANCE -> Text("距離を入れたい場所をタップ（距離タブの記録から選択）", fontSize = 11.sp)
-            DTool.MOVE -> Text("アイテム/線/文字をドラッグして移動", fontSize = 11.sp)
+            DTool.MOVE -> Text("タップで選択（青くハイライト）→ドラッグで移動", fontSize = 11.sp)
             DTool.DELETE -> Text("消したいアイテム/線/文字をタップ", fontSize = 11.sp)
         }
 
@@ -304,6 +309,8 @@ fun DrawScreen(modifier: Modifier = Modifier) {
                                 val p = norm(off, size.width, size.height)
                                 val n = nearestKind(p, marks, texts, strokes)
                                 moveKind = n?.first; moveIdx = n?.second ?: -1; lastP = p
+                                // つかんだ対象を選択状態にして、離してもハイライトを維持
+                                selKind = n?.first; selIdx = n?.second ?: -1
                                 if (moveKind != null) pushUndo() // 移動前の状態を1手として保存
                             },
                             onDrag = { ch, _ ->
@@ -338,6 +345,14 @@ fun DrawScreen(modifier: Modifier = Modifier) {
                         )
                     }
                 }
+                // 移動モード：タップだけで対象を選択（動かさなくてもハイライト表示）
+                .pointerInput(tool) {
+                    if (tool == DTool.MOVE) detectTapGestures(onTap = { off ->
+                        val p = norm(off, size.width, size.height)
+                        val n = nearestKind(p, marks, texts, strokes)
+                        selKind = n?.first; selIdx = n?.second ?: -1
+                    })
+                }
         ) {
             Canvas(modifier = Modifier.fillMaxSize()) {
                 val w = size.width; val h = size.height
@@ -352,12 +367,12 @@ fun DrawScreen(modifier: Modifier = Modifier) {
                 if (live.size >= 2) drawStroke(StrokeT(live, penMode, selColor), w, h)
                 marks.forEach { drawMark(it, w, h) }
                 texts.forEach { drawTextItem(it, w, h) }
-                // 移動中：つかんでいる対象をハイライトして分かりやすく
-                if (tool == DTool.MOVE && moveKind != null && moveIdx >= 0) {
-                    val hc: Offset? = when (moveKind) {
-                        "M" -> marks.getOrNull(moveIdx)?.let { Offset(it.x * w, it.y * h) }
-                        "T" -> texts.getOrNull(moveIdx)?.let { Offset(it.x * w, it.y * h) }
-                        "S" -> strokes.getOrNull(moveIdx)?.let { s ->
+                // 移動モード：選択中の対象を常時ハイライト（タップで選択、離しても維持）
+                if (tool == DTool.MOVE && selKind != null && selIdx >= 0) {
+                    val hc: Offset? = when (selKind) {
+                        "M" -> marks.getOrNull(selIdx)?.let { Offset(it.x * w, it.y * h) }
+                        "T" -> texts.getOrNull(selIdx)?.let { Offset(it.x * w, it.y * h) }
+                        "S" -> strokes.getOrNull(selIdx)?.let { s ->
                             Offset(s.pts.map { it.x }.average().toFloat() * w, s.pts.map { it.y }.average().toFloat() * h)
                         }
                         else -> null
@@ -463,7 +478,7 @@ fun DrawScreen(modifier: Modifier = Modifier) {
             text = { Text("配置したアイテム・線・文字をすべて消去します。よろしいですか？") },
             confirmButton = {
                 TextButton(onClick = {
-                    pushUndo(); marks.clear(); texts.clear(); strokes.clear(); persist(); showClear = false
+                    pushUndo(); marks.clear(); texts.clear(); strokes.clear(); selKind = null; selIdx = -1; persist(); showClear = false
                 }) { Text("消去する") }
             },
             dismissButton = { TextButton(onClick = { showClear = false }) { Text("やめる") } }
