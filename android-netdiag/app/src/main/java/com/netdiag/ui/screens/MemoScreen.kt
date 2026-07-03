@@ -24,8 +24,10 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.AnnotatedString
+import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.netdiag.core.DiagnosticsLog
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.netdiag.ui.SectionCard
 
@@ -84,6 +86,46 @@ fun MemoScreen(vm: MemoViewModel = viewModel()) {
                 onClick = { showOcr = true },
                 modifier = Modifier.fillMaxWidth(),
             ) { Text("カメラで文字を読み取る（OCR）") }
+        }
+
+        Spacer(Modifier.height(12.dp))
+
+        val log by DiagnosticsLog.entries.collectAsStateWithLifecycle()
+        SectionCard("診断ログ（自動記録）") {
+            Text(
+                "Ping・Traceroute・DNS・外部疎通テストの結果が実行時刻つきで自動保存されます。",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            Spacer(Modifier.height(8.dp))
+            if (log.isEmpty()) {
+                Text("まだログはありません。診断タブで実行してください。",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant)
+            } else {
+                log.asReversed().take(200).forEach { e ->
+                    Text(DiagnosticsLog.formatTime(e.timeMillis),
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Text(e.text, style = MaterialTheme.typography.bodySmall,
+                        fontFamily = FontFamily.Monospace)
+                    Spacer(Modifier.height(6.dp))
+                }
+            }
+            Spacer(Modifier.height(8.dp))
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Button(
+                    onClick = {
+                        clipboard.setText(AnnotatedString(DiagnosticsLog.asPlainText()))
+                        Toast.makeText(context, "ログをコピーしました", Toast.LENGTH_SHORT).show()
+                    },
+                    enabled = log.isNotEmpty(),
+                ) { Text("コピー") }
+                OutlinedButton(
+                    onClick = { DiagnosticsLog.clear() },
+                    enabled = log.isNotEmpty(),
+                ) { Text("クリア") }
+            }
         }
     }
 }

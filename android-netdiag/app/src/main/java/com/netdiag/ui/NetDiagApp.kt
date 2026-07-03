@@ -6,8 +6,8 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.EditNote
 import androidx.compose.material.icons.outlined.Home
-import androidx.compose.material.icons.outlined.NetworkCheck
 import androidx.compose.material.icons.outlined.QueryStats
+import androidx.compose.material.icons.outlined.Search
 import androidx.compose.material.icons.outlined.Settings
 import androidx.compose.material.icons.outlined.Wifi
 import androidx.compose.material3.Icon
@@ -38,7 +38,7 @@ private data class Tab(val label: String, val icon: ImageVector)
 
 private val tabs = listOf(
     Tab("TOP", Icons.Outlined.Home),
-    Tab("診断", Icons.Outlined.NetworkCheck),
+    Tab("診断", Icons.Outlined.Search),
     Tab("Wi-Fi", Icons.Outlined.Wifi),
     Tab("通信量", Icons.Outlined.QueryStats),
     Tab("メモ", Icons.Outlined.EditNote),

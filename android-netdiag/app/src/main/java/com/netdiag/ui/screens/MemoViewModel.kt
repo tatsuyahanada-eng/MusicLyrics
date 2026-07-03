@@ -3,6 +3,7 @@ package com.netdiag.ui.screens
 import android.app.Application
 import android.content.Context
 import androidx.lifecycle.AndroidViewModel
+import com.netdiag.core.DiagnosticsLog
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -16,6 +17,10 @@ class MemoViewModel(app: Application) : AndroidViewModel(app) {
     private val prefs = app.getSharedPreferences("netdiag_memo", Context.MODE_PRIVATE)
     private val _text = MutableStateFlow(prefs.getString(KEY, "") ?: "")
     val text: StateFlow<String> = _text.asStateFlow()
+
+    init {
+        DiagnosticsLog.init(app)
+    }
 
     fun setText(v: String) {
         _text.value = v

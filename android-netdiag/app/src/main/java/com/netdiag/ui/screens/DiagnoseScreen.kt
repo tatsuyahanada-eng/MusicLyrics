@@ -49,6 +49,15 @@ fun DiagnoseScreen(vm: DiagnoseViewModel = viewModel()) {
             SectionCard("高度なPing（ロス率・ジッター）") {
                 OctetIpField("宛先 IP", s.pingHost, vm::setPingHost)
                 Spacer(Modifier.height(8.dp))
+                Text("ワンタッチ入力", style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Spacer(Modifier.height(4.dp))
+                FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    listOf("192.168.0.1", "192.168.1.1", "192.168.2.1").forEach { ip ->
+                        OutlinedButton(onClick = { vm.setPingHost(ip) }) { Text(ip) }
+                    }
+                }
+                Spacer(Modifier.height(8.dp))
                 FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     NumField("回数", s.pingCount, vm::setPingCount)
                     NumField("サイズB", s.pingSize, vm::setPingSize)

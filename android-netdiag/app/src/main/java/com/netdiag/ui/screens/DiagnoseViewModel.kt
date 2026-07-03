@@ -3,6 +3,7 @@ package com.netdiag.ui.screens
 import android.app.Application
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
+import com.netdiag.core.DiagnosticsLog
 import com.netdiag.core.net.DnsServerResult
 import com.netdiag.core.net.DnsTool
 import com.netdiag.core.net.Hop
@@ -70,6 +71,10 @@ class DiagnoseViewModel(app: Application) : AndroidViewModel(app) {
     private val _state = MutableStateFlow(DiagnoseUiState())
     val state: StateFlow<DiagnoseUiState> = _state.asStateFlow()
 
+    init {
+        DiagnosticsLog.init(app)
+    }
+
     private var pingJob: Job? = null
     private var traceJob: Job? = null
 
@@ -102,8 +107,19 @@ class DiagnoseViewModel(app: Application) : AndroidViewModel(app) {
                 .collect { event ->
                     when (event) {
                         is PingEvent.Reply -> _state.update { it.copy(pingReplies = it.pingReplies + event) }
-                        is PingEvent.Summary -> _state.update { it.copy(pingSummary = event) }
-                        is PingEvent.Error -> _state.update { it.copy(pingError = event.message) }
+                        is PingEvent.Summary -> {
+                            _state.update { it.copy(pingSummary = event) }
+                            DiagnosticsLog.add(
+                                "PING ${s.pingHost.trim()} 送信${event.transmitted}/受信${event.received} " +
+                                    "loss ${"%.0f".format(event.lossPercent)}% " +
+                                    "avg ${event.avgMs?.let { v -> "%.1f".format(v) } ?: "-"}ms " +
+                                    "jitter ${event.jitterMs?.let { v -> "%.1f".format(v) } ?: "-"}ms"
+                            )
+                        }
+                        is PingEvent.Error -> {
+                            _state.update { it.copy(pingError = event.message) }
+                            DiagnosticsLog.add("PING ${s.pingHost.trim()} エラー: ${event.message}")
+                        }
                         is PingEvent.Timeout -> {}
                     }
                 }
@@ -139,8 +155,16 @@ class DiagnoseViewModel(app: Application) : AndroidViewModel(app) {
             ).collect { event ->
                 when (event) {
                     is TraceEvent.HopFound -> _state.update { it.copy(hops = it.hops + event.hop) }
-                    is TraceEvent.Done -> _state.update { it.copy(traceReached = event.reached) }
-                    is TraceEvent.Error -> _state.update { it.copy(traceError = event.message) }
+                    is TraceEvent.Done -> {
+                        _state.update { it.copy(traceReached = event.reached) }
+                        DiagnosticsLog.add(
+                            "TRACE $host ${if (event.reached) "到達" else "未到達"} hops=${event.hops}"
+                        )
+                    }
+                    is TraceEvent.Error -> {
+                        _state.update { it.copy(traceError = event.message) }
+                        DiagnosticsLog.add("TRACE $host エラー: ${event.message}")
+                    }
                 }
             }
             _state.update { it.copy(traceRunning = false) }
@@ -195,6 +219,11 @@ class DiagnoseViewModel(app: Application) : AndroidViewModel(app) {
             pingJobs.forEach { it.join() }
             wanJob.join()
             _state.update { it.copy(extRunning = false) }
+            val st = _state.value
+            val res = st.extResults.joinToString(" ") {
+                "${it.label}:${if (it.reachable == true) "OK" else "NG"}"
+            }
+            DiagnosticsLog.add("外部疎通 $res WAN=${st.wanIp ?: "-"}")
         }
     }
 
@@ -219,6 +248,10 @@ class DiagnoseViewModel(app: Application) : AndroidViewModel(app) {
             _state.update { it.copy(systemDns = sys) }
             val server = DnsTool.queryServer(s.dnsServer.trim(), s.dnsHost.trim())
             _state.update { it.copy(serverDns = server, dnsRunning = false) }
+            DiagnosticsLog.add(
+                "DNS ${s.dnsHost.trim()} sys=${sys.addresses.joinToString("/").ifBlank { "解決失敗" }} " +
+                    "@${s.dnsServer.trim()}=${server.addresses.joinToString("/").ifBlank { "応答なし" }}"
+            )
         }
     }
 
