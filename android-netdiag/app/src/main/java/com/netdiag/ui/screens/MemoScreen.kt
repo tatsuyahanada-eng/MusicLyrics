@@ -17,6 +17,9 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalContext
@@ -31,6 +34,15 @@ fun MemoScreen(vm: MemoViewModel = viewModel()) {
     val text by vm.text.collectAsStateWithLifecycle()
     val clipboard = LocalClipboardManager.current
     val context = LocalContext.current
+    var showOcr by remember { mutableStateOf(false) }
+
+    if (showOcr) {
+        OcrScreen(
+            onClose = { showOcr = false },
+            onAppend = { vm.append(it); showOcr = false },
+        )
+        return
+    }
 
     Column(
         Modifier
@@ -67,6 +79,11 @@ fun MemoScreen(vm: MemoViewModel = viewModel()) {
                     enabled = text.isNotEmpty(),
                 ) { Text("クリア") }
             }
+            Spacer(Modifier.height(8.dp))
+            OutlinedButton(
+                onClick = { showOcr = true },
+                modifier = Modifier.fillMaxWidth(),
+            ) { Text("カメラで文字を読み取る（OCR）") }
         }
     }
 }
