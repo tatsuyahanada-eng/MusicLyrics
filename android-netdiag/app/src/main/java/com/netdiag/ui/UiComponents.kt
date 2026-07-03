@@ -25,10 +25,13 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.TextRange
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 
@@ -146,17 +149,20 @@ private fun splitOctets(ip: String): List<String> {
  */
 @Composable
 fun OctetIpField(label: String, value: String, onChange: (String) -> Unit) {
-    val octets = remember { mutableStateListOf(*splitOctets(value).toTypedArray()) }
+    val fields = remember {
+        mutableStateListOf(*splitOctets(value).map { TextFieldValue(it) }.toTypedArray())
+    }
     val focus = remember { List(4) { FocusRequester() } }
 
-    // Sync when the value is changed from outside (e.g. a RESET button). We
-    // skip the case where it already matches what we emitted, so normal typing
-    // isn't disturbed.
+    fun combined(): String =
+        fields.joinToString(".") { (it.text.ifEmpty { "0" }).toIntOrNull()?.toString() ?: "0" }
+
+    // Sync when the value is changed from outside (preset / RESET). Skip the
+    // case where it already matches what we emitted so typing isn't disturbed.
     LaunchedEffect(value) {
-        val current = octets.joinToString(".") { (it.ifEmpty { "0" }).toInt().toString() }
-        if (value != current) {
+        if (value != combined()) {
             val parts = splitOctets(value)
-            for (i in 0..3) octets[i] = parts[i]
+            for (i in 0..3) fields[i] = TextFieldValue(parts[i], TextRange(parts[i].length))
         }
     }
 
@@ -170,20 +176,27 @@ fun OctetIpField(label: String, value: String, onChange: (String) -> Unit) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             for (i in 0..3) {
                 OutlinedTextField(
-                    value = octets[i],
-                    onValueChange = { raw ->
-                        val digits = raw.filter { it.isDigit() }.take(3)
-                        val n = digits.toIntOrNull()
-                        octets[i] = if (n != null && n > 255) "255" else digits
-                        onChange(octets.joinToString(".") { (it.ifEmpty { "0" }).toInt().toString() })
-                        if (octets[i].length == 3 && i < 3) focus[i + 1].requestFocus()
+                    value = fields[i],
+                    onValueChange = { tfv ->
+                        var digits = tfv.text.filter { it.isDigit() }.take(3)
+                        if ((digits.toIntOrNull() ?: 0) > 255) digits = "255"
+                        fields[i] = TextFieldValue(digits, TextRange(digits.length))
+                        onChange(combined())
+                        if (digits.length == 3 && i < 3) focus[i + 1].requestFocus()
                     },
                     singleLine = true,
                     textStyle = MaterialTheme.typography.bodyLarge.copy(textAlign = TextAlign.Center),
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                     modifier = Modifier
                         .width(64.dp)
-                        .focusRequester(focus[i]),
+                        .focusRequester(focus[i])
+                        // Select all on focus so the next digit replaces the box.
+                        .onFocusChanged { st ->
+                            if (st.isFocused) {
+                                val t = fields[i].text
+                                fields[i] = fields[i].copy(selection = TextRange(0, t.length))
+                            }
+                        },
                 )
                 if (i < 3) {
                     Text(
