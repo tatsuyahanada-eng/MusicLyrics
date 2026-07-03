@@ -4,6 +4,7 @@ import android.app.Application
 import android.content.Context
 import androidx.lifecycle.AndroidViewModel
 import com.netdiag.core.DiagnosticsLog
+import com.netdiag.core.ImageStore
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -20,6 +21,7 @@ class MemoViewModel(app: Application) : AndroidViewModel(app) {
 
     init {
         DiagnosticsLog.init(app)
+        ImageStore.init(app)
     }
 
     fun setText(v: String) {
