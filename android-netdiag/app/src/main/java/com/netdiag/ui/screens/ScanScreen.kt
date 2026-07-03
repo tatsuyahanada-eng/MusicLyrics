@@ -74,7 +74,6 @@ fun ScanScreen(vm: ScanViewModel = viewModel()) {
                     LabeledValue("サブネット", "/${info.prefixLength}  (${info.subnetMask})", monospace = true)
                     LabeledValue("ゲートウェイ", info.gateway ?: "-", monospace = true)
                     LabeledValue("DNS", info.dnsServers.joinToString(", ").ifBlank { "-" }, monospace = true)
-                    LabeledValue("インターフェース", info.interfaceName ?: "-")
                 } else {
                     Text(
                         "アクティブなIPv4ネットワークが見つかりません。Wi-Fiに接続してください。",

@@ -4,7 +4,8 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.outlined.Lan
+import androidx.compose.material.icons.outlined.EditNote
+import androidx.compose.material.icons.outlined.Home
 import androidx.compose.material.icons.outlined.NetworkCheck
 import androidx.compose.material.icons.outlined.QueryStats
 import androidx.compose.material.icons.outlined.Settings
@@ -25,6 +26,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import com.netdiag.ui.screens.DiagnoseScreen
+import com.netdiag.ui.screens.MemoScreen
 import com.netdiag.ui.screens.ScanScreen
 import com.netdiag.ui.screens.SettingsScreen
 import com.netdiag.ui.screens.TrafficScreen
@@ -35,10 +37,11 @@ import com.netdiag.ui.theme.SettingsRepository
 private data class Tab(val label: String, val icon: ImageVector)
 
 private val tabs = listOf(
-    Tab("可視化", Icons.Outlined.Lan),
+    Tab("TOP", Icons.Outlined.Home),
     Tab("診断", Icons.Outlined.NetworkCheck),
     Tab("Wi-Fi", Icons.Outlined.Wifi),
     Tab("通信量", Icons.Outlined.QueryStats),
+    Tab("メモ", Icons.Outlined.EditNote),
     Tab("設定", Icons.Outlined.Settings),
 )
 
@@ -70,6 +73,7 @@ fun NetDiagApp() {
                     1 -> DiagnoseScreen()
                     2 -> WifiScreen()
                     3 -> TrafficScreen()
+                    4 -> MemoScreen()
                     else -> SettingsScreen(
                         settings = settings,
                         onChange = { settings = it; repo.save(it) },
