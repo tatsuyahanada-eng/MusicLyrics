@@ -2,17 +2,18 @@ package com.netdiag.ui.screens
 
 import android.Manifest
 import android.content.pm.PackageManager
+import android.graphics.Bitmap
+import android.graphics.Matrix
 import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.annotation.OptIn
 import androidx.camera.core.CameraSelector
-import androidx.camera.core.ExperimentalGetImage
 import androidx.camera.core.ImageAnalysis
 import androidx.camera.core.Preview
 import androidx.camera.lifecycle.ProcessCameraProvider
 import androidx.camera.view.PreviewView
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -83,6 +84,31 @@ fun OcrScreen(onClose: () -> Unit, onAppend: (String) -> Unit) {
     Box(Modifier.fillMaxSize().background(Color.Black)) {
         if (granted) {
             CameraTextAnalyzer(onText = { recognized = it })
+            // Horizontal capture frame: aim the text inside it.
+            Column(
+                Modifier
+                    .align(Alignment.Center)
+                    .fillMaxWidth()
+                    .padding(horizontal = 20.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
+            ) {
+                Text(
+                    "この横枠に文字を合わせてください",
+                    color = Color.White,
+                    style = MaterialTheme.typography.labelSmall,
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(4.dp))
+                        .background(Color(0xB0000000))
+                        .padding(horizontal = 6.dp, vertical = 2.dp),
+                )
+                Spacer(Modifier.height(6.dp))
+                Box(
+                    Modifier
+                        .fillMaxWidth()
+                        .height(88.dp)
+                        .border(2.dp, MaterialTheme.colorScheme.primary, RoundedCornerShape(8.dp))
+                )
+            }
         } else {
             Column(
                 Modifier.fillMaxSize().padding(24.dp),
@@ -178,7 +204,6 @@ private fun CopyLine(
     }
 }
 
-@OptIn(ExperimentalGetImage::class)
 @Composable
 private fun CameraTextAnalyzer(onText: (String) -> Unit) {
     val lifecycleOwner = LocalLifecycleOwner.current
@@ -209,15 +234,20 @@ private fun CameraTextAnalyzer(onText: (String) -> Unit) {
                     .setBackpressureStrategy(ImageAnalysis.STRATEGY_KEEP_ONLY_LATEST)
                     .build()
                 analysis.setAnalyzer(executor) { proxy ->
-                    val media = proxy.image
-                    if (media == null) {
+                    try {
+                        // Crop to a wide centre band so only the text inside the
+                        // on-screen frame is recognised (less noise / garbling).
+                        val rotated = rotateBitmap(proxy.toBitmap(), proxy.imageInfo.rotationDegrees)
+                        val bandH = (rotated.height * OCR_BAND_FRACTION).toInt().coerceAtLeast(1)
+                        val topY = ((rotated.height - bandH) / 2).coerceAtLeast(0)
+                        val cropped = Bitmap.createBitmap(rotated, 0, topY, rotated.width, bandH)
+                        val image = InputImage.fromBitmap(cropped, 0)
+                        recognizer.process(image)
+                            .addOnSuccessListener { onText(sanitizeOcr(it.text)) }
+                            .addOnCompleteListener { proxy.close() }
+                    } catch (_: Exception) {
                         proxy.close()
-                        return@setAnalyzer
                     }
-                    val image = InputImage.fromMediaImage(media, proxy.imageInfo.rotationDegrees)
-                    recognizer.process(image)
-                        .addOnSuccessListener { onText(it.text) }
-                        .addOnCompleteListener { proxy.close() }
                 }
                 try {
                     cameraProvider.unbindAll()
@@ -257,3 +287,19 @@ fun extractWifi(text: String): WifiCredentials {
 private fun toast(context: android.content.Context, msg: String) {
     Toast.makeText(context, msg, Toast.LENGTH_SHORT).show()
 }
+
+/** Fraction of the image height read inside the capture frame. */
+private const val OCR_BAND_FRACTION = 0.24f
+
+private fun rotateBitmap(src: Bitmap, degrees: Int): Bitmap {
+    if (degrees % 360 == 0) return src
+    val matrix = Matrix().apply { postRotate(degrees.toFloat()) }
+    return Bitmap.createBitmap(src, 0, 0, src.width, src.height, matrix, true)
+}
+
+/** Drops control characters and blank lines to reduce OCR garbling. */
+fun sanitizeOcr(text: String): String =
+    text.lines()
+        .map { line -> line.filter { it == '\t' || it.code >= 32 }.trim() }
+        .filter { it.isNotEmpty() }
+        .joinToString("\n")
