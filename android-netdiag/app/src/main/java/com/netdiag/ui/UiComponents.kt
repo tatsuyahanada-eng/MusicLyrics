@@ -17,9 +17,11 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateListOf
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -152,18 +154,16 @@ fun OctetIpField(label: String, value: String, onChange: (String) -> Unit) {
     val fields = remember {
         mutableStateListOf(*splitOctets(value).map { TextFieldValue(it) }.toTypedArray())
     }
+    var lastValue by remember { mutableStateOf(value) }
     val focus = remember { List(4) { FocusRequester() } }
 
-    fun combined(): String =
-        fields.joinToString(".") { (it.text.ifEmpty { "0" }).toIntOrNull()?.toString() ?: "0" }
-
-    // Sync when the value is changed from outside (preset / RESET). Skip the
-    // case where it already matches what we emitted so typing isn't disturbed.
-    LaunchedEffect(value) {
-        if (value != combined()) {
-            val parts = splitOctets(value)
-            for (i in 0..3) fields[i] = TextFieldValue(parts[i], TextRange(parts[i].length))
-        }
+    // Synchronous external sync: when the incoming value changes (preset /
+    // RESET) and it wasn't produced by our own typing, overwrite the boxes.
+    // Converges in one extra recomposition because lastValue is updated too.
+    if (value != lastValue) {
+        lastValue = value
+        val parts = splitOctets(value)
+        for (i in 0..3) fields[i] = TextFieldValue(parts[i], TextRange(parts[i].length))
     }
 
     Column {
@@ -181,7 +181,11 @@ fun OctetIpField(label: String, value: String, onChange: (String) -> Unit) {
                         var digits = tfv.text.filter { it.isDigit() }.take(3)
                         if ((digits.toIntOrNull() ?: 0) > 255) digits = "255"
                         fields[i] = TextFieldValue(digits, TextRange(digits.length))
-                        onChange(combined())
+                        val combined = fields.joinToString(".") {
+                            (it.text.ifEmpty { "0" }).toIntOrNull()?.toString() ?: "0"
+                        }
+                        lastValue = combined // mark as self-originated
+                        onChange(combined)
                         if (digits.length == 3 && i < 3) focus[i + 1].requestFocus()
                     },
                     singleLine = true,

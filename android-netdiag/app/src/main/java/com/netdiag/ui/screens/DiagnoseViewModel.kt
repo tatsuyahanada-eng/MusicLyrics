@@ -23,7 +23,7 @@ import kotlinx.coroutines.withContext
 
 data class DiagnoseUiState(
     // Ping
-    val pingHost: String = "8.8.8.8",
+    val pingHost: String = "",
     val pingCount: Int = 10,
     val pingSize: Int = 56,
     val pingIntervalMs: Int = 1000,
