@@ -36,18 +36,30 @@ fun TrafficScreen(vm: TrafficViewModel = viewModel()) {
     ) {
         item {
             SectionCard("リアルタイム通信量（端末全体）") {
+                val showResult = s.hasResult && !s.monitoring
+                Text(
+                    when {
+                        s.monitoring -> "計測中… 残り ${s.remainingSec}秒"
+                        showResult -> "結果（${s.resultDurationSec}秒間の平均）"
+                        else -> "STARTで計測を開始"
+                    },
+                    style = MaterialTheme.typography.labelLarge,
+                    color = if (s.monitoring) MaterialTheme.colorScheme.primary
+                    else MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                Spacer(Modifier.height(10.dp))
                 RateRow(
                     arrow = "▼",
-                    title = "ダウンロード（受信）",
-                    bytesPerSec = s.rxRate,
+                    title = "ダウンロード",
+                    bytesPerSec = if (showResult) s.resultRxAvg else s.rxRate,
                     peak = s.peakRxRate,
                     color = MaterialTheme.colorScheme.primary,
                 )
-                Spacer(Modifier.height(14.dp))
+                Spacer(Modifier.height(16.dp))
                 RateRow(
                     arrow = "▲",
-                    title = "アップロード（送信）",
-                    bytesPerSec = s.txRate,
+                    title = "アップロード",
+                    bytesPerSec = if (showResult) s.resultTxAvg else s.txRate,
                     peak = s.peakTxRate,
                     color = MaterialTheme.colorScheme.secondary,
                 )

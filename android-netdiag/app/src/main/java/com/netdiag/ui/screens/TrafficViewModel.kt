@@ -19,6 +19,11 @@ data class TrafficUiState(
     val peakTxRate: Long = 0,
     val durationSec: Int = 30,
     val remainingSec: Int = 0,
+    // Result of the finished measurement window (averages).
+    val hasResult: Boolean = false,
+    val resultRxAvg: Long = 0,
+    val resultTxAvg: Long = 0,
+    val resultDurationSec: Int = 0,
 )
 
 class TrafficViewModel(app: Application) : AndroidViewModel(app) {
@@ -28,30 +33,36 @@ class TrafficViewModel(app: Application) : AndroidViewModel(app) {
     val state: StateFlow<TrafficUiState> = _state.asStateFlow()
 
     private var tpJob: Job? = null
+    private var rxSum = 0L
+    private var txSum = 0L
+    private var sampleCount = 0
 
-    /** Measurement window options (seconds). */
     fun setDuration(sec: Int) {
         if (!_state.value.monitoring) _state.update { it.copy(durationSec = sec) }
     }
 
-    /** START/STOP the live throughput meter on demand. */
     fun toggleMonitoring() {
         if (_state.value.monitoring) stopMonitoring() else startMonitoring()
     }
 
-    /**
-     * Starts the meter and **auto-stops after [TrafficUiState.durationSec]** so
-     * it never runs indefinitely. The user can also STOP early.
-     */
+    /** Starts the meter, accumulating averages, and auto-stops after the window. */
     fun startMonitoring() {
         if (_state.value.monitoring) return
         val duration = _state.value.durationSec
+        rxSum = 0; txSum = 0; sampleCount = 0
         _state.update {
-            it.copy(monitoring = true, peakRxRate = 0, peakTxRate = 0, remainingSec = duration)
+            it.copy(
+                monitoring = true, hasResult = false,
+                rxRate = 0, txRate = 0, peakRxRate = 0, peakTxRate = 0,
+                remainingSec = duration,
+            )
         }
         tpJob = viewModelScope.launch {
             var remaining = duration
             monitor.throughput(1000).collect { sample ->
+                rxSum += sample.rxBytesPerSec
+                txSum += sample.txBytesPerSec
+                sampleCount++
                 _state.update {
                     it.copy(
                         rxRate = sample.rxBytesPerSec,
@@ -73,6 +84,17 @@ class TrafficViewModel(app: Application) : AndroidViewModel(app) {
     fun stopMonitoring() {
         tpJob?.cancel()
         tpJob = null
-        _state.update { it.copy(monitoring = false, remainingSec = 0) }
+        val avgRx = if (sampleCount > 0) rxSum / sampleCount else 0
+        val avgTx = if (sampleCount > 0) txSum / sampleCount else 0
+        _state.update {
+            it.copy(
+                monitoring = false,
+                remainingSec = 0,
+                hasResult = sampleCount > 0,
+                resultRxAvg = avgRx,
+                resultTxAvg = avgTx,
+                resultDurationSec = it.durationSec,
+            )
+        }
     }
 }
