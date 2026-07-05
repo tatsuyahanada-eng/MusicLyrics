@@ -7,6 +7,7 @@ import com.netdiag.core.net.DiscoveredHost
 import com.netdiag.core.net.HostDiscovery
 import com.netdiag.core.net.NetInfo
 import com.netdiag.core.net.NetworkInfoProvider
+import com.netdiag.core.net.HttpBanner
 import com.netdiag.core.net.NetUtils
 import com.netdiag.core.net.PingTool
 import com.netdiag.core.net.PortScanner
@@ -121,11 +122,19 @@ class ScanViewModel(app: Application) : AndroidViewModel(app) {
         viewModelScope.launch {
             val open = runCatching { PortScanner.scan(ip) }.getOrDefault(emptyList())
             val ttl = runCatching { PingTool.probeTtl(ip) }.getOrNull()
+            val webPort = open.firstOrNull { it in HttpBanner.WEB_PORTS }
+            val http = if (webPort != null) {
+                runCatching { HttpBanner.probe(ip, webPort) }.getOrNull()
+            } else null
             _state.update { s ->
                 s.copy(
                     portScanning = s.portScanning - ip,
                     hosts = s.hosts.map {
-                        if (it.ip == ip) it.copy(openPorts = open, ttl = ttl ?: it.ttl) else it
+                        if (it.ip == ip) it.copy(
+                            openPorts = open,
+                            ttl = ttl ?: it.ttl,
+                            httpInfo = http ?: it.httpInfo,
+                        ) else it
                     },
                 )
             }

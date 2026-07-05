@@ -20,6 +20,8 @@ data class DiscoveredHost(
     val mac: String? = null,
     val vendor: String? = null,
     val ttl: Int? = null,
+    val latencyMs: Long? = null,
+    val httpInfo: String? = null,
     val openPorts: List<Int> = emptyList(),
     val isGateway: Boolean = false,
     val isSelf: Boolean = false,
@@ -83,17 +85,24 @@ object HostDiscovery {
         coroutineScope {
             val deferred = hosts.map { target ->
                 async {
-                    gate.withPermit { probe(target, reachableTimeoutMs) }
+                    gate.withPermit {
+                        val t0 = System.nanoTime()
+                        val port = probe(target, reachableTimeoutMs)
+                        val ms = (System.nanoTime() - t0) / 1_000_000
+                        port to ms
+                    }
                 }
             }
             for ((idx, d) in deferred.withIndex()) {
-                val alivePort = d.await()
+                val (alivePort, latency) = d.await()
                 scanned++
                 if (alivePort != PROBE_DEAD) {
                     alive++
                     // Read ARP per alive host: the cache is populated only
                     // after we have just exchanged packets with it.
-                    val host = enrich(hosts[idx], info, ArpTable.lookup(hosts[idx]), alivePort)
+                    val host = enrich(
+                        hosts[idx], info, ArpTable.lookup(hosts[idx]), alivePort, latency,
+                    )
                     emit(ScanEvent.Found(host))
                 }
                 emit(ScanEvent.Progress(scanned, total))
@@ -135,7 +144,13 @@ object HostDiscovery {
         return PROBE_DEAD
     }
 
-    private fun enrich(ip: String, info: NetInfo, mac: String?, alivePort: Int): DiscoveredHost {
+    private fun enrich(
+        ip: String,
+        info: NetInfo,
+        mac: String?,
+        alivePort: Int,
+        latencyMs: Long?,
+    ): DiscoveredHost {
         val hostname = try {
             val name = InetAddress.getByName(ip).canonicalHostName
             if (name == ip) null else name
@@ -147,6 +162,7 @@ object HostDiscovery {
             hostname = hostname,
             mac = mac,
             vendor = OuiVendors.lookup(mac),
+            latencyMs = latencyMs,
             openPorts = if (alivePort > 0) listOf(alivePort) else emptyList(),
             isGateway = ip == info.gateway,
             isSelf = ip == info.ipv4,

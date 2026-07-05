@@ -123,12 +123,19 @@ fun ScanScreen(vm: ScanViewModel = viewModel()) {
 
         if (state.hosts.isNotEmpty()) {
             item {
-                Text(
-                    "検出された機器 (${state.hosts.size})",
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.SemiBold,
-                    modifier = Modifier.padding(start = 4.dp, top = 4.dp),
-                )
+                Column(Modifier.padding(start = 4.dp, top = 4.dp)) {
+                    Text(
+                        "検出された機器 (${state.hosts.size})",
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.SemiBold,
+                    )
+                    Text(
+                        "各機器の「詳細取得」で 開放ポート / OS推定 / Web機器情報 を取得できます。" +
+                            "MAC・メーカーは Android10+ の制限で取得できないことがあります。",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
             }
         }
 
@@ -182,10 +189,12 @@ private fun HostCard(host: DiscoveredHost, scanning: Boolean, onPortScan: () -> 
             OsGuesser.guess(host)?.let {
                 LabeledValue("OS(推定)", it)
             }
+            host.latencyMs?.let { LabeledValue("応答時間", "${it} ms") }
             host.vendor?.let {
                 LabeledValue("メーカー", it)
             }
-            LabeledValue("MAC", host.mac ?: "取得不可", monospace = true)
+            host.httpInfo?.let { LabeledValue("Web機器", it) }
+            LabeledValue("MAC", host.mac ?: "取得不可 (要root/Android制限)", monospace = true)
             host.ttl?.let { LabeledValue("TTL", it.toString(), monospace = true) }
             if (host.openPorts.isNotEmpty()) {
                 Spacer(Modifier.height(8.dp))
