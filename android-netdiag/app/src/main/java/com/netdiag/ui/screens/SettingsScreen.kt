@@ -37,7 +37,7 @@ fun SettingsScreen(settings: AppSettings, onChange: (AppSettings) -> Unit) {
         contentPadding = androidx.compose.foundation.layout.PaddingValues(vertical = 12.dp),
     ) {
         item {
-            SectionCard("文字色（蛍光）") {
+            SectionCard("文字色") {
                 Accent.entries.forEach { accent ->
                     OptionRow(
                         selected = settings.accent == accent,

@@ -58,13 +58,19 @@ class TrafficMonitor(context: Context) {
 
         /** Link-speed style formatting in bits/sec (1000-based: Kbps/Mbps/Gbps). */
         fun formatBitsRate(bytesPerSec: Long): String {
+            val (v, u) = bitsRateValueUnit(bytesPerSec)
+            return "$v $u"
+        }
+
+        /** Same as [formatBitsRate] but split into number and unit for big UI. */
+        fun bitsRateValueUnit(bytesPerSec: Long): Pair<String, String> {
             var value = bytesPerSec * 8.0
             val units = arrayOf("bps", "Kbps", "Mbps", "Gbps")
             var i = 0
             while (value >= 1000 && i < units.size - 1) {
                 value /= 1000; i++
             }
-            return String.format("%.1f %s", value, units[i])
+            return String.format("%.1f", value) to units[i]
         }
     }
 }

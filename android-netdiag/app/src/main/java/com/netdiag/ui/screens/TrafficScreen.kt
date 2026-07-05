@@ -96,22 +96,33 @@ private fun RateRow(
     peak: Long,
     color: androidx.compose.ui.graphics.Color,
 ) {
-    Column(Modifier.fillMaxWidth()) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Text(arrow, fontSize = 26.sp, fontWeight = FontWeight.Bold, color = color)
-            Spacer(Modifier.width(8.dp))
-            Text(title, style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.SemiBold, color = color)
+    val (value, unit) = TrafficMonitor.bitsRateValueUnit(bytesPerSec)
+    Column(
+        Modifier.fillMaxWidth(),
+        horizontalAlignment = Alignment.CenterHorizontally,
+    ) {
+        Text("$arrow $title", style = MaterialTheme.typography.titleMedium,
+            fontWeight = FontWeight.SemiBold, color = color)
+        Spacer(Modifier.height(2.dp))
+        Row(verticalAlignment = Alignment.Bottom) {
+            Text(
+                value,
+                fontSize = 56.sp,
+                lineHeight = 60.sp,
+                fontWeight = FontWeight.Bold,
+                color = color,
+            )
+            Spacer(Modifier.width(6.dp))
+            Text(
+                unit,
+                fontSize = 22.sp,
+                fontWeight = FontWeight.SemiBold,
+                color = color,
+                modifier = Modifier.padding(bottom = 8.dp),
+            )
         }
         Text(
-            TrafficMonitor.formatRate(bytesPerSec),
-            fontSize = 40.sp,
-            lineHeight = 46.sp,
-            fontWeight = FontWeight.Bold,
-            color = color,
-        )
-        Text(
-            "${TrafficMonitor.formatBitsRate(bytesPerSec)}   最大 ${TrafficMonitor.formatRate(peak)}",
+            "${TrafficMonitor.formatRate(bytesPerSec)}   ・   最大 ${TrafficMonitor.formatBitsRate(peak)}",
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )

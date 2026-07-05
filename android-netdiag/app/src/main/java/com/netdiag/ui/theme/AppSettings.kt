@@ -3,11 +3,12 @@ package com.netdiag.ui.theme
 import android.content.Context
 import androidx.compose.ui.graphics.Color
 
-/** Phosphor text colours, in the classic terminal style. */
+/** Text accent colours (used for body text, highlights and title bars). */
 enum class Accent(val label: String, val bright: Color, val dim: Color) {
-    GREEN("蛍光グリーン", Color(0xFF00FF66), Color(0xFF1F9E55)),
-    CYAN("蛍光シアン", Color(0xFF00E5FF), Color(0xFF1C8FA3)),
-    YELLOW("蛍光イエロー", Color(0xFFFFF200), Color(0xFFA39800)),
+    GREEN("グリーン", Color(0xFF00FF66), Color(0xFF1F9E55)),
+    CYAN("シアン", Color(0xFF00E5FF), Color(0xFF1C8FA3)),
+    YELLOW("イエロー", Color(0xFFFFF200), Color(0xFFA39800)),
+    PINK("ピンク", Color(0xFFFF3DAE), Color(0xFFB02E77)),
 }
 
 /** Dark background shade behind the phosphor text (kept clearly distinct). */
