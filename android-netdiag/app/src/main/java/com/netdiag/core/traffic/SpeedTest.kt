@@ -4,6 +4,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.flowOn
+import java.io.IOException
 import java.net.HttpURLConnection
 import java.net.URL
 
@@ -17,58 +18,64 @@ sealed interface SpeedEvent {
 }
 
 /**
- * Active internet speed test: it actually downloads and uploads test data
- * (via Cloudflare's public speed endpoints) and measures the achieved
- * throughput — the accurate way to measure line speed, unlike passively
- * watching ambient traffic.
+ * Active internet speed test: actually downloads and uploads test data (via
+ * Cloudflare's public speed endpoints) and measures the achieved throughput —
+ * the accurate way to measure line speed. The download runs as repeated
+ * fixed-size chunks until the time budget is spent, so it works regardless of
+ * the server's per-request size cap.
  */
 object SpeedTest {
 
-    private const val DOWN_URL = "https://speed.cloudflare.com/__down?bytes=1000000000"
+    private const val DOWN_BASE = "https://speed.cloudflare.com/__down"
     private const val UP_URL = "https://speed.cloudflare.com/__up"
-    private const val LAT_URL = "https://speed.cloudflare.com/__down?bytes=0"
+    private const val CHUNK_BYTES = 25_000_000L      // 25 MB per download request
 
     fun run(durationMsEach: Long = 10_000): Flow<SpeedEvent> = flow {
-        // 1) Latency (a few quick round trips).
         val latency = measureLatency()
         if (latency != null) emit(SpeedEvent.Latency(latency))
 
-        // 2) Download.
+        // ---- Download: loop chunk requests until the time budget is spent ----
         var downMbps = 0.0
         try {
-            val conn = (URL(DOWN_URL).openConnection() as HttpURLConnection).apply {
-                connectTimeout = 8000
-                readTimeout = 8000
-                setRequestProperty("Accept-Encoding", "identity")
-            }
-            conn.inputStream.use { input ->
-                val buf = ByteArray(65536)
-                var total = 0L
-                val start = System.nanoTime()
-                var lastEmit = 0L
-                while (true) {
-                    val n = input.read(buf)
-                    if (n < 0) break
-                    total += n
-                    val elapsed = (System.nanoTime() - start) / 1_000_000
-                    if (elapsed >= durationMsEach) break
-                    if (elapsed - lastEmit >= 250) {
-                        lastEmit = elapsed
-                        downMbps = mbps(total, elapsed)
-                        emit(SpeedEvent.Download(downMbps, (elapsed.toFloat() / durationMsEach).coerceIn(0f, 1f)))
+            val buf = ByteArray(65536)
+            var total = 0L
+            val start = System.nanoTime()
+            var lastEmit = 0L
+            loop@ while ((System.nanoTime() - start) / 1_000_000 < durationMsEach) {
+                val conn = (URL("$DOWN_BASE?bytes=$CHUNK_BYTES").openConnection() as HttpURLConnection).apply {
+                    connectTimeout = 8000
+                    readTimeout = 8000
+                }
+                if (conn.responseCode !in 200..299) {
+                    conn.disconnect()
+                    if (total == 0L) throw IOException("HTTP ${conn.responseCode}")
+                    break@loop
+                }
+                conn.inputStream.use { input ->
+                    while (true) {
+                        val n = input.read(buf)
+                        if (n < 0) break
+                        total += n
+                        val elapsed = (System.nanoTime() - start) / 1_000_000
+                        if (elapsed >= durationMsEach) break
+                        if (elapsed - lastEmit >= 200) {
+                            lastEmit = elapsed
+                            downMbps = mbps(total, elapsed)
+                            emit(SpeedEvent.Download(downMbps, (elapsed.toFloat() / durationMsEach).coerceIn(0f, 1f)))
+                        }
                     }
                 }
-                val elapsed = ((System.nanoTime() - start) / 1_000_000).coerceAtLeast(1)
-                downMbps = mbps(total, elapsed)
+                conn.disconnect()
             }
-            conn.disconnect()
+            val elapsed = ((System.nanoTime() - start) / 1_000_000).coerceAtLeast(1)
+            downMbps = mbps(total, elapsed)
             emit(SpeedEvent.Download(downMbps, 1f))
         } catch (e: Exception) {
             emit(SpeedEvent.Error("下り測定に失敗しました: ${e.message}"))
             return@flow
         }
 
-        // 3) Upload.
+        // ---- Upload: one chunked POST streamed until the time budget is spent ----
         var upMbps = 0.0
         try {
             val conn = (URL(UP_URL).openConnection() as HttpURLConnection).apply {
@@ -89,7 +96,7 @@ object SpeedTest {
                     total += buf.size
                     val elapsed = (System.nanoTime() - start) / 1_000_000
                     if (elapsed >= durationMsEach) break
-                    if (elapsed - lastEmit >= 250) {
+                    if (elapsed - lastEmit >= 200) {
                         lastEmit = elapsed
                         upMbps = mbps(total, elapsed)
                         emit(SpeedEvent.Upload(upMbps, (elapsed.toFloat() / durationMsEach).coerceIn(0f, 1f)))
@@ -113,14 +120,15 @@ object SpeedTest {
         repeat(4) {
             try {
                 val start = System.nanoTime()
-                val conn = (URL(LAT_URL).openConnection() as HttpURLConnection).apply {
+                val conn = (URL("$DOWN_BASE?bytes=0").openConnection() as HttpURLConnection).apply {
                     connectTimeout = 3000
                     readTimeout = 3000
                 }
                 conn.inputStream.use { it.read() }
                 conn.disconnect()
                 val ms = (System.nanoTime() - start) / 1_000_000
-                if (best == null || ms < best!!) best = ms
+                val b = best
+                if (b == null || ms < b) best = ms
             } catch (_: Exception) {
                 // ignore
             }
