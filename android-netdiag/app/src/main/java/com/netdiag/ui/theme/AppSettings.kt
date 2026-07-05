@@ -30,7 +30,7 @@ class SettingsRepository(context: Context) {
         val accent = runCatching { Accent.valueOf(prefs.getString(KEY_ACCENT, null) ?: "") }
             .getOrDefault(Accent.GREEN)
         val bg = runCatching { AppBackground.valueOf(prefs.getString(KEY_BG, null) ?: "") }
-            .getOrDefault(AppBackground.BLACK)
+            .getOrDefault(AppBackground.WHITE)
         return AppSettings(accent, bg)
     }
 
