@@ -6,9 +6,9 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.EditNote
 import androidx.compose.material.icons.outlined.Home
-import androidx.compose.material.icons.outlined.QueryStats
 import androidx.compose.material.icons.outlined.Search
 import androidx.compose.material.icons.outlined.Settings
+import androidx.compose.material.icons.outlined.Speed
 import androidx.compose.material.icons.outlined.Wifi
 import androidx.compose.material3.Icon
 import androidx.compose.material3.NavigationBar
@@ -40,7 +40,7 @@ private val tabs = listOf(
     Tab("TOP", Icons.Outlined.Home),
     Tab("診断", Icons.Outlined.Search),
     Tab("Wi-Fi", Icons.Outlined.Wifi),
-    Tab("通信量", Icons.Outlined.QueryStats),
+    Tab("速度", Icons.Outlined.Speed),
     Tab("メモ", Icons.Outlined.EditNote),
     Tab("設定", Icons.Outlined.Settings),
 )
