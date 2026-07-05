@@ -1,10 +1,14 @@
 package com.netdiag.core
 
+import android.content.ContentValues
 import android.content.Context
 import android.graphics.BitmapFactory
 import android.graphics.Color
 import android.graphics.Paint
 import android.graphics.pdf.PdfDocument
+import android.os.Build
+import android.os.Environment
+import android.provider.MediaStore
 import java.io.File
 import java.io.FileOutputStream
 import java.text.SimpleDateFormat
@@ -102,6 +106,40 @@ object PdfExporter {
         FileOutputStream(out).use { doc.writeTo(it) }
         doc.close()
         return out
+    }
+
+    /**
+     * Copies an exported PDF into the public Downloads folder so it appears in
+     * the Files app. Returns a user-facing location, or null on failure.
+     */
+    fun saveToDownloads(context: Context, file: File): String? {
+        return try {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                val values = ContentValues().apply {
+                    put(MediaStore.Downloads.DISPLAY_NAME, file.name)
+                    put(MediaStore.Downloads.MIME_TYPE, "application/pdf")
+                    put(MediaStore.Downloads.IS_PENDING, 1)
+                }
+                val resolver = context.contentResolver
+                val uri = resolver.insert(MediaStore.Downloads.EXTERNAL_CONTENT_URI, values)
+                    ?: return null
+                resolver.openOutputStream(uri).use { out ->
+                    file.inputStream().use { it.copyTo(out!!) }
+                }
+                values.clear()
+                values.put(MediaStore.Downloads.IS_PENDING, 0)
+                resolver.update(uri, values, null, null)
+                "ダウンロード/${file.name}"
+            } else {
+                val dir = context.getExternalFilesDir(Environment.DIRECTORY_DOWNLOADS)
+                    ?: return null
+                val dest = File(dir, file.name)
+                file.copyTo(dest, overwrite = true)
+                dest.absolutePath
+            }
+        } catch (_: Exception) {
+            null
+        }
     }
 
     private fun decodeScaled(path: String, maxW: Int, maxH: Int): android.graphics.Bitmap? {

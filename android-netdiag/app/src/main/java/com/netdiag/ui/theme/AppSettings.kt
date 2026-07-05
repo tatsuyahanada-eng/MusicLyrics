@@ -10,15 +10,15 @@ enum class Accent(val label: String, val bright: Color, val dim: Color) {
     YELLOW("蛍光イエロー", Color(0xFFFFF200), Color(0xFFA39800)),
 }
 
-/** Background shade behind the phosphor text (kept clearly distinct). */
+/** Light background shade behind dark text. */
 enum class AppBackground(val label: String, val bg: Color, val surface: Color, val track: Color) {
-    BLACK("ブラック", Color(0xFF000000), Color(0xFF101010), Color(0xFF242424)),
-    GRAY("グレー", Color(0xFF454545), Color(0xFF555555), Color(0xFF6E6E6E)),
+    WHITE("ホワイト", Color(0xFFFFFFFF), Color(0xFFF3F3F3), Color(0xFFE0E0E0)),
+    GRAY("グレー", Color(0xFFD8D8D8), Color(0xFFC9C9C9), Color(0xFFB2B2B2)),
 }
 
 data class AppSettings(
     val accent: Accent = Accent.GREEN,
-    val background: AppBackground = AppBackground.BLACK,
+    val background: AppBackground = AppBackground.WHITE,
 )
 
 /** Persists the look-and-feel choice in SharedPreferences (no extra deps). */

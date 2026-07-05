@@ -24,6 +24,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -62,7 +63,6 @@ import androidx.lifecycle.compose.LocalLifecycleOwner
 import com.google.mlkit.vision.common.InputImage
 import com.google.mlkit.vision.text.TextRecognition
 import com.google.mlkit.vision.text.latin.TextRecognizerOptions
-import com.netdiag.ui.NameColor
 import java.util.concurrent.Executors
 
 private enum class OcrMode { LIVE, CAPTURE }
@@ -183,10 +183,8 @@ private fun LiveOcr(onAppend: (String) -> Unit) {
                     analysis.setAnalyzer(executor) { proxy ->
                         try {
                             val rotated = rotateBitmap(proxy.toBitmap(), proxy.imageInfo.rotationDegrees)
-                            val bandH = (rotated.height * OCR_BAND_FRACTION).toInt().coerceAtLeast(1)
-                            val topY = ((rotated.height - bandH) / 2).coerceAtLeast(0)
-                            val cropped = Bitmap.createBitmap(rotated, 0, topY, rotated.width, bandH)
-                            recognizer.process(InputImage.fromBitmap(cropped, 0))
+                            val band = upscale(cropCenterBand(rotated, OCR_BAND_FRACTION), 2)
+                            recognizer.process(InputImage.fromBitmap(band, 0))
                                 .addOnSuccessListener { onText(sanitizeOcr(it.text)) }
                                 .addOnCompleteListener { proxy.close() }
                         } catch (_: Exception) {
@@ -226,7 +224,7 @@ private fun LiveOcr(onAppend: (String) -> Unit) {
             Box(
                 Modifier
                     .fillMaxWidth()
-                    .height(88.dp)
+                    .fillMaxHeight(OCR_BAND_FRACTION)
                     .border(2.dp, MaterialTheme.colorScheme.primary, RoundedCornerShape(8.dp))
             )
         }
@@ -243,7 +241,7 @@ private fun LiveOcr(onAppend: (String) -> Unit) {
         ) {
             if (maxZoom > 1f) {
                 Text("ズーム x${"%.1f".format(zoom)}",
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    color = Color(0xFFBFBFBF),
                     style = MaterialTheme.typography.labelSmall)
                 Slider(
                     value = zoom,
@@ -337,6 +335,24 @@ private fun CaptureOcr(onAppend: (String) -> Unit) {
                     previewView
                 },
             )
+            // Frame guide (same band that will be cropped from the photo).
+            Column(
+                Modifier.align(Alignment.Center).fillMaxWidth().padding(horizontal = 20.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
+            ) {
+                Text(
+                    "この横枠に文字を合わせて撮影",
+                    color = Color.White,
+                    style = MaterialTheme.typography.labelSmall,
+                    modifier = Modifier.clip(RoundedCornerShape(4.dp))
+                        .background(Color(0xB0000000)).padding(horizontal = 6.dp, vertical = 2.dp),
+                )
+                Spacer(Modifier.height(6.dp))
+                Box(
+                    Modifier.fillMaxWidth().fillMaxHeight(OCR_BAND_FRACTION)
+                        .border(2.dp, MaterialTheme.colorScheme.primary, RoundedCornerShape(8.dp))
+                )
+            }
             Button(
                 onClick = {
                     val capture = imageCapture ?: return@Button
@@ -347,9 +363,11 @@ private fun CaptureOcr(onAppend: (String) -> Unit) {
                             override fun onCaptureSuccess(image: ImageProxy) {
                                 val bmp = rotateBitmap(image.toBitmap(), image.imageInfo.rotationDegrees)
                                 image.close()
-                                recognizer.process(InputImage.fromBitmap(bmp, 0))
+                                // Crop to the framed band and OCR that high-res region.
+                                val crop = cropCenterBand(bmp, OCR_BAND_FRACTION)
+                                recognizer.process(InputImage.fromBitmap(crop, 0))
                                     .addOnSuccessListener { vt ->
-                                        photo = bmp
+                                        photo = crop
                                         fullText = sanitizeOcr(vt.text)
                                         lines = vt.textBlocks
                                             .flatMap { b -> b.lines }
@@ -389,7 +407,7 @@ private fun CaptureOcr(onAppend: (String) -> Unit) {
             wifi.key?.let { CopyLine("KEY / パスワード", it, clipboard, context) }
             Spacer(Modifier.height(8.dp))
             Text("必要な行の「コピー」を押してください",
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                color = Color(0xFFBFBFBF),
                 style = MaterialTheme.typography.labelSmall)
             Spacer(Modifier.height(6.dp))
             lines.forEach { line ->
@@ -437,9 +455,9 @@ private fun CopyLine(
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Column(Modifier.weight(1f)) {
-            Text(label, color = MaterialTheme.colorScheme.onSurfaceVariant,
+            Text(label, color = Color(0xFFBFBFBF),
                 style = MaterialTheme.typography.labelSmall)
-            Text(value, color = NameColor, fontWeight = FontWeight.Bold,
+            Text(value, color = Color.White, fontWeight = FontWeight.Bold,
                 fontFamily = FontFamily.Monospace)
         }
         Spacer(Modifier.width(8.dp))
@@ -475,13 +493,26 @@ private fun toast(context: android.content.Context, msg: String) {
     Toast.makeText(context, msg, Toast.LENGTH_SHORT).show()
 }
 
-/** Fraction of the image height read inside the LIVE capture frame. */
-private const val OCR_BAND_FRACTION = 0.24f
+/** Fraction of the image height read inside the capture frame. */
+private const val OCR_BAND_FRACTION = 0.18f
 
 private fun rotateBitmap(src: Bitmap, degrees: Int): Bitmap {
     if (degrees % 360 == 0) return src
     val matrix = Matrix().apply { postRotate(degrees.toFloat()) }
     return Bitmap.createBitmap(src, 0, 0, src.width, src.height, matrix, true)
+}
+
+/** Full-width centre horizontal band — the region shown inside the frame. */
+private fun cropCenterBand(src: Bitmap, fraction: Float): Bitmap {
+    val bandH = (src.height * fraction).toInt().coerceIn(1, src.height)
+    val top = ((src.height - bandH) / 2).coerceAtLeast(0)
+    return Bitmap.createBitmap(src, 0, top, src.width, bandH)
+}
+
+/** Upscales to give small text more pixel height for the OCR model. */
+private fun upscale(src: Bitmap, factor: Int): Bitmap {
+    if (factor <= 1 || src.width * factor > 4096) return src
+    return Bitmap.createScaledBitmap(src, src.width * factor, src.height * factor, true)
 }
 
 /** Drops control characters and blank lines to reduce OCR garbling. */

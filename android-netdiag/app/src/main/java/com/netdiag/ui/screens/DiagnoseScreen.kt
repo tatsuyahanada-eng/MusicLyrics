@@ -30,7 +30,6 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.netdiag.core.net.Hop
 import com.netdiag.ui.LabeledValue
 import com.netdiag.ui.MonoSmall
-import com.netdiag.ui.NameColor
 import com.netdiag.ui.OctetIpField
 import com.netdiag.ui.SectionCard
 
@@ -134,7 +133,7 @@ fun DiagnoseScreen(vm: DiagnoseViewModel = viewModel()) {
                             style = MaterialTheme.typography.titleMedium)
                         Spacer(Modifier.width(10.dp))
                         Column(Modifier.weight(1f)) {
-                            Text(r.label, color = NameColor,
+                            Text(r.label, color = MaterialTheme.colorScheme.primary,
                                 style = MaterialTheme.typography.bodyMedium)
                             Text(r.host, style = MaterialTheme.typography.labelSmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant)

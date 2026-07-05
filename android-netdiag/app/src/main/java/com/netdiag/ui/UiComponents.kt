@@ -37,10 +37,6 @@ import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 
-/** Distinct, high-contrast colour for device/host names so they stand out
- *  from the phosphor body text. */
-val NameColor: Color = Color(0xFFFFFFFF)
-
 @Composable
 fun SectionCard(
     title: String,

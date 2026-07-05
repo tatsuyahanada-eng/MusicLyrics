@@ -19,6 +19,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.netdiag.core.traffic.TrafficMonitor
@@ -95,24 +96,24 @@ private fun RateRow(
     peak: Long,
     color: androidx.compose.ui.graphics.Color,
 ) {
-    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-        Text(arrow, style = MaterialTheme.typography.headlineSmall,
-            fontWeight = FontWeight.Bold, color = color)
-        Spacer(Modifier.width(10.dp))
-        Column(Modifier.weight(1f)) {
-            Text(title, style = MaterialTheme.typography.labelLarge,
-                color = MaterialTheme.colorScheme.onSurfaceVariant)
-            Text("最大 ${TrafficMonitor.formatRate(peak)}",
-                style = MaterialTheme.typography.labelSmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant)
+    Column(Modifier.fillMaxWidth()) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text(arrow, fontSize = 26.sp, fontWeight = FontWeight.Bold, color = color)
+            Spacer(Modifier.width(8.dp))
+            Text(title, style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.SemiBold, color = color)
         }
-        Column(horizontalAlignment = Alignment.End) {
-            Text(TrafficMonitor.formatRate(bytesPerSec),
-                style = MaterialTheme.typography.titleLarge,
-                fontWeight = FontWeight.Bold, color = color)
-            Text(TrafficMonitor.formatBitsRate(bytesPerSec),
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant)
-        }
+        Text(
+            TrafficMonitor.formatRate(bytesPerSec),
+            fontSize = 40.sp,
+            lineHeight = 46.sp,
+            fontWeight = FontWeight.Bold,
+            color = color,
+        )
+        Text(
+            "${TrafficMonitor.formatBitsRate(bytesPerSec)}   最大 ${TrafficMonitor.formatRate(peak)}",
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
     }
 }

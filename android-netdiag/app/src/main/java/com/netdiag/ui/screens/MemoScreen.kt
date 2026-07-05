@@ -202,18 +202,27 @@ fun MemoScreen(vm: MemoViewModel = viewModel()) {
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
             Spacer(Modifier.height(8.dp))
-            Button(onClick = {
-                runCatching {
-                    val pdf = PdfExporter.export(context, text, DiagnosticsLog.asPlainText(), images)
-                    val uri = FileProvider.getUriForFile(context, authority, pdf)
-                    val share = Intent(Intent.ACTION_SEND).apply {
-                        type = "application/pdf"
-                        putExtra(Intent.EXTRA_STREAM, uri)
-                        addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
-                    }
-                    context.startActivity(Intent.createChooser(share, "PDFを共有/保存"))
-                }.onFailure { toastMemo(context, "PDF作成に失敗しました") }
-            }) { Text("PDFで保存・共有") }
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Button(onClick = {
+                    runCatching {
+                        val pdf = PdfExporter.export(context, text, DiagnosticsLog.asPlainText(), images)
+                        val where = PdfExporter.saveToDownloads(context, pdf)
+                        toastMemo(context, if (where != null) "保存しました: $where" else "保存に失敗しました")
+                    }.onFailure { toastMemo(context, "PDF作成に失敗しました") }
+                }) { Text("ダウンロード保存") }
+                OutlinedButton(onClick = {
+                    runCatching {
+                        val pdf = PdfExporter.export(context, text, DiagnosticsLog.asPlainText(), images)
+                        val uri = FileProvider.getUriForFile(context, authority, pdf)
+                        val share = Intent(Intent.ACTION_SEND).apply {
+                            type = "application/pdf"
+                            putExtra(Intent.EXTRA_STREAM, uri)
+                            addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                        }
+                        context.startActivity(Intent.createChooser(share, "PDFを共有"))
+                    }.onFailure { toastMemo(context, "PDF作成に失敗しました") }
+                }) { Text("共有") }
+            }
         }
     }
 }

@@ -36,7 +36,6 @@ import com.netdiag.core.wifi.SecurityRisk
 import com.netdiag.core.wifi.WifiAp
 import com.netdiag.ui.LabeledValue
 import com.netdiag.ui.MeterBar
-import com.netdiag.ui.NameColor
 import com.netdiag.ui.SectionCard
 import com.netdiag.ui.Tag
 
@@ -138,7 +137,8 @@ private fun ApCard(ap: WifiAp) {
         Column(Modifier.padding(16.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Column(Modifier.weight(1f)) {
-                    Text(ap.ssid, fontWeight = FontWeight.Bold, color = NameColor,
+                    Text(ap.ssid, fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.primary,
                         style = MaterialTheme.typography.bodyLarge)
                     Text(ap.bssid, fontFamily = FontFamily.Monospace,
                         style = MaterialTheme.typography.bodySmall,

@@ -36,7 +36,6 @@ import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.netdiag.core.wifi.WifiAp
-import com.netdiag.ui.NameColor
 import com.netdiag.ui.SectionCard
 import kotlin.math.abs
 
@@ -122,7 +121,7 @@ private fun BandSpectrum(band: String, aps: List<WifiAp>) {
                     Spacer(Modifier.width(4.dp))
                     Text(
                         "${ap.ssid} ch${ap.channel}",
-                        color = if (isSel) NameColor else MaterialTheme.colorScheme.onSurface,
+                        color = if (isSel) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface,
                         fontWeight = if (isSel) FontWeight.Bold else FontWeight.Normal,
                         style = MaterialTheme.typography.labelSmall,
                     )
