@@ -1,14 +1,13 @@
 package com.netdiag.ui.theme
 
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.lightColorScheme
+import androidx.compose.material3.darkColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.graphics.Color
 
 /**
- * Light theme: a white / gray background with dark, readable text. The chosen
- * accent (green / cyan / yellow) is used for title bars, buttons and
- * highlights via a darker shade so it stays legible on a light surface.
+ * Dark "terminal" theme: a black / gray background with phosphor text. Dynamic
+ * (Material You) colours are disabled so the retro look stays consistent.
  */
 @Composable
 fun NetDiagTheme(
@@ -17,22 +16,21 @@ fun NetDiagTheme(
 ) {
     val accent = settings.accent
     val bg = settings.background
-    val onLight = Color(0xFF1B1B1B)
-    val colorScheme = lightColorScheme(
-        primary = accent.dim,
-        onPrimary = Color.White,
-        secondary = accent.dim,
-        onSecondary = Color.White,
+    val colorScheme = darkColorScheme(
+        primary = accent.bright,
+        onPrimary = Color.Black,
+        secondary = accent.bright,
+        onSecondary = Color.Black,
         tertiary = accent.dim,
         background = bg.bg,
-        onBackground = onLight,
+        onBackground = accent.bright,
         surface = bg.surface,
-        onSurface = onLight,
+        onSurface = accent.bright,
         surfaceVariant = bg.track,
-        onSurfaceVariant = Color(0xFF5A5A5A),
-        outline = Color(0xFF9A9A9A),
-        error = Color(0xFFC0392B),
-        onError = Color.White,
+        onSurfaceVariant = accent.dim,
+        outline = accent.dim,
+        error = Color(0xFFFF5555),
+        onError = Color.Black,
     )
     MaterialTheme(
         colorScheme = colorScheme,

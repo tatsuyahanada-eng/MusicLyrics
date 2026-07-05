@@ -50,6 +50,7 @@ import com.netdiag.core.net.DiscoveredHost
 import com.netdiag.core.net.OsGuesser
 import com.netdiag.core.net.PortScanner
 import com.netdiag.ui.LabeledValue
+import com.netdiag.ui.NameColor
 import com.netdiag.ui.OctetIpField
 import com.netdiag.ui.SectionCard
 import com.netdiag.ui.Tag
@@ -168,12 +169,11 @@ private fun HostCard(host: DiscoveredHost, scanning: Boolean, onPortScan: () -> 
                         host.ip,
                         fontFamily = FontFamily.Monospace,
                         fontWeight = FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.primary,
+                        color = NameColor,
                         style = MaterialTheme.typography.bodyLarge,
                     )
                     host.hostname?.let {
-                        Text(it, color = MaterialTheme.colorScheme.primary,
-                            style = MaterialTheme.typography.bodySmall)
+                        Text(it, color = NameColor, style = MaterialTheme.typography.bodySmall)
                     }
                 }
                 Tag(type.label, MaterialTheme.colorScheme.primary)
