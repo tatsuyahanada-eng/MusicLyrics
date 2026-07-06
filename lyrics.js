@@ -10,6 +10,45 @@ const LRCLIB_API  = 'https://lrclib.net/api/search';
 const ITUNES_API  = 'https://itunes.apple.com/search';
 const YT_SEARCH   = 'https://www.googleapis.com/youtube/v3/search';
 
+/* ---- MV-only filter keywords ---- */
+/* Reject titles containing any of these (case-insensitive substring) */
+const MV_REJECT_KEYWORDS = [
+  'live at', 'live in', 'live from', 'live ver', 'live version',
+  'live performance', 'live show', 'live tour', 'live concert', 'live @',
+  'ライブ', 'ライヴ', '生演奏', 'ライブ映像', 'ライブ版',
+  'concert', 'コンサート', 'ツアー',
+  'cover', 'カバー', '歌ってみた', 'covered by',
+  'reaction', 'リアクション', 'reacts to',
+  'acoustic', 'unplugged', 'アコースティック',
+  'karaoke', 'カラオケ', 'instrumental', 'off vocal', 'off-vocal', 'オフボーカル',
+  'behind the scenes', 'behind-the-scenes', 'making of', 'making-of', 'メイキング',
+  'teaser', 'trailer', '予告',
+  'practice', 'rehearsal', 'リハーサル',
+  'audio only', 'audio version', 'audio track',
+  '8d audio', 'nightcore', 'sped up', 'slowed', 'slowed + reverb',
+  'lyric video', 'lyrics video', '歌詞ビデオ',
+  'dance practice', 'dance cover',
+];
+/* Boost scores for titles/channels matching these */
+const MV_TITLE_BOOST = [
+  ['official music video', 5],
+  ['official video', 4],
+  ['music video', 3],
+  ['オフィシャル', 4],
+  ['公式', 3],
+  ['ｍｖ', 3],
+  ['mv', 2],
+  ['m/v', 3],
+  ['pv', 2],
+  ['p/v', 3],
+];
+const MV_CHANNEL_BOOST = [
+  ['vevo', 4],
+  ['official', 3],
+  ['records', 1],
+  ['music', 1],
+];
+
 const SONGS_PER_PAGE  = 15;
 const PLAIN_HISTORY   = 2;    /* how many past lines to keep in plain mode */
 const STAGE_SLOT_CLASSES = [
@@ -1035,7 +1074,8 @@ async function searchYouTube(query) {
   }
   const params = new URLSearchParams({
     part: 'snippet', q: query, type: 'video',
-    maxResults: '10', key,
+    videoCategoryId: '10',
+    maxResults: '25', key,
   });
   const res = await fetchWithTimeout(`${YT_SEARCH}?${params}`, 12000);
   if (!res.ok) {
@@ -1047,12 +1087,40 @@ async function searchYouTube(query) {
     throw new Error(interpretYouTubeError(res.status, body));
   }
   const data = await res.json();
-  return (data.items || []).map(it => ({
+  const raw = (data.items || []).map(it => ({
     videoId: it.id.videoId,
     title:   it.snippet.title,
     channel: it.snippet.channelTitle,
     thumb:   it.snippet.thumbnails?.default?.url || '',
   }));
+  return rankMvOnly(raw);
+}
+
+/* Filter and rank YouTube results so MVs float to the top and
+   non-MVs (live/cover/karaoke/making-of/etc.) are removed. If every
+   candidate is rejected, fall back to the raw top-10 so the user
+   still sees something. */
+function rankMvOnly(items) {
+  const scored = [];
+  for (const it of items) {
+    const s = scoreMvCandidate(it);
+    if (s !== null) scored.push({ it, s });
+  }
+  scored.sort((a, b) => b.s - a.s);
+  const top = scored.slice(0, 10).map(x => x.it);
+  return top.length ? top : items.slice(0, 10);
+}
+
+function scoreMvCandidate(item) {
+  const t = (item.title   || '').toLowerCase();
+  const c = (item.channel || '').toLowerCase();
+  for (const kw of MV_REJECT_KEYWORDS) {
+    if (t.includes(kw)) return null;
+  }
+  let s = 0;
+  for (const [kw, w] of MV_TITLE_BOOST)   if (t.includes(kw)) s += w;
+  for (const [kw, w] of MV_CHANNEL_BOOST) if (c.includes(kw)) s += w;
+  return s;
 }
 
 /* ============================================================
