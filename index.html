@@ -127,6 +127,22 @@
     }
     .gmap-link:hover { background: var(--accent); color: #fff; }
 
+    /* 一括入力（貼り付け） */
+    .bulk-input { margin-bottom: 12px; }
+    .bulk-input label {
+      font-size: 12px; color: var(--accent-d); font-weight: 700;
+      display: block; margin-bottom: 4px;
+    }
+    .bulk-input textarea {
+      width: 100%; font-family: inherit; font-size: 13px; line-height: 1.55;
+      padding: 8px 10px; background: var(--panel-2);
+      border: 1px solid var(--input-border); border-radius: 6px;
+      color: var(--text); outline: none; resize: vertical; min-height: 96px;
+      box-sizing: border-box;
+    }
+    .bulk-input textarea:focus { border-color: var(--accent); }
+    .bulk-input .hint-inline { font-size: 11px; color: var(--muted); margin-top: 4px; }
+
     /* 使い方マニュアル（折りたたみ） */
     .manual {
       margin-bottom: 14px; border: 1px solid var(--line); border-radius: var(--radius);
@@ -309,6 +325,11 @@
     <!-- 訪問先 -->
     <section class="panel">
       <h2>訪問先（既定5件・最大7件まで追加可）</h2>
+      <div class="bulk-input">
+        <label for="bulkAddr">一括入力（1行=1件・複数行貼り付けで訪問先1〜に自動振り分け）</label>
+        <textarea id="bulkAddr" rows="5" placeholder="例：&#10;東京駅&#10;新宿駅&#10;渋谷駅&#10;品川駅&#10;上野駅"></textarea>
+        <p class="hint-inline">貼り付けたテキストはそのまま残ります。各訪問先欄の内容は直接編集も可能です。</p>
+      </div>
       <div id="visits"></div>
       <button id="addVisit" class="btn btn-outline btn-sm" type="button" style="margin-bottom:10px;">＋ 訪問先を追加</button>
       <br>
@@ -465,6 +486,16 @@
     }
     addVisitBtn.addEventListener('click', addVisitRow);
     for (let i = 0; i < VISITS_DEFAULT; i++) addVisitRow();
+
+    // 一括入力（textarea）→ 訪問先1〜に振り分け
+    document.getElementById('bulkAddr').addEventListener('input', (e) => {
+      const lines = e.target.value.split(/\r?\n/).map(s => s.trim());
+      while (lines.length && lines[lines.length - 1] === '') lines.pop();
+      const need = Math.min(lines.length, VISITS_MAX);
+      while (visitsEl.querySelectorAll('.visit-row').length < need) addVisitRow();
+      const inputs = visitsEl.querySelectorAll('.visit-addr');
+      lines.forEach((line, i) => { if (i < inputs.length) inputs[i].value = line; });
+    });
 
     // Googleマップで現状の住所順をルート表示
     function buildGmapsUrl(addrs) {
