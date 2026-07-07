@@ -15,7 +15,7 @@
   <link rel="icon" href="icon.svg" type="image/svg+xml">
   <link rel="apple-touch-icon" href="icon-192.png">
   <title>Music Lyrics</title>
-  <link rel="stylesheet" href="lyrics.css?v=48">
+  <link rel="stylesheet" href="lyrics.css?v=49">
 </head>
 <body class="ly-body">
 
@@ -157,17 +157,18 @@
         <span id="lyricsOffsetDisplayFs" class="ly-offset-val">±0.0s</span>
       </div>
       <button id="stageExitBtn" type="button" class="ly-stage-exit-btn" aria-label="縮小して戻す">🔽 縮小して戻す</button>
+      <!-- Next-song peek — inside #stage so it remains visible when
+           #stage is fullscreened (歌詞のみ全画面). Position:fixed still
+           anchors to the viewport because no ancestor uses transform. -->
+      <button id="nextSongPeek" type="button" class="ly-next-peek" hidden aria-label="次の曲へ">
+        <span class="ly-next-peek-label">▶▶ 次</span>
+        <span id="nextSongPeekTitle" class="ly-next-peek-title"></span>
+      </button>
     </div>
 
     <!-- Exit-karaoke button (only visible in karaoke mode) -->
     <button id="exitKaraokeBtn" type="button" class="ly-exit-karaoke-btn" aria-label="元のサイズに戻す">🔽 縮小して戻す</button>
   </main>
-
-  <!-- Next-song peek (bottom-right, tap to skip) -->
-  <button id="nextSongPeek" type="button" class="ly-next-peek" hidden aria-label="次の曲へ">
-    <span class="ly-next-peek-label">▶▶ 次</span>
-    <span id="nextSongPeekTitle" class="ly-next-peek-title"></span>
-  </button>
 
   <!-- Control Bar -->
   <div id="controlBar" class="ly-control-bar">
@@ -180,7 +181,7 @@
     </div>
   </div>
 
-  <script src="config.js?v=48"></script>
-  <script src="lyrics.js?v=48"></script>
+  <script src="config.js?v=49"></script>
+  <script src="lyrics.js?v=49"></script>
 </body>
 </html>

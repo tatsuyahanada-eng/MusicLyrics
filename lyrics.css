@@ -1430,10 +1430,15 @@ body.theme-light .ly-fs-offset .ly-offset-val { color: #be185d; }
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-/* Hide during fullscreen karaoke / lyrics-only views so it
-   doesn't cover the stage. */
-body.karaoke-mode  .ly-next-peek,
-body.lyrics-fs     .ly-next-peek { display: none; }
+/* In karaoke / lyrics-only fullscreen, bump z-index above the
+   auto-hiding controls and lift slightly off the very bottom
+   edge (no visible control bar to sit above). */
+body.karaoke-mode .ly-next-peek,
+body.lyrics-fs    .ly-next-peek {
+  bottom: 16px;
+  z-index: 130;
+  opacity: 0.95;
+}
 
 .ly-control-bar {
   position: fixed;
