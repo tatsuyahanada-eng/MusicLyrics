@@ -662,15 +662,18 @@ function peekNextSongInfo() {
 }
 
 function updateNextSongPeek() {
-  if (!elNextSongPeek) return;
   const next = peekNextSongInfo();
-  if (!next || !next.title) {
-    elNextSongPeek.hidden = true;
-    return;
+  if (elNextSongPeek) {
+    if (!next || !next.title) {
+      elNextSongPeek.hidden = true;
+    } else {
+      elNextSongPeek.hidden = false;
+      if (elNextSongPeekTitle) elNextSongPeekTitle.textContent = next.title;
+      elNextSongPeek.title = `次: ${next.artist ? next.artist + ' - ' : ''}${next.title}`;
+    }
   }
-  elNextSongPeek.hidden = false;
-  if (elNextSongPeekTitle) elNextSongPeekTitle.textContent = next.title;
-  elNextSongPeek.title = `次: ${next.artist ? next.artist + ' - ' : ''}${next.title}`;
+  /* Keep the top-of-stage "current → next" display in sync too */
+  renderNowPlayingDisplay();
 }
 
 function prefetchNextSongLyrics() {
@@ -1544,18 +1547,33 @@ function ensureStageSlots() {
   });
 }
 
-/** Set the small now-playing title above the lyrics */
-function setNowPlayingTitle(artist, title) {
+/** Set the now-playing title above the lyrics. Shows the current
+ *  song and (when known) the upcoming one, so the fullscreen view
+ *  always makes it clear what's playing vs. what comes next. */
+function setNowPlayingTitle(_artist, _title) {
+  /* Both handleSongSearch and shuffle callers set state.current* just
+     before invoking us; render straight from state so a subsequent
+     updateNextSongPeek call always shows the matching pair. */
+  renderNowPlayingDisplay();
+}
+
+function renderNowPlayingDisplay() {
   if (!elNowPlaying) return;
-  const t = (title || '').trim();
-  const a = (artist || '').trim();
-  if (t) {
-    elNowPlaying.textContent = a ? `♪ ${t} — ${a}` : `♪ ${t}`;
-    elNowPlaying.classList.add('visible');
-  } else {
+  const t = (state.currentTitle  || '').trim();
+  const a = (state.currentArtist || '').trim();
+  if (!t) {
     elNowPlaying.textContent = '';
     elNowPlaying.classList.remove('visible');
+    return;
   }
+  const cur = a ? `♪ ${escapeHTML(t)} — ${escapeHTML(a)}` : `♪ ${escapeHTML(t)}`;
+  const next = peekNextSongInfo();
+  const nextHtml = (next && next.title)
+    ? `<span class="ly-np-sep">▶▶</span><span class="ly-np-next">次: ${escapeHTML(next.title)}</span>`
+    : '';
+  elNowPlaying.innerHTML =
+    `<span class="ly-np-current">${cur}</span>${nextHtml}`;
+  elNowPlaying.classList.add('visible');
 }
 
 /* Directional entrance variants cycled in fullscreen for a more

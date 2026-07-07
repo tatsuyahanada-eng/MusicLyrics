@@ -956,9 +956,11 @@ body.karaoke-mode .ly-exit-karaoke-btn:active { transform: scale(0.96); }
   font-weight: 600;
   color: var(--ly-muted);
   padding: 10px 14px 4px;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  display: flex;
+  justify-content: center;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 6px 10px;
   opacity: 0;
   transition: opacity 0.3s;
   position: relative;
@@ -966,6 +968,58 @@ body.karaoke-mode .ly-exit-karaoke-btn:active { transform: scale(0.96); }
 }
 
 .ly-now-playing.visible { opacity: 1; }
+
+.ly-np-current {
+  max-width: 46%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.ly-np-sep {
+  color: #a78bfa;
+  font-weight: 700;
+  opacity: 0.85;
+  letter-spacing: 0.05em;
+}
+.ly-np-next {
+  color: var(--ly-muted);
+  opacity: 0.85;
+  font-weight: 500;
+  max-width: 46%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* In fullscreen modes, make current-vs-next distinguishable at a glance */
+body.karaoke-mode .ly-now-playing,
+body.lyrics-fs    .ly-now-playing {
+  font-size: 1.05rem;
+  padding: 14px 18px 6px;
+  gap: 8px 14px;
+}
+body.karaoke-mode .ly-np-current,
+body.lyrics-fs    .ly-np-current {
+  color: #f5f3ff;
+  text-shadow: 0 1px 8px rgba(0,0,0,0.5);
+  max-width: 48%;
+}
+body.karaoke-mode .ly-np-next,
+body.lyrics-fs    .ly-np-next {
+  color: #d1c4ff;
+  opacity: 0.7;
+  font-size: 0.9em;
+  max-width: 44%;
+}
+body.karaoke-mode .ly-np-sep,
+body.lyrics-fs    .ly-np-sep {
+  color: #c4b5fd;
+  opacity: 1;
+}
+body.theme-light.karaoke-mode .ly-np-current,
+body.theme-light.lyrics-fs    .ly-np-current { color: #1e1b4b; text-shadow: none; }
+body.theme-light.karaoke-mode .ly-np-next,
+body.theme-light.lyrics-fs    .ly-np-next    { color: #4c1d95; }
 
 /* ---- Ambient ripple FX ---- */
 .ly-fx {
