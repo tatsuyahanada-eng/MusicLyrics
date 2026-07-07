@@ -106,6 +106,7 @@ let elArtist, elTitle, elTitleWrap, elFetchBtn, elSearchHint, elStatus,
     elLyricsStartBtn, elLyricsResetBtn, elStyleToggleBtn,
     elRandomPlayBtn, elOpenInYoutubeBtn, elFullscreenBtn,
     elExitKaraokeBtn, elArtistRandomBtn,
+    elNextSongPeek, elNextSongPeekTitle,
     elNowPlaying, elLyricStack, elScatterLayer, elStageExitBtn, elLyricsFsBtn,
     elFx, elFxThemeBtn, elColorToggleBtn;
 
@@ -187,6 +188,12 @@ function init() {
   elLyricsFsBtn    = document.getElementById('lyricsFsBtn');
   elExitKaraokeBtn = document.getElementById('exitKaraokeBtn');
   elArtistRandomBtn = document.getElementById('artistRandomBtn');
+  elNextSongPeek     = document.getElementById('nextSongPeek');
+  elNextSongPeekTitle = document.getElementById('nextSongPeekTitle');
+
+  if (elNextSongPeek) elNextSongPeek.addEventListener('click', () => {
+    playNextInQueue();
+  });
 
   elLyricsStartBtn.addEventListener('click', lyricsStartHere);
   elLyricsResetBtn.addEventListener('click', resetLyricsStart);
@@ -611,6 +618,8 @@ function loadYtVideo(idx) {
     state.ytPlayer.setVolume(Number(elVolumeSlider.value));
   }
   setStatus(`再生中: ${escapeHTML(item.title)}`, 'success');
+  updateNextSongPeek();
+  prefetchNextSongLyrics();
 }
 
 function playNextInQueue() {
@@ -629,6 +638,47 @@ function playPrevInQueue() {
   }
   if (!state.ytQueue.length) return;
   loadYtVideo(state.ytQueueIdx - 1);
+}
+
+/* ------------------------------------------------------------
+   Next-song peek + prefetch — small chip in the bottom-right
+   shows what plays next; tapping it advances. Also warms the
+   lyrics cache so the transition is lag-free.
+   ------------------------------------------------------------ */
+function peekNextSongInfo() {
+  if (shuffleActive) {
+    if (shuffleFuture.length) return shuffleFuture[shuffleFuture.length - 1];
+    if (shuffleQueue.length)  return shuffleQueue[0];
+    /* Queue exhausted — the next round will reshuffle from source */
+    if (shuffleSource.length) return null;
+    return null;
+  }
+  if (!state.ytQueue.length) return null;
+  const nextIdx = (state.ytQueueIdx + 1) % state.ytQueue.length;
+  if (nextIdx === state.ytQueueIdx) return null; /* single-item queue */
+  const next = state.ytQueue[nextIdx];
+  if (next) return { artist: state.currentArtist, title: next.title };
+  return null;
+}
+
+function updateNextSongPeek() {
+  if (!elNextSongPeek) return;
+  const next = peekNextSongInfo();
+  if (!next || !next.title) {
+    elNextSongPeek.hidden = true;
+    return;
+  }
+  elNextSongPeek.hidden = false;
+  if (elNextSongPeekTitle) elNextSongPeekTitle.textContent = next.title;
+  elNextSongPeek.title = `次: ${next.artist ? next.artist + ' - ' : ''}${next.title}`;
+}
+
+function prefetchNextSongLyrics() {
+  const next = peekNextSongInfo();
+  if (!next || !next.artist || !next.title) return;
+  /* Fire-and-forget; fetchLyricsCached populates lyricsCache so
+     the next handleSongSearch hits it synchronously. */
+  fetchLyricsCached(next.artist, next.title).catch(() => {});
 }
 
 /* ============================================================
@@ -668,6 +718,7 @@ function stopShufflePlay() {
   shuffleHistory = [];
   shuffleFuture  = [];
   updateShuffleUI();
+  updateNextSongPeek();
 }
 
 function playNextInShuffle(skipHistory = false) {
@@ -1299,10 +1350,13 @@ async function handleSongSearch(artist, title, opts = {}) {
     .then(raw => {
       if (state.currentArtist !== artist || state.currentTitle !== title) return; /* user moved on */
       loadLyrics(raw);
-      /* Plain-mode timer needs a kick if the player is already PLAYING */
-      if (state.ytPlayer && state.ytReady && !state.useLrc && state.lyrics.length) {
+      /* Sync immediately to whatever the player is at right now so
+         we don't wait up to 250ms for the next pollProgress tick. */
+      if (state.ytPlayer && state.ytReady && state.lyrics.length) {
         try {
-          if (state.ytPlayer.getPlayerState() === YT.PlayerState.PLAYING) startLyricsTimer();
+          const cur = state.ytPlayer.getCurrentTime() || 0;
+          if (state.useLrc && state.lrcLines.length) syncLrc(cur);
+          if (!state.useLrc && state.ytPlayer.getPlayerState() === YT.PlayerState.PLAYING) startLyricsTimer();
         } catch (_) {}
       }
     })
@@ -1319,9 +1373,11 @@ async function handleSongSearch(artist, title, opts = {}) {
         if (state.currentArtist !== artist || state.currentTitle !== title) return;
         loadLyrics(retryRaw);
         cachePut(lyricsCache, `${artist}|${title}`, retryRaw);
-        if (state.ytPlayer && state.ytReady && !state.useLrc && state.lyrics.length) {
+        if (state.ytPlayer && state.ytReady && state.lyrics.length) {
           try {
-            if (state.ytPlayer.getPlayerState() === YT.PlayerState.PLAYING) startLyricsTimer();
+            const cur = state.ytPlayer.getCurrentTime() || 0;
+            if (state.useLrc && state.lrcLines.length) syncLrc(cur);
+            if (!state.useLrc && state.ytPlayer.getPlayerState() === YT.PlayerState.PLAYING) startLyricsTimer();
           } catch (_) {}
         }
         return;
@@ -1348,6 +1404,7 @@ async function handleSongSearch(artist, title, opts = {}) {
       showYtResults(ytList, !autoplay);
       enableTransportControls(true);
       if (autoplay) loadYtVideo(0);
+      else { updateNextSongPeek(); prefetchNextSongLyrics(); }
       setStatus(`▶ ${escapeHTML(title)}`, 'success');
       return;
     }
