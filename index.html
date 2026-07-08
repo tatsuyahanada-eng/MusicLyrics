@@ -127,6 +127,18 @@
     }
     .gmap-link:hover { background: var(--accent); color: #fff; }
 
+    /* 参考値バッジ（総移動距離の横） */
+    .ref-badge {
+      display: inline-block; vertical-align: middle;
+      background: linear-gradient(to right, #ffe8a3, #fff3d6);
+      color: #8a5300; border: 1px solid #f0a500; border-radius: 6px;
+      padding: 3px 10px; font-size: 11px; font-weight: 700;
+      margin-left: 8px; letter-spacing: 0.02em;
+      box-shadow: 0 1px 3px rgba(240, 165, 0, .25);
+      white-space: nowrap;
+    }
+    .leg-total-card .ref-badge { margin-left: 0; margin-top: 4px; display: inline-block; }
+
     /* Googleマップ確認の注意メモ */
     .gmap-note {
       font-size: 12px; color: #7a5300; line-height: 1.55;
@@ -381,7 +393,7 @@
 
     <!-- 総移動距離 -->
     <section class="panel">
-      <h2>総移動距離</h2>
+      <h2>総移動距離 <span class="ref-badge">直線での移動距離：参考値</span></h2>
       <div class="dist-row">
         <div class="field">
           <label for="totalKm">総移動距離</label>
@@ -753,7 +765,8 @@
       recalc();
       const gmapUrl = buildGmapsUrl(resolved.map(r => entries.find(e => e.label === r.label)?.addr).filter(Boolean));
       legBox.innerHTML =
-        `<div class="leg-total-card"><span class="lbl">総移動距離</span>`
+        `<div class="leg-total-card">`
+        + `<div><span class="lbl">総移動距離</span><br><span class="ref-badge">直線での移動距離：参考値</span></div>`
         + `<span><span class="val">${total.toFixed(1)}</span><span class="u"> km</span></span></div>`
         + `<table>${rows}</table>`
         + (gmapUrl ? `<a class="gmap-link" href="${gmapUrl}" target="_blank" rel="noopener">🗺️ Googleマップでルートを確認</a>` : '');
