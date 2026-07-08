@@ -127,6 +127,15 @@
     }
     .gmap-link:hover { background: var(--accent); color: #fff; }
 
+    /* Googleマップ確認の注意メモ */
+    .gmap-note {
+      font-size: 12px; color: #7a5300; line-height: 1.55;
+      margin-top: 10px; padding: 8px 12px;
+      background: #fff8e1; border-left: 3px solid #f0a500; border-radius: 4px;
+    }
+    .gmap-note b { color: #6a4700; }
+    .geo-status.warn { color: #b06a00; font-weight: 600; }
+
     /* 一括入力（貼り付け） */
     .bulk-input { margin-bottom: 12px; }
     .bulk-input label {
@@ -335,6 +344,10 @@
       <br>
       <button id="autoDist" class="btn btn-cta" type="button"><span class="ico" aria-hidden="true">📍</span>住所から総移動距離を自動計算</button>
       <button id="openGmaps" class="btn btn-outline btn-sm" type="button" style="margin-left:8px;">🗺️ Googleマップで表示</button>
+      <p class="gmap-note">
+        ⚠️ <b>正確な距離はGoogleマップで確認してください。</b><br>
+        自動計算はOpenStreetMap（OSRM）の道路距離を使用しています。Googleマップとは道路データやルート選択が異なるため、数値に差が出る場合があります。差が大きい場合は「総移動距離」を手入力で上書きしてください。
+      </p>
       <div id="geoStatus" class="geo-status"></div>
       <div id="legResult" class="leg-result"></div>
       <div id="routeMap" class="route-map"></div>
@@ -745,10 +758,12 @@
         + `<table>${rows}</table>`
         + (gmapUrl ? `<a class="gmap-link" href="${gmapUrl}" target="_blank" rel="noopener">🗺️ Googleマップでルートを確認</a>` : '');
       showRouteMap(resolved);
+      const isFallback = !osrm;
       let msg = `区間ごとの距離を表示しました（${mode}）。`;
+      if (isFallback) msg = `⚠️ OSRMサーバーに接続できなかったため、直線距離で計算しています。正確な距離はGoogleマップでご確認のうえ「総移動距離」を手入力で上書きしてください。`;
       if (failed.length) msg += ` 未取得: ${failed.join(' / ')}（手入力で補正してください）`;
       status.textContent = msg;
-      status.className = failed.length ? 'geo-status' : 'geo-status ok';
+      status.className = isFallback ? 'geo-status warn' : (failed.length ? 'geo-status' : 'geo-status ok');
     });
 
     /* ---------- Excelエクスポート（ライブラリ不要・純JSで .xlsx 生成） ---------- */
