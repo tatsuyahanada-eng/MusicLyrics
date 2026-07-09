@@ -1,8 +1,11 @@
 package com.tatsuya.idtool
 
+import android.app.Activity
 import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Context
+import android.content.ContextWrapper
+import android.content.pm.ActivityInfo
 import android.os.Bundle
 import android.widget.Toast
 import androidx.activity.ComponentActivity
@@ -111,6 +114,14 @@ fun AppRoot() {
     var resetKey by remember { mutableIntStateOf(0) }
     var showReset by remember { mutableStateOf(false) }
     val titles = listOf("無線チャンネル変更", "距離測定", "作図（見取り図）", "結果入力（無線テスト結果表）")
+
+    // 作図(2)・結果入力(3)のみ横向きを許可。他タブは縦固定。
+    LaunchedEffect(tab) {
+        context.findActivity()?.requestedOrientation = when (tab) {
+            2, 3 -> ActivityInfo.SCREEN_ORIENTATION_FULL_USER
+            else -> ActivityInfo.SCREEN_ORIENTATION_PORTRAIT
+        }
+    }
     Scaffold(
         topBar = {
             TopAppBar(
@@ -405,6 +416,15 @@ private fun androidx.compose.foundation.layout.RowScope.HeaderCell(text: String,
             maxLines = 1
         )
     }
+}
+
+private fun Context.findActivity(): Activity? {
+    var c: Context = this
+    while (c is ContextWrapper) {
+        if (c is Activity) return c
+        c = c.baseContext
+    }
+    return null
 }
 
 private fun copyToClipboard(context: Context, text: String) {
