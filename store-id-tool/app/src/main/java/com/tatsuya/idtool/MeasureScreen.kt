@@ -25,6 +25,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -50,6 +51,7 @@ import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.google.ar.core.Camera
@@ -123,8 +125,10 @@ private fun MeasureBody(type: MeasureType, modifier: Modifier) {
     var memo by remember { mutableStateOf("") }
     var showList by remember { mutableStateOf(false) }
     var unit by remember { mutableStateOf(loadDistUnit(context)) }
-    var renameIdx by remember { mutableIntStateOf(-1) }
-    var renameInput by remember { mutableStateOf("") }
+    // 記録の修正ダイアログ（名称＋距離の数値を後から変更）
+    var editIdx by remember { mutableIntStateOf(-1) }
+    var editName by remember { mutableStateOf("") }
+    var editValue by remember { mutableStateOf("") }
 
     var measuring by remember { mutableStateOf(false) }
     var requestAddPoint by remember { mutableStateOf(false) }
@@ -377,8 +381,12 @@ private fun MeasureBody(type: MeasureType, modifier: Modifier) {
                                 modifier = Modifier.weight(1f))
                             Text(item.display(unit), color = TealDark, fontFamily = FontFamily.Monospace,
                                 fontWeight = FontWeight.Bold, fontSize = 13.sp)
-                            TextButton(onClick = { renameIdx = i; renameInput = item.memo }) {
-                                Text("名称変更", color = TealDark, fontSize = 12.sp)
+                            TextButton(onClick = {
+                                editIdx = i
+                                editName = item.memo
+                                editValue = valueForEdit(item.value, unit)
+                            }) {
+                                Text("修正", color = TealDark, fontSize = 12.sp)
                             }
                             TextButton(onClick = {
                                 records.removeAt(i)
@@ -401,31 +409,70 @@ private fun MeasureBody(type: MeasureType, modifier: Modifier) {
         }
     }
 
-    // 計測済みの距離の「名称だけ」を変更するダイアログ（数値は変更しない）
-    if (renameIdx in records.indices) {
+    // 計測済みの記録を修正するダイアログ（名称＋距離の数値の両方を変更できる）
+    if (editIdx in records.indices) {
         AlertDialog(
-            onDismissRequest = { renameIdx = -1 },
-            title = { Text("名称の変更") },
+            onDismissRequest = { editIdx = -1 },
+            title = { Text("記録の修正") },
             text = {
-                OutlinedTextField(
-                    value = renameInput,
-                    onValueChange = { renameInput = it },
-                    singleLine = true,
-                    placeholder = { Text("名称（例：入口→レジ）") }
-                )
+                Column {
+                    Text("名称", fontSize = 12.sp, color = PanelText)
+                    OutlinedTextField(
+                        value = editName,
+                        onValueChange = { editName = it },
+                        singleLine = true,
+                        placeholder = { Text("名称（例：入口→レジ）") },
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                    Spacer(Modifier.height(10.dp))
+                    Text("距離（${unit.label}）", fontSize = 12.sp, color = PanelText)
+                    OutlinedTextField(
+                        value = editValue,
+                        onValueChange = { input ->
+                            // 数字と小数点のみ許可
+                            editValue = input.filter { it.isDigit() || it == '.' }
+                        },
+                        singleLine = true,
+                        placeholder = { Text(if (unit == DistUnit.CM) "例：235" else "例：2.35") },
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                    Text("※ 現在の単位（${unit.label}）で入力してください。",
+                        fontSize = 10.sp, color = Color(0xFF70767C))
+                }
             },
             confirmButton = {
                 TextButton(onClick = {
-                    if (renameIdx in records.indices && renameInput.isNotBlank()) {
-                        records[renameIdx] = records[renameIdx].copy(memo = renameInput)
+                    val idx = editIdx
+                    val meters = parseToMeters(editValue, unit)
+                    if (idx in records.indices && editName.isNotBlank() && meters != null) {
+                        records[idx] = records[idx].copy(memo = editName, value = meters)
                         persist()
-                        Toast.makeText(context, "名称を変更しました", Toast.LENGTH_SHORT).show()
+                        Toast.makeText(context, "記録を修正しました", Toast.LENGTH_SHORT).show()
+                        editIdx = -1
+                    } else {
+                        Toast.makeText(context, "名称と距離（数字）を正しく入力してください", Toast.LENGTH_SHORT).show()
                     }
-                    renameIdx = -1
-                }) { Text("変更") }
+                }) { Text("保存") }
             },
-            dismissButton = { TextButton(onClick = { renameIdx = -1 }) { Text("取消") } }
+            dismissButton = { TextButton(onClick = { editIdx = -1 }) { Text("取消") } }
         )
+    }
+}
+
+/** 距離(メートル)を、編集用に選択単位の数値文字列へ変換する。 */
+private fun valueForEdit(meters: Float, unit: DistUnit): String = when (unit) {
+    DistUnit.M -> "%.2f".format(meters)
+    DistUnit.CM -> "%.0f".format(meters * 100f)
+}
+
+/** 選択単位で入力された数値文字列を、メートルへ変換する（不正なら null）。 */
+private fun parseToMeters(input: String, unit: DistUnit): Float? {
+    val v = input.trim().toFloatOrNull() ?: return null
+    if (v < 0f) return null
+    return when (unit) {
+        DistUnit.M -> v
+        DistUnit.CM -> v / 100f
     }
 }
 
