@@ -88,8 +88,8 @@ fun ResultScreen(modifier: Modifier = Modifier) {
     var locCount by remember { mutableIntStateOf((data["場所数"]?.toIntOrNull() ?: 5).coerceAtLeast(5)) }
 
     LaunchedEffect(Unit) {
-        // 共通番号はID計算タブで変更した最新の値を常に反映する
-        if (idInfo.storeNumber.isNotBlank()) data["共通番号"] = idInfo.storeNumber
+        // 変更後システムIDはID計算タブで変更した最新の値を常に反映する
+        if (idInfo.storeNumber.isNotBlank()) data["変更後システムID"] = idInfo.storeNumber
         if (data["店舗名"].isNullOrBlank() && idInfo.storeName.isNotBlank()) data["店舗名"] = idInfo.storeName
         if (data["送信先メール"].isNullOrBlank()) data["送信先メール"] = DEFAULT_EMAIL
         saveResultMap(context, data)
@@ -104,7 +104,7 @@ fun ResultScreen(modifier: Modifier = Modifier) {
         Spacer(Modifier.height(8.dp))
 
         // ── ヘッダー ──
-        TextField2("共通番号", data, set)
+        TextField2("変更後システムID", data, set)
         TextField2("店舗名", data, set)
 
         // 日付（カレンダー）
@@ -134,7 +134,7 @@ fun ResultScreen(modifier: Modifier = Modifier) {
         Text("対象機器: ${idInfo.brand.label}", fontSize = 13.sp,
             fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
         if (!isValidStoreNumber(idInfo.storeNumber)) {
-            Text("※ ID計算タブで店舗番号5桁を入力すると10桁IDが反映されます",
+            Text("※ ID計算タブで共通番号（5桁）を入力すると10桁IDが反映されます",
                 fontSize = 11.sp, color = MaterialTheme.colorScheme.error)
         }
 
@@ -380,7 +380,7 @@ private fun buildCsv(
     locCount: Int, ordered: List<Record>, unit: DistUnit
 ): String {
     val sb = StringBuilder()
-    sb.append("共通番号,${csvEscape(data["共通番号"].orEmpty())}\n")
+    sb.append("変更後システムID,${csvEscape(data["変更後システムID"].orEmpty())}\n")
     sb.append("店舗名,${csvEscape(data["店舗名"].orEmpty())}\n")
     sb.append("日付,${csvEscape(data["日付"].orEmpty())}\n")
     sb.append("開始時間,${csvEscape(data["開始時間"].orEmpty())}\n")
@@ -442,7 +442,7 @@ private fun sendByEmail(
             append("お疲れ様です。\n")
             append("無線チャンネル変更作業の結果を送付いたします。\n\n")
             if (storeName.isNotBlank()) append("店舗名：$storeName\n")
-            if (!data["共通番号"].isNullOrBlank()) append("共通番号：${data["共通番号"]}\n")
+            if (!data["変更後システムID"].isNullOrBlank()) append("変更後システムID：${data["変更後システムID"]}\n")
             if (date.isNotBlank()) append("日付：$date\n")
             append("対象機器：${idInfo.brand.label}\n")
             if (!data["作業員"].isNullOrBlank()) append("作業員：${data["作業員"]}\n")
