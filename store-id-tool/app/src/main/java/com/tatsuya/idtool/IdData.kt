@@ -20,7 +20,7 @@ data class ChannelDef(val ch: Int, val code: String)
 /**
  * ブランド。規格（F 列）と、シートごとに異なる ch リストを保持する。
  *   - Monstera（Sheet1）: 36,40,44,48,1,6,13
- *   - Relier（ﾃﾞﾆｰｽﾞ）  : 1,6,13,36,40,44,48,100,120,124
+ *   - Relier（ﾃﾞﾆｰｽﾞ）  : 1,6,13,36,40,44,48,100,120,124,128,132,136,140
  * ch → Ch設定値コードは共通だが、ブランドで使う ch の並び・種類が異なる。
  */
 enum class Brand(val label: String, val kikaku: Int, val channels: List<ChannelDef>) {
@@ -49,6 +49,10 @@ enum class Brand(val label: String, val kikaku: Int, val channels: List<ChannelD
             ChannelDef(100, "009"),
             ChannelDef(120, "014"),
             ChannelDef(124, "015"),
+            ChannelDef(128, "016"),
+            ChannelDef(132, "017"),
+            ChannelDef(136, "018"),
+            ChannelDef(140, "019"),
         )
     )
 }
