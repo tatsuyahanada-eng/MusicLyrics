@@ -88,7 +88,8 @@ fun ResultScreen(modifier: Modifier = Modifier) {
     var locCount by remember { mutableIntStateOf((data["場所数"]?.toIntOrNull() ?: 5).coerceAtLeast(5)) }
 
     LaunchedEffect(Unit) {
-        if (data["共通番号"].isNullOrBlank() && idInfo.storeNumber.isNotBlank()) data["共通番号"] = idInfo.storeNumber
+        // 共通番号はID計算タブで変更した最新の値を常に反映する
+        if (idInfo.storeNumber.isNotBlank()) data["共通番号"] = idInfo.storeNumber
         if (data["店舗名"].isNullOrBlank() && idInfo.storeName.isNotBlank()) data["店舗名"] = idInfo.storeName
         if (data["送信先メール"].isNullOrBlank()) data["送信先メール"] = DEFAULT_EMAIL
         saveResultMap(context, data)

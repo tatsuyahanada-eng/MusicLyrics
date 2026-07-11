@@ -276,7 +276,7 @@ fun IdContent() {
                 HorizontalDivider(color = MaterialTheme.colorScheme.outline)
                 rows.forEachIndexed { index, row ->
                     TableRow(row = row, onClick = {
-                        if (row.fullId.isNotEmpty()) copyToClipboard(context, row.fullId)
+                        if (row.fullId.isNotEmpty()) copyToClipboard(context, "ch${row.ch} ${row.fullId}")
                     })
                     if (index < rows.size - 1) {
                         HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.4f))
@@ -286,7 +286,7 @@ fun IdContent() {
 
             Spacer(Modifier.height(6.dp))
             Text(
-                "行をタップで10桁IDをコピー",
+                "行をタップでch番号＋10桁IDをコピー",
                 fontSize = 11.sp,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.padding(bottom = 16.dp)
