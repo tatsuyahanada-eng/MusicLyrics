@@ -12,6 +12,7 @@ import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -32,6 +33,7 @@ import androidx.compose.material3.MenuAnchorType
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -137,14 +139,37 @@ fun ResultScreen(modifier: Modifier = Modifier) {
             Spacer(Modifier.weight(1f))
             OutlinedButton(onClick = { locCount += 1; set("場所数", locCount.toString()) }) { Text("＋場所追加") }
         }
-        Text("場所をタップで計測距離を表示", fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        Text("場所をタップで計測距離を表示／列見出しの × で不要なch列を隠せます",
+            fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+
+        // 非表示にしたch（不要な列を隠す）。CSV出力からも除外される。
+        val hiddenChs = (data["非表示Ch"] ?: "").split(",").mapNotNull { it.trim().toIntOrNull() }.toSet()
+        val visibleRows = rows.filter { it.ch !in hiddenChs }
+        if (hiddenChs.isNotEmpty()) {
+            Row(
+                modifier = Modifier.fillMaxWidth().padding(top = 4.dp).horizontalScroll(rememberScrollState()),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(6.dp)
+            ) {
+                Text("非表示の列:", fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                hiddenChs.sorted().forEach { ch ->
+                    OutlinedButton(
+                        onClick = { set("非表示Ch", (hiddenChs - ch).sorted().joinToString(",")) },
+                        contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp)
+                    ) { Text("ch:$ch を戻す", fontSize = 11.sp) }
+                }
+                TextButton(onClick = { set("非表示Ch", "") }) { Text("すべて表示", fontSize = 11.sp) }
+            }
+        }
         Spacer(Modifier.height(6.dp))
 
         Column(modifier = Modifier.horizontalScroll(rememberScrollState())) {
             // ヘッダー行（左上 + 各Ch）
             Row {
                 GridCorner()
-                rows.forEach { row -> GridChHeader(row) }
+                visibleRows.forEach { row ->
+                    GridChHeader(row) { set("非表示Ch", (hiddenChs + row.ch).sorted().joinToString(",")) }
+                }
             }
             // 場所ごとの行
             (1..locCount).forEach { l ->
@@ -155,7 +180,7 @@ fun ResultScreen(modifier: Modifier = Modifier) {
                             if (rec != null) "場所$l: ${rec.memo} = ${rec.display(unit)}" else "場所$l: 距離記録なし",
                             Toast.LENGTH_SHORT).show()
                     }
-                    rows.forEach { row -> GridCell(l, row, data, set) }
+                    visibleRows.forEach { row -> GridCell(l, row, data, set) }
                 }
             }
         }
@@ -163,11 +188,11 @@ fun ResultScreen(modifier: Modifier = Modifier) {
         Spacer(Modifier.height(12.dp))
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             OutlinedButton(
-                onClick = { copyText(context, buildCsv(idInfo, rows, data, locCount, ordered, unit)) },
+                onClick = { copyText(context, buildCsv(idInfo, visibleRows, data, locCount, ordered, unit)) },
                 modifier = Modifier.weight(1f)
             ) { Text("CSVコピー") }
             OutlinedButton(
-                onClick = { exportCsv(context, buildCsv(idInfo, rows, data, locCount, ordered, unit)) },
+                onClick = { exportCsv(context, buildCsv(idInfo, visibleRows, data, locCount, ordered, unit)) },
                 modifier = Modifier.weight(1f)
             ) { Text("CSV出力") }
         }
@@ -186,19 +211,29 @@ private fun GridCorner() {
 }
 
 @Composable
-private fun GridChHeader(row: IdRow) {
-    Column(
+private fun GridChHeader(row: IdRow, onHide: () -> Unit) {
+    Box(
         modifier = Modifier.width(GRID_CELL_W).height(GRID_HEADER_H)
             .background(GridHeaderBg)
-            .border(0.7.dp, MaterialTheme.colorScheme.outline).padding(horizontal = 4.dp, vertical = 6.dp),
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.Center
+            .border(0.7.dp, MaterialTheme.colorScheme.outline)
     ) {
-        Text("ch:${row.ch}", fontWeight = FontWeight.Bold, fontSize = 13.sp,
-            color = MaterialTheme.colorScheme.primary)
-        Text(if (row.fullId.isNotEmpty()) row.fullId else "（番号未入力）",
-            fontFamily = FontFamily.Monospace, fontSize = 12.sp, maxLines = 1, softWrap = false,
-            color = MaterialTheme.colorScheme.onSurface)
+        Column(
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 4.dp, vertical = 6.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.Center
+        ) {
+            Text("ch:${row.ch}", fontWeight = FontWeight.Bold, fontSize = 13.sp,
+                color = MaterialTheme.colorScheme.primary)
+            Text(if (row.fullId.isNotEmpty()) row.fullId else "（番号未入力）",
+                fontFamily = FontFamily.Monospace, fontSize = 12.sp, maxLines = 1, softWrap = false,
+                color = MaterialTheme.colorScheme.onSurface)
+        }
+        // 列を非表示にする（× をタップ）
+        Text("✕", fontSize = 12.sp, fontWeight = FontWeight.Bold,
+            color = MaterialTheme.colorScheme.error,
+            modifier = Modifier.align(Alignment.TopEnd)
+                .clickable { onHide() }
+                .padding(horizontal = 6.dp, vertical = 2.dp))
     }
 }
 
