@@ -137,7 +137,8 @@ fun DrawScreen(modifier: Modifier = Modifier) {
     val undoStack = remember { mutableStateListOf<Triple<List<MarkT>, List<TextT>, List<StrokeT>>>() }
     remember { loadDraw(context, marks, texts, strokes); 0 }
 
-    var bg by remember { mutableStateOf<Bitmap?>(null) }
+    // 背景写真は端末に保存し、再表示・メール添付時の再描画でも使えるようにする
+    var bg by remember { mutableStateOf(loadBitmapFile(drawBgFile(context))) }
     var tool by remember { mutableStateOf(DTool.MARK) }
     var penMode by remember { mutableStateOf(PenMode.FREE) }
     var selType by remember { mutableStateOf("RST") }
@@ -168,10 +169,10 @@ fun DrawScreen(modifier: Modifier = Modifier) {
     val distance = remember { loadDistanceRecords(context) }
     val distUnit = remember { loadDistUnit(context) }
     val picker = rememberLauncherForActivityResult(ActivityResultContracts.PickVisualMedia()) { uri: Uri? ->
-        if (uri != null) bg = loadBitmap(context, uri)
+        if (uri != null) { bg = loadBitmap(context, uri); saveDrawBg(context, bg) }
     }
     val cameraLauncher = rememberLauncherForActivityResult(ActivityResultContracts.TakePicture()) { ok ->
-        if (ok) photoFile?.let { bg = loadBitmapFile(it) }
+        if (ok) photoFile?.let { bg = loadBitmapFile(it); saveDrawBg(context, bg) }
     }
     val launchCamera: () -> Unit = {
         val f = File(context.cacheDir, "capture_${System.currentTimeMillis()}.jpg")
@@ -389,7 +390,7 @@ fun DrawScreen(modifier: Modifier = Modifier) {
         Row(modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
             horizontalArrangement = Arrangement.spacedBy(6.dp)) {
             OutlinedButton(onClick = { showPhotoChoice = true }) { Text("写真取込") }
-            OutlinedButton(onClick = { bg = null }) { Text("背景白") }
+            OutlinedButton(onClick = { bg = null; drawBgFile(context).delete() }) { Text("背景白") }
             OutlinedButton(onClick = { undo() }, enabled = undoStack.isNotEmpty()) { Text("取消") }
             OutlinedButton(onClick = { showClear = true }) { Text("全消去") }
             OutlinedButton(onClick = { exportImage(context, marks, texts, strokes, bg, pdf = false) }) { Text("画像保存") }
@@ -726,6 +727,45 @@ private fun exportImage(
     } catch (e: Exception) {
         Toast.makeText(context, "出力に失敗: ${e.message}", Toast.LENGTH_LONG).show()
     }
+}
+
+// ── 背景写真の端末内保存 ──
+private fun drawBgFile(context: Context): File = File(context.cacheDir, "draw_bg.jpg")
+
+private fun saveDrawBg(context: Context, bmp: Bitmap?) {
+    val f = drawBgFile(context)
+    if (bmp == null) { f.delete(); return }
+    runCatching { f.outputStream().use { bmp.compress(Bitmap.CompressFormat.JPEG, 85, it) } }
+}
+
+/**
+ * 端末に保存済みの作図データ（アイテム・線・文字＋背景写真）からファイルを生成する。
+ * 結果タブのメール添付など、作図タブを開いていなくても見取り図を出力するために使う。
+ * 作図が空（要素も背景も無し）の場合は null を返す。
+ */
+fun renderSavedDrawing(context: Context, pdf: Boolean): File? {
+    val marks = mutableListOf<MarkT>(); val texts = mutableListOf<TextT>(); val strokes = mutableListOf<StrokeT>()
+    loadDraw(context, marks, texts, strokes)
+    val bg = loadBitmapFile(drawBgFile(context))
+    if (marks.isEmpty() && texts.isEmpty() && strokes.isEmpty() && bg == null) return null
+    return try {
+        val w = 1080; val h = 1440
+        if (pdf) {
+            val doc = android.graphics.pdf.PdfDocument()
+            val page = doc.startPage(android.graphics.pdf.PdfDocument.PageInfo.Builder(w, h, 1).create())
+            renderToCanvas(page.canvas, w, h, marks, texts, strokes, bg)
+            doc.finishPage(page)
+            val file = File(context.cacheDir, "見取り図_${stamp()}.pdf")
+            file.outputStream().use { doc.writeTo(it) }; doc.close()
+            file
+        } else {
+            val bmp = Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888)
+            renderToCanvas(android.graphics.Canvas(bmp), w, h, marks, texts, strokes, bg)
+            val file = File(context.cacheDir, "見取り図_${stamp()}.png")
+            file.outputStream().use { bmp.compress(Bitmap.CompressFormat.PNG, 100, it) }
+            file
+        }
+    } catch (e: Exception) { null }
 }
 
 // ── 端末内保存 ──

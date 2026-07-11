@@ -4,6 +4,7 @@ import android.app.DatePickerDialog
 import android.app.TimePickerDialog
 import android.content.Context
 import android.content.Intent
+import android.net.Uri
 import android.widget.Toast
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -24,6 +25,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.Button
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExposedDropdownMenuBox
@@ -59,6 +61,8 @@ import java.util.Date
 import java.util.Locale
 
 private val ResultOptions = listOf("最適", "良", "圏外")
+// 送信先メールの初期値（社内で後日指定するまでの仮の宛先）
+private const val DEFAULT_EMAIL = "tatsuya.hanada@gmail.com"
 private val GRID_LEFT_W = 96.dp
 private val GRID_CELL_W = 190.dp
 private val GRID_HEADER_H = 62.dp
@@ -86,6 +90,7 @@ fun ResultScreen(modifier: Modifier = Modifier) {
     LaunchedEffect(Unit) {
         if (data["共通番号"].isNullOrBlank() && idInfo.storeNumber.isNotBlank()) data["共通番号"] = idInfo.storeNumber
         if (data["店舗名"].isNullOrBlank() && idInfo.storeName.isNotBlank()) data["店舗名"] = idInfo.storeName
+        if (data["送信先メール"].isNullOrBlank()) data["送信先メール"] = DEFAULT_EMAIL
         saveResultMap(context, data)
     }
 
@@ -122,6 +127,7 @@ fun ResultScreen(modifier: Modifier = Modifier) {
         }
         TextField2("作業員", data, set)
         TextField2("備考", data, set, single = false)
+        TextField2("送信先メール", data, set)
 
         Spacer(Modifier.height(6.dp))
         Text("対象機器: ${idInfo.brand.label}", fontSize = 13.sp,
@@ -196,6 +202,24 @@ fun ResultScreen(modifier: Modifier = Modifier) {
                 modifier = Modifier.weight(1f)
             ) { Text("CSV出力") }
         }
+        Spacer(Modifier.height(8.dp))
+        Button(
+            onClick = {
+                sendByEmail(
+                    context = context,
+                    email = data["送信先メール"].orEmpty().ifBlank { DEFAULT_EMAIL },
+                    storeName = data["店舗名"].orEmpty(),
+                    date = data["日付"].orEmpty(),
+                    idInfo = idInfo,
+                    csv = buildCsv(idInfo, visibleRows, data, locCount, ordered, unit),
+                    data = data
+                )
+            },
+            modifier = Modifier.fillMaxWidth()
+        ) { Text("メールで送信（作図PDF＋結果CSVを添付）", fontWeight = FontWeight.Bold) }
+        Text("作図（見取り図）と結果CSVを添付してメール送信します。宛先は上の「送信先メール」欄で変更できます。",
+            fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.padding(top = 4.dp))
         Spacer(Modifier.height(24.dp))
     }
 }
@@ -385,6 +409,61 @@ private fun buildCsv(
         sb.append("\n")
     }
     return sb.toString().trimEnd()
+}
+
+private fun writeCsvFile(context: Context, csv: String): File {
+    val file = File(context.cacheDir, "無線テスト結果_${stamp()}.csv")
+    file.writeText("﻿$csv") // BOM付きでExcel文字化け防止
+    return file
+}
+
+/** 作図PDFと結果CSVを添付してメール送信する。 */
+private fun sendByEmail(
+    context: Context, email: String, storeName: String, date: String,
+    idInfo: IdInfo, csv: String, data: Map<String, String>
+) {
+    try {
+        val uris = ArrayList<Uri>()
+        val auth = "${context.packageName}.fileprovider"
+
+        // 結果CSV
+        val csvFile = writeCsvFile(context, csv)
+        uris.add(FileProvider.getUriForFile(context, auth, csvFile))
+
+        // 作図PDF（端末に保存済みの作図データから生成。無い場合は添付なし）
+        val drawFile = renderSavedDrawing(context, pdf = true)
+        if (drawFile != null) uris.add(FileProvider.getUriForFile(context, auth, drawFile))
+
+        val subject = listOf("無線チャンネル変更", storeName, date)
+            .filter { it.isNotBlank() }.joinToString(" ")
+
+        val body = buildString {
+            append("お疲れ様です。\n")
+            append("無線チャンネル変更作業の結果を送付いたします。\n\n")
+            if (storeName.isNotBlank()) append("店舗名：$storeName\n")
+            if (!data["共通番号"].isNullOrBlank()) append("共通番号：${data["共通番号"]}\n")
+            if (date.isNotBlank()) append("日付：$date\n")
+            append("対象機器：${idInfo.brand.label}\n")
+            if (!data["作業員"].isNullOrBlank()) append("作業員：${data["作業員"]}\n")
+            append("\n添付ファイル：\n")
+            append("・見取り図（PDF）")
+            if (drawFile == null) append("　※作図データが無いため未添付")
+            append("\n・無線テスト結果表（CSV）\n\n")
+            append("ご確認のほど、よろしくお願いいたします。")
+        }
+
+        val intent = Intent(Intent.ACTION_SEND_MULTIPLE).apply {
+            type = "application/octet-stream"
+            putExtra(Intent.EXTRA_EMAIL, arrayOf(email))
+            putExtra(Intent.EXTRA_SUBJECT, subject)
+            putExtra(Intent.EXTRA_TEXT, body)
+            putParcelableArrayListExtra(Intent.EXTRA_STREAM, uris)
+            addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+        }
+        context.startActivity(Intent.createChooser(intent, "メールアプリを選択"))
+    } catch (e: Exception) {
+        Toast.makeText(context, "メール作成に失敗: ${e.message}", Toast.LENGTH_LONG).show()
+    }
 }
 
 private fun exportCsv(context: Context, csv: String) {
