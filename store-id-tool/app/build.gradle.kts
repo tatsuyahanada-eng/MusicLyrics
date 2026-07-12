@@ -16,9 +16,23 @@ android {
         versionName = "1.0"
     }
 
+    // 固定の署名鍵。毎回同じ署名になるため、アンインストールせずに上書き更新できる。
+    signingConfigs {
+        create("shared") {
+            storeFile = file("shared.keystore")
+            storePassword = "storeidtool"
+            keyAlias = "storeidtool"
+            keyPassword = "storeidtool"
+        }
+    }
+
     buildTypes {
+        getByName("debug") {
+            signingConfig = signingConfigs.getByName("shared")
+        }
         release {
             isMinifyEnabled = false
+            signingConfig = signingConfigs.getByName("shared")
         }
     }
 
