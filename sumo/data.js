@@ -1154,6 +1154,78 @@ const RIKISHI = [
     favoriteKimarite: ['突き押し', '押し出し'],
     profile: '京都府出身。伊勢ノ海部屋所属。2025年七月場所に新入幕し敢闘賞。父は元幕内・大碇（現・甲山親方）。2026年春場所では横綱2人から連続金星を獲得した。'
   },
+  {
+    id: 'takerufuji',
+    name: '尊富士',
+    nameKana: 'たけるふじ',
+    nameRomaji: 'Takerufuji',
+    rank: '前頭13',
+    rankNum: 5,
+    side: '西',
+    profile: '令和の怪物と呼ばれた逸材。負傷での長期休場を経て番付を落としながらも、再起を目指している。'
+  },
+  {
+    id: 'asahakuryu',
+    name: '朝白龍',
+    nameKana: 'あさはくりゅう',
+    nameRomaji: 'Asahakuryu',
+    rank: '前頭11',
+    rankNum: 5,
+    side: '東',
+    profile: 'モンゴル出身。技巧派の左四つを武器とする。'
+  },
+  {
+    id: 'wakanosho',
+    name: '若ノ勝',
+    nameKana: 'わかのかつ',
+    nameRomaji: 'Wakanosho',
+    rank: '前頭10',
+    rankNum: 5,
+    side: '東',
+    profile: '突き押し相撲を得意とする若手力士。'
+  },
+  {
+    id: 'fujiroga',
+    name: '藤凌駕',
+    nameKana: 'ふじりょうが',
+    nameRomaji: 'Fujiroga',
+    rank: '前頭8',
+    rankNum: 5,
+    side: '東',
+    profile: '力強い押し相撲を得意とする。'
+  },
+  {
+    id: 'kotoeisho',
+    name: '琴栄峰',
+    nameKana: 'ことえいほう',
+    nameRomaji: 'Kotoeisho',
+    rank: '前頭7',
+    rankNum: 5,
+    side: '東',
+    stableId: 'sadogatake',
+    profile: '佐渡ヶ嶽部屋所属。右四つからの寄りが持ち味。'
+  },
+  {
+    id: 'fujiseun',
+    name: '藤青雲',
+    nameKana: 'ふじせいうん',
+    nameRomaji: 'Fujiseun',
+    rank: '前頭7',
+    rankNum: 5,
+    side: '西',
+    profile: '将来を嘱望される若手力士。'
+  },
+  {
+    id: 'shodai',
+    name: '正代',
+    nameKana: 'しょうだい',
+    nameRomaji: 'Shodai Naoya',
+    realName: '正代直也',
+    rank: '前頭6',
+    rankNum: 5,
+    side: '東',
+    profile: '元大関。熊本県出身。左四つの実力者。'
+  },
 ];
 
 // 部屋を補完
@@ -1297,17 +1369,24 @@ const BASHO_TORIKUMI = [
     day: 1,
     date: '2026-07-12',
     bouts: [
-      { east: 'daieisho',     west: 'oshoma',       winner: null, kimarite: null },
-      { east: 'ichiyamamoto', west: 'gonoyama',     winner: null, kimarite: null },
-      { east: 'hiradoumi',    west: 'hakuoho',      winner: null, kimarite: null },
-      { east: 'takanosho',    west: 'churanoumi',   winner: null, kimarite: null },
-      { east: 'fujinokawa',   west: 'ura',          winner: null, kimarite: null },
-      { east: 'yoshinofuji',  west: 'aonishiki',    winner: null, kimarite: null },
-      { east: 'wakatakakage', west: 'ohho',         winner: null, kimarite: null },
-      { east: 'kirishima',    west: 'kotoshoho',    winner: null, kimarite: null },
-      { east: 'kotozakura',   west: 'atamifuji',    winner: null, kimarite: null },
-      { east: 'onosato',      west: 'takayasu',     winner: null, kimarite: null },
-      { east: 'hoshoryu',     west: 'wakamotoharu', winner: null, kimarite: null },
+      { east: 'kinbozan',     west: 'takerufuji',   winner: null, kimarite: null },
+      { east: 'nishikifuji',  west: 'abi',          winner: null, kimarite: null },
+      { east: 'asahakuryu',   west: 'mitakeumi',    winner: null, kimarite: null },
+      { east: 'wakanosho',    west: 'chiyoshoma',   winner: null, kimarite: null },
+      { east: 'asanoyama',    west: 'tobizaru',     winner: null, kimarite: null },
+      { east: 'fujiroga',     west: 'roga',         winner: null, kimarite: null },
+      { east: 'wakamotoharu', west: 'takayasu',     winner: null, kimarite: null },
+      { east: 'kotoeisho',    west: 'fujiseun',     winner: null, kimarite: null },
+      { east: 'shodai',       west: 'oshoma',       winner: null, kimarite: null },
+      { east: 'ura',          west: 'ichiyamamoto', winner: null, kimarite: null },
+      { east: 'daieisho',     west: 'hakuoho',      winner: null, kimarite: null },
+      { east: 'hiradoumi',    west: 'aonishiki',    winner: null, kimarite: null },
+      { east: 'churanoumi',   west: 'kotoshoho',    winner: null, kimarite: null },
+      { east: 'atamifuji',    west: 'gonoyama',     winner: null, kimarite: null },
+      { east: 'takanosho',    west: 'kotozakura',   winner: null, kimarite: null },
+      { east: 'kirishima',    west: 'fujinokawa',   winner: null, kimarite: null },
+      { east: 'yoshinofuji',  west: 'onosato',      winner: null, kimarite: null },
+      { east: 'hoshoryu',     west: 'ohho',         winner: null, kimarite: null },
     ]
   }
 ];
