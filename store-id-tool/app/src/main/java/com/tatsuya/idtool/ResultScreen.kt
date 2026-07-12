@@ -61,8 +61,8 @@ import java.util.Date
 import java.util.Locale
 
 private val ResultOptions = listOf("最適", "良", "圏外")
-// 送信先メールの初期値（初期は空欄。必要に応じてユーザーが入力する）
-private const val DEFAULT_EMAIL = ""
+// 送信先メールの初期値（変更可）
+private const val DEFAULT_EMAIL = "jrss-03@alljrs.co.jp"
 private val GRID_LEFT_W = 96.dp
 private val GRID_CELL_W = 190.dp
 private val GRID_HEADER_H = 62.dp
@@ -92,6 +92,9 @@ fun ResultScreen(modifier: Modifier = Modifier) {
         val selectedId = loadSelectedSystemId(context)
         if (selectedId.isNotBlank()) data["変更後システムID"] = selectedId
         if (data["店舗名"].isNullOrBlank() && idInfo.storeName.isNotBlank()) data["店舗名"] = idInfo.storeName
+        // 未入力、または旧初期値のままの端末は、現在の初期値に合わせる（手入力の宛先は保持）
+        val curEmail = data["送信先メール"]
+        if (curEmail.isNullOrBlank() || curEmail == "tatsuya.hanada@gmail.com") data["送信先メール"] = DEFAULT_EMAIL
         saveResultMap(context, data)
     }
 
@@ -211,7 +214,7 @@ fun ResultScreen(modifier: Modifier = Modifier) {
             onClick = {
                 sendByEmail(
                     context = context,
-                    email = data["送信先メール"].orEmpty(),
+                    email = data["送信先メール"].orEmpty().ifBlank { DEFAULT_EMAIL },
                     storeName = data["店舗名"].orEmpty(),
                     date = data["日付"].orEmpty(),
                     idInfo = idInfo,
