@@ -61,8 +61,8 @@ import java.util.Date
 import java.util.Locale
 
 private val ResultOptions = listOf("最適", "良", "圏外")
-// 送信先メールの初期値（社内で後日指定するまでの仮の宛先）
-private const val DEFAULT_EMAIL = "tatsuya.hanada@gmail.com"
+// 送信先メールの初期値（初期は空欄。必要に応じてユーザーが入力する）
+private const val DEFAULT_EMAIL = ""
 private val GRID_LEFT_W = 96.dp
 private val GRID_CELL_W = 190.dp
 private val GRID_HEADER_H = 62.dp
@@ -92,7 +92,6 @@ fun ResultScreen(modifier: Modifier = Modifier) {
         val selectedId = loadSelectedSystemId(context)
         if (selectedId.isNotBlank()) data["変更後システムID"] = selectedId
         if (data["店舗名"].isNullOrBlank() && idInfo.storeName.isNotBlank()) data["店舗名"] = idInfo.storeName
-        if (data["送信先メール"].isNullOrBlank()) data["送信先メール"] = DEFAULT_EMAIL
         saveResultMap(context, data)
     }
 
@@ -212,7 +211,7 @@ fun ResultScreen(modifier: Modifier = Modifier) {
             onClick = {
                 sendByEmail(
                     context = context,
-                    email = data["送信先メール"].orEmpty().ifBlank { DEFAULT_EMAIL },
+                    email = data["送信先メール"].orEmpty(),
                     storeName = data["店舗名"].orEmpty(),
                     date = data["日付"].orEmpty(),
                     idInfo = idInfo,
@@ -459,7 +458,7 @@ private fun sendByEmail(
 
         val intent = Intent(Intent.ACTION_SEND_MULTIPLE).apply {
             type = "application/octet-stream"
-            putExtra(Intent.EXTRA_EMAIL, arrayOf(email))
+            if (email.isNotBlank()) putExtra(Intent.EXTRA_EMAIL, arrayOf(email))
             putExtra(Intent.EXTRA_SUBJECT, subject)
             putExtra(Intent.EXTRA_TEXT, body)
             putParcelableArrayListExtra(Intent.EXTRA_STREAM, uris)
