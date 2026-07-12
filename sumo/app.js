@@ -3,6 +3,8 @@
 const $app = document.getElementById('app');
 const $nav = document.getElementById('site-nav');
 
+let _torikumiDay = null;
+
 function escapeHtml(s) {
   if (s == null) return '';
   return String(s)
@@ -822,6 +824,196 @@ function applyRikishiEdit(text, id, edit) {
   return { text: text.slice(0, braceStart) + objText + text.slice(i + 1) };
 }
 
+// ========== 取り組み・星取 ==========
+
+function formatDateShort(ymd) {
+  if (!ymd) return '';
+  const p = ymd.split('-');
+  return parseInt(p[1]) + '月' + parseInt(p[2]) + '日';
+}
+
+function buildHoshitori(days, currentDay) {
+  const rec = {};
+  const ensure = (id) => { if (!rec[id]) rec[id] = { wins: 0, losses: 0, dayBouts: {} }; };
+  for (const d of days) {
+    if (d.day > currentDay) continue;
+    for (const b of d.bouts) {
+      ensure(b.east);
+      ensure(b.west);
+      const pending = b.winner === null;
+      if (b.winner === '東') { rec[b.east].wins++; rec[b.west].losses++; }
+      else if (b.winner === '西') { rec[b.west].wins++; rec[b.east].losses++; }
+      const eastWon = b.winner === '東' ? true : b.winner === '西' ? false : null;
+      rec[b.east].dayBouts[d.day] = { won: eastWon, pending };
+      rec[b.west].dayBouts[d.day] = { won: eastWon === null ? null : !eastWon, pending };
+    }
+  }
+  return rec;
+}
+
+function renderTorikumi() {
+  if (typeof BASHO_TORIKUMI === 'undefined' || !BASHO_TORIKUMI.length) {
+    $app.innerHTML = '<div class="empty-state"><p>取り組みデータがありません。</p><p><a href="#/">トップに戻る</a></p></div>';
+    return;
+  }
+
+  const bashoIds = [...new Set(BASHO_TORIKUMI.map(d => d.bashoId))];
+  const currentBashoId = bashoIds[bashoIds.length - 1];
+  const days = BASHO_TORIKUMI.filter(d => d.bashoId === currentBashoId).sort((a, b) => a.day - b.day);
+  if (!days.length) {
+    $app.innerHTML = '<div class="empty-state"><p>取り組みデータがありません。</p></div>';
+    return;
+  }
+
+  const today = new Date().toISOString().slice(0, 10);
+  const todayEntry = days.find(d => d.date === today);
+  const defaultDay = todayEntry ? todayEntry.day : days[days.length - 1].day;
+  const currentDay = _torikumiDay !== null ? _torikumiDay : defaultDay;
+  const dayData = days.find(d => d.day === currentDay) || days[days.length - 1];
+  const isToday = dayData.date === today;
+
+  const hasPrev = days.some(d => d.day < currentDay);
+  const hasNext = days.some(d => d.day > currentDay);
+
+  const hoshi = buildHoshitori(days, currentDay);
+
+  const rankOrder = (r) => {
+    if (!r) return 99999;
+    if (r.rank === '横綱') return 1000 + (r.side === '西' ? 1 : 0);
+    if (r.rank === '大関') return 2000 + (r.side === '西' ? 1 : 0);
+    if (r.rank === '関脇') return 3000 + (r.side === '西' ? 1 : 0);
+    if (r.rank === '小結') return 4000 + (r.side === '西' ? 1 : 0);
+    const m = r.rank.match(/前頭(\d+)/);
+    return m ? 5000 + parseInt(m[1], 10) * 10 + (r.side === '西' ? 1 : 0) : 9000;
+  };
+
+  // Collect all rikishi who appear in any day of this basho
+  const allRikishiSet = new Set();
+  for (const d of days) {
+    for (const b of d.bouts) { allRikishiSet.add(b.east); allRikishiSet.add(b.west); }
+  }
+  const sortedIds = [...allRikishiSet].sort((a, b) =>
+    rankOrder(RIKISHI.find(r => r.id === a)) - rankOrder(RIKISHI.find(r => r.id === b))
+  );
+
+  // Days with data up to and including current day (for star columns)
+  const knownDays = days.filter(d => d.day <= currentDay);
+
+  // Bout list (reversed: highest-rank bout at top)
+  const boutRows = [...dayData.bouts].reverse().map(b => {
+    const er = RIKISHI.find(r => r.id === b.east);
+    const wr = RIKISHI.find(r => r.id === b.west);
+    const eName = er ? escapeHtml(er.name) : escapeHtml(b.east);
+    const wName = wr ? escapeHtml(wr.name) : escapeHtml(b.west);
+    const eRank = er ? escapeHtml(er.rank) : '';
+    const wRank = wr ? escapeHtml(wr.rank) : '';
+
+    let centerHtml;
+    if (b.winner === '東') {
+      centerHtml = `<span class="win-arrow east-arrow">◀</span><span class="kimarite">${escapeHtml(b.kimarite || '')}</span>`;
+    } else if (b.winner === '西') {
+      centerHtml = `<span class="kimarite">${escapeHtml(b.kimarite || '')}</span><span class="win-arrow west-arrow">▶</span>`;
+    } else {
+      centerHtml = `<span class="bout-vs">対</span>`;
+    }
+
+    return `<div class="torikumi-row${b.winner ? ' decided' : ' pending'}">
+      <div class="torikumi-east">
+        <a href="#/rikishi/${b.east}" class="tk-name">${eName}</a>
+        <span class="tk-rank">${eRank}</span>
+      </div>
+      <div class="torikumi-center">${centerHtml}</div>
+      <div class="torikumi-west">
+        <span class="tk-rank">${wRank}</span>
+        <a href="#/rikishi/${b.west}" class="tk-name">${wName}</a>
+      </div>
+    </div>`;
+  }).join('');
+
+  // Hoshitori table
+  const dayHeaders = knownDays.map(d => `<th class="hs-day">${d.day}日</th>`).join('');
+  const tableRows = sortedIds.map(id => {
+    const r = RIKISHI.find(x => x.id === id);
+    const name = r ? escapeHtml(r.name) : escapeHtml(id);
+    const rank = r ? escapeHtml(r.rank + r.side) : '';
+    const rec = hoshi[id];
+    const stars = knownDays.map(d => {
+      const entry = rec && rec.dayBouts[d.day];
+      if (!entry) return '<td class="star-cell kyujo">休</td>';
+      if (entry.pending) return '<td class="star-cell pending">？</td>';
+      return entry.won
+        ? '<td class="star-cell win">○</td>'
+        : '<td class="star-cell loss">●</td>';
+    }).join('');
+    const wl = rec ? `${rec.wins}勝${rec.losses}敗` : '―';
+    return `<tr>
+      <td class="hs-name-cell"><a href="#/rikishi/${id}">${name}</a><span class="hs-rank">${rank}</span></td>
+      ${stars}
+      <td class="hs-record">${wl}</td>
+    </tr>`;
+  }).join('');
+
+  const bashoInfo = (typeof BANZUKE_SCHEDULE !== 'undefined') ? BANZUKE_SCHEDULE.find(b => b.id === currentBashoId) : null;
+  const bashoName = bashoInfo ? escapeHtml(bashoInfo.name) : escapeHtml(currentBashoId);
+  const todayBadge = isToday ? '<span class="today-badge">本日</span>' : '';
+  const dateStr = dayData.date ? formatDateShort(dayData.date) : '';
+
+  $app.innerHTML = `
+    <h1 class="page-title">取り組み・星取</h1>
+    <p class="lead">${bashoName}</p>
+    <div class="day-nav">
+      <button class="btn-day-nav" onclick="torikumiPrevDay()" ${hasPrev ? '' : 'disabled'}>◀ 前日</button>
+      <span class="day-label">${currentDay}日目 <span class="day-date">${dateStr}</span>${todayBadge}</span>
+      <button class="btn-day-nav" onclick="torikumiNextDay()" ${hasNext ? '' : 'disabled'}>翌日 ▶</button>
+      <button class="btn-refresh" onclick="refreshDataJs()">データ更新</button>
+    </div>
+    <h2 class="section-title">本日の取り組み</h2>
+    ${dayData.bouts.length ? `<div class="torikumi-list">${boutRows}</div>` : '<p class="lead">取り組みデータが未登録です。</p>'}
+    ${knownDays.length ? `
+    <h2 class="section-title">星取表</h2>
+    <div class="hoshitori-wrap">
+      <table class="hoshitori-table">
+        <thead>
+          <tr>
+            <th class="hs-name-h">力士</th>
+            ${dayHeaders}
+            <th class="hs-record-h">成績</th>
+          </tr>
+        </thead>
+        <tbody>${tableRows}</tbody>
+      </table>
+    </div>` : ''}
+  `;
+}
+
+function torikumiPrevDay() {
+  if (typeof BASHO_TORIKUMI === 'undefined' || !BASHO_TORIKUMI.length) return;
+  const bashoIds = [...new Set(BASHO_TORIKUMI.map(d => d.bashoId))];
+  const days = BASHO_TORIKUMI.filter(d => d.bashoId === bashoIds[bashoIds.length - 1]).sort((a, b) => a.day - b.day);
+  const today = new Date().toISOString().slice(0, 10);
+  const todayEntry = days.find(d => d.date === today);
+  const cur = _torikumiDay !== null ? _torikumiDay : (todayEntry ? todayEntry.day : days[days.length - 1].day);
+  const prev = [...days].reverse().find(d => d.day < cur);
+  if (prev) { _torikumiDay = prev.day; renderTorikumi(); window.scrollTo({ top: 0, behavior: 'smooth' }); }
+}
+
+function torikumiNextDay() {
+  if (typeof BASHO_TORIKUMI === 'undefined' || !BASHO_TORIKUMI.length) return;
+  const bashoIds = [...new Set(BASHO_TORIKUMI.map(d => d.bashoId))];
+  const days = BASHO_TORIKUMI.filter(d => d.bashoId === bashoIds[bashoIds.length - 1]).sort((a, b) => a.day - b.day);
+  const today = new Date().toISOString().slice(0, 10);
+  const todayEntry = days.find(d => d.date === today);
+  const cur = _torikumiDay !== null ? _torikumiDay : (todayEntry ? todayEntry.day : days[days.length - 1].day);
+  const next = days.find(d => d.day > cur);
+  if (next) { _torikumiDay = next.day; renderTorikumi(); window.scrollTo({ top: 0, behavior: 'smooth' }); }
+}
+
+function refreshDataJs() {
+  fetch('data.js?_=' + Date.now())
+    .then(() => location.reload())
+    .catch(() => location.reload());
+}
+
 function render404() {
   $app.innerHTML = `
     <div class="empty-state">
@@ -840,6 +1032,7 @@ const routes = [
   { match: /^#\/stable\/(.+)$/, render: (m) => renderStableDetail(m[1]), nav: 'stables' },
   { match: /^#\/tournaments\/?$/, render: renderTournaments, nav: 'tournaments' },
   { match: /^#\/jungyo\/?$/, render: renderJungyo, nav: 'jungyo' },
+  { match: /^#\/torikumi\/?$/, render: renderTorikumi, nav: 'torikumi' },
   { match: /^#\/about\/?$/, render: renderAbout, nav: 'about' },
   { match: /^#\/edit\/?$/, render: renderEdit, nav: 'edit' },
 ];

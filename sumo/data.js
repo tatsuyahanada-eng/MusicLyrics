@@ -1287,6 +1287,31 @@ const TOURNAMENTS = [
   },
 ];
 
+// ===== 本場所取り組み =====
+// 各日の取り組みと結果。
+// winner: '東'|'西'|null（未決定）, kimarite: 決まり手の文字列|null
+// 結果が出たら winner と kimarite を書き換えてください。
+const BASHO_TORIKUMI = [
+  {
+    bashoId: '2026-07',
+    day: 1,
+    date: '2026-07-12',
+    bouts: [
+      { east: 'daieisho',     west: 'oshoma',       winner: null, kimarite: null },
+      { east: 'ichiyamamoto', west: 'gonoyama',     winner: null, kimarite: null },
+      { east: 'hiradoumi',    west: 'hakuoho',      winner: null, kimarite: null },
+      { east: 'takanosho',    west: 'churanoumi',   winner: null, kimarite: null },
+      { east: 'fujinokawa',   west: 'ura',          winner: null, kimarite: null },
+      { east: 'yoshinofuji',  west: 'aonishiki',    winner: null, kimarite: null },
+      { east: 'wakatakakage', west: 'ohho',         winner: null, kimarite: null },
+      { east: 'kirishima',    west: 'kotoshoho',    winner: null, kimarite: null },
+      { east: 'kotozakura',   west: 'atamifuji',    winner: null, kimarite: null },
+      { east: 'onosato',      west: 'takayasu',     winner: null, kimarite: null },
+      { east: 'hoshoryu',     west: 'wakamotoharu', winner: null, kimarite: null },
+    ]
+  }
+];
+
 // ===== 巡業スケジュール =====
 // 本場所と本場所の間に行われる地方巡業の日程表。
 // tentative: true の巡業は「予定・暫定」として表示されます。

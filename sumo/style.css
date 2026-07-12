@@ -900,6 +900,245 @@ code {
   color: var(--color-muted);
 }
 
+/* ===== 取り組み・星取 ===== */
+.day-nav {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-bottom: 24px;
+  padding: 12px 16px;
+  background: var(--color-paper);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+}
+
+.btn-day-nav {
+  background: var(--color-bg-alt);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  padding: 6px 14px;
+  font-size: 14px;
+  font-family: inherit;
+  cursor: pointer;
+  color: var(--color-ink);
+  transition: background 0.15s;
+}
+
+.btn-day-nav:hover:not([disabled]) {
+  background: var(--color-border);
+}
+
+.btn-day-nav[disabled] {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.btn-refresh {
+  margin-left: auto;
+  background: var(--color-accent);
+  color: #fff;
+  border: none;
+  border-radius: var(--radius);
+  padding: 6px 14px;
+  font-size: 14px;
+  font-family: inherit;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.btn-refresh:hover {
+  background: var(--color-accent-dark);
+}
+
+.day-label {
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--color-ink);
+}
+
+.day-date {
+  font-size: 13px;
+  font-weight: 400;
+  color: var(--color-muted);
+  margin-left: 4px;
+}
+
+.today-badge {
+  display: inline-block;
+  background: var(--color-accent);
+  color: #fff;
+  font-size: 11px;
+  font-weight: 700;
+  padding: 2px 8px;
+  border-radius: 999px;
+  margin-left: 8px;
+  letter-spacing: 0.1em;
+  vertical-align: middle;
+}
+
+.torikumi-list {
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  overflow: hidden;
+  background: var(--color-paper);
+  margin-bottom: 8px;
+  box-shadow: var(--shadow-soft);
+}
+
+.torikumi-row {
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  gap: 8px;
+  align-items: center;
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--color-border);
+}
+
+.torikumi-row:last-child {
+  border-bottom: none;
+}
+
+.torikumi-east {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  text-align: right;
+}
+
+.torikumi-west {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  text-align: left;
+}
+
+.torikumi-center {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-width: 72px;
+  font-size: 13px;
+  color: var(--color-ink-soft);
+}
+
+.tk-name {
+  font-size: 17px;
+  font-weight: 700;
+  color: var(--color-ink);
+  border: none;
+}
+
+.tk-name:hover {
+  color: var(--color-accent);
+}
+
+.tk-rank {
+  font-size: 11px;
+  color: var(--color-muted);
+  margin-top: 2px;
+}
+
+.win-arrow {
+  font-size: 15px;
+  font-weight: 700;
+}
+
+.east-arrow { color: var(--color-east); }
+.west-arrow { color: var(--color-west); }
+
+.kimarite {
+  font-size: 11px;
+  color: var(--color-ink-soft);
+  background: var(--color-bg-alt);
+  padding: 1px 6px;
+  border-radius: 4px;
+}
+
+.bout-vs {
+  font-size: 14px;
+  color: var(--color-muted);
+  font-weight: 700;
+  letter-spacing: 0.1em;
+}
+
+/* ===== 星取表 ===== */
+.hoshitori-wrap {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  background: var(--color-paper);
+  box-shadow: var(--shadow-soft);
+}
+
+.hoshitori-table {
+  border-collapse: collapse;
+  min-width: 360px;
+  width: 100%;
+  font-size: 13px;
+}
+
+.hoshitori-table th,
+.hoshitori-table td {
+  padding: 8px 10px;
+  text-align: center;
+  border-bottom: 1px solid var(--color-border);
+  white-space: nowrap;
+}
+
+.hoshitori-table tr:last-child td {
+  border-bottom: none;
+}
+
+.hoshitori-table thead th {
+  background: var(--color-bg-alt);
+  font-size: 11px;
+  letter-spacing: 0.05em;
+  font-weight: 700;
+}
+
+.hoshitori-table tbody tr:hover {
+  background: rgba(160, 41, 41, 0.04);
+}
+
+.hs-name-h,
+.hs-name-cell {
+  text-align: left !important;
+  min-width: 100px;
+}
+
+.hs-name-cell a {
+  color: var(--color-ink);
+  border: none;
+  font-weight: 700;
+  margin-right: 6px;
+}
+
+.hs-name-cell a:hover {
+  color: var(--color-accent);
+}
+
+.hs-rank {
+  font-size: 10px;
+  color: var(--color-muted);
+}
+
+.hs-day { width: 36px; }
+.hs-record-h,
+.hs-record {
+  font-weight: 600;
+  color: var(--color-ink-soft);
+  min-width: 60px;
+}
+
+.star-cell { font-size: 14px; font-weight: 700; }
+.star-cell.win   { color: var(--color-east); }
+.star-cell.loss  { color: var(--color-west); }
+.star-cell.pending { color: var(--color-muted); font-size: 12px; }
+.star-cell.kyujo   { color: var(--color-muted); font-size: 11px; font-weight: 400; }
+
 @media (max-width: 720px) {
   .site-header-inner {
     padding: 10px 14px;
@@ -1056,6 +1295,22 @@ code {
   .tournament-card .sansho {
     flex-direction: column;
     gap: 4px;
+  }
+
+  /* 取り組みページ スマホ対応 */
+  .day-nav {
+    gap: 8px;
+  }
+  .btn-refresh {
+    margin-left: 0;
+    flex-basis: 100%;
+    text-align: center;
+  }
+  .torikumi-row {
+    padding: 10px 12px;
+  }
+  .tk-name {
+    font-size: 15px;
   }
 }
 
