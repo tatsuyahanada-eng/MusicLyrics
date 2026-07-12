@@ -98,6 +98,15 @@ fun loadIdInfo(context: Context): IdInfo {
     return IdInfo(brand, p.getString("storeNumber", "") ?: "", p.getString("storeName", "") ?: "")
 }
 
+/** ID計算タブで選択（タップ）した10桁ID。結果タブの「変更後システムID」へ反映する。 */
+fun saveSelectedSystemId(context: Context, value: String) {
+    context.getSharedPreferences(ID_PREFS, Context.MODE_PRIVATE).edit()
+        .putString("selectedSystemId", value).apply()
+}
+
+fun loadSelectedSystemId(context: Context): String =
+    context.getSharedPreferences(ID_PREFS, Context.MODE_PRIVATE).getString("selectedSystemId", "") ?: ""
+
 /** 全タブの記録（ID情報・距離・結果・作図）を消去して初期状態に戻す。 */
 fun clearAllData(context: Context) {
     listOf("id_prefs", "distance_prefs", "result_prefs", "draw_prefs").forEach { name ->

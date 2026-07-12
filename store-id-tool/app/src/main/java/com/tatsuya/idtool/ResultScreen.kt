@@ -88,8 +88,9 @@ fun ResultScreen(modifier: Modifier = Modifier) {
     var locCount by remember { mutableIntStateOf((data["場所数"]?.toIntOrNull() ?: 5).coerceAtLeast(5)) }
 
     LaunchedEffect(Unit) {
-        // 変更後システムIDはID計算タブで変更した最新の値を常に反映する
-        if (idInfo.storeNumber.isNotBlank()) data["変更後システムID"] = idInfo.storeNumber
+        // 変更後システムIDは、ID計算タブでタップ（選択）した最新の10桁IDを反映する
+        val selectedId = loadSelectedSystemId(context)
+        if (selectedId.isNotBlank()) data["変更後システムID"] = selectedId
         if (data["店舗名"].isNullOrBlank() && idInfo.storeName.isNotBlank()) data["店舗名"] = idInfo.storeName
         if (data["送信先メール"].isNullOrBlank()) data["送信先メール"] = DEFAULT_EMAIL
         saveResultMap(context, data)
@@ -146,11 +147,14 @@ fun ResultScreen(modifier: Modifier = Modifier) {
             Spacer(Modifier.weight(1f))
             OutlinedButton(onClick = { locCount += 1; set("場所数", locCount.toString()) }) { Text("＋場所追加") }
         }
-        Text("場所をタップで計測距離を表示／列見出しの × で不要なch列を隠せます",
+        Text("既定は48chまで表示。列見出しの × で列を隠す／下の「戻す」で48ch超を追加できます",
             fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
 
         // 非表示にしたch（不要な列を隠す）。CSV出力からも除外される。
-        val hiddenChs = (data["非表示Ch"] ?: "").split(",").mapNotNull { it.trim().toIntOrNull() }.toSet()
+        // 未設定（初回）は既定で48ch超（100ch以降）を非表示にし、必要時に「戻す」で追加できる。
+        val hiddenRaw = data["非表示Ch"]
+        val hiddenChs = if (hiddenRaw == null) rows.filter { it.ch > 48 }.map { it.ch }.toSet()
+            else hiddenRaw.split(",").mapNotNull { it.trim().toIntOrNull() }.toSet()
         val visibleRows = rows.filter { it.ch !in hiddenChs }
         if (hiddenChs.isNotEmpty()) {
             Row(

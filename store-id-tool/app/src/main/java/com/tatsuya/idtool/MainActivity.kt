@@ -276,7 +276,11 @@ fun IdContent() {
                 HorizontalDivider(color = MaterialTheme.colorScheme.outline)
                 rows.forEachIndexed { index, row ->
                     TableRow(row = row, onClick = {
-                        if (row.fullId.isNotEmpty()) copyToClipboard(context, "ch${row.ch} ${row.fullId}")
+                        if (row.fullId.isNotEmpty()) {
+                            val v = "ch${row.ch} ${row.fullId}"
+                            copyToClipboard(context, v)
+                            saveSelectedSystemId(context, v) // 結果タブの変更後システムIDへ反映
+                        }
                     })
                     if (index < rows.size - 1) {
                         HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.4f))
