@@ -1,0 +1,27 @@
+# XcodeGen 用プロジェクト定義。
+# Mac で `brew install xcodegen` 後、この ios フォルダで `xcodegen generate` を実行すると
+# MusiWireless.xcodeproj が生成されます。（手動でXcodeプロジェクトを作る方法は README_iOS.md 参照）
+name: MusiWireless
+options:
+  bundleIdPrefix: com.tatsuya
+  deploymentTarget:
+    iOS: "16.0"
+  createIntermediateGroups: true
+
+targets:
+  MusiWireless:
+    type: application
+    platform: iOS
+    sources:
+      - path: MusiWireless
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.tatsuya.musiwireless
+        MARKETING_VERSION: "1.0"
+        CURRENT_PROJECT_VERSION: "1"
+        SWIFT_VERSION: "5.0"
+        TARGETED_DEVICE_FAMILY: "1,2"
+        GENERATE_INFOPLIST_FILE: YES
+        INFOPLIST_KEY_NSCameraUsageDescription: "距離測定と写真の取り込みでカメラを使用します。"
+        INFOPLIST_KEY_UILaunchScreen_Generation: YES
+        INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents: YES
