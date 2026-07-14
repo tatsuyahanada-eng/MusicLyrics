@@ -8,19 +8,38 @@ android {
     namespace = "com.netdiag"
     compileSdk = 35
 
+    // Auto-incrementing version from the CI build number so each release is a
+    // real "update" (higher versionCode); falls back to 1 for local builds.
+    val buildNumber = (System.getenv("GITHUB_RUN_NUMBER")?.toIntOrNull() ?: 1)
+
     defaultConfig {
         applicationId = "com.netdiag"
         minSdk = 26
         targetSdk = 35
-        versionCode = 1
-        versionName = "1.0"
+        versionCode = buildNumber
+        versionName = "1.0.$buildNumber"
 
         vectorDrawables {
             useSupportLibrary = true
         }
     }
 
+    // Fixed debug keystore committed to the repo so every build is signed with
+    // the SAME key. That lets the installed app update in place without an
+    // uninstall (a debug key is not a secret; password is "android").
+    signingConfigs {
+        getByName("debug") {
+            storeFile = file("debug.keystore")
+            storePassword = "android"
+            keyAlias = "androiddebugkey"
+            keyPassword = "android"
+        }
+    }
+
     buildTypes {
+        debug {
+            signingConfig = signingConfigs.getByName("debug")
+        }
         release {
             isMinifyEnabled = false
             proguardFiles(

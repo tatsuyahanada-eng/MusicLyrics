@@ -14,7 +14,11 @@ captures/
 *.iml
 .DS_Store
 
-# Keystore secrets (never commit signing keys)
+# Keystore secrets (never commit RELEASE signing keys)
 *.jks
 *.keystore
 keystore.properties
+# ...but DO commit the shared debug keystore so every build signs with the
+# same key (lets the app update in place without uninstalling). A debug
+# keystore is not a secret (password is the well-known "android").
+!/app/debug.keystore
