@@ -3,7 +3,11 @@ package com.netdiag.ui.screens
 import android.Manifest
 import android.content.pm.PackageManager
 import android.graphics.Bitmap
+import android.graphics.Canvas
+import android.graphics.ColorMatrix
+import android.graphics.ColorMatrixColorFilter
 import android.graphics.Matrix
+import android.graphics.Paint
 import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -183,7 +187,7 @@ private fun LiveOcr(onAppend: (String) -> Unit) {
                     analysis.setAnalyzer(executor) { proxy ->
                         try {
                             val rotated = rotateBitmap(proxy.toBitmap(), proxy.imageInfo.rotationDegrees)
-                            val band = upscale(cropCenterBand(rotated, OCR_BAND_FRACTION), 2)
+                            val band = preprocess(upscale(cropCenterBand(rotated, OCR_BAND_FRACTION), 2))
                             recognizer.process(InputImage.fromBitmap(band, 0))
                                 .addOnSuccessListener { onText(sanitizeOcr(it.text)) }
                                 .addOnCompleteListener { proxy.close() }
@@ -363,9 +367,9 @@ private fun CaptureOcr(onAppend: (String) -> Unit) {
                             override fun onCaptureSuccess(image: ImageProxy) {
                                 val bmp = rotateBitmap(image.toBitmap(), image.imageInfo.rotationDegrees)
                                 image.close()
-                                // Crop to the framed band and OCR that high-res region.
+                                // Crop to the framed band and OCR a high-contrast copy.
                                 val crop = cropCenterBand(bmp, OCR_BAND_FRACTION)
-                                recognizer.process(InputImage.fromBitmap(crop, 0))
+                                recognizer.process(InputImage.fromBitmap(preprocess(crop), 0))
                                     .addOnSuccessListener { vt ->
                                         photo = crop
                                         fullText = sanitizeOcr(vt.text)
@@ -471,22 +475,48 @@ private fun CopyLine(
 /** Detected Wi-Fi credentials from OCR text. */
 data class WifiCredentials(val ssid: String?, val key: String?)
 
-private val SSID_REGEX = Regex(
-    "(?i)(?:ssid|network\\s*name|ネットワーク名)\\s*[:：]?\\s*([\\w\\-\\.@]{1,32})"
+private val SSID_LABELS = listOf(
+    "ssid", "network name", "networkname", "network", "wifi name", "wi-fi name",
+    "ネットワーク名", "ネットワーク", "wifi名", "wi-fi名",
 )
-private val KEY_REGEX = Regex(
-    "(?i)(?:password|passphrase|pass|key|暗号化キー|暗号キー|パスワード|pin|kpsk|psk)\\s*[:：]?\\s*([\\w\\-\\.@#!\\$%]{4,64})"
+private val KEY_LABELS = listOf(
+    "password", "passphrase", "pass phrase", "network key", "security key",
+    "encryption key", "wpa key", "wpa2 key", "pre-shared key",
+    "暗号化キー", "暗号キー", "セキュリティキー", "パスワード", "パスキー",
+    "key", "pass", "pw", "psk", "pin",
 )
 
-/** Extracts SSID / key from raw OCR text using common sticker labels. */
+/**
+ * Extracts SSID / key from OCR text. Handles "LABEL: value" on one line and
+ * "LABEL" with the value on the next line, several label spellings, and
+ * strips surrounding quotes. Keys are single tokens; SSIDs may contain spaces.
+ */
 fun extractWifi(text: String): WifiCredentials {
+    val lines = text.lines().map { it.trim() }.filter { it.isNotEmpty() }
     var ssid: String? = null
     var key: String? = null
-    for (line in text.lines()) {
-        if (ssid == null) SSID_REGEX.find(line)?.let { ssid = it.groupValues[1] }
-        if (key == null) KEY_REGEX.find(line)?.let { key = it.groupValues[1] }
+    for (i in lines.indices) {
+        val next = lines.getOrNull(i + 1)
+        if (ssid == null) ssid = valueFor(lines[i], SSID_LABELS, next, singleToken = false)
+        if (key == null) key = valueFor(lines[i], KEY_LABELS, next, singleToken = true)
     }
     return WifiCredentials(ssid, key)
+}
+
+private fun valueFor(line: String, labels: List<String>, next: String?, singleToken: Boolean): String? {
+    val lower = line.lowercase()
+    val label = labels.firstOrNull { lower.contains(it) } ?: return null
+    var rest = line.substring(lower.indexOf(label) + label.length)
+        .trimStart(' ', ':', '：', '=', '－', '-', '\t', '　', '.', '｜', '|')
+    if (rest.isBlank() && next != null && labels.none { next.lowercase().startsWith(it) }) {
+        rest = next
+    }
+    if (rest.isBlank()) return null
+    var value = rest.trim().trim('"', '\'', '“', '”', '「', '」', '｢', '｣')
+    if (singleToken) value = value.split(Regex("\\s+")).firstOrNull().orEmpty()
+    // Reject obvious non-values (too short or another label word only).
+    if (value.length < 2 || labels.any { value.equals(it, ignoreCase = true) }) return null
+    return value.take(63)
 }
 
 private fun toast(context: android.content.Context, msg: String) {
@@ -507,6 +537,34 @@ private fun cropCenterBand(src: Bitmap, fraction: Float): Bitmap {
     val bandH = (src.height * fraction).toInt().coerceIn(1, src.height)
     val top = ((src.height - bandH) / 2).coerceAtLeast(0)
     return Bitmap.createBitmap(src, 0, top, src.width, bandH)
+}
+
+/** Grayscale + contrast boost — high-contrast black-on-white reads far more
+ *  reliably in OCR than a low-contrast colour photo of a sticker. */
+private fun preprocess(src: Bitmap): Bitmap {
+    val out = Bitmap.createBitmap(src.width, src.height, Bitmap.Config.ARGB_8888)
+    val canvas = Canvas(out)
+    val c = 1.9f
+    val t = (-0.5f * c + 0.5f) * 255f
+    val matrix = ColorMatrix().apply {
+        setSaturation(0f)
+        postConcat(
+            ColorMatrix(
+                floatArrayOf(
+                    c, 0f, 0f, 0f, t,
+                    0f, c, 0f, 0f, t,
+                    0f, 0f, c, 0f, t,
+                    0f, 0f, 0f, 1f, 0f,
+                )
+            )
+        )
+    }
+    val paint = Paint().apply {
+        isFilterBitmap = true
+        colorFilter = ColorMatrixColorFilter(matrix)
+    }
+    canvas.drawBitmap(src, 0f, 0f, paint)
+    return out
 }
 
 /** Upscales to give small text more pixel height for the OCR model. */

@@ -14,11 +14,14 @@ import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
+import android.content.Intent
+import android.net.Uri
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -29,6 +32,7 @@ import com.netdiag.ui.SectionCard
 @Composable
 fun TrafficScreen(vm: TrafficViewModel = viewModel()) {
     val s by vm.state.collectAsStateWithLifecycle()
+    val context = LocalContext.current
 
     LazyColumn(
         Modifier.fillMaxWidth().padding(horizontal = 12.dp),
@@ -95,6 +99,17 @@ fun TrafficScreen(vm: TrafficViewModel = viewModel()) {
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
+                Spacer(Modifier.height(12.dp))
+                OutlinedButton(
+                    onClick = {
+                        runCatching {
+                            context.startActivity(
+                                Intent(Intent.ACTION_VIEW, Uri.parse("https://www.google.com/search?q=speed+test"))
+                            )
+                        }
+                    },
+                    modifier = Modifier.fillMaxWidth(),
+                ) { Text("Google スピードテストを開く") }
             }
         }
     }
