@@ -45,12 +45,15 @@ class TranscriptionViewModel(app: Application) : AndroidViewModel(app),
 
     // ----- UI intents -------------------------------------------------------
 
-    /** Begin "hold to talk": call on button press. */
+    /** Begin "hold to talk": call on button press.
+     *  Uses continuous listening so it keeps transcribing for as long as the
+     *  button is held — a short silence just starts a new line instead of
+     *  ending the session. It stops only on release ([stopHold]). */
     fun startHold() {
         if (_state.value.mode != Mode.NONE) return
         capturedMode = Mode.HOLD
         _state.value = _state.value.copy(mode = Mode.HOLD, error = null)
-        manager.start(continuous = false)
+        manager.start(continuous = true)
     }
 
     /** End "hold to talk": call on button release. */
