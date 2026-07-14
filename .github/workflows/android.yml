@@ -48,6 +48,10 @@ jobs:
           body: |
             最新の debug APK です。下の `app-debug.apk` を端末でダウンロードしてインストールしてください。
             （設定で「提供元不明のアプリ / このソースを許可」を有効にする必要があります）
-          files: store-id-tool/app/build/outputs/apk/debug/app-debug.apk
+
+            操作マニュアル（PDF）: `WirelessApp_Manual.pdf`
+          files: |
+            store-id-tool/app/build/outputs/apk/debug/app-debug.apk
+            store-id-tool/docs/WirelessApp_Manual.pdf
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
