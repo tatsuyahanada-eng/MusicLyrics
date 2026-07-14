@@ -11,6 +11,7 @@ import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -57,6 +58,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
@@ -113,7 +115,18 @@ fun AppRoot() {
     var tab by remember { mutableIntStateOf(0) }
     var resetKey by remember { mutableIntStateOf(0) }
     var showReset by remember { mutableStateOf(false) }
+    var showSplash by remember { mutableStateOf(true) }
     val titles = listOf("無線チャンネル変更", "距離測定", "作図（見取り図）", "結果入力（無線テスト結果表）")
+
+    // 起動時のスプラッシュ（ロゴ＋タイトルを中央表示）
+    LaunchedEffect(Unit) {
+        kotlinx.coroutines.delay(1900)
+        showSplash = false
+    }
+    if (showSplash) {
+        SplashScreen()
+        return
+    }
 
     // 作図(2)・結果入力(3)のみ横向きを許可。他タブは縦固定。
     LaunchedEffect(tab) {
@@ -182,6 +195,36 @@ fun AppRoot() {
                 }) { Text("初期化する") }
             },
             dismissButton = { TextButton(onClick = { showReset = false }) { Text("やめる") } }
+        )
+    }
+}
+
+// ── 起動時スプラッシュ（ロゴ＋タイトル中央／下部にProduced by Welsys）──
+@Composable
+private fun SplashScreen() {
+    Box(
+        modifier = Modifier.fillMaxSize().background(Color.White),
+        contentAlignment = Alignment.Center
+    ) {
+        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+            Image(
+                painter = painterResource(R.drawable.welsys_logo),
+                contentDescription = "WELSYS",
+                modifier = Modifier.width(240.dp)
+            )
+            Spacer(Modifier.height(4.dp))
+            Text(
+                "無線チャンネル変更アプリ",
+                fontSize = 20.sp,
+                fontWeight = FontWeight.Bold,
+                color = Color(0xFF37474F)
+            )
+        }
+        Text(
+            "Produced by Welsys",
+            fontSize = 11.sp,
+            color = Color(0xFF90A4AE),
+            modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = 28.dp)
         )
     }
 }
