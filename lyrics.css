@@ -1211,8 +1211,9 @@ body.lyric-scatter .ly-lyric-stack  { display: none; }
   right: 16px;
   bottom: 52px;
   z-index: 6;
-  align-items: center;
-  gap: 8px;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 4px;
   padding: 8px 14px;
   background: rgba(0,0,0,0.55);
   border: 1px solid rgba(255,255,255,0.18);
@@ -1224,6 +1225,73 @@ body.lyric-scatter .ly-lyric-stack  { display: none; }
 body.song-active .ly-fs-offset { display: flex; }
 body.lyrics-fs:not(.fs-controls-visible) .ly-fs-offset,
 body.karaoke-mode:not(.fs-controls-visible) .ly-fs-offset { display: none; }
+
+.ly-fs-offset-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+.ly-fs-offset-info {
+  display: none;   /* only shown for LRC songs (see body.has-lrc below) */
+  justify-content: space-between;
+  font-size: 0.72rem;
+  color: rgba(255,255,255,0.75);
+  padding: 0 2px;
+}
+body.has-lrc .ly-fs-offset-info { display: flex; }
+.ly-lyric-time-info {
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.02em;
+  color: #ddd6fe;
+  white-space: nowrap;
+}
+.ly-lyric-time-info:empty { display: none; }
+.ly-lyric-time-info .ly-lti-sep { opacity: 0.45; margin: 0 4px; }
+.ly-lyric-time-info .ly-lti-lyric   { color: #f5f3ff; }
+.ly-lyric-time-info .ly-lti-playback { color: #a78bfa; }
+.ly-sync-hint {
+  opacity: 0.75;
+  white-space: nowrap;
+  font-size: 0.7rem;
+}
+body.theme-light .ly-fs-offset-info { color: #4c1d95; }
+body.theme-light .ly-lyric-time-info { color: #4c1d95; }
+body.theme-light .ly-lyric-time-info .ly-lti-lyric    { color: #0d0d14; }
+body.theme-light .ly-lyric-time-info .ly-lti-playback { color: #7c3aed; }
+body.theme-light .ly-sync-hint { color: #7c3aed; }
+
+/* Tap-to-sync: only when LRC line has a known index. Small
+   visual cue on hover; the line itself remains the tap target. */
+.ly-line.ly-line-tappable { cursor: pointer; }
+.ly-line.ly-line-tappable.ly-line-current {
+  position: relative;
+}
+.ly-line.ly-line-tappable.ly-line-current::after {
+  content: '🎯';
+  position: absolute;
+  right: -2px;
+  top: 50%;
+  transform: translateY(-50%);
+  font-size: 0.55em;
+  opacity: 0;
+  transition: opacity 0.2s ease;
+  pointer-events: none;
+}
+@media (hover: hover) {
+  .ly-line.ly-line-tappable:hover { text-decoration: underline dotted rgba(196,181,253,0.5); text-underline-offset: 0.2em; }
+  .ly-line.ly-line-tappable.ly-line-current:hover::after { opacity: 0.7; }
+}
+/* Brief flash when a tap-to-sync fires so the user knows it took */
+@keyframes ly-sync-flash {
+  0%   { text-shadow: 0 0 0   rgba(52,211,153,0);   background: transparent; }
+  30%  { text-shadow: 0 0 22px rgba(52,211,153,0.9); background: rgba(52,211,153,0.15); }
+  100% { text-shadow: 0 0 0   rgba(52,211,153,0);   background: transparent; }
+}
+.ly-line.ly-sync-flash {
+  animation: ly-sync-flash 0.7s ease-out both !important;
+  border-radius: 6px;
+}
 
 .ly-scatter-token.in  {
   opacity: 1;

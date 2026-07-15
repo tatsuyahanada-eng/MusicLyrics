@@ -15,7 +15,7 @@
   <link rel="icon" href="icon.svg" type="image/svg+xml">
   <link rel="apple-touch-icon" href="icon-192.png">
   <title>Music Lyrics</title>
-  <link rel="stylesheet" href="lyrics.css?v=51">
+  <link rel="stylesheet" href="lyrics.css?v=52">
 </head>
 <body class="ly-body">
 
@@ -150,11 +150,17 @@
       <div id="lyricStack" class="ly-lyric-stack"></div>
       <div id="scatterLayer" class="ly-scatter-layer" aria-hidden="true"></div>
       <div class="ly-fs-offset">
-        <span class="ly-bar-label" title="歌詞のタイミング">📝</span>
-        <span class="ly-offset-end">遅</span>
-        <input id="lyricsOffsetBarFs" class="ly-progress ly-lyrics-progress" type="range" min="-100" max="100" value="0" step="1" aria-label="歌詞のタイミング" title="左=遅らせる / 右=早める（±10秒）">
-        <span class="ly-offset-end">早</span>
-        <span id="lyricsOffsetDisplayFs" class="ly-offset-val">±0.0s</span>
+        <div class="ly-fs-offset-row">
+          <span class="ly-bar-label" title="歌詞のタイミング">📝</span>
+          <span class="ly-offset-end">遅</span>
+          <input id="lyricsOffsetBarFs" class="ly-progress ly-lyrics-progress" type="range" min="-100" max="100" value="0" step="1" aria-label="歌詞のタイミング" title="左=遅らせる / 右=早める（±10秒）">
+          <span class="ly-offset-end">早</span>
+          <span id="lyricsOffsetDisplayFs" class="ly-offset-val">±0.0s</span>
+        </div>
+        <div class="ly-fs-offset-row ly-fs-offset-info">
+          <span id="lyricTimeInfo" class="ly-lyric-time-info" aria-live="off"></span>
+          <span class="ly-sync-hint">🎯 歌詞をタップして今に合わせる</span>
+        </div>
       </div>
       <button id="stageExitBtn" type="button" class="ly-stage-exit-btn" aria-label="縮小して戻す">🔽 縮小して戻す</button>
       <!-- Next-song peek — inside #stage so it remains visible when
@@ -181,7 +187,7 @@
     </div>
   </div>
 
-  <script src="config.js?v=51"></script>
-  <script src="lyrics.js?v=51"></script>
+  <script src="config.js?v=52"></script>
+  <script src="lyrics.js?v=52"></script>
 </body>
 </html>

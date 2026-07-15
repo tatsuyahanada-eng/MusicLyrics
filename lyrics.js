@@ -107,6 +107,7 @@ let elArtist, elTitle, elTitleWrap, elFetchBtn, elSearchHint, elStatus,
     elRandomPlayBtn, elOpenInYoutubeBtn, elFullscreenBtn,
     elExitKaraokeBtn, elArtistRandomBtn,
     elNextSongPeek, elNextSongPeekTitle,
+    elLyricTimeInfo,
     elNowPlaying, elLyricStack, elScatterLayer, elStageExitBtn, elLyricsFsBtn,
     elFx, elFxThemeBtn, elColorToggleBtn;
 
@@ -190,9 +191,20 @@ function init() {
   elArtistRandomBtn = document.getElementById('artistRandomBtn');
   elNextSongPeek     = document.getElementById('nextSongPeek');
   elNextSongPeekTitle = document.getElementById('nextSongPeekTitle');
+  elLyricTimeInfo    = document.getElementById('lyricTimeInfo');
 
   if (elNextSongPeek) elNextSongPeek.addEventListener('click', () => {
     playNextInQueue();
+  });
+
+  /* Tap-to-sync: clicking any LRC line with a known index snaps the
+     offset so that line's timestamp equals the current playback time. */
+  if (elLyricStack) elLyricStack.addEventListener('click', (e) => {
+    const target = e.target.closest('.ly-line');
+    if (!target) return;
+    const raw = target.dataset.lrcIdx;
+    if (raw == null) return;
+    syncLyricsToLine(Number(raw), target);
   });
 
   elLyricsStartBtn.addEventListener('click', lyricsStartHere);
@@ -423,6 +435,7 @@ function pollProgress() {
   elProgressBar.value = String(Math.round((cur / dur) * 1000));
 
   if (state.useLrc && state.lrcLines.length) syncLrc(cur);
+  updateLyricTimeInfo(cur);
 }
 
 /* ============================================================
@@ -1354,6 +1367,8 @@ async function handleSongSearch(artist, title, opts = {}) {
   state.lrcLines = [];
   state.useLrc = false;
   state.currentIndex = -1;
+  document.body.classList.remove('has-lrc');
+  updateLyricTimeInfo();
 
   /* Kick off both fetches in parallel, but DON'T await both before
      starting playback — load the video as soon as YouTube returns
@@ -1471,6 +1486,10 @@ function loadLyrics(raw) {
   state.currentIndex = 0;
   clearStage();
   hideStageMessage();
+  /* Toggle body class so the tap-to-sync hint and time info
+     only appear when we actually have timestamped lyrics. */
+  document.body.classList.toggle('has-lrc', state.useLrc);
+  updateLyricTimeInfo();
 }
 
 /* ============================================================
@@ -1605,7 +1624,7 @@ let enterDirIdx = 0;
 /** Update the 5 vertical slots. animateCurrent triggers the
  *  fade-in animation on the centre line whenever its text
  *  actually changes. */
-function renderLyricStage(prevLines, current, nextLines, animateCurrent = true) {
+function renderLyricStage(prevLines, current, nextLines, animateCurrent = true, indices = null) {
   ensureStageSlots();
   const texts = [
     (prevLines[1] || '').trim(),   /* far past (older) */
@@ -1614,8 +1633,18 @@ function renderLyricStage(prevLines, current, nextLines, animateCurrent = true) 
     (nextLines[0] || '').trim(),   /* next */
     (nextLines[1] || '').trim(),   /* far next */
   ];
+  const slotIdx = indices || [null, null, null, null, null];
+  const totalLines = state.lrcLines ? state.lrcLines.length : 0;
   for (let i = 0; i < 5; i++) {
     const slot = STAGE_SLOTS[i];
+    const li = slotIdx[i];
+    if (li != null && li >= 0 && li < totalLines && texts[i]) {
+      slot.dataset.lrcIdx = String(li);
+      slot.classList.add('ly-line-tappable');
+    } else {
+      delete slot.dataset.lrcIdx;
+      slot.classList.remove('ly-line-tappable');
+    }
     if (slot.textContent !== texts[i]) {
       slot.textContent = texts[i];
       if (i === 2 && animateCurrent && texts[i]) {
@@ -1669,8 +1698,11 @@ function renderLrcView() {
   renderLyricStage(
     [textArr[idx - 1], textArr[idx - 2]],
     textArr[idx],
-    [textArr[idx + 1], textArr[idx + 2]]
+    [textArr[idx + 1], textArr[idx + 2]],
+    true,
+    [idx - 2, idx - 1, idx, idx + 1, idx + 2]
   );
+  updateLyricTimeInfo();
 }
 
 /** Plain-mode (no LRC timestamps): push a new line and re-render
@@ -1769,6 +1801,59 @@ function enableTransportControls(on) {
   elSeekFwd.disabled      = !on;
   elNextSongBtn.disabled  = !on;
   if (elPrevSongBtn) elPrevSongBtn.disabled = !on;
+}
+
+/** Refresh the "♪ lyric-time / ▶ playback-time" indicator next to
+ *  the offset slider. Called every 250ms via pollProgress and
+ *  after every syncLrc / tap-to-sync so the numbers reflect the
+ *  currently displayed line. LRC mode only — hidden otherwise. */
+function updateLyricTimeInfo(playbackSec) {
+  if (!elLyricTimeInfo) return;
+  if (!state.useLrc || !state.lrcLines.length || state.currentIndex < 0 ||
+      !state.ytPlayer || !state.ytReady) {
+    elLyricTimeInfo.textContent = '';
+    return;
+  }
+  const cur = (playbackSec != null)
+    ? playbackSec
+    : (state.ytPlayer.getCurrentTime() || 0);
+  const line = state.lrcLines[state.currentIndex];
+  if (!line) { elLyricTimeInfo.textContent = ''; return; }
+  const lyricT = formatTime(line.time);
+  const playT  = formatTime(cur);
+  elLyricTimeInfo.innerHTML =
+    `<span class="ly-lti-lyric">♪ ${lyricT}</span>` +
+    `<span class="ly-lti-sep">/</span>` +
+    `<span class="ly-lti-playback">▶ ${playT}</span>`;
+}
+
+/** Snap the offset so `lrcLines[idx]` aligns with the current
+ *  playback moment — the tap-to-sync action. */
+function syncLyricsToLine(idx, targetEl) {
+  if (!state.useLrc || !state.lrcLines.length) return;
+  if (idx < 0 || idx >= state.lrcLines.length) return;
+  if (!state.ytPlayer || !state.ytReady) return;
+  const line = state.lrcLines[idx];
+  if (!line) return;
+  const cur = state.ytPlayer.getCurrentTime() || 0;
+  state.lyricsOffset = Math.round((cur - line.time) * 100) / 100;
+  state.currentIndex = idx;
+  saveOffsetForCurrentSong();
+  updateLyricsStartUI();
+  updateLyricsOffsetSliderDisplay();
+  renderLrcView();
+  updateLyricTimeInfo(cur);
+  if (targetEl) flashSyncedLine(targetEl);
+  const sign = state.lyricsOffset > 0 ? '+' : (state.lyricsOffset < 0 ? '−' : '±');
+  setStatus(`歌詞を合わせました（${sign}${Math.abs(state.lyricsOffset).toFixed(1)}s）`, 'success');
+}
+
+function flashSyncedLine(el) {
+  if (!el) return;
+  el.classList.remove('ly-sync-flash');
+  void el.offsetWidth;
+  el.classList.add('ly-sync-flash');
+  setTimeout(() => el.classList.remove('ly-sync-flash'), 800);
 }
 
 function updateLyricsOffsetSliderDisplay() {
