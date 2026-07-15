@@ -1157,17 +1157,24 @@ function interpretYouTubeError(status, body) {
   return msg;
 }
 
-async function searchYouTube(query) {
+async function searchYouTube(artist, title) {
   const key = getApiKey();
   if (!key) {
     const e = new Error('YouTubeのAPIキーが未設定です。上部の欄でキーを保存してください。');
     e.code = 'NO_KEY';
     throw e;
   }
+  /* Broader query — do NOT set videoCategoryId=10 (Music). Many
+     legitimate JP official MVs are uploaded under Entertainment
+     or no category, and filtering to Music silently dropped them,
+     leaving unrelated videos to rank #1. */
   const params = new URLSearchParams({
-    part: 'snippet', q: query, type: 'video',
-    videoCategoryId: '10',
-    maxResults: '25', key,
+    part: 'snippet',
+    q: `${artist} ${title}`,
+    type: 'video',
+    videoEmbeddable: 'true',
+    maxResults: '25',
+    key,
   });
   const res = await fetchWithTimeout(`${YT_SEARCH}?${params}`, 12000);
   if (!res.ok) {
@@ -1185,35 +1192,84 @@ async function searchYouTube(query) {
     channel: it.snippet.channelTitle,
     thumb:   it.snippet.thumbnails?.default?.url || '',
   }));
-  return rankMvOnly(raw);
+  return rankMvOnly(raw, artist, title);
 }
 
 /* Filter and rank YouTube results so MVs float to the top and
    non-MVs (live/cover/karaoke/making-of/etc.) are removed. If every
    candidate is rejected, fall back to the raw top-10 so the user
    still sees something. */
-/* Rank YouTube results so MVs float to the top. We *do not* hard-
-   reject any candidate any more — the earlier version dropped so
-   many legit uploads (any title with a "cover", "concert", "tour"
-   substring, even as part of another word) that YouTube's top
-   result — usually the wrong video for Japanese searches — got
-   promoted to #1. Instead we heavily penalise live/cover/karaoke
-   markers and boost MV/official/VEVO signals, then sort. */
-function rankMvOnly(items) {
-  const scored = items.map(it => ({ it, s: scoreMvCandidate(it) }));
+/* Loose normalisation for relevance checks — lower-case and
+   collapse punctuation/whitespace so "Cherry", "cherry", and
+   "CHERRY!" all match. */
+function normalizeMatchText(s) {
+  return (s || '')
+    .toLowerCase()
+    .replace(/[\s\-_,.'"“”‘’()\[\]{}!?/:;·・、。]+/g, ' ')
+    .trim();
+}
+
+/* Rank YouTube results by RELEVANCE first (does the title/channel
+   actually contain the artist and song name?), then by MV signals.
+   Nothing is hard-rejected — mismatches just sink to the bottom. */
+function rankMvOnly(items, artist, title) {
+  const scored = items.map(it => ({ it, s: scoreMvCandidate(it, artist, title) }));
   scored.sort((a, b) => b.s - a.s);
   return scored.slice(0, 10).map(x => x.it);
 }
 
-function scoreMvCandidate(item) {
-  const t = (item.title   || '').toLowerCase();
-  const c = (item.channel || '').toLowerCase();
+function scoreMvCandidate(item, artist, title) {
+  const rawT = (item.title   || '').toLowerCase();
+  const rawC = (item.channel || '').toLowerCase();
+  const tNorm = normalizeMatchText(item.title);
+  const cNorm = normalizeMatchText(item.channel);
+  const artistN = normalizeMatchText(artist);
+  const titleN  = normalizeMatchText(title);
+
   let s = 0;
-  for (const kw of MV_REJECT_KEYWORDS) {
-    if (t.includes(kw)) s -= 4;
+
+  /* --- Relevance signals (dominant, so wrong-video results sink) --- */
+  if (titleN) {
+    if (tNorm.includes(titleN)) {
+      s += 10;                       /* exact title phrase in the video title */
+    } else {
+      /* Partial match: how many words of the song title appear? */
+      const words = titleN.split(/\s+/).filter(w => w.length >= 2);
+      if (words.length) {
+        let hit = 0;
+        for (const w of words) if (tNorm.includes(w)) hit++;
+        const ratio = hit / words.length;
+        if (ratio >= 0.8)      s += 6;
+        else if (ratio >= 0.5) s += 2;
+        else                   s -= 8;   /* almost nothing matches — probably wrong */
+      }
+    }
   }
-  for (const [kw, w] of MV_TITLE_BOOST)   if (t.includes(kw)) s += w;
-  for (const [kw, w] of MV_CHANNEL_BOOST) if (c.includes(kw)) s += w;
+
+  if (artistN) {
+    if (tNorm.includes(artistN) || cNorm.includes(artistN)) s += 6;
+    else {
+      /* Try individual words of the artist name */
+      const words = artistN.split(/\s+/).filter(w => w.length >= 2);
+      if (words.length) {
+        let hit = 0;
+        for (const w of words) if (tNorm.includes(w) || cNorm.includes(w)) hit++;
+        if (hit === 0)                    s -= 5;
+        else if (hit < words.length / 2)  s -= 2;
+        else                              s += 2;
+      }
+    }
+  }
+
+  /* --- MV-quality boosts --- */
+  for (const [kw, w] of MV_TITLE_BOOST)   if (rawT.includes(kw)) s += w;
+  for (const [kw, w] of MV_CHANNEL_BOOST) if (rawC.includes(kw)) s += w;
+
+  /* --- Non-MV markers: soft penalty only --- */
+  for (const kw of MV_REJECT_KEYWORDS) {
+    if (rawT.includes(kw)) s -= 3;
+  }
+
   return s;
 }
 
@@ -1353,11 +1409,12 @@ function cachePut(map, key, val) {
   map.set(key, val);
 }
 
-async function searchYouTubeCached(query) {
-  const cached = ytSearchCache.get(query);
+async function searchYouTubeCached(artist, title) {
+  const key = `${artist}|${title}`;
+  const cached = ytSearchCache.get(key);
   if (cached) return cached;
-  const result = await searchYouTube(query);
-  cachePut(ytSearchCache, query, result);
+  const result = await searchYouTube(artist, title);
+  cachePut(ytSearchCache, key, result);
   return result;
 }
 
@@ -1402,7 +1459,7 @@ async function handleSongSearch(artist, title, opts = {}) {
   /* Kick off both fetches in parallel, but DON'T await both before
      starting playback — load the video as soon as YouTube returns
      so "next song" feels responsive. */
-  const ytPromise     = searchYouTubeCached(`${artist} ${title}`);
+  const ytPromise     = searchYouTubeCached(artist, title);
   const lyricsPromise = fetchLyricsCached(artist, title);
 
   /* Apply lyrics whenever they arrive (often after the video) */
@@ -1796,8 +1853,27 @@ async function fetchLyricsLrclib(artist, title) {
   if (!res.ok) throw new Error(`HTTP ${res.status}`);
   const data = await res.json();
   if (!Array.isArray(data) || !data.length) throw new Error('not found');
-  const hit = data.find(r => r.syncedLyrics || r.plainLyrics);
-  if (!hit) throw new Error('no lyrics');
+
+  /* LRCLIB's search is fuzzy — it happily returns "Cherry" by an
+     unrelated artist when the exact match isn't in the DB. Verify
+     the artist AND title actually match our query before trusting
+     the payload; otherwise a wrong-song set of lyrics would appear
+     on screen. */
+  const wantA = normalizeMatchText(artist);
+  const wantT = normalizeMatchText(title);
+  const looselyMatches = (a, b) => {
+    if (!a || !b) return false;
+    if (a === b) return true;
+    return a.includes(b) || b.includes(a);
+  };
+  const matches = (r) => {
+    const ra = normalizeMatchText(r.artistName);
+    const rt = normalizeMatchText(r.trackName || r.name);
+    return looselyMatches(ra, wantA) && looselyMatches(rt, wantT);
+  };
+  const hit = data.find(r => (r.syncedLyrics || r.plainLyrics) && matches(r));
+  if (!hit) throw new Error('lrclib mismatch');
+  /* Prefer synced (LRC with timestamps) over plain when both exist. */
   return hit.syncedLyrics || hit.plainLyrics;
 }
 
