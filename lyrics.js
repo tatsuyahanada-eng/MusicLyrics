@@ -703,10 +703,23 @@ function updateNextSongPeek() {
 
 function prefetchNextSongLyrics() {
   const next = peekNextSongInfo();
-  if (!next || !next.artist || !next.title) return;
-  /* Fire-and-forget; fetchLyricsCached populates lyricsCache so
-     the next handleSongSearch hits it synchronously. */
-  fetchLyricsCached(next.artist, next.title).catch(() => {});
+  if (next && next.artist && next.title) {
+    /* Fire-and-forget; fetchLyricsCached populates lyricsCache so
+       the next handleSongSearch hits it synchronously. */
+    fetchLyricsCached(next.artist, next.title).catch(() => {});
+  }
+  /* Also warm the following shuffle picks so a burst of rapid
+     skips still hits the cache instead of re-fetching each time. */
+  if (shuffleActive) {
+    const upcoming = [];
+    if (shuffleQueue.length >= 2) upcoming.push(shuffleQueue[1]);
+    if (shuffleQueue.length >= 3) upcoming.push(shuffleQueue[2]);
+    for (const s of upcoming) {
+      if (s && s.artist && s.title) {
+        fetchLyricsCached(s.artist, s.title).catch(() => {});
+      }
+    }
+  }
 }
 
 /* ============================================================
@@ -1179,24 +1192,26 @@ async function searchYouTube(query) {
    non-MVs (live/cover/karaoke/making-of/etc.) are removed. If every
    candidate is rejected, fall back to the raw top-10 so the user
    still sees something. */
+/* Rank YouTube results so MVs float to the top. We *do not* hard-
+   reject any candidate any more — the earlier version dropped so
+   many legit uploads (any title with a "cover", "concert", "tour"
+   substring, even as part of another word) that YouTube's top
+   result — usually the wrong video for Japanese searches — got
+   promoted to #1. Instead we heavily penalise live/cover/karaoke
+   markers and boost MV/official/VEVO signals, then sort. */
 function rankMvOnly(items) {
-  const scored = [];
-  for (const it of items) {
-    const s = scoreMvCandidate(it);
-    if (s !== null) scored.push({ it, s });
-  }
+  const scored = items.map(it => ({ it, s: scoreMvCandidate(it) }));
   scored.sort((a, b) => b.s - a.s);
-  const top = scored.slice(0, 10).map(x => x.it);
-  return top.length ? top : items.slice(0, 10);
+  return scored.slice(0, 10).map(x => x.it);
 }
 
 function scoreMvCandidate(item) {
   const t = (item.title   || '').toLowerCase();
   const c = (item.channel || '').toLowerCase();
-  for (const kw of MV_REJECT_KEYWORDS) {
-    if (t.includes(kw)) return null;
-  }
   let s = 0;
+  for (const kw of MV_REJECT_KEYWORDS) {
+    if (t.includes(kw)) s -= 4;
+  }
   for (const [kw, w] of MV_TITLE_BOOST)   if (t.includes(kw)) s += w;
   for (const [kw, w] of MV_CHANNEL_BOOST) if (c.includes(kw)) s += w;
   return s;
@@ -1745,10 +1760,24 @@ function displayLine(text) {
 /* ============================================================
    Lyrics API
    ============================================================ */
-async function fetchLyricsWithFallback(artist, title) {
-  try { return await fetchLyricsOvh(artist, title); } catch (_) {}
-  try { return await fetchLyricsLrclib(artist, title); } catch (_2) {}
-  throw new Error('歌詞が見つかりませんでした。');
+/* Race lyrics.ovh and LRCLIB in parallel. Whichever returns a
+   non-empty payload first wins. This cuts the worst-case wait
+   from ovh_time + lrclib_time (sequential fallback) down to
+   min(ovh_time, lrclib_time) — usually ~500ms instead of 1-2s
+   when ovh doesn't have the track. Reject only if both fail. */
+function fetchLyricsWithFallback(artist, title) {
+  return new Promise((resolve, reject) => {
+    let failures = 0;
+    let done = false;
+    const win  = (raw) => { if (!done) { done = true; resolve(raw); } };
+    const lose = () => {
+      if (++failures === 2 && !done) {
+        reject(new Error('歌詞が見つかりませんでした。'));
+      }
+    };
+    fetchLyricsLrclib(artist, title).then(win, lose);
+    fetchLyricsOvh   (artist, title).then(win, lose);
+  });
 }
 
 async function fetchLyricsOvh(artist, title) {
