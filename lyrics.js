@@ -197,6 +197,13 @@ function init() {
     playNextInQueue();
   });
 
+  /* Clicking the "▶▶ 次: X" pill in the top-of-stage header also
+     advances to the next song — this is the primary next-song
+     affordance in fullscreen where the corner chip is hidden. */
+  if (elNowPlaying) elNowPlaying.addEventListener('click', (e) => {
+    if (e.target.closest('.ly-np-next-btn')) playNextInQueue();
+  });
+
   /* Tap-to-sync: clicking any LRC line with a known index snaps the
      offset so that line's timestamp equals the current playback time. */
   if (elLyricStack) elLyricStack.addEventListener('click', (e) => {
@@ -1369,6 +1376,13 @@ async function handleSongSearch(artist, title, opts = {}) {
   state.currentIndex = -1;
   document.body.classList.remove('has-lrc');
   updateLyricTimeInfo();
+  /* Clear the previous song's YT queue so the peek chip doesn't
+     briefly show a stale "next" candidate until the new YT search
+     resolves. Also re-render the peek so shuffle-mode transitions
+     don't leave the top header and bottom chip out of sync. */
+  state.ytQueue    = [];
+  state.ytQueueIdx = 0;
+  updateNextSongPeek();
 
   /* Kick off both fetches in parallel, but DON'T await both before
      starting playback — load the video as soon as YouTube returns
@@ -1608,8 +1622,12 @@ function renderNowPlayingDisplay() {
   }
   const cur = a ? `♪ ${escapeHTML(t)} — ${escapeHTML(a)}` : `♪ ${escapeHTML(t)}`;
   const next = peekNextSongInfo();
+  /* Wrap the "next" section in a button so tapping it also
+     advances to the next song. This is the main affordance in
+     fullscreen modes where the bottom-right peek chip is hidden
+     to avoid overlapping the stage controls. */
   const nextHtml = (next && next.title)
-    ? `<span class="ly-np-sep">▶▶</span><span class="ly-np-next">次: ${escapeHTML(next.title)}</span>`
+    ? `<button type="button" class="ly-np-next-btn" aria-label="次の曲へ" title="次の曲へ"><span class="ly-np-sep">▶▶</span><span class="ly-np-next">次: ${escapeHTML(next.title)}</span></button>`
     : '';
   elNowPlaying.innerHTML =
     `<span class="ly-np-current">${cur}</span>${nextHtml}`;

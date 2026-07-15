@@ -990,6 +990,33 @@ body.karaoke-mode .ly-exit-karaoke-btn:active { transform: scale(0.96); }
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+/* Tappable "▶▶ 次: X" pill that wraps the next-song portion of
+   the header. Looks like plain text until hovered/pressed. */
+.ly-np-next-btn {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 6px;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 999px;
+  padding: 2px 10px;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+  transition: background 0.15s ease, border-color 0.15s ease, transform 0.1s ease;
+  min-width: 0;
+  max-width: 60%;
+}
+.ly-np-next-btn:hover {
+  background: rgba(124, 58, 237, 0.22);
+  border-color: rgba(196, 181, 253, 0.4);
+}
+.ly-np-next-btn:active { transform: scale(0.96); }
+.ly-np-next-btn .ly-np-next { max-width: none; }
+body.theme-light .ly-np-next-btn:hover {
+  background: rgba(124, 58, 237, 0.12);
+  border-color: rgba(124, 58, 237, 0.3);
+}
 
 /* In fullscreen modes, make current-vs-next distinguishable at a glance */
 body.karaoke-mode .ly-now-playing,
@@ -1552,15 +1579,13 @@ body.theme-light .ly-fs-offset .ly-offset-val { color: #be185d; }
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-/* In karaoke / lyrics-only fullscreen, bump z-index above the
-   auto-hiding controls and lift slightly off the very bottom
-   edge (no visible control bar to sit above). */
+/* In karaoke / lyrics-only fullscreen, hide the bottom-right chip
+   entirely — it collided with .ly-stage-controls (🎯START / ✨ /
+   🎨 / 🌙 buttons pinned to bottom-right). The tappable "▶▶ 次: X"
+   pill in the top nowPlaying header takes over as the primary
+   next-song affordance in those modes. */
 body.karaoke-mode .ly-next-peek,
-body.lyrics-fs    .ly-next-peek {
-  bottom: 16px;
-  z-index: 130;
-  opacity: 0.95;
-}
+body.lyrics-fs    .ly-next-peek { display: none; }
 
 .ly-control-bar {
   position: fixed;
