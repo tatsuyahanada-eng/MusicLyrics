@@ -373,6 +373,11 @@ function onPlayerStateChange(e) {
     elPlayPauseBtn.setAttribute('aria-label', '一時停止');
     elPlayPauseBtn.classList.add('playing');
     startProgressPoll();
+    /* Sync LRC to the current playhead immediately so the first
+       line doesn't wait up to 250ms for the first pollProgress tick. */
+    if (state.useLrc && state.lrcLines.length) {
+      try { syncLrc(state.ytPlayer.getCurrentTime() || 0); } catch (_) {}
+    }
     if (!state.isPlaying && state.lyrics.length) startLyricsTimer();
   } else if (e.data === S.PAUSED) {
     state.ytPaused = true;
@@ -1260,17 +1265,25 @@ async function fetchSongsByArtist(artist) {
   const raw = (data.results || []).filter(r => r.trackName && r.artistName);
   if (!raw.length) return [];
 
-  /* Try to keep only songs whose artist actually matches the query
-     (helps random play stay on-artist), but fall back to the full
-     list if the filter is too aggressive */
+  /* Keep the shuffle pool on-artist. Prefer strict equality so
+     compilations / "Artist A × Artist B" collabs don't leak in.
+     Fall back to prefix match (handles "SUPER BEAVER" vs
+     "SUPER BEAVER (スーパー・ビーバー)") and finally to the raw
+     list if both filters wipe everything out. */
   const target = normalizeArtistName(artist);
   let matching = raw;
   if (target) {
-    const filtered = raw.filter(r => {
-      const a = normalizeArtistName(r.artistName);
-      return a && (a.includes(target) || target.includes(a));
-    });
-    if (filtered.length) matching = filtered;
+    const strict = raw.filter(r => normalizeArtistName(r.artistName) === target);
+    if (strict.length >= 3) {
+      matching = strict;
+    } else {
+      const prefixed = raw.filter(r => {
+        const a = normalizeArtistName(r.artistName);
+        return a && (a === target || a.startsWith(target) || target.startsWith(a));
+      });
+      if (prefixed.length) matching = prefixed;
+      else if (strict.length) matching = strict;
+    }
   }
 
   const mapped = matching.map(r => ({
@@ -1353,13 +1366,19 @@ async function handleSongSearch(artist, title, opts = {}) {
     .then(raw => {
       if (state.currentArtist !== artist || state.currentTitle !== title) return; /* user moved on */
       loadLyrics(raw);
-      /* Sync immediately to whatever the player is at right now so
-         we don't wait up to 250ms for the next pollProgress tick. */
+      /* Only sync if the player is CURRENTLY on the new video and
+         playing — otherwise getCurrentTime() may still be leaking
+         the old song's playhead (esp. when the lyric cache hits
+         before loadYtVideo runs), which would splash a wrong line
+         for a beat before pollProgress corrects it. onPlayerStateChange
+         handles the sync the moment PLAYING kicks in. */
       if (state.ytPlayer && state.ytReady && state.lyrics.length) {
         try {
-          const cur = state.ytPlayer.getCurrentTime() || 0;
-          if (state.useLrc && state.lrcLines.length) syncLrc(cur);
-          if (!state.useLrc && state.ytPlayer.getPlayerState() === YT.PlayerState.PLAYING) startLyricsTimer();
+          if (state.ytPlayer.getPlayerState() === YT.PlayerState.PLAYING) {
+            const cur = state.ytPlayer.getCurrentTime() || 0;
+            if (state.useLrc && state.lrcLines.length) syncLrc(cur);
+            if (!state.useLrc) startLyricsTimer();
+          }
         } catch (_) {}
       }
     })
@@ -1378,9 +1397,11 @@ async function handleSongSearch(artist, title, opts = {}) {
         cachePut(lyricsCache, `${artist}|${title}`, retryRaw);
         if (state.ytPlayer && state.ytReady && state.lyrics.length) {
           try {
-            const cur = state.ytPlayer.getCurrentTime() || 0;
-            if (state.useLrc && state.lrcLines.length) syncLrc(cur);
-            if (!state.useLrc && state.ytPlayer.getPlayerState() === YT.PlayerState.PLAYING) startLyricsTimer();
+            if (state.ytPlayer.getPlayerState() === YT.PlayerState.PLAYING) {
+              const cur = state.ytPlayer.getCurrentTime() || 0;
+              if (state.useLrc && state.lrcLines.length) syncLrc(cur);
+              if (!state.useLrc) startLyricsTimer();
+            }
           } catch (_) {}
         }
         return;
