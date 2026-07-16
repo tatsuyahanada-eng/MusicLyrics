@@ -1587,6 +1587,32 @@ body.theme-light .ly-fs-offset .ly-offset-val { color: #be185d; }
 body.karaoke-mode .ly-next-peek,
 body.lyrics-fs    .ly-next-peek { display: none; }
 
+/* Lyrics-only fullscreen: the covering #stage (z-index:200) hides
+   the fixed control bar (z-index:100), so users lose pause/seek/vol.
+   Reveal the control bar as a tap-summoned overlay that slides up
+   from the bottom when fs-controls-visible is set (pokeFsControls
+   fires on any tap/mouse-move — see setupFsControls). */
+body.lyrics-fs .ly-control-bar {
+  z-index: 220;
+  background: rgba(10, 10, 20, 0.88);
+  transform: translateY(105%);
+  opacity: 0;
+  pointer-events: none;
+  transition: transform 0.28s cubic-bezier(0.22,1,0.36,1),
+              opacity 0.28s ease;
+  box-shadow: 0 -6px 24px rgba(0,0,0,0.55);
+}
+body.lyrics-fs.fs-controls-visible .ly-control-bar {
+  transform: translateY(0);
+  opacity: 1;
+  pointer-events: auto;
+}
+/* Push the lyrics-offset chip above the summoned control bar so
+   they don't stack in the bottom slice. */
+body.lyrics-fs.fs-controls-visible .ly-fs-offset {
+  bottom: calc(var(--ly-control-h) + 14px);
+}
+
 .ly-control-bar {
   position: fixed;
   bottom: 0;
