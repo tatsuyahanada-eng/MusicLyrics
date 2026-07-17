@@ -130,12 +130,10 @@ let elArtist, elTitle, elTitleWrap, elFetchBtn, elSearchHint, elStatus,
     elFx, elFxThemeBtn, elColorToggleBtn;
 
 /* Lyric display styles cycle in this order:
-   - stack   : classic 5-slot stack with past/current/next visible
+   - stack   : lines fly in at random vertical/horizontal positions
+               without overlapping each other (the old "scatter" look)
    - dynamic : per-character reveal with rotating typographic variants
-   - normal  : one line at a time, no past/next context
-   The old "scatter" mode is retired from the cycle (its CSS
-   stays around unused so nothing breaks if the class ever
-   sneaks in from an old localStorage entry). */
+   - normal  : one line at a time, no past/next context */
 const LYRIC_STYLES = ['stack', 'dynamic', 'normal'];
 const LYRIC_STYLE_LABELS = {
   stack:   '🎨スタック',
@@ -1921,7 +1919,7 @@ function renderLrcView() {
   if (idx < 0 || !state.lrcLines.length) { return; }
   const lines = state.lrcLines;
   const text = lines[idx].text;
-  if (lyricStyle === 'scatter') {
+  if (lyricStyle === 'stack') {
     spawnScatterToken(text);
     return;
   }
@@ -1944,7 +1942,7 @@ function displayLine(text) {
   if (plainHistory[0] === trimmed) return; /* skip repeat */
   plainHistory.unshift(trimmed);
   if (plainHistory.length > PLAIN_HISTORY + 1) plainHistory.length = PLAIN_HISTORY + 1;
-  if (lyricStyle === 'scatter') {
+  if (lyricStyle === 'stack') {
     spawnScatterToken(trimmed);
     return;
   }
@@ -2150,7 +2148,10 @@ function toggleLyricStyle() {
 }
 
 function applyLyricStyle() {
-  document.body.classList.toggle('lyric-scatter', false);   /* retired */
+  /* Stack now uses the scatter renderer (random non-overlapping
+     placement), so the CSS class remains "lyric-scatter" — the
+     visible label just changed from ランダム to スタック. */
+  document.body.classList.toggle('lyric-scatter', lyricStyle === 'stack');
   document.body.classList.toggle('lyric-dynamic', lyricStyle === 'dynamic');
   document.body.classList.toggle('lyric-normal',  lyricStyle === 'normal');
   if (elStyleToggleBtn) {
