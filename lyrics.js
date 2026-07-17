@@ -10,8 +10,10 @@ const LRCLIB_API  = 'https://lrclib.net/api/search';
 const ITUNES_API  = 'https://itunes.apple.com/search';
 const YT_SEARCH   = 'https://www.googleapis.com/youtube/v3/search';
 
-/* ---- MV-only filter keywords ---- */
-/* Reject titles containing any of these (case-insensitive substring) */
+/* ---- Music-source filter keywords ---- */
+/* Soft-penalty titles containing any of these (case-insensitive substring)
+   — non-music noise (live/cover/karaoke/making-of/etc.) sinks in
+   the ranking so YouTube Music-flavoured tracks stay on top. */
 const MV_REJECT_KEYWORDS = [
   'live at', 'live in', 'live from', 'live ver', 'live version',
   'live performance', 'live show', 'live tour', 'live concert', 'live @',
@@ -32,21 +34,31 @@ const MV_REJECT_KEYWORDS = [
 /* Boost scores for titles/channels matching these */
 const MV_TITLE_BOOST = [
   ['official music video', 5],
-  ['official video', 4],
-  ['music video', 3],
-  ['オフィシャル', 4],
-  ['公式', 3],
-  ['ｍｖ', 3],
-  ['mv', 2],
-  ['m/v', 3],
-  ['pv', 2],
-  ['p/v', 3],
+  ['official audio',       5],
+  ['official video',       4],
+  ['music video',          3],
+  ['オフィシャル',          4],
+  ['公式',                 3],
+  ['ｍｖ',                 3],
+  ['mv',                   2],
+  ['m/v',                  3],
+  ['pv',                   2],
+  ['p/v',                  3],
 ];
 const MV_CHANNEL_BOOST = [
-  ['vevo', 4],
+  ['vevo',    6],
   ['official', 3],
-  ['records', 1],
-  ['music', 1],
+  ['records',  2],
+  ['music',    2],
+];
+/* YouTube Music indicators — auto-generated "- Topic" channels are
+   the strongest signal that a video came from a YouTube Music
+   catalogue release. */
+const YTM_CHANNEL_BOOST = [
+  [' - topic',       12],
+  ['- topic',        12],
+  ['topic',           8],   /* Fallback for names without the dash */
+  ['official artist', 6],
 ];
 
 const SONGS_PER_PAGE  = 15;
@@ -1164,41 +1176,50 @@ async function searchYouTube(artist, title) {
     e.code = 'NO_KEY';
     throw e;
   }
-  /* Broader query — do NOT set videoCategoryId=10 (Music). Many
-     legitimate JP official MVs are uploaded under Entertainment
-     or no category, and filtering to Music silently dropped them,
-     leaving unrelated videos to rank #1. */
-  const params = new URLSearchParams({
+  /* Target YouTube Music: restrict to the Music category (10) so
+     random gameplay clips, reactions, and podcasts don't sneak in.
+     If the first pass returns nothing (rare — some legit MVs live
+     under Entertainment), retry without the category filter as a
+     graceful fallback. */
+  const baseParams = {
     part: 'snippet',
     q: `${artist} ${title}`,
     type: 'video',
     videoEmbeddable: 'true',
     maxResults: '25',
     key,
-  });
-  const res = await fetchWithTimeout(`${YT_SEARCH}?${params}`, 12000);
-  if (!res.ok) {
-    const body = await res.json().catch(() => ({}));
-    if ((res.status === 400 || res.status === 403) && !getBuiltinKey()) {
-      localStorage.removeItem('yt_api_key_verified');
-      setApiKeyStatus('invalid', key);
+  };
+
+  const runQuery = async (extra) => {
+    const params = new URLSearchParams({ ...baseParams, ...extra });
+    const res = await fetchWithTimeout(`${YT_SEARCH}?${params}`, 12000);
+    if (!res.ok) {
+      const body = await res.json().catch(() => ({}));
+      if ((res.status === 400 || res.status === 403) && !getBuiltinKey()) {
+        localStorage.removeItem('yt_api_key_verified');
+        setApiKeyStatus('invalid', key);
+      }
+      throw new Error(interpretYouTubeError(res.status, body));
     }
-    throw new Error(interpretYouTubeError(res.status, body));
+    const data = await res.json();
+    return (data.items || []).map(it => ({
+      videoId: it.id.videoId,
+      title:   it.snippet.title,
+      channel: it.snippet.channelTitle,
+      thumb:   it.snippet.thumbnails?.default?.url || '',
+    }));
+  };
+
+  let raw = await runQuery({ videoCategoryId: '10' });
+  if (!raw.length) {
+    /* Music-category pass returned nothing — retry unrestricted so
+       the user isn't left with an empty result. Scoring still
+       prefers YT Music indicators, so audio tracks stay on top. */
+    raw = await runQuery({});
   }
-  const data = await res.json();
-  const raw = (data.items || []).map(it => ({
-    videoId: it.id.videoId,
-    title:   it.snippet.title,
-    channel: it.snippet.channelTitle,
-    thumb:   it.snippet.thumbnails?.default?.url || '',
-  }));
-  return rankMvOnly(raw, artist, title);
+  return rankMusicOnly(raw, artist, title);
 }
 
-/* Filter and rank YouTube results so MVs float to the top and
-   non-MVs (live/cover/karaoke/making-of/etc.) are removed. If every
-   candidate is rejected, fall back to the raw top-10 so the user
-   still sees something. */
 /* Loose normalisation for relevance checks — lower-case and
    collapse punctuation/whitespace so "Cherry", "cherry", and
    "CHERRY!" all match. */
@@ -1209,16 +1230,22 @@ function normalizeMatchText(s) {
     .trim();
 }
 
-/* Rank YouTube results by RELEVANCE first (does the title/channel
-   actually contain the artist and song name?), then by MV signals.
-   Nothing is hard-rejected — mismatches just sink to the bottom. */
-function rankMvOnly(items, artist, title) {
-  const scored = items.map(it => ({ it, s: scoreMvCandidate(it, artist, title) }));
+/* Rank YouTube results as if browsing YouTube Music:
+   1) RELEVANCE first (does the title/channel actually contain the
+      artist and song name?) — mismatches sink hard.
+   2) YT Music indicators (" - Topic" auto-generated channels, VEVO,
+      Official Artist Channel) — these are the strongest signal that
+      a result is a proper YT Music release, not a random upload.
+   3) MV quality signals as a secondary boost.
+   Nothing is hard-rejected — soft scoring so we always return
+   something rather than silently dropping to zero results. */
+function rankMusicOnly(items, artist, title) {
+  const scored = items.map(it => ({ it, s: scoreMusicCandidate(it, artist, title) }));
   scored.sort((a, b) => b.s - a.s);
   return scored.slice(0, 10).map(x => x.it);
 }
 
-function scoreMvCandidate(item, artist, title) {
+function scoreMusicCandidate(item, artist, title) {
   const rawT = (item.title   || '').toLowerCase();
   const rawC = (item.channel || '').toLowerCase();
   const tNorm = normalizeMatchText(item.title);
@@ -1261,11 +1288,14 @@ function scoreMvCandidate(item, artist, title) {
     }
   }
 
+  /* --- YouTube Music indicators (strongest source signal) --- */
+  for (const [kw, w] of YTM_CHANNEL_BOOST) if (rawC.includes(kw)) s += w;
+
   /* --- MV-quality boosts --- */
   for (const [kw, w] of MV_TITLE_BOOST)   if (rawT.includes(kw)) s += w;
   for (const [kw, w] of MV_CHANNEL_BOOST) if (rawC.includes(kw)) s += w;
 
-  /* --- Non-MV markers: soft penalty only --- */
+  /* --- Non-music markers: soft penalty only --- */
   for (const kw of MV_REJECT_KEYWORDS) {
     if (rawT.includes(kw)) s -= 3;
   }
@@ -1291,7 +1321,7 @@ function handleModeSwitch(mode) {
   } else {
     elTitleWrap.hidden = false;
     elFetchBtn.textContent = '歌詞を取得';
-    elSearchHint.textContent = 'YouTube で楽曲を検索し、歌詞と一緒に楽しめます。';
+    elSearchHint.textContent = 'YouTube Music の音源を優先して検索し、歌詞と一緒に楽しめます。';
   }
   setStatus('', '');
   hideSongList();
