@@ -1438,13 +1438,55 @@ body.lyrics-fs.fs-controls-visible .ly-stage-exit-btn:hover {
 }
 
 .ly-line-current.enter {
-  animation: ly-line-enter 0.55s cubic-bezier(0.22,1,0.36,1) both;
+  animation: ly-line-enter 0.7s cubic-bezier(0.22,1,0.36,1) both;
 }
 
 @keyframes ly-line-enter {
-  0%   { opacity: 0; transform: translateY(18px) scale(0.94); filter: blur(2px); }
-  60%  { opacity: 1; filter: blur(0); }
+  0%   { opacity: 0; transform: translateY(34px) scale(0.86); filter: blur(3px); }
+  55%  { opacity: 1; filter: blur(0); }
   100% { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+/* Cascade wave for the surrounding slots — when the LRC line
+   advances all five slots get new text, so animating each with
+   a small stagger makes the stack read as if it scrolled up as
+   a whole, not just the centre line pulsing. */
+.ly-line-far-past.slot-refresh {
+  animation: ly-slot-up-tiny 0.5s 0.08s cubic-bezier(0.22,1,0.36,1) both;
+}
+.ly-line-past.slot-refresh {
+  animation: ly-slot-up-small 0.55s 0.04s cubic-bezier(0.22,1,0.36,1) both;
+}
+.ly-line-next.slot-refresh {
+  animation: ly-slot-down-small 0.55s 0.12s cubic-bezier(0.22,1,0.36,1) both;
+}
+.ly-line-far-next.slot-refresh {
+  animation: ly-slot-down-tiny 0.5s 0.16s cubic-bezier(0.22,1,0.36,1) both;
+}
+@keyframes ly-slot-up-tiny {
+  0%   { opacity: 0; transform: translateY(14px); filter: blur(1px); }
+  100% { opacity: 0.22; transform: translateY(0); filter: blur(0); }
+}
+@keyframes ly-slot-up-small {
+  0%   { opacity: 0; transform: translateY(22px); filter: blur(1px); }
+  100% { opacity: 0.45; transform: translateY(0); filter: blur(0); }
+}
+@keyframes ly-slot-down-small {
+  0%   { opacity: 0; transform: translateY(-22px); filter: blur(1px); }
+  100% { opacity: 0.45; transform: translateY(0); filter: blur(0); }
+}
+@keyframes ly-slot-down-tiny {
+  0%   { opacity: 0; transform: translateY(-14px); filter: blur(1px); }
+  100% { opacity: 0.22; transform: translateY(0); filter: blur(0); }
+}
+
+/* Dynamic mode has its own per-character reveal on the centre
+   line; suppress the cascade so animations don't compete. */
+body.lyric-dynamic .ly-line-far-past.slot-refresh,
+body.lyric-dynamic .ly-line-past.slot-refresh,
+body.lyric-dynamic .ly-line-next.slot-refresh,
+body.lyric-dynamic .ly-line-far-next.slot-refresh {
+  animation: none;
 }
 
 /* ============================================================

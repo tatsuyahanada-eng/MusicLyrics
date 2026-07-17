@@ -1816,15 +1816,25 @@ function renderLyricStage(prevLines, current, nextLines, animateCurrent = true, 
       } else {
         slot.textContent = texts[i];
         if (i === 2) delete slot.dataset.variant;
-        if (i === 2 && animateCurrent && texts[i]) {
-          slot.classList.remove('enter', ...ENTER_DIRS);
-          /* force reflow so the animation restarts */
-          void slot.offsetWidth;
-          slot.classList.add('enter');
-          /* In fullscreen, vary the entrance direction each line */
-          if (document.fullscreenElement) {
-            slot.classList.add(ENTER_DIRS[enterDirIdx % ENTER_DIRS.length]);
-            enterDirIdx++;
+        if (animateCurrent && texts[i]) {
+          if (i === 2) {
+            slot.classList.remove('enter', ...ENTER_DIRS);
+            /* force reflow so the animation restarts */
+            void slot.offsetWidth;
+            slot.classList.add('enter');
+            /* In fullscreen, vary the entrance direction each line */
+            if (document.fullscreenElement) {
+              slot.classList.add(ENTER_DIRS[enterDirIdx % ENTER_DIRS.length]);
+              enterDirIdx++;
+            }
+          } else {
+            /* Past / next slots — cascade wave so the whole stack
+               feels like it scrolled up together. Suppressed by
+               CSS in dynamic mode to avoid competing with the
+               per-character reveal. */
+            slot.classList.remove('slot-refresh');
+            void slot.offsetWidth;
+            slot.classList.add('slot-refresh');
           }
         }
       }
@@ -2468,7 +2478,7 @@ function clearStage() {
   ensureStageSlots();
   STAGE_SLOTS.forEach(s => {
     s.textContent = '';
-    s.classList.remove('enter');
+    s.classList.remove('enter', 'slot-refresh', ...ENTER_DIRS);
     delete s.dataset.text;
     delete s.dataset.variant;
   });
