@@ -1448,22 +1448,22 @@ body.lyrics-fs.fs-controls-visible .ly-stage-exit-btn:hover {
 }
 
 /* ============================================================
-   COTODAMA-inspired style — per-character reveal + rotating
+   DYNAMIC style (COTODAMA-inspired) — per-character reveal + rotating
    typographic variants (serif right-aligned, impact block,
    katakana emphasis, underlined pair, dot-accent sans).
-   Applied only when body.lyric-cotodama is set. The current
+   Applied only when body.lyric-dynamic is set. The current
    line renders as <span class="ly-word"><span class="ly-char">
    ...</span></span> so each character can be animated
    individually with a staggered delay.
    ============================================================ */
-body.lyric-cotodama .ly-line-current { transition: none; max-width: 92%; }
-body.lyric-cotodama .ly-line-current.enter { animation: none; }
+body.lyric-dynamic .ly-line-current { transition: none; max-width: 92%; }
+body.lyric-dynamic .ly-line-current.enter { animation: none; }
 
-body.lyric-cotodama .ly-word {
+body.lyric-dynamic .ly-word {
   display: inline-block;
   white-space: nowrap;
 }
-body.lyric-cotodama .ly-char {
+body.lyric-dynamic .ly-char {
   display: inline-block;
   opacity: 0;
   transform: translateY(6px);
@@ -1479,7 +1479,7 @@ body.lyric-cotodama .ly-char {
 
 /* -- Variant 1: SERIF italic right-aligned with colour-block accents
       (imitates "BLUE BIRDS ARE SINGING" screenshot) -- */
-body.lyric-cotodama .ly-line-current[data-variant="serif-right"] {
+body.lyric-dynamic .ly-line-current[data-variant="serif-right"] {
   font-family: 'Playfair Display', 'Cormorant Garamond', 'Times New Roman',
                'Hiragino Mincho ProN', 'Yu Mincho', serif;
   font-style: italic;
@@ -1491,7 +1491,7 @@ body.lyric-cotodama .ly-line-current[data-variant="serif-right"] {
   color: #f5f5f7;
   text-shadow: 0 2px 18px rgba(0,0,0,0.55);
 }
-body.lyric-cotodama .ly-line-current[data-variant="serif-right"]::after {
+body.lyric-dynamic .ly-line-current[data-variant="serif-right"]::after {
   content: '';
   position: absolute;
   right: 12px;
@@ -1512,7 +1512,7 @@ body.lyric-cotodama .ly-line-current[data-variant="serif-right"]::after {
 }
 
 /* -- Variant 2: IMPACT BLOCK (imitates "LIFE IS WHAT YOU MAKE IT") -- */
-body.lyric-cotodama .ly-line-current[data-variant="impact-block"] {
+body.lyric-dynamic .ly-line-current[data-variant="impact-block"] {
   font-family: Impact, 'Arial Black', 'Yu Gothic', 'Hiragino Sans',
                system-ui, sans-serif;
   font-weight: 900;
@@ -1530,7 +1530,7 @@ body.lyric-cotodama .ly-line-current[data-variant="impact-block"] {
 
 /* -- Variant 3: KATAKANA large with underline
       (imitates "セカイを 開くのは誰だ？") -- */
-body.lyric-cotodama .ly-line-current[data-variant="katakana-large"] {
+body.lyric-dynamic .ly-line-current[data-variant="katakana-large"] {
   font-family: 'Yu Gothic Medium', 'Yu Gothic', 'Hiragino Kaku Gothic ProN',
                'Hiragino Sans', sans-serif;
   font-weight: 800;
@@ -1543,7 +1543,7 @@ body.lyric-cotodama .ly-line-current[data-variant="katakana-large"] {
 }
 
 /* -- Variant 4: UNDERLINED PAIR (imitates "ここんとこは / 仕事オンリー") -- */
-body.lyric-cotodama .ly-line-current[data-variant="underline"] {
+body.lyric-dynamic .ly-line-current[data-variant="underline"] {
   border-top: 1px solid rgba(147, 197, 253, 0.35);
   border-bottom: 1px solid rgba(147, 197, 253, 0.55);
   padding: 12px 12px;
@@ -1557,7 +1557,7 @@ body.lyric-cotodama .ly-line-current[data-variant="underline"] {
 
 /* -- Variant 5: SANS mixed with a small dot accent
       (imitates 「仕方ない」とつぶや...) -- */
-body.lyric-cotodama .ly-line-current[data-variant="sans-mixed"] {
+body.lyric-dynamic .ly-line-current[data-variant="sans-mixed"] {
   font-family: 'Hiragino Kaku Gothic ProN', 'Yu Gothic', system-ui, sans-serif;
   font-weight: 400;
   letter-spacing: 0.035em;
@@ -1565,7 +1565,7 @@ body.lyric-cotodama .ly-line-current[data-variant="sans-mixed"] {
   padding: 4px 32px 4px 0;
   color: #f5f5f7;
 }
-body.lyric-cotodama .ly-line-current[data-variant="sans-mixed"]::after {
+body.lyric-dynamic .ly-line-current[data-variant="sans-mixed"]::after {
   content: '';
   position: absolute;
   right: 8px;
@@ -1577,44 +1577,67 @@ body.lyric-cotodama .ly-line-current[data-variant="sans-mixed"]::after {
   animation: ly-accent-in 0.6s 0.3s cubic-bezier(0.22,1,0.36,1) both;
 }
 
-/* Past & next lines in cotodama: dim more so the current line
+/* Past & next lines in dynamic mode: dim more so the current line
    reads as the single focal point (matches Lyric Speaker where
    past text is a faint memory, not a competing element). */
-body.lyric-cotodama .ly-line-past,
-body.lyric-cotodama .ly-line-next {
+body.lyric-dynamic .ly-line-past,
+body.lyric-dynamic .ly-line-next {
   opacity: 0.32;
   letter-spacing: 0.03em;
 }
-body.lyric-cotodama .ly-line-far-past,
-body.lyric-cotodama .ly-line-far-next {
+body.lyric-dynamic .ly-line-far-past,
+body.lyric-dynamic .ly-line-far-next {
   opacity: 0.14;
 }
 
 /* Light-theme adjustments: recolour accents so they still pop on
    a bright background (impact-block especially needs a darker
    backing plate). */
-body.theme-light.lyric-cotodama .ly-line-current[data-variant="impact-block"] {
+body.theme-light.lyric-dynamic .ly-line-current[data-variant="impact-block"] {
   background: linear-gradient(90deg,
               rgba(30, 27, 75, 0.85) 0%,
               rgba(30, 27, 75, 0.85) 88%,
               transparent 100%);
   color: #fafafa;
 }
-body.theme-light.lyric-cotodama .ly-line-current[data-variant="katakana-large"] {
+body.theme-light.lyric-dynamic .ly-line-current[data-variant="katakana-large"] {
   border-bottom-color: rgba(124, 58, 237, 0.7);
   color: #1e1b4b;
 }
-body.theme-light.lyric-cotodama .ly-line-current[data-variant="underline"] {
+body.theme-light.lyric-dynamic .ly-line-current[data-variant="underline"] {
   border-top-color: rgba(124, 58, 237, 0.35);
   border-bottom-color: rgba(124, 58, 237, 0.55);
   color: #0d0d14;
 }
-body.theme-light.lyric-cotodama .ly-line-current[data-variant="serif-right"] {
+body.theme-light.lyric-dynamic .ly-line-current[data-variant="serif-right"] {
   color: #0d0d14;
   text-shadow: 0 2px 12px rgba(124,58,237,0.15);
 }
-body.theme-light.lyric-cotodama .ly-line-current[data-variant="sans-mixed"] {
+body.theme-light.lyric-dynamic .ly-line-current[data-variant="sans-mixed"] {
   color: #0d0d14;
+}
+
+/* ============================================================
+   NORMAL style — one line at a time, no past/next context.
+   The centre slot stays visible; every other slot is hidden so
+   the eye locks onto the currently sung line without competing
+   text around it. Uses the standard whole-line entrance
+   animation (no per-char reveal, no variant rotation).
+   ============================================================ */
+body.lyric-normal .ly-line-far-past,
+body.lyric-normal .ly-line-past,
+body.lyric-normal .ly-line-next,
+body.lyric-normal .ly-line-far-next {
+  display: none;
+}
+body.lyric-normal .ly-line-current {
+  font-size: clamp(1.8rem, 6vw, 3.4rem);
+  font-weight: 800;
+  letter-spacing: 0.03em;
+}
+body.lyric-normal.lyrics-fs #stage .ly-line-current,
+body.lyric-normal.karaoke-mode #stage .ly-line-current {
+  font-size: clamp(2.6rem, 8vw, 5.5rem);
 }
 
 /* ---- Stage message overlay (e.g. "No Lyrics") ---- */
