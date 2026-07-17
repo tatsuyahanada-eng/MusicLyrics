@@ -130,17 +130,19 @@ let elArtist, elTitle, elTitleWrap, elFetchBtn, elSearchHint, elStatus,
     elFx, elFxThemeBtn, elColorToggleBtn;
 
 /* Lyric display styles cycle in this order:
-   - stack   : lines fly in at random vertical/horizontal positions
-               without overlapping each other (the old "scatter" look)
+   - random  : lines fly in at random vertical/horizontal positions
+               without overlapping each other
    - dynamic : per-character reveal with rotating typographic variants
+   - mix     : random placement + per-character reveal + variants
    - normal  : one line at a time, no past/next context */
-const LYRIC_STYLES = ['stack', 'dynamic', 'normal'];
+const LYRIC_STYLES = ['random', 'dynamic', 'mix', 'normal'];
 const LYRIC_STYLE_LABELS = {
-  stack:   '🎨スタック',
-  dynamic: '🎨ダイナミック',
-  normal:  '🎨ノーマル',
+  random:  '🎨Random',
+  dynamic: '🎨Dynamic',
+  mix:     '🎨Mix',
+  normal:  '🎨Normal',
 };
-let lyricStyle = 'stack';
+let lyricStyle = 'random';
 let fxTheme = 'rings';
 let colorTheme = 'dark';    /* 'dark' | 'light' */
 
@@ -273,9 +275,12 @@ function init() {
 
   updateLyricsStartUI();
 
-  /* Restore saved lyric display style (stack / dynamic / normal) */
-  const savedStyle = localStorage.getItem('lyric_style');
-  lyricStyle = LYRIC_STYLES.includes(savedStyle) ? savedStyle : 'stack';
+  /* Restore saved lyric display style. Migrate the old id `stack`
+     (which used the scatter renderer) to the new `random` name so
+     users who saved a previous version don't fall back to default. */
+  let savedStyle = localStorage.getItem('lyric_style');
+  if (savedStyle === 'stack') savedStyle = 'random';
+  lyricStyle = LYRIC_STYLES.includes(savedStyle) ? savedStyle : 'random';
   applyLyricStyle();
 
   /* Restore saved background FX theme */
@@ -1919,7 +1924,7 @@ function renderLrcView() {
   if (idx < 0 || !state.lrcLines.length) { return; }
   const lines = state.lrcLines;
   const text = lines[idx].text;
-  if (lyricStyle === 'stack') {
+  if (lyricStyle === 'random' || lyricStyle === 'mix') {
     spawnScatterToken(text);
     return;
   }
@@ -1942,7 +1947,7 @@ function displayLine(text) {
   if (plainHistory[0] === trimmed) return; /* skip repeat */
   plainHistory.unshift(trimmed);
   if (plainHistory.length > PLAIN_HISTORY + 1) plainHistory.length = PLAIN_HISTORY + 1;
-  if (lyricStyle === 'stack') {
+  if (lyricStyle === 'random' || lyricStyle === 'mix') {
     spawnScatterToken(trimmed);
     return;
   }
@@ -2148,15 +2153,18 @@ function toggleLyricStyle() {
 }
 
 function applyLyricStyle() {
-  /* Stack now uses the scatter renderer (random non-overlapping
-     placement), so the CSS class remains "lyric-scatter" — the
-     visible label just changed from ランダム to スタック. */
-  document.body.classList.toggle('lyric-scatter', lyricStyle === 'stack');
+  /* Both random and mix use the scatter renderer under the hood,
+     so the layout class (.ly-scatter-layer visible / .ly-lyric-stack
+     hidden) is driven by body.lyric-scatter. */
+  const usesScatter = lyricStyle === 'random' || lyricStyle === 'mix';
+  document.body.classList.toggle('lyric-scatter', usesScatter);
+  document.body.classList.toggle('lyric-random',  lyricStyle === 'random');
+  document.body.classList.toggle('lyric-mix',     lyricStyle === 'mix');
   document.body.classList.toggle('lyric-dynamic', lyricStyle === 'dynamic');
   document.body.classList.toggle('lyric-normal',  lyricStyle === 'normal');
   if (elStyleToggleBtn) {
-    elStyleToggleBtn.classList.toggle('active', lyricStyle !== 'stack');
-    elStyleToggleBtn.textContent = LYRIC_STYLE_LABELS[lyricStyle] || LYRIC_STYLE_LABELS.stack;
+    elStyleToggleBtn.classList.toggle('active', lyricStyle !== 'random');
+    elStyleToggleBtn.textContent = LYRIC_STYLE_LABELS[lyricStyle] || LYRIC_STYLE_LABELS.random;
   }
 }
 
@@ -2376,21 +2384,48 @@ function spawnScatterToken(text) {
   const live = [...elScatterLayer.querySelectorAll('.ly-scatter-token:not(.out)')];
   if (live.some(t => t.dataset.text === trimmed)) return; /* dedup */
 
-  if (live.length >= SCATTER_MAX) {
+  const sw = elScatterLayer.clientWidth  || 320;
+  const sh = elScatterLayer.clientHeight || 200;
+
+  /* Cap simultaneous tokens by stage area so mobile screens don't
+     drown in overlapping text. Roughly one token per 45k px². */
+  const stageArea = sw * sh;
+  const capacity = Math.max(2, Math.min(SCATTER_MAX, Math.floor(stageArea / 45000)));
+  while (live.length >= capacity) {
     live.sort((a, b) => Number(a.dataset.born || 0) - Number(b.dataset.born || 0));
-    fadeOutScatter(live[0]);
+    const oldest = live.shift();
+    fadeOutScatter(oldest);
   }
 
+  const isMix = document.body.classList.contains('lyric-mix');
+
   const el = document.createElement('div');
-  el.className     = 'ly-scatter-token';
-  applyEmphasizedText(el, trimmed);
+  el.className     = 'ly-scatter-token' + (isMix ? ' ly-scatter-mix' : '');
+  if (isMix) {
+    /* Mix mode: split text into per-char spans and stamp with a
+       Dynamic variant so each token still has a distinctive
+       typographic identity. */
+    el.dataset.variant = pickDynamicVariant(trimmed, textHash(trimmed));
+    el.innerHTML = splitLineToChars(trimmed);
+  } else {
+    applyEmphasizedText(el, trimmed);
+  }
   el.dataset.text  = trimmed;
   el.dataset.born  = String(Date.now());
 
-  const sw = elScatterLayer.clientWidth  || 320;
-  const sh = elScatterLayer.clientHeight || 200;
-  const scale = Math.max(0.62, Math.min(1.3, sw / 680));
-  const vertical = sh > 260 && Math.random() < 0.38; /* ~38% vertical */
+  const scale = Math.max(0.6, Math.min(1.3, sw / 680));
+
+  /* Vertical/horizontal decision — shorter stages can still host
+     vertical tokens if the line is short. Longer lines stay
+     horizontal so they don't clip off the top/bottom edges. */
+  const shortLine  = trimmed.length <= 12;
+  const canVertical = sh > 170;
+  let vertProb;
+  if (!canVertical)              vertProb = 0;
+  else if (shortLine)            vertProb = 0.55;
+  else if (trimmed.length <= 22) vertProb = 0.32;
+  else                           vertProb = 0.12;
+  const vertical = Math.random() < vertProb;
   if (vertical) el.classList.add('vertical');
 
   /* Whole-line tokens: short lines get bold-emphasis sizing,
@@ -2429,7 +2464,18 @@ function spawnScatterToken(text) {
     el.style.fontSize = `${size}px`;
   }
 
-  const pos = findScatterPosition(el);
+  /* First placement attempt. If no clear slot was found, shrink
+     the token more aggressively so it CAN fit in a gap between
+     existing ones rather than falling back to overlap. */
+  let pos = findScatterPosition(el);
+  if (!pos.clear && size > 16) {
+    let shrinkTries = 3;
+    while (!pos.clear && shrinkTries-- > 0 && size > 16) {
+      size = Math.max(16, Math.floor(size * 0.82));
+      el.style.fontSize = `${size}px`;
+      pos = findScatterPosition(el);
+    }
+  }
   el.style.left = `${pos.x}px`;
   el.style.top  = `${pos.y}px`;
 
@@ -2456,15 +2502,18 @@ function findScatterPosition(el) {
       r.right + SCATTER_GAP < o.left || r.left - SCATTER_GAP > o.right ||
       r.bottom + SCATTER_GAP < o.top || r.top - SCATTER_GAP > o.bottom
     ));
-    if (!hit) return { x, y };
+    if (!hit) return { x, y, clear: true };
   }
-  /* fallback: drop the oldest and place freely */
+  /* No clear slot after 60 tries. Fade the oldest to open space
+     and report clear:false so the caller can shrink the incoming
+     token before accepting the fallback placement. */
   const oldest = [...elScatterLayer.querySelectorAll('.ly-scatter-token')]
     .sort((a, b) => Number(a.dataset.born || 0) - Number(b.dataset.born || 0))[0];
   if (oldest && oldest !== el) fadeOutScatter(oldest);
   return {
     x: randomInt(PAD, Math.max(PAD, sw - ew - PAD)),
     y: randomInt(TOP_AVOID, Math.max(TOP_AVOID, sh - eh - PAD)),
+    clear: false,
   };
 }
 

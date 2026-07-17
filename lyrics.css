@@ -1193,6 +1193,68 @@ body.song-active .ly-fx { display: block; }
 body.lyric-scatter .ly-scatter-layer { display: block; }
 body.lyric-scatter .ly-lyric-stack  { display: none; }
 
+/* Mix mode — random placement + per-character reveal + variant. Char
+   animation kicks in as soon as the token joins the DOM. Variants
+   inherit typographic styles from the Dynamic ruleset below. */
+body.lyric-mix .ly-scatter-token .ly-word {
+  display: inline-block;
+  white-space: nowrap;
+}
+body.lyric-mix .ly-scatter-token .ly-char {
+  display: inline-block;
+  opacity: 0;
+  animation: ly-char-in 0.5s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+  animation-delay: calc(var(--i, 0) * 35ms);
+}
+/* When the token is vertical, avoid inline-block per char so
+   writing-mode still lays glyphs out in a column. */
+body.lyric-mix .ly-scatter-token.vertical .ly-word,
+body.lyric-mix .ly-scatter-token.vertical .ly-char {
+  display: inline;
+}
+body.lyric-mix .ly-scatter-token.vertical .ly-char {
+  animation: ly-char-in-v 0.5s cubic-bezier(0.22,1,0.36,1) forwards;
+  animation-delay: calc(var(--i, 0) * 35ms);
+  opacity: 0;
+}
+@keyframes ly-char-in-v {
+  0%   { opacity: 0; }
+  100% { opacity: 1; }
+}
+/* Variant-typography for scatter tokens in Mix mode (mirror the
+   Dynamic look but skip the backing-plate/absolute-accent tricks
+   that would misbehave inside a free-floating token). */
+body.lyric-mix .ly-scatter-token[data-variant="serif-right"] {
+  font-family: 'Playfair Display', 'Cormorant Garamond', 'Times New Roman',
+               'Hiragino Mincho ProN', 'Yu Mincho', serif;
+  font-style: italic;
+}
+body.lyric-mix .ly-scatter-token[data-variant="impact-block"] {
+  font-family: Impact, 'Arial Black', 'Yu Gothic', 'Hiragino Sans', sans-serif;
+  font-weight: 900;
+  text-transform: uppercase;
+  letter-spacing: 0.045em;
+}
+body.lyric-mix .ly-scatter-token[data-variant="katakana-large"] {
+  font-family: 'Yu Gothic Medium', 'Yu Gothic', 'Hiragino Kaku Gothic ProN', sans-serif;
+  font-weight: 800;
+  letter-spacing: 0.05em;
+  text-decoration: underline;
+  text-decoration-color: rgba(129, 140, 248, 0.7);
+  text-underline-offset: 0.18em;
+}
+body.lyric-mix .ly-scatter-token[data-variant="underline"] {
+  font-family: 'Hiragino Kaku Gothic ProN', 'Yu Gothic', system-ui, sans-serif;
+  letter-spacing: 0.055em;
+  border-top: 1px solid rgba(147, 197, 253, 0.5);
+  border-bottom: 1px solid rgba(147, 197, 253, 0.55);
+  padding: 4px 8px;
+}
+body.lyric-mix .ly-scatter-token[data-variant="sans-mixed"] {
+  font-family: 'Hiragino Kaku Gothic ProN', 'Yu Gothic', system-ui, sans-serif;
+  font-weight: 400;
+}
+
 .ly-scatter-token {
   position: absolute;
   font-weight: 800;
