@@ -129,7 +129,16 @@ let elArtist, elTitle, elTitleWrap, elFetchBtn, elSearchHint, elStatus,
     elNowPlaying, elLyricStack, elScatterLayer, elStageExitBtn, elLyricsFsBtn,
     elFx, elFxThemeBtn, elColorToggleBtn;
 
-let lyricStyle = 'stack';   /* 'stack' | 'scatter' */
+/* Lyric display styles cycle in this order. Each has its own
+   look-and-feel; cotodama splits the current line into per-char
+   spans and picks a typographic variant per line for visual variety. */
+const LYRIC_STYLES = ['stack', 'scatter', 'cotodama'];
+const LYRIC_STYLE_LABELS = {
+  stack:    '🎨スタック',
+  scatter:  '🎨ランダム',
+  cotodama: '🎨コトダマ',
+};
+let lyricStyle = 'stack';
 let fxTheme = 'rings';
 let colorTheme = 'dark';    /* 'dark' | 'light' */
 
@@ -262,8 +271,9 @@ function init() {
 
   updateLyricsStartUI();
 
-  /* Restore saved lyric display style (stack / scatter) */
-  lyricStyle = localStorage.getItem('lyric_style') === 'scatter' ? 'scatter' : 'stack';
+  /* Restore saved lyric display style (stack / scatter / cotodama) */
+  const savedStyle = localStorage.getItem('lyric_style');
+  lyricStyle = LYRIC_STYLES.includes(savedStyle) ? savedStyle : 'stack';
   applyLyricStyle();
 
   /* Restore saved background FX theme */
@@ -1760,7 +1770,9 @@ let enterDirIdx = 0;
 
 /** Update the 5 vertical slots. animateCurrent triggers the
  *  fade-in animation on the centre line whenever its text
- *  actually changes. */
+ *  actually changes. In cotodama mode the centre line is
+ *  further split into per-character spans and stamped with a
+ *  variant chosen from the line's content. */
 function renderLyricStage(prevLines, current, nextLines, animateCurrent = true, indices = null) {
   ensureStageSlots();
   const texts = [
@@ -1772,6 +1784,7 @@ function renderLyricStage(prevLines, current, nextLines, animateCurrent = true, 
   ];
   const slotIdx = indices || [null, null, null, null, null];
   const totalLines = state.lrcLines ? state.lrcLines.length : 0;
+  const isCotodama = document.body.classList.contains('lyric-cotodama');
   for (let i = 0; i < 5; i++) {
     const slot = STAGE_SLOTS[i];
     const li = slotIdx[i];
@@ -1782,21 +1795,88 @@ function renderLyricStage(prevLines, current, nextLines, animateCurrent = true, 
       delete slot.dataset.lrcIdx;
       slot.classList.remove('ly-line-tappable');
     }
-    if (slot.textContent !== texts[i]) {
-      slot.textContent = texts[i];
-      if (i === 2 && animateCurrent && texts[i]) {
+    /* Track the last set text separately so per-char innerHTML in
+       cotodama mode doesn't get compared against slot.textContent
+       reconstructed from the char spans (which usually matches
+       anyway, but be explicit). */
+    const prev = slot.dataset.text ?? slot.textContent;
+    if (prev !== texts[i]) {
+      slot.dataset.text = texts[i];
+      if (isCotodama && i === 2 && texts[i]) {
+        const variant = pickCotodamaVariant(texts[i], li ?? 0);
+        slot.dataset.variant = variant;
+        slot.innerHTML = splitLineToChars(texts[i]);
+        /* Char animations play automatically via CSS animation-delay.
+           Strip the whole-line entrance animation to avoid double up. */
         slot.classList.remove('enter', ...ENTER_DIRS);
-        /* force reflow so the animation restarts */
-        void slot.offsetWidth;
-        slot.classList.add('enter');
-        /* In fullscreen, vary the entrance direction each line */
-        if (document.fullscreenElement) {
-          slot.classList.add(ENTER_DIRS[enterDirIdx % ENTER_DIRS.length]);
-          enterDirIdx++;
+      } else {
+        slot.textContent = texts[i];
+        if (i === 2) delete slot.dataset.variant;
+        if (i === 2 && animateCurrent && texts[i]) {
+          slot.classList.remove('enter', ...ENTER_DIRS);
+          /* force reflow so the animation restarts */
+          void slot.offsetWidth;
+          slot.classList.add('enter');
+          /* In fullscreen, vary the entrance direction each line */
+          if (document.fullscreenElement) {
+            slot.classList.add(ENTER_DIRS[enterDirIdx % ENTER_DIRS.length]);
+            enterDirIdx++;
+          }
         }
       }
     }
   }
+}
+
+/* --- COTODAMA helpers --- */
+
+/* Wrap each character of `text` in <span class="ly-char" style="--i:N">
+   ...</span>, grouped inside .ly-word wrappers so English words don't
+   line-break mid-word. CSS uses --i to stagger the char animation. */
+function splitLineToChars(text) {
+  const parts = text.split(/(\s+)/);   /* keep whitespace runs */
+  let idx = 0;
+  return parts.map(part => {
+    if (!part) return '';
+    if (/^\s+$/.test(part)) return ' ';
+    const chars = Array.from(part).map(c => {
+      const i = idx++;
+      return `<span class="ly-char" style="--i:${i}">${escapeHTML(c)}</span>`;
+    }).join('');
+    return `<span class="ly-word">${chars}</span>`;
+  }).join('');
+}
+
+/* Choose a typographic variant that suits the line. All-English
+   lines get serif or impact; katakana-heavy lines get the large
+   underlined look; short/question lines fall through to the
+   rotating rest so the same variant isn't repeated back-to-back.
+   If no LRC index is available (plain-mode fallback), hash the
+   text so different lines still get different variants. */
+const COTODAMA_ROTATION = ['underline', 'sans-mixed', 'katakana-large', 'serif-right', 'impact-block'];
+function pickCotodamaVariant(text, idx) {
+  const t = (text || '').trim();
+  if (!t) return 'sans-mixed';
+  const asciiOnly = /^[\x20-\x7f]+$/.test(t);
+  const hasLetter = /[a-zA-Z]/.test(t);
+  const compactLen = t.replace(/\s/g, '').length;
+  const isShort = compactLen <= 12;
+  const hasKatakana = /[゠-ヿ]/.test(t);
+  const isQuestion = /[?？]$/.test(t);
+
+  if (asciiOnly && hasLetter) {
+    return isShort ? 'serif-right' : 'impact-block';
+  }
+  if (hasKatakana && isShort) return 'katakana-large';
+  if (isQuestion) return 'underline';
+  const key = idx || textHash(t);
+  return COTODAMA_ROTATION[Math.abs(key | 0) % COTODAMA_ROTATION.length];
+}
+
+function textHash(s) {
+  let h = 0;
+  for (let i = 0; i < s.length; i++) h = ((h << 5) - h + s.charCodeAt(i)) | 0;
+  return h;
 }
 
 /** Show a one-off message (e.g. "No Lyrics") as a centered overlay
@@ -2043,7 +2123,8 @@ function updateLyricsOffsetSliderDisplay() {
    Lyric display style (stack <-> scatter)
    ============================================================ */
 function toggleLyricStyle() {
-  lyricStyle = (lyricStyle === 'scatter') ? 'stack' : 'scatter';
+  const idx = LYRIC_STYLES.indexOf(lyricStyle);
+  lyricStyle = LYRIC_STYLES[(idx + 1) % LYRIC_STYLES.length];
   localStorage.setItem('lyric_style', lyricStyle);
   applyLyricStyle();
   /* Repaint current line in the new style */
@@ -2055,11 +2136,11 @@ function toggleLyricStyle() {
 }
 
 function applyLyricStyle() {
-  document.body.classList.toggle('lyric-scatter', lyricStyle === 'scatter');
+  document.body.classList.toggle('lyric-scatter',  lyricStyle === 'scatter');
+  document.body.classList.toggle('lyric-cotodama', lyricStyle === 'cotodama');
   if (elStyleToggleBtn) {
-    const scatter = lyricStyle === 'scatter';
-    elStyleToggleBtn.classList.toggle('active', scatter);
-    elStyleToggleBtn.textContent = scatter ? '🎨ランダム' : '🎨スタック';
+    elStyleToggleBtn.classList.toggle('active', lyricStyle !== 'stack');
+    elStyleToggleBtn.textContent = LYRIC_STYLE_LABELS[lyricStyle] || LYRIC_STYLE_LABELS.stack;
   }
 }
 
@@ -2383,6 +2464,8 @@ function clearStage() {
   STAGE_SLOTS.forEach(s => {
     s.textContent = '';
     s.classList.remove('enter');
+    delete s.dataset.text;
+    delete s.dataset.variant;
   });
   if (elScatterLayer) elScatterLayer.innerHTML = '';
   hideStageMessage();
