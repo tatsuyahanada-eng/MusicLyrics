@@ -95,6 +95,12 @@ const state = {
 
   currentArtist: '',
   currentTitle: '',
+
+  /* True while the lyrics fetch for the current song is still in
+     flight (including retries). Prevents "No Lyrics" from being
+     shown prematurely — we only know for sure lyrics are missing
+     after every retry has failed. */
+  lyricsLookupPending: false,
 };
 
 const songList = { songs: [], page: 0 };
@@ -515,9 +521,16 @@ function lyricsStartHere() {
     return;
   }
   if (!state.lyrics.length) {
-    /* No lyrics for this track — show in English on the stage + status */
-    setStatus('No Lyrics', 'error');
-    showStageMessage('No Lyrics');
+    /* Don't jump to "No Lyrics" when the fetch is still running —
+       the user is likely tapping START right after the song
+       started while the network round-trip is still in flight. */
+    if (state.lyricsLookupPending) {
+      setStatus('歌詞を取得中です。もう少しお待ちください。', 'loading');
+      showStageMessage('歌詞取得中…');
+    } else {
+      setStatus('No Lyrics', 'error');
+      showStageMessage('No Lyrics');
+    }
     return;
   }
   const cur = state.ytPlayer.getCurrentTime() || 0;
@@ -1476,6 +1489,7 @@ async function handleSongSearch(artist, title, opts = {}) {
   state.lrcLines = [];
   state.useLrc = false;
   state.currentIndex = -1;
+  state.lyricsLookupPending = true;
   document.body.classList.remove('has-lrc');
   updateLyricTimeInfo();
   /* Clear the previous song's YT queue so the peek chip doesn't
@@ -1492,59 +1506,62 @@ async function handleSongSearch(artist, title, opts = {}) {
   const ytPromise     = searchYouTubeCached(artist, title);
   const lyricsPromise = fetchLyricsCached(artist, title);
 
+  /* Sync LRC to the playhead once lyrics arrive, but only if the
+     video is CURRENTLY on the new song and playing — otherwise
+     getCurrentTime() may still be leaking the previous song's
+     playhead. onPlayerStateChange handles the sync the moment
+     PLAYING kicks in. */
+  const syncIfPlaying = () => {
+    if (!state.ytPlayer || !state.ytReady || !state.lyrics.length) return;
+    try {
+      if (state.ytPlayer.getPlayerState() === YT.PlayerState.PLAYING) {
+        const cur = state.ytPlayer.getCurrentTime() || 0;
+        if (state.useLrc && state.lrcLines.length) syncLrc(cur);
+        if (!state.useLrc) startLyricsTimer();
+      }
+    } catch (_) {}
+  };
+
+  const isStillCurrent = () => state.currentArtist === artist && state.currentTitle === title;
+
   /* Apply lyrics whenever they arrive (often after the video) */
   lyricsPromise
     .then(raw => {
-      if (state.currentArtist !== artist || state.currentTitle !== title) return; /* user moved on */
+      if (!isStillCurrent()) return; /* user moved on */
+      state.lyricsLookupPending = false;
       loadLyrics(raw);
-      /* Only sync if the player is CURRENTLY on the new video and
-         playing — otherwise getCurrentTime() may still be leaking
-         the old song's playhead (esp. when the lyric cache hits
-         before loadYtVideo runs), which would splash a wrong line
-         for a beat before pollProgress corrects it. onPlayerStateChange
-         handles the sync the moment PLAYING kicks in. */
-      if (state.ytPlayer && state.ytReady && state.lyrics.length) {
-        try {
-          if (state.ytPlayer.getPlayerState() === YT.PlayerState.PLAYING) {
-            const cur = state.ytPlayer.getCurrentTime() || 0;
-            if (state.useLrc && state.lrcLines.length) syncLrc(cur);
-            if (!state.useLrc) startLyricsTimer();
-          }
-        } catch (_) {}
-      }
+      syncIfPlaying();
     })
     .catch(async () => {
-      if (state.currentArtist !== artist || state.currentTitle !== title) return;
-      /* A single failure isn't enough to declare the song lyric-less —
-         lyrics.ovh / LRCLIB hiccup transiently. Wait, then retry
-         once with a fresh attempt. */
-      await new Promise(r => setTimeout(r, 1200));
-      if (state.currentArtist !== artist || state.currentTitle !== title) return;
-      if (state.lyrics.length) return; /* arrived another way */
-      try {
-        const retryRaw = await fetchLyricsWithFallback(artist, title);
-        if (state.currentArtist !== artist || state.currentTitle !== title) return;
-        loadLyrics(retryRaw);
-        cachePut(lyricsCache, `${artist}|${title}`, retryRaw);
-        if (state.ytPlayer && state.ytReady && state.lyrics.length) {
-          try {
-            if (state.ytPlayer.getPlayerState() === YT.PlayerState.PLAYING) {
-              const cur = state.ytPlayer.getCurrentTime() || 0;
-              if (state.useLrc && state.lrcLines.length) syncLrc(cur);
-              if (!state.useLrc) startLyricsTimer();
-            }
-          } catch (_) {}
-        }
-        return;
-      } catch (_2) {}
-      /* Both the initial fetch and the retry failed — give one
-         last grace window for any late success, then show the
-         steady "No Lyrics" message. */
+      if (!isStillCurrent()) { state.lyricsLookupPending = false; return; }
+      /* A single failure isn't enough to declare a song lyric-less —
+         lyrics.ovh / LRCLIB hiccup transiently, especially right
+         after page load or on flaky mobile connections. Retry with
+         backoff over ~10 seconds before giving up. */
+      const backoffs = [1500, 3500, 5000];
+      for (const wait of backoffs) {
+        await new Promise(r => setTimeout(r, wait));
+        if (!isStillCurrent()) { state.lyricsLookupPending = false; return; }
+        if (state.lyrics.length) { state.lyricsLookupPending = false; return; }
+        try {
+          const retryRaw = await fetchLyricsWithFallback(artist, title);
+          if (!isStillCurrent()) { state.lyricsLookupPending = false; return; }
+          state.lyricsLookupPending = false;
+          loadLyrics(retryRaw);
+          cachePut(lyricsCache, `${artist}|${title}`, retryRaw);
+          syncIfPlaying();
+          return;
+        } catch (_) { /* keep trying */ }
+      }
+      /* All retries exhausted — one last grace window for any
+         late success, then commit to the steady "No Lyrics"
+         message. */
       setTimeout(() => {
-        if (state.currentArtist !== artist || state.currentTitle !== title) return;
+        state.lyricsLookupPending = false;
+        if (!isStillCurrent()) return;
         if (state.lyrics.length) return;
         showStageMessage('No Lyrics');
-      }, 1500);
+      }, 2000);
     });
 
   try {
