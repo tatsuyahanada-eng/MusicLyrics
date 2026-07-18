@@ -267,6 +267,26 @@
       persist();
     }
   }
+  async function opReparent(id, parentId, beforeId) {
+    if (serverMode()) {
+      await apiCall('node_reparent', {
+        method: 'POST',
+        body: { id, parent_id: parentId || '', before_id: beforeId || '' },
+      });
+      await reloadFromServer();
+    } else {
+      const loc = locate(id);
+      if (!loc) return;
+      const [node] = loc.arr.splice(loc.index, 1);
+      const targetArr = parentId ? ((findNode(parentId) || {}).children) : tree;
+      if (!targetArr) { loc.arr.splice(loc.index, 0, node); return; } // 失敗時は戻す
+      let idx = targetArr.length;
+      if (beforeId) { const bi = targetArr.findIndex((x) => x.id === beforeId); if (bi >= 0) idx = bi; }
+      targetArr.splice(idx, 0, node);
+      persist();
+    }
+  }
+
   async function opReplaceAll(nodes) {
     if (serverMode()) {
       await apiCall('replace_all', { method: 'POST', body: { nodes: treeToRows(nodes) } });
@@ -489,7 +509,8 @@
 
     return `
       <div class="tm-treenode">
-        <div class="tm-treenode-row">
+        <div class="tm-treenode-row" draggable="true" data-id="${node.id}">
+          <span class="tm-drag-handle" title="ドラッグで移動（並べ替え・階層変更）">&#8942;&#8942;</span>
           ${toggle}
           <span class="tm-treenode-title" title="${esc(node.title)}">${esc(node.title)}</span>
           ${badge}
@@ -531,6 +552,88 @@
       flashSaved('並び順を変更しました');
     } catch (e) { flashSaved('変更に失敗：' + e.message); }
   }
+
+  /* ---------- ドラッグ&ドロップ（並べ替え・階層変更） ---------- */
+  function findParentId(id) {
+    const p = findPath(id);
+    return (p && p.length >= 2) ? p[p.length - 2].id : '';
+  }
+  function nextSiblingId(id) {
+    const p = findPath(id);
+    const arr = (p && p.length >= 2) ? p[p.length - 2].children : tree;
+    const i = arr.findIndex((x) => x.id === id);
+    return (i >= 0 && i + 1 < arr.length) ? arr[i + 1].id : null;
+  }
+  // maybeChild が ancestorId のサブツリー内にあるか
+  function isInSubtree(maybeChild, ancestorId) {
+    const anc = findNode(ancestorId);
+    if (!anc) return false;
+    const stack = [...(anc.children || [])];
+    while (stack.length) {
+      const n = stack.pop();
+      if (n.id === maybeChild) return true;
+      if (n.children) stack.push(...n.children);
+    }
+    return false;
+  }
+  function clearDropMarks() {
+    editTree.querySelectorAll('.drop-before,.drop-after,.drop-inside')
+      .forEach((el) => el.classList.remove('drop-before', 'drop-after', 'drop-inside'));
+    editTree.classList.remove('drop-root');
+  }
+
+  let dragId = null;
+  editTree.addEventListener('dragstart', (e) => {
+    const row = e.target.closest('.tm-treenode-row');
+    if (!row) return;
+    dragId = row.dataset.id;
+    e.dataTransfer.effectAllowed = 'move';
+    try { e.dataTransfer.setData('text/plain', dragId); } catch (_) {}
+    row.classList.add('dragging');
+  });
+  editTree.addEventListener('dragend', () => {
+    dragId = null;
+    clearDropMarks();
+    editTree.querySelectorAll('.dragging').forEach((el) => el.classList.remove('dragging'));
+  });
+  editTree.addEventListener('dragover', (e) => {
+    if (!dragId) return;
+    clearDropMarks();
+    const row = e.target.closest('.tm-treenode-row');
+    if (!row) { editTree.classList.add('drop-root'); e.preventDefault(); return; }
+    const tid = row.dataset.id;
+    if (tid === dragId || isInSubtree(tid, dragId)) return; // 不可
+    e.preventDefault();
+    const rect = row.getBoundingClientRect();
+    const y = e.clientY - rect.top;
+    const pos = y < rect.height * 0.28 ? 'before' : (y > rect.height * 0.72 ? 'after' : 'inside');
+    row.classList.add(pos === 'before' ? 'drop-before' : pos === 'after' ? 'drop-after' : 'drop-inside');
+    row.dataset.dropPos = pos;
+  });
+  editTree.addEventListener('drop', (e) => {
+    if (!dragId) return;
+    e.preventDefault();
+    const draggedId = dragId;
+    const row = e.target.closest('.tm-treenode-row');
+    let parentId = '', beforeId = null;
+    if (row) {
+      const tid = row.dataset.id;
+      if (tid === draggedId || isInSubtree(tid, draggedId)) { clearDropMarks(); return; }
+      const pos = row.dataset.dropPos || 'inside';
+      if (pos === 'inside') {
+        parentId = tid; beforeId = null;
+        openNodes.add(tid); persistOpen();
+      } else {
+        parentId = findParentId(tid) || '';
+        beforeId = pos === 'before' ? tid : nextSiblingId(tid);
+      }
+    }
+    clearDropMarks();
+    (async () => {
+      try { await opReparent(draggedId, parentId, beforeId); renderEdit(); flashSaved('移動しました'); }
+      catch (err) { flashSaved('移動に失敗：' + err.message); }
+    })();
+  });
 
   $('#addRootBtn').addEventListener('click', () => openNodeDialog(null, null));
 

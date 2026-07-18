@@ -9,7 +9,7 @@
   <link rel="manifest" href="manifest.webmanifest">
   <link rel="icon" href="icon.svg" type="image/svg+xml">
   <link rel="apple-touch-icon" href="icon-192.png">
-  <link rel="stylesheet" href="manual.css?v=3">
+  <link rel="stylesheet" href="manual.css?v=4">
 </head>
 <body class="tm-body">
 
@@ -112,6 +112,11 @@
           </div>
         </details>
 
+        <p class="tm-edit-hint">
+          <span class="tm-drag-handle" aria-hidden="true">&#8942;&#8942;</span>
+          項目は<strong>ドラッグ&amp;ドロップ</strong>で移動できます ―
+          上下にドロップで並べ替え、項目の<strong>上に重ねると子項目</strong>（階層変更）になります。
+        </p>
         <p id="saveStatus" class="tm-savestatus" aria-live="polite"></p>
 
         <div id="editTree" class="tm-edittree"></div>
@@ -188,6 +193,6 @@
     </div>
   </dialog>
 
-  <script src="manual.js?v=3"></script>
+  <script src="manual.js?v=4"></script>
 </body>
 </html>

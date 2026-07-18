@@ -453,6 +453,17 @@
 .tm-sync-status.is-err { color: var(--tm-danger); }
 .tm-btn:disabled { opacity: .4; cursor: not-allowed; }
 
+.tm-edit-hint {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: var(--tm-muted);
+  margin-bottom: 8px;
+  line-height: 1.6;
+}
+.tm-edit-hint strong { color: var(--tm-cyan); font-weight: 600; }
+
 .tm-edittree { display: flex; flex-direction: column; gap: 6px; }
 
 .tm-treenode {
@@ -461,10 +472,45 @@
   background: rgba(10, 28, 40, 0.6);
 }
 .tm-treenode-row {
+  position: relative;
   display: flex;
   align-items: center;
   gap: 8px;
   padding: 9px 10px;
+}
+.tm-drag-handle {
+  flex-shrink: 0;
+  cursor: grab;
+  color: var(--tm-muted);
+  letter-spacing: -3px;
+  font-size: 15px;
+  padding: 0 2px;
+  user-select: none;
+}
+.tm-drag-handle:active { cursor: grabbing; }
+.tm-treenode-row.dragging { opacity: .45; }
+.tm-treenode-row.drop-inside {
+  outline: 2px solid var(--tm-cyan);
+  outline-offset: -2px;
+  background: rgba(63, 224, 224, 0.12);
+  border-radius: 4px;
+}
+.tm-treenode-row.drop-before::before,
+.tm-treenode-row.drop-after::after {
+  content: "";
+  position: absolute;
+  left: 8px; right: 8px;
+  height: 3px;
+  background: var(--tm-cyan);
+  box-shadow: 0 0 8px var(--tm-cyan);
+  border-radius: 2px;
+}
+.tm-treenode-row.drop-before::before { top: -2px; }
+.tm-treenode-row.drop-after::after { bottom: -2px; }
+.tm-edittree.drop-root {
+  outline: 2px dashed var(--tm-line-strong);
+  outline-offset: 4px;
+  border-radius: 6px;
 }
 .tm-treenode-toggle {
   flex-shrink: 0;

@@ -155,6 +155,62 @@ switch ($action) {
     ok();
   }
 
+  case 'node_reparent': {
+    // ドラッグ&ドロップ用：親の変更＋並び順の指定。
+    // {id, parent_id(''=ルート), before_id(''=末尾に追加)}
+    require_token();
+    $d = body_json();
+    if (empty($d['id'])) fail('id は必須です');
+    $id = $d['id'];
+    $parent = isset($d['parent_id']) && $d['parent_id'] !== '' ? $d['parent_id'] : null;
+    $beforeId = isset($d['before_id']) && $d['before_id'] !== '' ? $d['before_id'] : null;
+
+    $q = $pdo->prepare('SELECT id FROM nodes WHERE id = ?');
+    $q->execute(array($id));
+    if (!$q->fetchColumn()) fail('項目が存在しません');
+
+    if ($parent !== null) {
+      if ($parent === $id) fail('自分自身の中には移動できません');
+      $q = $pdo->prepare('SELECT id FROM nodes WHERE id = ?');
+      $q->execute(array($parent));
+      if (!$q->fetchColumn()) fail('移動先が存在しません');
+      // 循環防止：移動先が自分の子孫ではないこと
+      $all = $pdo->query('SELECT id, parent_id FROM nodes')->fetchAll();
+      $childrenOf = array();
+      foreach ($all as $r) { $childrenOf[$r['parent_id']][] = $r['id']; }
+      $desc = array(); $stack = array($id);
+      while ($stack) {
+        $c = array_pop($stack);
+        if (!empty($childrenOf[$c])) foreach ($childrenOf[$c] as $cc) { $desc[$cc] = true; $stack[] = $cc; }
+      }
+      if (isset($desc[$parent])) fail('子孫の中には移動できません');
+    }
+
+    // 移動先の兄弟（自分を除く）を順序どおり取得
+    $whereParent = $parent === null ? 'parent_id IS NULL' : 'parent_id = ?';
+    $args = $parent === null ? array() : array($parent);
+    $sq = $pdo->prepare("SELECT id FROM nodes WHERE $whereParent ORDER BY sort_order, created_at");
+    $sq->execute($args);
+    $sibs = array();
+    foreach ($sq->fetchAll() as $r) { if ($r['id'] !== $id) $sibs[] = $r['id']; }
+
+    // before_id の直前に挿入（無ければ末尾）
+    $newOrder = array(); $inserted = false;
+    foreach ($sibs as $s) {
+      if ($beforeId !== null && $s === $beforeId) { $newOrder[] = $id; $inserted = true; }
+      $newOrder[] = $s;
+    }
+    if (!$inserted) $newOrder[] = $id;
+
+    $pdo->beginTransaction();
+    $up = $pdo->prepare('UPDATE nodes SET parent_id = ?, updated_at = ? WHERE id = ?');
+    $up->execute(array($parent, now_ms(), $id));
+    $ord = $pdo->prepare('UPDATE nodes SET sort_order = ?, updated_at = ? WHERE id = ?');
+    foreach ($newOrder as $i => $nid) { $ord->execute(array($i, now_ms(), $nid)); }
+    $pdo->commit();
+    ok();
+  }
+
   case 'replace_all': {
     // CSV取込などで全置換（トランザクション）。nodes:[{id,parent_id,sort_order,title,body}]
     require_token();
