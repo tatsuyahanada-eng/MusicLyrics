@@ -1,6 +1,6 @@
 {
-  "name": "TREE MANUAL — 作業マニュアル",
-  "short_name": "TREE MANUAL",
+  "name": "Case By Case — 作業マニュアル",
+  "short_name": "Case By Case",
   "description": "ケースバイケースで最適な作業項目に案内するツリー型チャットボット作業マニュアル",
   "start_url": "manual.html",
   "scope": "./",

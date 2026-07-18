@@ -1,5 +1,5 @@
-/* TREE MANUAL — service worker (offline cache, app-shell) */
-const CACHE = 'tree-manual-v2';
+/* Case By Case — service worker (offline cache, app-shell) */
+const CACHE = 'case-by-case-v3';
 const ASSETS = [
   'manual.html',
   'manual.css?v=2',
