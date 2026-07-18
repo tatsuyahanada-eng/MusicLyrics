@@ -13,7 +13,8 @@ enum class Accent(val label: String, val bright: Color, val dim: Color) {
 
 /** Dark background shade behind the phosphor text (kept clearly distinct). */
 enum class AppBackground(val label: String, val bg: Color, val surface: Color, val track: Color) {
-    BLACK("ブラック", Color(0xFF000000), Color(0xFF101010), Color(0xFF242424)),
+    // Pure black with a faint green-tinted panel surface for the terminal look.
+    BLACK("ブラック", Color(0xFF000000), Color(0xFF0A140D), Color(0xFF17251B)),
     GRAY("グレー", Color(0xFF3A3A3A), Color(0xFF484848), Color(0xFF5E5E5E)),
 }
 

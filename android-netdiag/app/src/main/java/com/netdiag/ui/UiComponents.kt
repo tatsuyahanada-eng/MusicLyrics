@@ -1,5 +1,6 @@
 package com.netdiag.ui
 
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -13,6 +14,8 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
@@ -48,25 +51,34 @@ fun SectionCard(
     trailing: @Composable (() -> Unit)? = null,
     content: @Composable () -> Unit,
 ) {
-    Card(modifier = modifier.fillMaxWidth()) {
+    val accent = MaterialTheme.colorScheme.primary
+    Card(
+        modifier = modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(6.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+        border = BorderStroke(1.dp, accent.copy(alpha = 0.55f)),
+    ) {
         Column {
-            // Retro window-style title bar: filled accent bar with dark text.
+            // Terminal-style header: a bracketed prompt in phosphor green with a
+            // glowing accent bar underneath, echoing a hacker/console panel.
             Row(
                 Modifier
                     .fillMaxWidth()
-                    .background(MaterialTheme.colorScheme.primary)
-                    .padding(horizontal = 12.dp, vertical = 6.dp),
+                    .background(accent.copy(alpha = 0.10f))
+                    .padding(horizontal = 12.dp, vertical = 7.dp),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 Text(
-                    "▌ $title",
+                    "> $title",
                     style = MaterialTheme.typography.titleSmall,
                     fontWeight = FontWeight.Bold,
-                    color = MaterialTheme.colorScheme.onPrimary,
+                    fontFamily = FontFamily.Monospace,
+                    color = accent,
                 )
                 trailing?.invoke()
             }
+            HorizontalDivider(thickness = 1.dp, color = accent.copy(alpha = 0.35f))
             Column(Modifier.padding(16.dp)) {
                 content()
             }
