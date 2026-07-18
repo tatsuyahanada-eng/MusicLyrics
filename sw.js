@@ -1,11 +1,12 @@
 /* Case By Case — service worker (offline cache, app-shell) */
-const CACHE = 'case-by-case-v8';
+const CACHE = 'case-by-case-v9';
 const ASSETS = [
   'manual.html',
   'manual.css?v=6',
-  'manual.js?v=6',
+  'manual.js?v=7',
   'manifest.webmanifest',
   'icon.svg',
+  'vendor/xlsx.full.min.js',
 ];
 
 self.addEventListener('install', (event) => {

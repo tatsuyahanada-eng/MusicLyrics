@@ -323,7 +323,7 @@
 
   async function opReplaceAll(nodes) {
     if (serverMode()) {
-      await apiCall('replace_all', { method: 'POST', body: { nodes: treeToRows(nodes) } });
+      await apiCall('replace_all', { method: 'POST', body: { nodes: treeToRowsMeta(nodes) } });
       await reloadFromServer();
     } else {
       tree = nodes; persist();
@@ -990,6 +990,220 @@
   });
 
   /* ============================================================
+     EXCEL  (.xlsx) 一括登録 — 大項目/中項目/小項目/内容/記入者 の階層形式
+     SheetJS(vendor/xlsx.full.min.js) を利用
+     ============================================================ */
+  const XLS_HIER = ['大項目', '中項目', '小項目', '第4階層', '第5階層', '第6階層'];
+  const XLS_BODY = '内容（手順・説明）';
+  const XLS_AUTHOR = '記入者';
+  const xlsxOk = () => typeof XLSX !== 'undefined';
+
+  // 記録用メタ付きのフラット行（replace_all 用）
+  function treeToRowsMeta(nodes = tree, parentId = '', out = []) {
+    nodes.forEach((n, idx) => {
+      out.push({ id: n.id, parent_id: parentId, sort_order: idx, title: n.title, body: n.body || '', created_by: n.created_by || '', updated_by: n.updated_by || '' });
+      treeToRowsMeta(n.children || [], n.id, out);
+    });
+    return out;
+  }
+  function maxDepth(nodes) {
+    let m = 0;
+    const walk = (a, d) => a.forEach((n) => { m = Math.max(m, d); walk(n.children || [], d + 1); });
+    walk(nodes, 1);
+    return m;
+  }
+  function countAll(nodes) {
+    let c = 0;
+    nodes.forEach((n) => { c += 1 + countAll(n.children || []); });
+    return c;
+  }
+  function fillAuthor(nodes, name) {
+    if (!name) return;
+    nodes.forEach((n) => {
+      if (!n.updated_by) n.updated_by = name;
+      if (!n.created_by) n.created_by = name;
+      fillAuthor(n.children || [], name);
+    });
+  }
+
+  // tree -> アウトライン形式の二次元配列（Excel出力）
+  function treeToOutlineAoa() {
+    const depth = Math.max(3, Math.min(maxDepth(tree) || 1, XLS_HIER.length));
+    const cols = XLS_HIER.slice(0, depth);
+    const head = [...cols, XLS_BODY, XLS_AUTHOR];
+    const aoa = [head];
+    const walk = (nodes, d) => {
+      nodes.forEach((n) => {
+        const row = new Array(head.length).fill('');
+        row[Math.min(d, cols.length - 1)] = n.title;
+        if (n.body && n.body.trim()) row[cols.length] = n.body;
+        const by = n.updated_by || n.created_by;
+        if (by) row[cols.length + 1] = by;
+        aoa.push(row);
+        walk(n.children || [], d + 1);
+      });
+    };
+    walk(tree, 0);
+    return aoa;
+  }
+
+  // アウトライン形式 -> tree
+  function outlineToTree(aoa) {
+    if (!aoa || !aoa.length) return [];
+    const header = aoa[0].map((h) => String(h == null ? '' : h).trim());
+    const hierIdx = [];
+    XLS_HIER.forEach((name) => { const i = header.indexOf(name); if (i >= 0) hierIdx.push(i); });
+    let bodyIdx = header.findIndex((h) => /内容|手順|説明/.test(h));
+    let authIdx = header.findIndex((h) => /記入|担当|作成者/.test(h));
+    if (hierIdx.length === 0) {
+      const end = bodyIdx >= 0 ? bodyIdx : header.length;
+      for (let i = 0; i < end; i++) hierIdx.push(i);
+      if (bodyIdx < 0 && header.length > hierIdx.length) bodyIdx = hierIdx.length;
+    }
+    const roots = [];
+    const stack = [];
+    for (let r = 1; r < aoa.length; r++) {
+      const row = aoa[r] || [];
+      let deepest = -1;
+      for (let l = 0; l < hierIdx.length; l++) {
+        const val = String(row[hierIdx[l]] == null ? '' : row[hierIdx[l]]).trim();
+        if (val !== '') {
+          const parentArr = l === 0 ? roots : (stack[l - 1] ? stack[l - 1].children : roots);
+          let node = parentArr.find((x) => x.title === val);
+          if (!node) { node = { id: uid(), title: val, body: '', children: [], created_by: '', updated_by: '' }; parentArr.push(node); }
+          stack[l] = node; stack.length = l + 1;
+          deepest = l;
+        }
+      }
+      const body = bodyIdx >= 0 ? String(row[bodyIdx] == null ? '' : row[bodyIdx]).trim() : '';
+      const auth = authIdx >= 0 ? String(row[authIdx] == null ? '' : row[authIdx]).trim() : '';
+      const target = deepest >= 0 ? stack[deepest] : stack[stack.length - 1];
+      if (target) {
+        if (body) target.body = target.body ? target.body + '\n' + body : body;
+        if (auth) { target.updated_by = auth; if (!target.created_by) target.created_by = auth; }
+      }
+    }
+    return roots;
+  }
+
+  // サーバー/ローカルに部分木を作成（追加登録）
+  async function createSubtree(nodes, parentId) {
+    for (const n of nodes) {
+      if (serverMode()) {
+        const res = await apiCall('node_create', { method: 'POST', body: { parent_id: parentId || '', title: n.title, body: n.body || '', author: n.updated_by || authorName() } });
+        const newId = res.node && res.node.id;
+        if (newId && n.children && n.children.length) await createSubtree(n.children, newId);
+      } else {
+        const now = Date.now();
+        const nn = { id: uid(), title: n.title, body: n.body || '', children: [], created_by: n.updated_by || authorName(), updated_by: n.updated_by || authorName(), created_at: now, updated_at: now };
+        if (parentId) { const p = findNode(parentId); if (p) p.children.push(nn); } else tree.push(nn);
+        if (n.children && n.children.length) await createSubtree(n.children, nn.id);
+      }
+    }
+  }
+
+  function buildTemplateWorkbook() {
+    const head = ['大項目', '中項目', '小項目', XLS_BODY, XLS_AUTHOR];
+    const rows = [
+      head,
+      ['リテイルオンサイト', '搬入', '台車の手配', '1. 台車を1階に用意\n2. 搬入経路を確認', '山田'],
+      ['リテイルオンサイト', '搬入', 'エレベーター確認', '使用可能時間を管理室に確認する', ''],
+      ['リテイルオンサイト', '設置', '', '什器を所定位置に設置し水平を確認', '佐藤'],
+      ['トラブル対応', 'ネットワーク', 'つながらない', '1. ルーターを再起動\n2. LANケーブルを挿し直す', '田中'],
+    ];
+    const ws = XLSX.utils.aoa_to_sheet(rows);
+    ws['!cols'] = [{ wch: 18 }, { wch: 16 }, { wch: 18 }, { wch: 44 }, { wch: 10 }];
+    const help = [
+      ['Case By Case 一括登録用ひな型 — 使い方'], [''],
+      ['1) 「登録」シートの2行目以降に、項目を1行ずつ入力してください。'],
+      ['2) 列の意味'],
+      ['   大項目/中項目/小項目 … 階層（大きい分類→小さい項目）'],
+      ['   内容（手順・説明） … 選んだときに表示する手順。セル内改行(Alt+Enter)で段落、'],
+      ['                        行頭「- 」で箇条書き、「# 」で見出しになります。'],
+      ['   記入者 … 入力した人の名前（任意）'],
+      ['3) 同じ大項目・中項目は各行に繰り返してOK（自動でまとめられます）。'],
+      ['4) 中項目・小項目を空欄にすると、上位の項目に内容が付きます。'],
+      ['5) さらに深い階層は「第4階層」「第5階層」列を追加できます。'],
+      ['6) アプリの編集モード →「Excel一括登録」で読み込みます（置き換え/追加）。'],
+    ];
+    const wsH = XLSX.utils.aoa_to_sheet(help);
+    wsH['!cols'] = [{ wch: 72 }];
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, '登録');
+    XLSX.utils.book_append_sheet(wb, wsH, '使い方');
+    return wb;
+  }
+
+  $('#xlsxExportBtn').addEventListener('click', () => {
+    if (!xlsxOk()) { flashSaved('Excelライブラリを読み込めませんでした'); return; }
+    const ws = XLSX.utils.aoa_to_sheet(treeToOutlineAoa());
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'マニュアル');
+    XLSX.writeFile(wb, `manual-${new Date().toISOString().slice(0, 10)}.xlsx`);
+    flashSaved('Excelを出力しました');
+  });
+  $('#xlsxTemplateBtn').addEventListener('click', () => {
+    if (!xlsxOk()) { flashSaved('Excelライブラリを読み込めませんでした'); return; }
+    XLSX.writeFile(buildTemplateWorkbook(), '登録用ひな型.xlsx');
+    flashSaved('ひな型を出力しました');
+  });
+
+  const xlsxDialog = $('#xlsxDialog');
+  const xlsxFile = $('#xlsxFile');
+  let xlsxParsed = null;
+  $('#xlsxImportBtn').addEventListener('click', () => {
+    if (!xlsxOk()) { flashSaved('Excelライブラリを読み込めませんでした'); return; }
+    xlsxFile.click();
+  });
+  xlsxFile.addEventListener('change', () => {
+    const f = xlsxFile.files[0];
+    if (!f) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+      try {
+        const wb = XLSX.read(new Uint8Array(reader.result), { type: 'array' });
+        const sheet = wb.SheetNames.includes('登録') ? '登録' : wb.SheetNames[0];
+        const aoa = XLSX.utils.sheet_to_json(wb.Sheets[sheet], { header: 1, defval: '' });
+        const roots = outlineToTree(aoa);
+        fillAuthor(roots, authorName());
+        const count = countAll(roots);
+        if (count === 0) { flashSaved('取り込める項目がありませんでした'); xlsxFile.value = ''; return; }
+        xlsxParsed = roots;
+        $('#xlsxMsg').innerHTML = `Excelから <b>${count}</b> 項目を読み取りました。<br>「置き換え」＝現在の内容をすべて入れ替え、「追加登録」＝現在の内容に加えます。`;
+        $('#xlsxError').textContent = '';
+        xlsxDialog.showModal();
+      } catch (err) {
+        flashSaved('Excel読込に失敗：' + err.message);
+      }
+      xlsxFile.value = '';
+    };
+    reader.readAsArrayBuffer(f);
+  });
+  async function runXlsxImport(mode) {
+    if (!xlsxParsed) return;
+    const roots = xlsxParsed;
+    try {
+      if (mode === 'replace') {
+        if (serverMode()) { await apiCall('replace_all', { method: 'POST', body: { nodes: treeToRowsMeta(roots) } }); await reloadFromServer(); }
+        else { tree = roots; persist(); }
+      } else {
+        await createSubtree(roots, null);
+        if (serverMode()) await reloadFromServer(); else persist();
+      }
+      xlsxDialog.close();
+      xlsxParsed = null;
+      navRestart();
+      renderEdit();
+      flashSaved(mode === 'replace' ? 'Excelで置き換えました' : 'Excelから追加しました');
+    } catch (err) {
+      $('#xlsxError').textContent = '取込に失敗：' + err.message;
+    }
+  }
+  $('#xlsxReplace').addEventListener('click', () => runXlsxImport('replace'));
+  $('#xlsxAppend').addEventListener('click', () => runXlsxImport('append'));
+  $('#xlsxCancel').addEventListener('click', () => { xlsxDialog.close(); xlsxParsed = null; });
+
+  /* ============================================================
      SERVER SYNC  (PHP + DB backend: api.php)
      ============================================================ */
   const API = 'api.php';
@@ -1116,7 +1330,7 @@
     askConfirm('この端末の現在の内容で、サーバー（全員の共有データ）を置き換えて登録します。よろしいですか？', async () => {
       try {
         syncMsg('サーバーへ登録中…');
-        await apiCall('replace_all', { method: 'POST', body: { nodes: treeToRows() } });
+        await apiCall('replace_all', { method: 'POST', body: { nodes: treeToRowsMeta() } });
         await reloadFromServer();
         renderEdit();
         syncMsg('サーバーへ登録しました');

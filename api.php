@@ -226,15 +226,17 @@ switch ($action) {
     $ts = now_ms();
     $pdo->beginTransaction();
     $pdo->exec('DELETE FROM nodes');
-    $ins = $pdo->prepare('INSERT INTO nodes (id, parent_id, sort_order, title, body, updated_at, created_at) VALUES (?,?,?,?,?,?,?)');
+    $ins = $pdo->prepare('INSERT INTO nodes (id, parent_id, sort_order, title, body, created_by, updated_by, updated_at, created_at) VALUES (?,?,?,?,?,?,?,?,?)');
     foreach ($d['nodes'] as $n) {
+      $cb = isset($n['created_by']) && $n['created_by'] !== '' ? $n['created_by'] : (isset($n['updated_by']) && $n['updated_by'] !== '' ? $n['updated_by'] : null);
+      $ub = isset($n['updated_by']) && $n['updated_by'] !== '' ? $n['updated_by'] : $cb;
       $ins->execute(array(
         !empty($n['id']) ? $n['id'] : gen_id(),
         isset($n['parent_id']) && $n['parent_id'] !== '' ? $n['parent_id'] : null,
         isset($n['sort_order']) ? (int)$n['sort_order'] : 0,
         isset($n['title']) ? $n['title'] : '（無題）',
         isset($n['body']) ? $n['body'] : '',
-        $ts, $ts,
+        $cb, $ub, $ts, $ts,
       ));
     }
     $pdo->commit();
