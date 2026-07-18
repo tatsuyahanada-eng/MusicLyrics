@@ -1,0 +1,145 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <meta name="theme-color" content="#0a1420">
+  <meta name="description" content="ケースバイケースで最適な作業項目に案内する、ツリー型のチャットボット作業マニュアル">
+  <title>TREE MANUAL — 作業マニュアル</title>
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="icon" href="icon.svg" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="icon.svg">
+  <link rel="stylesheet" href="manual.css?v=1">
+</head>
+<body class="tm-body">
+
+  <!-- ===== Header (HUD) ===== -->
+  <header class="tm-header">
+    <div class="tm-header-brand">
+      <span class="tm-header-logo">TREE&#8202;MANUAL</span>
+      <span class="tm-header-sub">"CASE&#215;GUIDE" 作業ナビゲーション・システム</span>
+    </div>
+    <nav class="tm-header-nav">
+      <button id="navModeBtn" class="tm-navbtn is-active" data-mode="nav" type="button">
+        <span class="tm-navbtn-ico">&#9673;</span> 案内モード
+      </button>
+      <button id="editModeBtn" class="tm-navbtn" data-mode="edit" type="button">
+        <span class="tm-navbtn-ico">&#9881;</span> 編集モード
+      </button>
+    </nav>
+  </header>
+
+  <!-- ===== Breadcrumb ===== -->
+  <div id="breadcrumbBar" class="tm-breadcrumb" aria-label="現在地">
+    <span class="tm-crumb tm-crumb-home" data-crumb-home>TOP</span>
+  </div>
+
+  <main class="tm-main">
+
+    <!-- ============ NAV MODE ============ -->
+    <section id="navView" class="tm-view">
+      <div class="tm-panel">
+        <div class="tm-panel-corner tm-corner-tl"></div>
+        <div class="tm-panel-corner tm-corner-tr"></div>
+        <div class="tm-panel-corner tm-corner-bl"></div>
+        <div class="tm-panel-corner tm-corner-br"></div>
+
+        <div class="tm-panel-head">
+          <span class="tm-panel-head-label">MEASUREMENT MODE</span>
+          <span class="tm-panel-head-jp">案内モード</span>
+          <span id="remainHint" class="tm-panel-head-remain"></span>
+        </div>
+
+        <!-- chat log -->
+        <div id="chatLog" class="tm-chatlog" aria-live="polite"></div>
+
+        <!-- choices dock -->
+        <div id="choiceDock" class="tm-choicedock"></div>
+
+        <!-- controls -->
+        <div class="tm-navctrls">
+          <button id="backBtn" class="tm-ghostbtn" type="button">&#9664; 一つ戻る</button>
+          <button id="restartBtn" class="tm-ghostbtn" type="button">&#8635; 最初から</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============ EDIT MODE ============ -->
+    <section id="editView" class="tm-view" hidden>
+      <div class="tm-panel">
+        <div class="tm-panel-corner tm-corner-tl"></div>
+        <div class="tm-panel-corner tm-corner-tr"></div>
+        <div class="tm-panel-corner tm-corner-bl"></div>
+        <div class="tm-panel-corner tm-corner-br"></div>
+
+        <div class="tm-panel-head">
+          <span class="tm-panel-head-label">EDIT MODE</span>
+          <span class="tm-panel-head-jp">項目の追加・修正・保存</span>
+        </div>
+
+        <div class="tm-edit-toolbar">
+          <button id="addRootBtn" class="tm-btn tm-btn-primary" type="button">&#43; 大項目（カテゴリ）を追加</button>
+          <div class="tm-edit-toolbar-spacer"></div>
+          <button id="exportBtn" class="tm-btn tm-btn-outline" type="button">&#8681; エクスポート</button>
+          <button id="importBtn" class="tm-btn tm-btn-outline" type="button">&#8679; インポート</button>
+          <input id="importFile" type="file" accept="application/json,.json" hidden>
+          <button id="resetBtn" class="tm-btn tm-btn-danger-outline" type="button">初期化</button>
+        </div>
+
+        <p id="saveStatus" class="tm-savestatus" aria-live="polite"></p>
+
+        <div id="editTree" class="tm-edittree"></div>
+      </div>
+    </section>
+  </main>
+
+  <footer class="tm-footer">
+    <span>&copy; TREE MANUAL</span>
+    <span id="installHint" class="tm-install" hidden>
+      <button id="installBtn" class="tm-linkbtn" type="button">&#8681; アプリとしてインストール</button>
+    </span>
+    <span class="tm-footer-note">データはこの端末のブラウザに保存されます</span>
+  </footer>
+
+  <!-- ===== Node Edit Dialog ===== -->
+  <dialog id="nodeDialog" class="tm-dialog">
+    <form id="nodeForm" method="dialog" class="tm-dialog-form">
+      <h2 id="nodeDialogTitle" class="tm-dialog-title">項目を編集</h2>
+
+      <label class="tm-field">
+        <span class="tm-field-label">項目名（選択肢に表示されます）</span>
+        <input id="nodeTitleInput" class="tm-input" type="text" required maxlength="120"
+          placeholder="例：ドミネーターが起動しない">
+      </label>
+
+      <label class="tm-field">
+        <span class="tm-field-label">
+          説明・作業内容（任意）
+          <span class="tm-field-hint">この項目を選んだときに表示されます。最終的な作業項目にはここに手順を書きます。</span>
+        </span>
+        <textarea id="nodeBodyInput" class="tm-input tm-textarea" rows="8"
+          placeholder="手順や案内文を入力。空行で段落、行頭「- 」で箇条書き、「# 」で見出しになります。"></textarea>
+      </label>
+
+      <div class="tm-dialog-actions">
+        <button type="button" id="nodeCancelBtn" class="tm-btn tm-btn-outline">キャンセル</button>
+        <button type="submit" class="tm-btn tm-btn-primary">保存</button>
+      </div>
+    </form>
+  </dialog>
+
+  <!-- ===== Confirm Dialog ===== -->
+  <dialog id="confirmDialog" class="tm-dialog">
+    <div class="tm-dialog-form">
+      <h2 id="confirmTitle" class="tm-dialog-title">確認</h2>
+      <p id="confirmMsg" class="tm-confirm-msg"></p>
+      <div class="tm-dialog-actions">
+        <button type="button" id="confirmCancel" class="tm-btn tm-btn-outline">キャンセル</button>
+        <button type="button" id="confirmOk" class="tm-btn tm-btn-danger">実行</button>
+      </div>
+    </div>
+  </dialog>
+
+  <script src="manual.js?v=1"></script>
+</body>
+</html>
