@@ -453,6 +453,19 @@
 .tm-sync-status.is-err { color: var(--tm-danger); }
 .tm-btn:disabled { opacity: .4; cursor: not-allowed; }
 
+.tm-editlock {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  padding: 11px 14px;
+  margin-bottom: 10px;
+  border: 1px solid var(--tm-warn);
+  border-radius: 6px;
+  background: rgba(255, 207, 63, 0.08);
+}
+.tm-editlock-msg { flex: 1; font-size: 13px; color: var(--tm-warn); }
+
 .tm-edit-hint {
   display: flex;
   align-items: center;

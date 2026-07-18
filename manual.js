@@ -709,18 +709,30 @@
   async function uploadImage(file) {
     if (!serverMode()) { nodeError('画像はサーバー(DB)接続時のみ追加できます'); return; }
     if (!/^image\//.test(file.type)) { nodeError('画像ファイルを選んでください'); return; }
-    try {
-      nodeError('画像をアップロード中…');
+    async function send(token) {
       const fd = new FormData();
       fd.append('file', file);
       const headers = {};
-      const tok = apiToken();
-      if (tok) headers['X-Api-Token'] = tok;
+      if (token) headers['X-Api-Token'] = token;
       const res = await fetch(`${API}?action=upload`, { method: 'POST', headers, body: fd });
-      const data = await res.json();
-      if (!res.ok || data.ok === false) throw new Error(data.error || ('HTTP ' + res.status));
-      insertAtCursor(nodeBodyInput, `\n![](${data.url})\n`);
-      nodeError('画像を挿入しました');
+      let data = null; try { data = await res.json(); } catch (e) {}
+      return { res, data };
+    }
+    try {
+      nodeError('画像をアップロード中…');
+      while (true) {
+        const { res, data } = await send(apiToken());
+        if (res.status === 401) {
+          const t = await askToken(data && data.error);
+          if (t != null) { apiTokenInput.value = t; localStorage.setItem(TOKEN_KEY, t); updateEditLock(); continue; }
+          throw new Error('編集には合言葉（トークン）が必要です');
+        }
+        if (!data || typeof data !== 'object') throw new Error('サーバー応答が不正です');
+        if (!res.ok || data.ok === false) throw new Error(data.error || ('HTTP ' + res.status));
+        insertAtCursor(nodeBodyInput, `\n![](${data.url})\n`);
+        nodeError('画像を挿入しました');
+        break;
+      }
     } catch (e) { nodeError('画像アップロード失敗：' + e.message); }
   }
   if (nodeImgBtn) {
@@ -763,6 +775,34 @@
     confirmDialog.close();
   });
   $('#confirmCancel').addEventListener('click', () => confirmDialog.close());
+
+  /* ---------- token dialog（編集の合言葉） ---------- */
+  const tokenDialog = $('#tokenDialog');
+  const tokenForm = $('#tokenForm');
+  const tokenInput = $('#tokenInput');
+  const tokenErrorEl = $('#tokenError');
+  let tokenResolve = null;
+  function askToken(message) {
+    return new Promise((resolve) => {
+      tokenResolve = resolve;
+      tokenInput.value = apiToken() || '';
+      tokenErrorEl.textContent = (message && /トークン|合言葉|401/.test(message))
+        ? '合言葉が違います。もう一度入力してください。'
+        : (message || '');
+      tokenDialog.showModal();
+      tokenInput.focus();
+      tokenInput.select();
+    });
+  }
+  function resolveToken(v) { const r = tokenResolve; tokenResolve = null; if (r) r(v); }
+  tokenForm.addEventListener('submit', (e) => {
+    e.preventDefault();
+    const v = tokenInput.value.trim();
+    tokenDialog.close();
+    resolveToken(v || null);
+  });
+  $('#tokenCancel').addEventListener('click', () => { tokenDialog.close(); resolveToken(null); });
+  tokenDialog.addEventListener('cancel', () => resolveToken(null));
 
   function confirmDelete(id) {
     const node = findNode(id);
@@ -882,17 +922,31 @@
     }
   }
 
-  async function apiCall(action, { method = 'GET', body = null } = {}) {
-    const opts = { method, headers: {}, cache: 'no-store' };
-    const tok = apiToken();
-    if (tok) opts.headers['X-Api-Token'] = tok;
-    if (body != null) { opts.headers['Content-Type'] = 'application/json'; opts.body = JSON.stringify(body); }
-    const res = await fetch(`${API}?action=${encodeURIComponent(action)}`, opts);
-    let data = null;
-    try { data = await res.json(); } catch (e) { /* non-JSON */ }
-    if (data === null || typeof data !== 'object') throw new Error('サーバー応答が不正です（PHP未対応の可能性）');
-    if (!res.ok || data.ok === false) throw new Error(data.error || data.message || `HTTP ${res.status}`);
-    return data;
+  async function apiCall(action, callOpts = {}) {
+    const { method = 'GET', body = null } = callOpts;
+    // 401（トークン不足/相違）の間は、合言葉を入力してもらい繰り返しリトライ
+    while (true) {
+      const opts = { method, headers: {}, cache: 'no-store' };
+      const tok = apiToken();
+      if (tok) opts.headers['X-Api-Token'] = tok;
+      if (body != null) { opts.headers['Content-Type'] = 'application/json'; opts.body = JSON.stringify(body); }
+      const res = await fetch(`${API}?action=${encodeURIComponent(action)}`, opts);
+      let data = null;
+      try { data = await res.json(); } catch (e) { /* non-JSON */ }
+      if (data === null || typeof data !== 'object') throw new Error('サーバー応答が不正です（PHP未対応の可能性）');
+      if (res.status === 401) {
+        const t = await askToken(data.error);
+        if (t != null) {
+          apiTokenInput.value = t;
+          localStorage.setItem(TOKEN_KEY, t);
+          updateEditLock();
+          continue; // 新しい合言葉で再試行
+        }
+        throw new Error(data.error || '編集には合言葉（トークン）が必要です');
+      }
+      if (!res.ok || data.ok === false) throw new Error(data.error || data.message || `HTTP ${res.status}`);
+      return data;
+    }
   }
 
   function setServerStatus() {
@@ -914,7 +968,23 @@
     if (serverNoteEl && serverAvailable && !dbConnected && dbError) {
       serverNoteEl.textContent = 'DBに接続できません（config.php の設定をご確認ください）: ' + dbError;
     }
+    updateEditLock();
   }
+
+  // 編集にトークンが必要なのに未入力のとき、目立つ通知を出す
+  function updateEditLock() {
+    const lock = $('#editLock');
+    if (lock) lock.hidden = !(serverMode() && hasToken && !apiToken());
+  }
+  $('#editLockBtn').addEventListener('click', async () => {
+    const t = await askToken();
+    if (t != null) {
+      apiTokenInput.value = t;
+      localStorage.setItem(TOKEN_KEY, t);
+      updateEditLock();
+      syncMsg('合言葉を設定しました');
+    }
+  });
 
   async function detectServer() {
     try {
@@ -999,6 +1069,7 @@
       navPath = valid;
       renderNav();
     } else {
+      updateEditLock();
       renderEdit();
     }
   }
