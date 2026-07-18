@@ -9,7 +9,7 @@
   <link rel="manifest" href="manifest.webmanifest">
   <link rel="icon" href="icon.svg" type="image/svg+xml">
   <link rel="apple-touch-icon" href="icon-192.png">
-  <link rel="stylesheet" href="manual.css?v=5">
+  <link rel="stylesheet" href="manual.css?v=6">
 </head>
 <body class="tm-body">
 
@@ -86,6 +86,12 @@
           <button id="resetBtn" class="tm-btn tm-btn-danger-outline" type="button">初期化</button>
         </div>
 
+        <div class="tm-author-bar">
+          <label class="tm-author-label" for="authorInput">&#9998; 記入者名</label>
+          <input id="authorInput" class="tm-input tm-author-input" type="text" maxlength="40"
+            autocomplete="off" placeholder="あなたの名前（追加・修正の記録に使われます）">
+        </div>
+
         <!-- ===== Data sync (server DB) ===== -->
         <details id="syncPanel" class="tm-sync">
           <summary class="tm-sync-summary">
@@ -155,6 +161,7 @@
   <dialog id="nodeDialog" class="tm-dialog">
     <form id="nodeForm" method="dialog" class="tm-dialog-form">
       <h2 id="nodeDialogTitle" class="tm-dialog-title">項目を編集</h2>
+      <p id="nodeMeta" class="tm-dialog-meta"></p>
 
       <label class="tm-field">
         <span class="tm-field-label">項目名（選択肢に表示されます）</span>
@@ -173,8 +180,10 @@
 
       <div class="tm-dialog-imgrow">
         <button type="button" id="nodeImgBtn" class="tm-btn tm-btn-outline tm-btn-sm">&#128247; 画像を追加</button>
+        <button type="button" id="nodeFileBtn" class="tm-btn tm-btn-outline tm-btn-sm">&#128206; ファイルを添付</button>
         <input type="file" id="nodeImgFile" accept="image/*" hidden>
-        <span class="tm-dialog-imghint">画像を貼り付け（Ctrl+V）でも挿入できます</span>
+        <input type="file" id="nodeFileFile" accept=".pdf,.txt,.csv,.zip,.doc,.docx,.xls,.xlsx,.ppt,.pptx,image/*" hidden>
+        <span class="tm-dialog-imghint">画像は貼り付け（Ctrl+V）でも挿入できます</span>
       </div>
 
       <p id="nodeError" class="tm-dialog-err" aria-live="polite"></p>
@@ -218,6 +227,6 @@
     </div>
   </dialog>
 
-  <script src="manual.js?v=5"></script>
+  <script src="manual.js?v=6"></script>
 </body>
 </html>

@@ -39,7 +39,8 @@ function cbc_pdo() {
   return $pdo;
 }
 
-/* テーブルが無ければ作成（初回アクセス時に自動実行） */
+/* テーブルが無ければ作成（初回アクセス時に自動実行）。
+   既存テーブルには不足カラムを自動追加（記入者カラム等の後方互換）。 */
 function cbc_init_schema($pdo, $driver) {
   if ($driver === 'mysql') {
     $pdo->exec(
@@ -49,6 +50,8 @@ function cbc_init_schema($pdo, $driver) {
         sort_order INT          NOT NULL DEFAULT 0,
         title      VARCHAR(255) NOT NULL,
         body       MEDIUMTEXT   NULL,
+        created_by VARCHAR(120) NULL,
+        updated_by VARCHAR(120) NULL,
         updated_at BIGINT       NOT NULL DEFAULT 0,
         created_at BIGINT       NOT NULL DEFAULT 0,
         INDEX idx_parent (parent_id)
@@ -62,10 +65,35 @@ function cbc_init_schema($pdo, $driver) {
         sort_order INTEGER      NOT NULL DEFAULT 0,
         title      VARCHAR(255) NOT NULL,
         body       TEXT         NULL,
+        created_by VARCHAR(120) NULL,
+        updated_by VARCHAR(120) NULL,
         updated_at BIGINT       NOT NULL DEFAULT 0,
         created_at BIGINT       NOT NULL DEFAULT 0
       )"
     );
     $pdo->exec("CREATE INDEX IF NOT EXISTS idx_parent ON nodes (parent_id)");
   }
+  cbc_ensure_columns($pdo, $driver);
+}
+
+/* 既存DBに不足しているカラムを追加（記入者カラムの後付け対応） */
+function cbc_ensure_columns($pdo, $driver) {
+  try {
+    if ($driver === 'sqlite') {
+      $rows = $pdo->query("PRAGMA table_info(nodes)")->fetchAll();
+      $cols = array();
+      foreach ($rows as $r) { $cols[] = strtolower($r['name']); }
+    } else {
+      $sql = "SELECT COLUMN_NAME AS c FROM information_schema.columns WHERE table_name = 'nodes'";
+      if ($driver === 'mysql') $sql .= " AND table_schema = DATABASE()";
+      $rows = $pdo->query($sql)->fetchAll();
+      $cols = array();
+      foreach ($rows as $r) { $cols[] = strtolower($r['c']); }
+    }
+    foreach (array('created_by', 'updated_by') as $col) {
+      if (!in_array($col, $cols, true)) {
+        $pdo->exec("ALTER TABLE nodes ADD COLUMN $col VARCHAR(120) NULL");
+      }
+    }
+  } catch (Throwable $e) { /* 追加できなくても致命ではない */ }
 }

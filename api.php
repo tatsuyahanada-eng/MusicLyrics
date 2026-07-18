@@ -37,6 +37,11 @@ function body_json() {
 }
 function gen_id() { return 'n' . bin2hex(random_bytes(9)); }
 function now_ms() { return (int) round(microtime(true) * 1000); }
+function author_of($d) {
+  $a = isset($d['author']) ? trim((string)$d['author']) : '';
+  if ($a === '') return null;
+  return mb_substr($a, 0, 120);
+}
 
 function require_token() {
   if (API_TOKEN === '') return;
@@ -67,7 +72,7 @@ catch (Throwable $e) { fail('DBに接続できません: ' . $e->getMessage(), 5
 switch ($action) {
 
   case 'tree': {
-    $rows = $pdo->query('SELECT id, parent_id, sort_order, title, body FROM nodes ORDER BY parent_id, sort_order, created_at')->fetchAll();
+    $rows = $pdo->query('SELECT id, parent_id, sort_order, title, body, created_by, updated_by, updated_at, created_at FROM nodes ORDER BY parent_id, sort_order, created_at')->fetchAll();
     ok(array('nodes' => $rows));
   }
 
@@ -87,8 +92,9 @@ switch ($action) {
     $sort = (int) $ord->fetchColumn();
     $id = gen_id();
     $ts = now_ms();
-    $ins = $pdo->prepare('INSERT INTO nodes (id, parent_id, sort_order, title, body, updated_at, created_at) VALUES (?,?,?,?,?,?,?)');
-    $ins->execute(array($id, $parent, $sort, $title, isset($d['body']) ? $d['body'] : '', $ts, $ts));
+    $who = author_of($d);
+    $ins = $pdo->prepare('INSERT INTO nodes (id, parent_id, sort_order, title, body, created_by, updated_by, updated_at, created_at) VALUES (?,?,?,?,?,?,?,?,?)');
+    $ins->execute(array($id, $parent, $sort, $title, isset($d['body']) ? $d['body'] : '', $who, $who, $ts, $ts));
     ok(array('node' => array('id' => $id, 'parent_id' => $parent, 'sort_order' => $sort, 'title' => $title, 'body' => isset($d['body']) ? $d['body'] : '')));
   }
 
@@ -98,8 +104,9 @@ switch ($action) {
     if (empty($d['id'])) fail('id は必須です');
     $title = trim(isset($d['title']) ? $d['title'] : '');
     if ($title === '') fail('title は必須です');
-    $up = $pdo->prepare('UPDATE nodes SET title = ?, body = ?, updated_at = ? WHERE id = ?');
-    $up->execute(array($title, isset($d['body']) ? $d['body'] : '', now_ms(), $d['id']));
+    $who = author_of($d);
+    $up = $pdo->prepare('UPDATE nodes SET title = ?, body = ?, updated_by = COALESCE(?, updated_by), updated_at = ? WHERE id = ?');
+    $up->execute(array($title, isset($d['body']) ? $d['body'] : '', $who, now_ms(), $d['id']));
     ok();
   }
 
@@ -239,18 +246,33 @@ switch ($action) {
     if (empty($_FILES['file']) || $_FILES['file']['error'] !== UPLOAD_ERR_OK) fail('ファイルがありません');
     $f = $_FILES['file'];
     if ($f['size'] > UPLOAD_MAX_BYTES) fail('ファイルが大きすぎます（上限 ' . round(UPLOAD_MAX_BYTES / 1048576, 1) . 'MB）');
-    $finfo = new finfo(FILEINFO_MIME_TYPE);
-    $mime = $finfo->file($f['tmp_name']);
-    $ext = array(
-      'image/jpeg' => 'jpg', 'image/png' => 'png', 'image/gif' => 'gif', 'image/webp' => 'webp',
-    );
-    if (!isset($ext[$mime])) fail('対応していない画像形式です（JPEG/PNG/GIF/WebP）');
+
+    $imageExt = array('jpg', 'jpeg', 'png', 'gif', 'webp');
+    $fileExt  = array('pdf', 'txt', 'csv', 'zip', 'doc', 'docx', 'xls', 'xlsx', 'ppt', 'pptx');
+    $ext = strtolower(pathinfo($f['name'], PATHINFO_EXTENSION));
+    $isImage = in_array($ext, $imageExt, true);
+    if (!$isImage && !in_array($ext, $fileExt, true)) {
+      fail('対応していないファイル形式です（画像／PDF／Office／txt／csv／zip）');
+    }
+    // 画像は中身のMIMEも確認（なりすまし防止）
+    if ($isImage) {
+      $finfo = new finfo(FILEINFO_MIME_TYPE);
+      $mime = $finfo->file($f['tmp_name']);
+      $okMime = array('image/jpeg', 'image/png', 'image/gif', 'image/webp');
+      if (!in_array($mime, $okMime, true)) fail('画像ファイルが不正です');
+    }
     if (!is_dir(UPLOAD_DIR)) @mkdir(UPLOAD_DIR, 0775, true);
-    $name = date('Ymd') . '_' . bin2hex(random_bytes(8)) . '.' . $ext[$mime];
-    $dest = rtrim(UPLOAD_DIR, '/') . '/' . $name;
+    $stored = date('Ymd') . '_' . bin2hex(random_bytes(8)) . '.' . $ext;
+    $dest = rtrim(UPLOAD_DIR, '/') . '/' . $stored;
     if (!move_uploaded_file($f['tmp_name'], $dest)) fail('保存に失敗しました（uploadsの書き込み権限をご確認ください）', 500);
     @chmod($dest, 0644);
-    ok(array('url' => rtrim(UPLOAD_URL, '/') . '/' . $name));
+    // 表示用の元ファイル名（危険文字を除去）
+    $label = preg_replace('/[\\/\\\\:*?"<>|]+/', '_', $f['name']);
+    ok(array(
+      'url'      => rtrim(UPLOAD_URL, '/') . '/' . $stored,
+      'name'     => $label,
+      'is_image' => $isImage,
+    ));
   }
 
   default:

@@ -18,6 +18,37 @@
     String(s).replace(/[&<>"']/g, (c) =>
       ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 
+  const AUTHOR_KEY = 'treeManual.author.v1';
+  function authorName() { return (localStorage.getItem(AUTHOR_KEY) || '').trim(); }
+
+  function fmtTime(ms) {
+    ms = Number(ms);
+    if (!ms) return '';
+    const d = new Date(ms);
+    if (isNaN(d.getTime())) return '';
+    const p = (n) => String(n).padStart(2, '0');
+    return `${d.getFullYear()}/${p(d.getMonth() + 1)}/${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}`;
+  }
+  // body 内のメディア種別（🖼 画像 / 📎 ファイル）
+  function mediaFlag(body) {
+    if (!body) return '';
+    if (/!\[[^\]]*\]\([^)]+\)/.test(body) || /\]\(\/?uploads\/[^)]+\.(png|jpe?g|gif|webp)\)/i.test(body)) return '🖼';
+    if (/\]\(\/?uploads\/[^)]+\)/.test(body) || /\]\(https?:\/\/[^)]+\)/.test(body)) return '📎';
+    return '';
+  }
+  function nodeMetaText(node) {
+    const parts = [];
+    const by = node.updated_by || node.created_by;
+    if (by) parts.push('✎ ' + by);
+    const t = fmtTime(node.updated_at || node.created_at);
+    if (t) parts.push(t);
+    return parts.join(' · ');
+  }
+  // 階層の呼び名
+  function depthLabel(level) {
+    return level === 0 ? '大項目' : level === 1 ? '中項目' : '小項目';
+  }
+
   /* ============================================================
      DATA
      node: { id, title, body, children: [] }
@@ -200,6 +231,8 @@
     const map = new Map();
     rows.forEach((r) => map.set(r.id, {
       id: r.id, title: r.title, body: r.body || '', children: [],
+      created_by: r.created_by || '', updated_by: r.updated_by || '',
+      updated_at: Number(r.updated_at) || 0, created_at: Number(r.created_at) || 0,
       _p: r.parent_id || '', _o: Number(r.sort_order) || 0,
     }));
     const roots = [];
@@ -232,10 +265,11 @@
 
   async function opCreate(parentId, title, body) {
     if (serverMode()) {
-      await apiCall('node_create', { method: 'POST', body: { parent_id: parentId || '', title, body } });
+      await apiCall('node_create', { method: 'POST', body: { parent_id: parentId || '', title, body, author: authorName() } });
       await reloadFromServer();
     } else {
-      const newNode = { id: uid(), title, body, children: [] };
+      const now = Date.now();
+      const newNode = { id: uid(), title, body, children: [], created_by: authorName(), updated_by: authorName(), created_at: now, updated_at: now };
       if (parentId) { const p = findNode(parentId); if (p) p.children.push(newNode); }
       else tree.push(newNode);
       persist();
@@ -243,10 +277,10 @@
   }
   async function opUpdate(id, title, body) {
     if (serverMode()) {
-      await apiCall('node_update', { method: 'POST', body: { id, title, body } });
+      await apiCall('node_update', { method: 'POST', body: { id, title, body, author: authorName() } });
       await reloadFromServer();
     } else {
-      const n = findNode(id); if (n) { n.title = title; n.body = body; } persist();
+      const n = findNode(id); if (n) { n.title = title; n.body = body; n.updated_by = authorName() || n.updated_by; n.updated_at = Date.now(); } persist();
     }
   }
   async function opDelete(id) {
@@ -310,8 +344,27 @@
     let html = '';
     let inList = false;
     const closeList = () => { if (inList) { html += '</ul>'; inList = false; } };
-    const inline = (s) =>
-      esc(s).replace(/(https?:\/\/[^\s]+)/g, '<a href="$1" target="_blank" rel="noopener">$1</a>');
+    // [ラベル](URL) のリンク と 素のURL を安全にリンク化
+    const inline = (raw) => {
+      let out = '';
+      let last = 0;
+      const re = /\[([^\]]+)\]\(([^)]+)\)|(https?:\/\/[^\s]+)/g;
+      let m;
+      while ((m = re.exec(raw))) {
+        out += esc(raw.slice(last, m.index));
+        if (m[1] !== undefined) {
+          const u = safeUrl(m[2]);
+          out += u
+            ? `<a href="${esc(u)}" target="_blank" rel="noopener">${esc(m[1])}</a>`
+            : esc(m[0]);
+        } else {
+          out += `<a href="${esc(m[3])}" target="_blank" rel="noopener">${esc(m[3])}</a>`;
+        }
+        last = re.lastIndex;
+      }
+      out += esc(raw.slice(last));
+      return out;
+    };
 
     for (const raw of lines) {
       const line = raw.trimEnd();
@@ -356,76 +409,91 @@
     return node ? node.children : [];
   }
 
-  function aiBubble(innerHtml) {
-    return `
-      <div class="tm-msg tm-msg-ai">
-        <div class="tm-avatar">AI</div>
-        <div class="tm-bubble">${innerHtml}</div>
-      </div>`;
+  function renderBreadcrumb() {
+    let crumbs = `<span class="tm-crumb ${navPath.length ? '' : 'is-current'}" data-crumb-home>TOP</span>`;
+    let cursor = tree;
+    for (const id of navPath) {
+      const node = cursor.find((x) => x.id === id);
+      if (!node) break;
+      const isCur = id === navPath[navPath.length - 1];
+      crumbs += `<span class="tm-crumb-sep">&#8250;</span>` +
+        `<span class="tm-crumb ${isCur ? 'is-current' : ''}" data-crumb="${node.id}">${esc(node.title)}</span>`;
+      cursor = node.children;
+    }
+    breadcrumbBar.innerHTML = crumbs;
   }
-  function userBubble(text) {
-    return `
-      <div class="tm-msg tm-msg-user">
-        <div class="tm-avatar">YOU</div>
-        <div class="tm-bubble">${esc(text)}</div>
-      </div>`;
+
+  function categoryTile(c, i) {
+    const count = (c.children || []).length;
+    const flag = mediaFlag(c.body);
+    const sub = count ? `${count} 項目` : (c.body && c.body.trim() ? '内容あり' : '未登録');
+    return `<button class="tm-cat-tile" data-goto="${c.id}">
+      <span class="tm-cat-no">${String(i + 1).padStart(2, '0')}</span>
+      <span class="tm-cat-name">${esc(c.title)}</span>
+      <span class="tm-cat-sub">${sub}${flag ? ' · ' + flag : ''}</span>
+    </button>`;
+  }
+
+  function choiceRow(c) {
+    const count = (c.children || []).length;
+    const flag = mediaFlag(c.body);
+    const meta = count ? `${count} 項目` : (c.body && c.body.trim() ? '作業内容を表示' : '未登録');
+    return `<button class="tm-choice" data-goto="${c.id}">
+      <span class="tm-choice-main">${esc(c.title)}</span>
+      <span class="tm-choice-meta">${flag ? flag + ' · ' : ''}${meta}</span>
+    </button>`;
   }
 
   function renderNav() {
-    // rebuild chat log from navPath so it always reflects state
-    let logHtml = aiBubble('作業案内を開始します。当てはまる大項目を選択してください。');
-    let pathNodes = [];
-    for (const id of navPath) {
-      const node = findNode(id);
-      if (!node) break;
-      pathNodes.push(node);
-      logHtml += userBubble(node.title);
-      const kids = node.children || [];
-      if (node.body && node.body.trim()) {
-        const leafTag = kids.length === 0
-          ? '<span class="tm-leaf-tag">最終作業項目</span>' : '';
-        logHtml += aiBubble(leafTag + renderBody(node.body));
-        if (kids.length > 0) {
-          logHtml += aiBubble('さらに詳しい項目を選択してください。');
-        }
-      } else if (kids.length > 0) {
-        logHtml += aiBubble('次の項目を選択してください。');
-      } else {
-        logHtml += aiBubble('この項目にはまだ詳細が登録されていません。編集モードから内容を追加できます。');
-      }
-    }
-    chatLog.innerHTML = logHtml;
-    chatLog.scrollTop = chatLog.scrollHeight;
-
-    // choices
+    const atRoot = navPath.length === 0;
+    const curNode = atRoot ? null : findNode(navPath[navPath.length - 1]);
     const kids = currentChildren();
+
+    renderBreadcrumb();
+
+    let html = '';
+    if (atRoot) {
+      html = `<div class="tm-hero">
+        <div class="tm-hero-kicker">MANUAL NAVIGATOR</div>
+        <h1 class="tm-hero-title">大項目を選択</h1>
+        <p class="tm-hero-sub">当てはまるカテゴリを選ぶと、順に絞り込んで作業手順まで案内します。</p>
+      </div>`;
+    } else if (curNode) {
+      const leaf = kids.length === 0;
+      const meta = nodeMetaText(curNode);
+      html += `<div class="tm-current">
+        <div class="tm-current-kicker">現在地 · ${depthLabel(navPath.length - 1)}</div>
+        <h2 class="tm-current-title">${esc(curNode.title)}</h2>`;
+      if (curNode.body && curNode.body.trim()) {
+        html += `<div class="tm-content-card ${leaf ? 'is-final' : ''}">
+          ${leaf ? '<span class="tm-leaf-tag">最終作業項目</span>' : ''}
+          <div class="tm-content-body">${renderBody(curNode.body)}</div>
+          ${meta ? `<div class="tm-content-meta">${esc(meta)}</div>` : ''}
+        </div>`;
+      } else if (leaf) {
+        html += `<div class="tm-content-card"><p class="tm-emptynote">この項目にはまだ内容が登録されていません。編集モードから追加できます。</p></div>`;
+      }
+      html += `</div>`;
+    }
+    chatLog.innerHTML = html;
+    chatLog.scrollTop = 0;
+
     if (kids.length > 0) {
-      const label = navPath.length === 0 ? '大項目を選択' : '項目を選択';
-      choiceDock.innerHTML =
-        `<div class="tm-choice-label">${label}</div>` +
-        kids.map((c) => {
-          const meta = c.children && c.children.length
-            ? `${c.children.length} 件の項目`
-            : (c.body && c.body.trim() ? '作業内容を表示' : '未登録');
-          return `<button class="tm-choice" data-goto="${c.id}">${esc(c.title)}
-            <span class="tm-choice-meta">${meta}</span></button>`;
-        }).join('');
+      if (atRoot) {
+        choiceDock.className = 'tm-choicedock tm-cat-grid';
+        choiceDock.innerHTML = kids.map((c, i) => categoryTile(c, i)).join('');
+      } else {
+        choiceDock.className = 'tm-choicedock';
+        choiceDock.innerHTML = `<div class="tm-choice-label">${depthLabel(navPath.length)}を選択</div>` +
+          kids.map((c) => choiceRow(c)).join('');
+      }
     } else {
-      choiceDock.innerHTML =
-        '<div class="tm-emptynote">これ以上の分岐はありません。上のガイドをご確認ください。</div>';
+      choiceDock.className = 'tm-choicedock';
+      choiceDock.innerHTML = '';
     }
 
-    // breadcrumb
-    let crumbs = `<span class="tm-crumb ${navPath.length ? '' : 'is-current'}" data-crumb-home>TOP</span>`;
-    pathNodes.forEach((node, i) => {
-      const isCurrent = i === pathNodes.length - 1;
-      crumbs += `<span class="tm-crumb-sep">&#8250;</span>` +
-        `<span class="tm-crumb ${isCurrent ? 'is-current' : ''}" data-crumb="${node.id}">${esc(node.title)}</span>`;
-    });
-    breadcrumbBar.innerHTML = crumbs;
-
-    backBtn.disabled = navPath.length === 0;
-    remainHint.textContent = kids.length ? `残り ${kids.length} 項目` : '';
+    backBtn.disabled = atRoot;
+    remainHint.textContent = kids.length ? `${kids.length} 項目` : '';
   }
 
   function navGoto(id) {
@@ -465,6 +533,10 @@
   const editTree = $('#editTree');
   const saveStatus = $('#saveStatus');
 
+  const authorInput = $('#authorInput');
+  authorInput.value = localStorage.getItem(AUTHOR_KEY) || '';
+  authorInput.addEventListener('input', () => localStorage.setItem(AUTHOR_KEY, authorInput.value.trim()));
+
   function flashSaved(msg = '保存しました') {
     saveStatus.textContent = '✓ ' + msg;
     clearTimeout(flashSaved._t);
@@ -493,6 +565,9 @@
       ? `<button class="tm-treenode-toggle" data-toggle="${node.id}" title="開閉">${isOpen ? '▼' : '▶'}</button>`
       : `<span class="tm-treenode-toggle is-empty">•</span>`;
 
+    const flag = mediaFlag(node.body);
+    const metaText = [flag, nodeMetaText(node)].filter(Boolean).join(' ');
+
     let childrenHtml = '';
     if (hasKids && isOpen) {
       childrenHtml =
@@ -512,11 +587,14 @@
         <div class="tm-treenode-row" draggable="true" data-id="${node.id}">
           <span class="tm-drag-handle" title="ドラッグで移動（並べ替え・階層変更）">&#8942;&#8942;</span>
           ${toggle}
-          <span class="tm-treenode-title" title="${esc(node.title)}">${esc(node.title)}</span>
+          <button class="tm-treenode-main" data-edit="${node.id}" title="クリックで内容を編集">
+            <span class="tm-treenode-title">${esc(node.title)}</span>
+            ${metaText ? `<span class="tm-treenode-meta">${esc(metaText)}</span>` : ''}
+          </button>
           ${badge}
           <button class="tm-iconbtn" data-up="${node.id}" title="上へ" ${index === 0 ? 'disabled' : ''}>&#9650;</button>
           <button class="tm-iconbtn" data-down="${node.id}" title="下へ" ${index === siblingCount - 1 ? 'disabled' : ''}>&#9660;</button>
-          <button class="tm-iconbtn" data-edit="${node.id}" title="編集">&#9998;</button>
+          <button class="tm-iconbtn tm-iconbtn-edit" data-edit="${node.id}" title="編集">&#9998;</button>
           <button class="tm-iconbtn tm-iconbtn-danger" data-del="${node.id}" title="削除">&#128465;</button>
         </div>
         ${childrenHtml}
@@ -645,7 +723,9 @@
   const nodeDialogTitle = $('#nodeDialogTitle');
   let dialogTarget = null; // { mode: 'edit'|'add', id, parentId }
 
+  const nodeMetaEl = $('#nodeMeta');
   function openNodeDialog(editId, parentId) {
+    let metaStr = '';
     if (editId) {
       const node = findNode(editId);
       if (!node) return;
@@ -653,17 +733,24 @@
       nodeDialogTitle.textContent = '項目を編集';
       nodeTitleInput.value = node.title;
       nodeBodyInput.value = node.body || '';
+      const upd = fmtTime(node.updated_at);
+      const crt = fmtTime(node.created_at);
+      const bits = [];
+      if (node.updated_by || upd) bits.push(`最終更新: ${node.updated_by || '—'}${upd ? ' · ' + upd : ''}`);
+      if (node.created_by || crt) bits.push(`作成: ${node.created_by || '—'}${crt ? ' · ' + crt : ''}`);
+      metaStr = bits.join('　／　');
     } else {
       dialogTarget = { mode: 'add', parentId: parentId || null };
       nodeDialogTitle.textContent = parentId ? '子項目を追加' : '大項目（カテゴリ）を追加';
       nodeTitleInput.value = '';
       nodeBodyInput.value = '';
     }
+    if (nodeMetaEl) nodeMetaEl.textContent = metaStr;
     if (nodeErrorEl) nodeErrorEl.textContent = '';
-    if (nodeImgBtn) {
-      nodeImgBtn.disabled = false;
-      nodeImgBtn.title = serverMode() ? '' : '画像はサーバー(DB)接続時のみ';
-    }
+    const canAttach = serverMode();
+    [nodeImgBtn, nodeFileBtn].forEach((b) => {
+      if (b) { b.disabled = false; b.title = canAttach ? '' : '添付はサーバー(DB)接続時のみ'; }
+    });
     nodeDialog.showModal();
     nodeTitleInput.focus();
   }
@@ -706,12 +793,15 @@
     ta.selectionStart = ta.selectionEnd = s + text.length;
     ta.focus();
   }
-  async function uploadImage(file) {
-    if (!serverMode()) { nodeError('画像はサーバー(DB)接続時のみ追加できます'); return; }
-    if (!/^image\//.test(file.type)) { nodeError('画像ファイルを選んでください'); return; }
+  const nodeFileBtn = $('#nodeFileBtn');
+  const nodeFileFile = $('#nodeFileFile');
+
+  async function uploadAttachment(file) {
+    if (!serverMode()) { nodeError('添付はサーバー(DB)接続時のみ利用できます'); return; }
     async function send(token) {
       const fd = new FormData();
       fd.append('file', file);
+      fd.append('author', authorName());
       const headers = {};
       if (token) headers['X-Api-Token'] = token;
       const res = await fetch(`${API}?action=upload`, { method: 'POST', headers, body: fd });
@@ -719,7 +809,7 @@
       return { res, data };
     }
     try {
-      nodeError('画像をアップロード中…');
+      nodeError('アップロード中…');
       while (true) {
         const { res, data } = await send(apiToken());
         if (res.status === 401) {
@@ -729,19 +819,31 @@
         }
         if (!data || typeof data !== 'object') throw new Error('サーバー応答が不正です');
         if (!res.ok || data.ok === false) throw new Error(data.error || ('HTTP ' + res.status));
-        insertAtCursor(nodeBodyInput, `\n![](${data.url})\n`);
-        nodeError('画像を挿入しました');
+        if (data.is_image) {
+          insertAtCursor(nodeBodyInput, `\n![](${data.url})\n`);
+          nodeError('画像を挿入しました');
+        } else {
+          insertAtCursor(nodeBodyInput, `\n📎 [${data.name || 'ファイル'}](${data.url})\n`);
+          nodeError('ファイルを添付しました');
+        }
         break;
       }
-    } catch (e) { nodeError('画像アップロード失敗：' + e.message); }
+    } catch (e) { nodeError('アップロード失敗：' + e.message); }
   }
   if (nodeImgBtn) {
     nodeImgBtn.addEventListener('click', () => {
-      if (!serverMode()) { nodeError('画像はサーバー(DB)接続時のみ追加できます'); return; }
+      if (!serverMode()) { nodeError('添付はサーバー(DB)接続時のみ利用できます'); return; }
       nodeImgFile.click();
     });
     nodeImgFile.addEventListener('change', () => {
-      const f = nodeImgFile.files[0]; if (f) uploadImage(f); nodeImgFile.value = '';
+      const f = nodeImgFile.files[0]; if (f) uploadAttachment(f); nodeImgFile.value = '';
+    });
+    nodeFileBtn.addEventListener('click', () => {
+      if (!serverMode()) { nodeError('添付はサーバー(DB)接続時のみ利用できます'); return; }
+      nodeFileFile.click();
+    });
+    nodeFileFile.addEventListener('change', () => {
+      const f = nodeFileFile.files[0]; if (f) uploadAttachment(f); nodeFileFile.value = '';
     });
     nodeBodyInput.addEventListener('paste', (e) => {
       const items = e.clipboardData && e.clipboardData.items;
@@ -750,7 +852,7 @@
         if (it.type && it.type.indexOf('image/') === 0) {
           e.preventDefault();
           const f = it.getAsFile();
-          if (f) uploadImage(f);
+          if (f) uploadAttachment(f);
           break;
         }
       }

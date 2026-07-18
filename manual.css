@@ -103,18 +103,29 @@
 
 /* ---------- Breadcrumb ---------- */
 .tm-breadcrumb {
-  position: relative;
-  z-index: 2;
+  position: sticky;
+  top: 0;
+  z-index: 5;
   display: flex;
   flex-wrap: wrap;
   align-items: center;
   gap: 4px;
-  padding: 10px clamp(14px, 4vw, 40px);
+  padding: 11px clamp(14px, 4vw, 40px);
   font-family: var(--tm-mono);
-  font-size: 12px;
+  font-size: 13px;
   color: var(--tm-muted);
-  border-bottom: 1px solid rgba(63, 224, 224, 0.12);
+  background: linear-gradient(180deg, rgba(7, 16, 25, 0.96), rgba(7, 16, 25, 0.82));
+  backdrop-filter: blur(6px);
+  border-bottom: 1px solid var(--tm-line);
 }
+.tm-breadcrumb::before {
+  content: "PATH";
+  font-size: 10px;
+  letter-spacing: 2px;
+  color: var(--tm-cyan-dim);
+  margin-right: 6px;
+}
+.tm-breadcrumb .tm-crumb.is-current { font-weight: 700; }
 .tm-crumb {
   color: var(--tm-cyan);
   cursor: pointer;
@@ -321,6 +332,98 @@
   padding: 20px 4px;
   text-align: center;
 }
+
+/* ---------- Nav: hero & big category tiles ---------- */
+.tm-hero { text-align: center; padding: 18px 10px 6px; }
+.tm-hero-kicker { font-family: var(--tm-mono); font-size: 11px; letter-spacing: 3px; color: var(--tm-cyan-dim); }
+.tm-hero-title {
+  font-size: clamp(22px, 4vw, 30px);
+  letter-spacing: 2px;
+  color: var(--tm-cyan);
+  text-shadow: 0 0 16px rgba(63, 224, 224, 0.4);
+  margin: 6px 0;
+}
+.tm-hero-sub { font-size: 13px; color: var(--tm-muted); }
+
+.tm-cat-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 12px;
+  border-top: none;
+  padding-top: 4px;
+}
+.tm-cat-tile {
+  position: relative;
+  text-align: left;
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 16px 16px 14px;
+  min-height: 100px;
+  background: linear-gradient(160deg, rgba(20, 52, 62, 0.7), rgba(10, 26, 38, 0.7));
+  border: 1px solid var(--tm-line);
+  border-radius: 8px;
+  transition: border-color .15s, box-shadow .15s, transform .1s;
+}
+.tm-cat-tile:hover { border-color: var(--tm-cyan); box-shadow: 0 0 18px rgba(63, 224, 224, 0.25); transform: translateY(-2px); }
+.tm-cat-no { font-family: var(--tm-mono); font-size: 12px; color: var(--tm-cyan-dim); letter-spacing: 1px; }
+.tm-cat-name { font-size: 16px; font-weight: 600; color: var(--tm-text); line-height: 1.4; }
+.tm-cat-sub { margin-top: auto; font-family: var(--tm-mono); font-size: 11px; color: var(--tm-muted); }
+
+/* ---------- Nav: current location & content ---------- */
+.tm-current { padding: 4px 2px 2px; }
+.tm-current-kicker { font-family: var(--tm-mono); font-size: 11px; letter-spacing: 2px; color: var(--tm-cyan-dim); }
+.tm-current-title { font-size: clamp(18px, 3vw, 24px); color: var(--tm-cyan); margin: 4px 0 12px; letter-spacing: 1px; }
+.tm-content-card {
+  background: rgba(9, 30, 40, 0.7);
+  border: 1px solid var(--tm-line);
+  border-left: 3px solid var(--tm-cyan);
+  border-radius: 6px;
+  padding: 14px 16px;
+  font-size: 14px;
+  line-height: 1.8;
+}
+.tm-content-card.is-final { border-left-color: var(--tm-warn); box-shadow: 0 0 20px rgba(63, 224, 224, 0.1); }
+.tm-content-meta {
+  margin-top: 10px;
+  padding-top: 8px;
+  border-top: 1px dashed var(--tm-line);
+  font-family: var(--tm-mono);
+  font-size: 11px;
+  color: var(--tm-muted);
+}
+.tm-choice-main { display: block; font-size: 14px; color: var(--tm-text); }
+
+/* ---------- Edit: author bar & clickable rows ---------- */
+.tm-author-bar { display: flex; align-items: center; gap: 10px; margin-bottom: 12px; flex-wrap: wrap; }
+.tm-author-label { font-family: var(--tm-mono); font-size: 12px; color: var(--tm-cyan); white-space: nowrap; }
+.tm-author-input { max-width: 340px; }
+
+.tm-treenode-main {
+  flex: 1;
+  min-width: 0;
+  text-align: left;
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 3px 6px;
+  border-radius: 4px;
+}
+.tm-treenode-main:hover { background: rgba(63, 224, 224, 0.08); }
+.tm-treenode-meta {
+  font-family: var(--tm-mono);
+  font-size: 10px;
+  color: var(--tm-muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.tm-iconbtn-edit:hover { color: var(--tm-cyan); border-color: var(--tm-line-strong); }
+.tm-dialog-meta { font-family: var(--tm-mono); font-size: 11px; color: var(--tm-muted); margin-top: -6px; }
 
 /* ---------- Nav controls ---------- */
 .tm-navctrls {
