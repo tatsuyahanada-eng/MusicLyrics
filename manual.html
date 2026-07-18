@@ -9,7 +9,7 @@
   <link rel="manifest" href="manifest.webmanifest">
   <link rel="icon" href="icon.svg" type="image/svg+xml">
   <link rel="apple-touch-icon" href="icon-192.png">
-  <link rel="stylesheet" href="manual.css?v=8">
+  <link rel="stylesheet" href="manual.css?v=9">
 </head>
 <body class="tm-body">
 
@@ -55,6 +55,9 @@
 
         <!-- choices dock -->
         <div id="choiceDock" class="tm-choicedock"></div>
+
+        <!-- add item (直接追加) -->
+        <div id="navAddDock" class="tm-navadd"></div>
 
         <!-- controls -->
         <div class="tm-navctrls">
@@ -176,10 +179,30 @@
       <label class="tm-field">
         <span class="tm-field-label">
           説明・作業内容（任意）
-          <span class="tm-field-hint">この項目を選んだときに表示されます。最終的な作業項目にはここに手順を書きます。</span>
+          <span class="tm-field-hint">選択したテキストにボタンで装飾できます（太字・色・大きさ・見出し・箇条書き）。</span>
         </span>
+        <div class="tm-fmtbar">
+          <button type="button" class="tm-fmtbtn" data-fmt="bold" title="太字"><b>B</b></button>
+          <select class="tm-fmtsel" id="fmtColor" title="文字色" aria-label="文字色">
+            <option value="">色</option>
+            <option value="red">赤</option>
+            <option value="blue">青</option>
+            <option value="green">緑</option>
+            <option value="yellow">黄</option>
+            <option value="cyan">水色</option>
+            <option value="white">白</option>
+          </select>
+          <select class="tm-fmtsel" id="fmtSize" title="文字サイズ" aria-label="文字サイズ">
+            <option value="">大きさ</option>
+            <option value="xbig">特大</option>
+            <option value="big">大</option>
+            <option value="small">小</option>
+          </select>
+          <button type="button" class="tm-fmtbtn" data-fmt="head" title="見出し">&#35; 見出し</button>
+          <button type="button" class="tm-fmtbtn" data-fmt="list" title="箇条書き">&#8226; 箇条書き</button>
+        </div>
         <textarea id="nodeBodyInput" class="tm-input tm-textarea" rows="8"
-          placeholder="手順や案内文を入力。空行で段落、行頭「- 」で箇条書き、「# 」で見出しになります。"></textarea>
+          placeholder="手順や案内文を入力。空行で段落、行頭「- 」で箇条書き、「# 」で見出し。&#10;装飾例: **太字**  [color=red]赤字[/color]  [big]大きい[/big]  [small]小さい[/small]"></textarea>
       </label>
 
       <div class="tm-dialog-imgrow">
@@ -246,6 +269,6 @@
   </dialog>
 
   <script src="vendor/xlsx.full.min.js"></script>
-  <script src="manual.js?v=9"></script>
+  <script src="manual.js?v=10"></script>
 </body>
 </html>

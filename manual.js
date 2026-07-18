@@ -339,6 +339,23 @@
     if (/^[\w./-]+\.(png|jpe?g|gif|webp)$/i.test(u)) return u;
     return null;
   }
+  // 文字装飾（**太字** / [color=red]色[/color] / [big]/[small] 等）
+  const COLOR_MAP = {
+    red: '#ff5a6e', blue: '#4aa3ff', green: '#38d39f', yellow: '#ffd54a',
+    cyan: '#3fe0e0', white: '#ffffff', gray: '#9fb4bd', orange: '#ff9f45', pink: '#ff7ac6',
+  };
+  function cssColor(c) {
+    c = String(c).toLowerCase();
+    if (COLOR_MAP[c]) return COLOR_MAP[c];
+    if (/^#[0-9a-f]{3}$|^#[0-9a-f]{6}$/.test(c)) return c;
+    return '#d8f3f4';
+  }
+  function fmtInline(html) {
+    html = html.replace(/\*\*([^*\n]+?)\*\*/g, '<strong>$1</strong>');
+    html = html.replace(/\[color=([#a-z0-9]+)\]([\s\S]*?)\[\/color\]/gi, (m, c, t) => `<span style="color:${cssColor(c)}">${t}</span>`);
+    html = html.replace(/\[(xbig|big|small)\]([\s\S]*?)\[\/\1\]/gi, (m, s, t) => `<span class="tm-fs-${s.toLowerCase()}">${t}</span>`);
+    return html;
+  }
   function renderBody(text) {
     const lines = String(text).replace(/\r\n/g, '\n').split('\n');
     let html = '';
@@ -363,7 +380,7 @@
         last = re.lastIndex;
       }
       out += esc(raw.slice(last));
-      return out;
+      return fmtInline(out);
     };
 
     for (const raw of lines) {
@@ -395,6 +412,7 @@
      ============================================================ */
   const chatLog = $('#chatLog');
   const choiceDock = $('#choiceDock');
+  const navAddDock = $('#navAddDock');
   const breadcrumbBar = $('#breadcrumbBar');
   const backBtn = $('#backBtn');
   const restartBtn = $('#restartBtn');
@@ -497,6 +515,10 @@
       choiceDock.innerHTML = '';
     }
 
+    // 直接追加ボタン（案内モードから子項目/大項目をその場で追加）
+    const addParent = atRoot ? '' : curNode.id;
+    navAddDock.innerHTML = `<button class="tm-addhere" data-add="${addParent}" type="button">&#43; ${depthLabel(navPath.length)}を追加</button>`;
+
     backBtn.disabled = atRoot;
     remainHint.textContent = '';
   }
@@ -527,6 +549,10 @@
   chatLog.addEventListener('click', (e) => {
     const eb = e.target.closest('[data-editthis]');
     if (eb) openNodeDialog(eb.dataset.editthis); // 案内モードから直接編集
+  });
+  navAddDock.addEventListener('click', (e) => {
+    const el = e.target.closest('[data-add]');
+    if (el) openNodeDialog(null, el.dataset.add || null); // 案内モードから直接追加
   });
   breadcrumbBar.addEventListener('click', (e) => {
     if (e.target.closest('[data-crumb-home]')) return navRestart();
@@ -833,6 +859,39 @@
     }
   });
   $('#nodeCancelBtn').addEventListener('click', () => nodeDialog.close());
+
+  /* ---------- 文字装飾ツールバー ---------- */
+  function wrapSel(before, after) {
+    const ta = nodeBodyInput;
+    const s = ta.selectionStart || 0, e = ta.selectionEnd || 0;
+    const sel = ta.value.slice(s, e) || 'テキスト';
+    ta.value = ta.value.slice(0, s) + before + sel + after + ta.value.slice(e);
+    ta.focus();
+    ta.selectionStart = s + before.length;
+    ta.selectionEnd = s + before.length + sel.length;
+  }
+  function linePrefix(prefix) {
+    const ta = nodeBodyInput;
+    const s = ta.selectionStart || 0;
+    const lineStart = ta.value.lastIndexOf('\n', s - 1) + 1;
+    ta.value = ta.value.slice(0, lineStart) + prefix + ta.value.slice(lineStart);
+    ta.focus();
+    ta.selectionStart = ta.selectionEnd = s + prefix.length;
+  }
+  const fmtBar = nodeForm.querySelector('.tm-fmtbar');
+  if (fmtBar) {
+    fmtBar.addEventListener('click', (e) => {
+      const btn = e.target.closest('.tm-fmtbtn');
+      if (!btn) return;
+      e.preventDefault();
+      const f = btn.dataset.fmt;
+      if (f === 'bold') wrapSel('**', '**');
+      else if (f === 'head') linePrefix('# ');
+      else if (f === 'list') linePrefix('- ');
+    });
+    $('#fmtColor').addEventListener('change', (e) => { if (e.target.value) wrapSel(`[color=${e.target.value}]`, '[/color]'); e.target.value = ''; });
+    $('#fmtSize').addEventListener('change', (e) => { if (e.target.value) wrapSel(`[${e.target.value}]`, `[/${e.target.value}]`); e.target.value = ''; });
+  }
 
   /* ---------- 画像アップロード / 貼り付け ---------- */
   const nodeImgBtn = $('#nodeImgBtn');

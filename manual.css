@@ -393,6 +393,43 @@
 }
 .tm-editthis:hover { background: rgba(63, 224, 224, 0.12); box-shadow: 0 0 12px rgba(63, 224, 224, 0.2); }
 .tm-content-empty { border-left-color: var(--tm-line-strong); }
+
+/* 直接追加ボタン（案内モード） */
+.tm-navadd { margin-top: 12px; }
+.tm-navadd:empty { display: none; }
+.tm-addhere {
+  width: 100%;
+  font-family: var(--tm-mono);
+  font-size: 13px;
+  letter-spacing: 1px;
+  color: var(--tm-cyan);
+  background: rgba(63, 224, 224, 0.06);
+  border: 1px dashed var(--tm-line-strong);
+  padding: 11px 14px;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: background .15s, box-shadow .15s;
+}
+.tm-addhere:hover { background: rgba(63, 224, 224, 0.14); box-shadow: 0 0 12px rgba(63, 224, 224, 0.2); }
+
+/* 本文の文字サイズ装飾 */
+.tm-fs-xbig { font-size: 1.6em; font-weight: 600; }
+.tm-fs-big { font-size: 1.28em; }
+.tm-fs-small { font-size: 0.85em; }
+
+/* 編集ダイアログ 装飾ツールバー */
+.tm-fmtbar { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 6px; }
+.tm-fmtbtn, .tm-fmtsel {
+  font-size: 12px;
+  color: var(--tm-text);
+  background: rgba(4, 16, 24, 0.8);
+  border: 1px solid var(--tm-line);
+  border-radius: 4px;
+  padding: 5px 9px;
+  cursor: pointer;
+}
+.tm-fmtbtn:hover { border-color: var(--tm-cyan); color: var(--tm-cyan); }
+.tm-fmtsel { padding: 5px 6px; }
 .tm-content-card {
   background: rgba(9, 30, 40, 0.7);
   border: 1px solid var(--tm-line);
