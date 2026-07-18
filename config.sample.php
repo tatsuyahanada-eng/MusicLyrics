@@ -1,23 +1,38 @@
 <?php
 /* ============================================================
    Case By Case — 設定ファイル（サンプル）
-   このファイルを「config.php」という名前でコピーし、値を設定してください。
+   このファイルを「config.php」にコピーし、値を設定してください。
    config.php はサーバーへアップロードしますが、Git には含めません。
    ============================================================ */
 
-// CSV の保存先（サーバー上の "書き込み可能な" パス）
-// 例: レンタルサーバの public 直下に置く場合は __DIR__ . '/data/manual.csv'
-define('CSV_PATH', __DIR__ . '/data/manual.csv');
+/* ---------- データベース（ロリポップ = mysql） ----------
+   ロリポップ! ユーザー専用ページ →「サーバーの管理・設定」→「データベース」
+   で作成したデータベースの情報を入力します。
+     - サーバー   … 例: mysql-XXXXX.phy.lolipop.lan   → DB_HOST
+     - データベース … 例: LAA0000000-casebycase         → DB_NAME
+     - ユーザー    … 例: LAA0000000                     → DB_USER
+     - パスワード  … 設定したパスワード                  → DB_PASS
+   ※PHPのバージョンはユーザー専用ページで 7.4 以上を選択してください。
+*/
+define('DB_DRIVER',  'mysql');           // mysql | sqlite | pgsql
+define('DB_HOST',    'mysql-XXXXX.phy.lolipop.lan');
+define('DB_PORT',    3306);
+define('DB_NAME',    'LAA0000000-casebycase');
+define('DB_USER',    'LAA0000000');
+define('DB_PASS',    'ここにDBパスワード');
+define('DB_CHARSET', 'utf8mb4');
 
-// API トークン（空なら認証なし）。
-// インターネット公開サーバーでは必ず設定してください。
-// 画面の「サーバー連携」→「APIトークン」に同じ値を入力すると連携できます。
+// DB_DRIVER='sqlite' のときのみ使用（ローカル検証や簡易運用向け）
+define('DB_SQLITE_PATH', __DIR__ . '/data/manual.sqlite');
+
+/* ---------- 編集用トークン（合言葉） ----------
+   空 '' なら「誰でも編集可」。公開URLで運用する場合は必ず設定してください。
+   画面の「サーバー連携 → 編集トークン」に同じ値を入力した人だけが
+   追加・修正・削除・画像アップロードを行えます（閲覧は全員可）。
+*/
 define('API_TOKEN', '');
 
-// ---- FTP 設定（別サーバー／指定パスへ CSV を一括更新する場合のみ） ----
-define('FTP_HOST', '');                 // 例: ftp.example.com （空ならFTP機能OFF）
-define('FTP_PORT', 21);
-define('FTP_USER', '');
-define('FTP_PASSWORD', '');
-define('FTP_SECURE', false);            // 明示的FTPS(ftp_ssl_connect)を使う場合は true
-define('FTP_REMOTE_PATH', 'manual.csv'); // アップロード先のリモートパス／ファイル名
+/* ---------- 画像アップロード ---------- */
+define('UPLOAD_DIR',       __DIR__ . '/uploads');   // 保存先（書き込み権限が必要）
+define('UPLOAD_URL',       'uploads');              // ブラウザからの相対URL
+define('UPLOAD_MAX_BYTES', 5 * 1024 * 1024);        // 1ファイル上限（5MB）

@@ -1,0 +1,26 @@
+# uploads は画像配信のみ。PHP等スクリプトの実行を禁止（Apache / ロリポップ）。
+<IfModule mod_php.c>
+  php_flag engine off
+</IfModule>
+<IfModule mod_php7.c>
+  php_flag engine off
+</IfModule>
+<IfModule mod_php8.c>
+  php_flag engine off
+</IfModule>
+# 実行可能ファイルの拡張子を無効化
+<FilesMatch "\.(php|php3|php4|php5|php7|php8|phtml|pht|cgi|pl|py|asp|aspx|sh)$">
+  <IfModule mod_authz_core.c>
+    Require all denied
+  </IfModule>
+  <IfModule !mod_authz_core.c>
+    Order allow,deny
+    Deny from all
+  </IfModule>
+</FilesMatch>
+# 画像は許可
+<FilesMatch "\.(jpg|jpeg|png|gif|webp)$">
+  <IfModule mod_authz_core.c>
+    Require all granted
+  </IfModule>
+</FilesMatch>

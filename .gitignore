@@ -4,5 +4,9 @@ MusicLyrics/
 # 秘密情報・生成データはコミットしない
 config.php
 data/*.csv
+data/*.sqlite
+data/*.sqlite-*
 data/*.tmp
+uploads/*
+!uploads/.htaccess
 node_modules/

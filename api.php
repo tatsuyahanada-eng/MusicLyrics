@@ -1,30 +1,23 @@
 <?php
 /* ============================================================
    Case By Case — api.php
-   CSV(サーバー保存 / 追記) と FTP(一括更新) のバックエンド。
-   レンタルサーバ(PHP)にそのままアップロードして使用できます。
-   設定は config.php（config.sample.php をコピーして作成）で行います。
+   サーバーDB(MySQL等)を「唯一の正データ」として複数人で共有編集する API。
+   項目(ノード)ごとに 追加/更新/削除/並び替え し、丸ごと上書きしないため
+   同時編集でも他人の入力を消しません。画像アップロードにも対応。
    ============================================================ */
 
 header('Content-Type: application/json; charset=utf-8');
 header('Cache-Control: no-store');
 header('X-Content-Type-Options: nosniff');
 
-// ---- 設定読み込み（無ければ既定値） ----
 $cfgFile = __DIR__ . '/config.php';
 if (is_file($cfgFile)) require_once $cfgFile;
+require_once __DIR__ . '/db.php';
 
-if (!defined('CSV_PATH'))        define('CSV_PATH', __DIR__ . '/data/manual.csv');
-if (!defined('API_TOKEN'))       define('API_TOKEN', '');
-if (!defined('FTP_HOST'))        define('FTP_HOST', '');
-if (!defined('FTP_PORT'))        define('FTP_PORT', 21);
-if (!defined('FTP_USER'))        define('FTP_USER', '');
-if (!defined('FTP_PASSWORD'))    define('FTP_PASSWORD', '');
-if (!defined('FTP_SECURE'))      define('FTP_SECURE', false);
-if (!defined('FTP_REMOTE_PATH')) define('FTP_REMOTE_PATH', 'manual.csv');
-
-$CSV_HEADER = array('id', 'parent_id', 'sort_order', 'title', 'body');
-$FTP_CONFIGURED = (FTP_HOST !== '' && FTP_USER !== '');
+if (!defined('API_TOKEN'))        define('API_TOKEN', '');
+if (!defined('UPLOAD_DIR'))       define('UPLOAD_DIR', __DIR__ . '/uploads');
+if (!defined('UPLOAD_URL'))       define('UPLOAD_URL', 'uploads');
+if (!defined('UPLOAD_MAX_BYTES')) define('UPLOAD_MAX_BYTES', 5 * 1024 * 1024);
 
 /* ---------- helpers ---------- */
 function fail($msg, $code = 400) {
@@ -39,112 +32,170 @@ function ok($extra = array()) {
 function body_json() {
   $raw = file_get_contents('php://input');
   if ($raw === '' || $raw === false) return array();
-  $data = json_decode($raw, true);
-  return is_array($data) ? $data : array();
+  $d = json_decode($raw, true);
+  return is_array($d) ? $d : array();
 }
-function csv_cell($v) {
-  $v = (string)$v;
-  if (preg_match('/[",\r\n]/', $v)) return '"' . str_replace('"', '""', $v) . '"';
-  return $v;
-}
-function csv_line($fields) {
-  $out = array();
-  foreach ($fields as $v) $out[] = csv_cell($v);
-  return implode(',', $out) . "\r\n";
-}
-function ensure_dir($path) {
-  $dir = dirname($path);
-  if (!is_dir($dir)) @mkdir($dir, 0775, true);
-}
-function ftp_connection() {
-  $conn = FTP_SECURE
-    ? @ftp_ssl_connect(FTP_HOST, (int)FTP_PORT, 15)
-    : @ftp_connect(FTP_HOST, (int)FTP_PORT, 15);
-  if (!$conn) fail('FTPサーバーへ接続できませんでした', 502);
-  if (!@ftp_login($conn, FTP_USER, FTP_PASSWORD)) { @ftp_close($conn); fail('FTPログインに失敗しました', 502); }
-  @ftp_pasv($conn, true);
-  return $conn;
-}
+function gen_id() { return 'n' . bin2hex(random_bytes(9)); }
+function now_ms() { return (int) round(microtime(true) * 1000); }
 
-/* ---------- token auth ---------- */
-if (API_TOKEN !== '') {
+function require_token() {
+  if (API_TOKEN === '') return;
   $sent = isset($_SERVER['HTTP_X_API_TOKEN']) ? $_SERVER['HTTP_X_API_TOKEN'] : '';
-  if (!hash_equals(API_TOKEN, $sent)) fail('認証に失敗しました（APIトークン不一致）', 401);
+  if (!hash_equals(API_TOKEN, $sent)) fail('編集にはトークンが必要です（合言葉が違います）', 401);
 }
 
 $action = isset($_GET['action']) ? $_GET['action'] : '';
 
-/* ---------- routes ---------- */
+/* config は DB 接続前でも返せるように（未設定でも画面が動くように） */
+if ($action === 'config') {
+  $connected = false; $err = null;
+  try { cbc_pdo(); $connected = true; }
+  catch (Throwable $e) { $err = $e->getMessage(); }
+  ok(array(
+    'dbConnected' => $connected,
+    'hasToken'    => (API_TOKEN !== ''),
+    'uploads'     => true,
+    'driver'      => defined('DB_DRIVER') ? DB_DRIVER : 'mysql',
+    'error'       => $connected ? null : $err,
+  ));
+}
+
+/* 以降は DB 必須 */
+try { $pdo = cbc_pdo(); }
+catch (Throwable $e) { fail('DBに接続できません: ' . $e->getMessage(), 500); }
+
 switch ($action) {
 
-  case 'config':
-    ok(array(
-      'ftpConfigured' => $FTP_CONFIGURED,
-      'csvPath'       => basename(CSV_PATH),
-      'hasToken'      => (API_TOKEN !== ''),
-    ));
-    break;
+  case 'tree': {
+    $rows = $pdo->query('SELECT id, parent_id, sort_order, title, body FROM nodes ORDER BY parent_id, sort_order, created_at')->fetchAll();
+    ok(array('nodes' => $rows));
+  }
 
-  case 'load':
-    $csv = is_file(CSV_PATH) ? file_get_contents(CSV_PATH) : '';
-    if ($csv === false) fail('CSVの読み込みに失敗しました', 500);
-    ok(array('csv' => $csv));
-    break;
-
-  case 'save':
+  case 'node_create': {
+    require_token();
     $d = body_json();
-    if (!isset($d['csv'])) fail('csv がありません');
-    ensure_dir(CSV_PATH);
-    if (@file_put_contents(CSV_PATH, $d['csv']) === false) fail('CSVの書き込みに失敗しました（権限をご確認ください）', 500);
-    ok();
-    break;
-
-  case 'append':
-    $d = body_json();
-    if (empty($d['rows']) || !is_array($d['rows'])) fail('rows がありません');
-    ensure_dir(CSV_PATH);
-    $new = !is_file(CSV_PATH) || filesize(CSV_PATH) === 0;
-    $fp = @fopen(CSV_PATH, 'a');
-    if (!$fp) fail('CSVを開けませんでした（権限をご確認ください）', 500);
-    if ($new) fwrite($fp, csv_line($CSV_HEADER));
-    foreach ($d['rows'] as $r) {
-      fwrite($fp, csv_line(array(
-        isset($r['id']) ? $r['id'] : '',
-        isset($r['parent_id']) ? $r['parent_id'] : '',
-        isset($r['sort_order']) ? $r['sort_order'] : '',
-        isset($r['title']) ? $r['title'] : '',
-        isset($r['body']) ? $r['body'] : '',
-      )));
+    $title = trim(isset($d['title']) ? $d['title'] : '');
+    if ($title === '') fail('title は必須です');
+    $parent = isset($d['parent_id']) && $d['parent_id'] !== '' ? $d['parent_id'] : null;
+    if ($parent !== null) {
+      $chk = $pdo->prepare('SELECT 1 FROM nodes WHERE id = ?');
+      $chk->execute(array($parent));
+      if (!$chk->fetchColumn()) fail('親項目が存在しません');
     }
-    fclose($fp);
-    ok(array('appended' => count($d['rows'])));
-    break;
+    $ord = $pdo->prepare('SELECT COALESCE(MAX(sort_order), -1) + 1 FROM nodes WHERE ' . ($parent === null ? 'parent_id IS NULL' : 'parent_id = ?'));
+    $ord->execute($parent === null ? array() : array($parent));
+    $sort = (int) $ord->fetchColumn();
+    $id = gen_id();
+    $ts = now_ms();
+    $ins = $pdo->prepare('INSERT INTO nodes (id, parent_id, sort_order, title, body, updated_at, created_at) VALUES (?,?,?,?,?,?,?)');
+    $ins->execute(array($id, $parent, $sort, $title, isset($d['body']) ? $d['body'] : '', $ts, $ts));
+    ok(array('node' => array('id' => $id, 'parent_id' => $parent, 'sort_order' => $sort, 'title' => $title, 'body' => isset($d['body']) ? $d['body'] : '')));
+  }
 
-  case 'ftp_pull':
-    if (!$FTP_CONFIGURED) fail('FTPが設定されていません（config.php）');
-    $conn = ftp_connection();
-    ensure_dir(CSV_PATH);
-    $tmp = CSV_PATH . '.tmp';
-    if (!@ftp_get($conn, $tmp, FTP_REMOTE_PATH, FTP_BINARY)) { @ftp_close($conn); fail('FTPからの取得に失敗しました', 502); }
-    @ftp_close($conn);
-    @rename($tmp, CSV_PATH);
-    $csv = file_get_contents(CSV_PATH);
-    ok(array('csv' => $csv));
-    break;
-
-  case 'ftp_push':
-    if (!$FTP_CONFIGURED) fail('FTPが設定されていません（config.php）');
+  case 'node_update': {
+    require_token();
     $d = body_json();
-    if (isset($d['csv'])) {
-      ensure_dir(CSV_PATH);
-      if (@file_put_contents(CSV_PATH, $d['csv']) === false) fail('CSVの書き込みに失敗しました', 500);
-    }
-    if (!is_file(CSV_PATH)) fail('送信するCSVがありません');
-    $conn = ftp_connection();
-    if (!@ftp_put($conn, FTP_REMOTE_PATH, CSV_PATH, FTP_BINARY)) { @ftp_close($conn); fail('FTPへの送信に失敗しました', 502); }
-    @ftp_close($conn);
+    if (empty($d['id'])) fail('id は必須です');
+    $title = trim(isset($d['title']) ? $d['title'] : '');
+    if ($title === '') fail('title は必須です');
+    $up = $pdo->prepare('UPDATE nodes SET title = ?, body = ?, updated_at = ? WHERE id = ?');
+    $up->execute(array($title, isset($d['body']) ? $d['body'] : '', now_ms(), $d['id']));
     ok();
-    break;
+  }
+
+  case 'node_delete': {
+    require_token();
+    $d = body_json();
+    if (empty($d['id'])) fail('id は必須です');
+    // 子孫をまとめて削除
+    $all = $pdo->query('SELECT id, parent_id FROM nodes')->fetchAll();
+    $childrenOf = array();
+    foreach ($all as $r) { $childrenOf[$r['parent_id']][] = $r['id']; }
+    $toDelete = array();
+    $stack = array($d['id']);
+    while ($stack) {
+      $cur = array_pop($stack);
+      $toDelete[] = $cur;
+      if (!empty($childrenOf[$cur])) foreach ($childrenOf[$cur] as $c) $stack[] = $c;
+    }
+    $pdo->beginTransaction();
+    $del = $pdo->prepare('DELETE FROM nodes WHERE id = ?');
+    foreach ($toDelete as $id) $del->execute(array($id));
+    $pdo->commit();
+    ok(array('deleted' => count($toDelete)));
+  }
+
+  case 'node_move': {
+    require_token();
+    $d = body_json();
+    if (empty($d['id'])) fail('id は必須です');
+    $dir = isset($d['dir']) && (int)$d['dir'] < 0 ? -1 : 1;
+    $cur = $pdo->prepare('SELECT id, parent_id, sort_order FROM nodes WHERE id = ?');
+    $cur->execute(array($d['id']));
+    $node = $cur->fetch();
+    if (!$node) fail('項目が存在しません');
+    $parent = $node['parent_id'];
+    $whereParent = $parent === null ? 'parent_id IS NULL' : 'parent_id = ?';
+    $args = $parent === null ? array() : array($parent);
+    // 隣接する兄弟を取得
+    if ($dir < 0) {
+      $q = $pdo->prepare("SELECT id, sort_order FROM nodes WHERE $whereParent AND sort_order < ? ORDER BY sort_order DESC LIMIT 1");
+      $q->execute(array_merge($args, array($node['sort_order'])));
+    } else {
+      $q = $pdo->prepare("SELECT id, sort_order FROM nodes WHERE $whereParent AND sort_order > ? ORDER BY sort_order ASC LIMIT 1");
+      $q->execute(array_merge($args, array($node['sort_order'])));
+    }
+    $sib = $q->fetch();
+    if (!$sib) ok(); // 端なので何もしない
+    $pdo->beginTransaction();
+    $swap = $pdo->prepare('UPDATE nodes SET sort_order = ?, updated_at = ? WHERE id = ?');
+    $swap->execute(array($sib['sort_order'], now_ms(), $node['id']));
+    $swap->execute(array($node['sort_order'], now_ms(), $sib['id']));
+    $pdo->commit();
+    ok();
+  }
+
+  case 'replace_all': {
+    // CSV取込などで全置換（トランザクション）。nodes:[{id,parent_id,sort_order,title,body}]
+    require_token();
+    $d = body_json();
+    if (!isset($d['nodes']) || !is_array($d['nodes'])) fail('nodes がありません');
+    $ts = now_ms();
+    $pdo->beginTransaction();
+    $pdo->exec('DELETE FROM nodes');
+    $ins = $pdo->prepare('INSERT INTO nodes (id, parent_id, sort_order, title, body, updated_at, created_at) VALUES (?,?,?,?,?,?,?)');
+    foreach ($d['nodes'] as $n) {
+      $ins->execute(array(
+        !empty($n['id']) ? $n['id'] : gen_id(),
+        isset($n['parent_id']) && $n['parent_id'] !== '' ? $n['parent_id'] : null,
+        isset($n['sort_order']) ? (int)$n['sort_order'] : 0,
+        isset($n['title']) ? $n['title'] : '（無題）',
+        isset($n['body']) ? $n['body'] : '',
+        $ts, $ts,
+      ));
+    }
+    $pdo->commit();
+    ok(array('count' => count($d['nodes'])));
+  }
+
+  case 'upload': {
+    require_token();
+    if (empty($_FILES['file']) || $_FILES['file']['error'] !== UPLOAD_ERR_OK) fail('ファイルがありません');
+    $f = $_FILES['file'];
+    if ($f['size'] > UPLOAD_MAX_BYTES) fail('ファイルが大きすぎます（上限 ' . round(UPLOAD_MAX_BYTES / 1048576, 1) . 'MB）');
+    $finfo = new finfo(FILEINFO_MIME_TYPE);
+    $mime = $finfo->file($f['tmp_name']);
+    $ext = array(
+      'image/jpeg' => 'jpg', 'image/png' => 'png', 'image/gif' => 'gif', 'image/webp' => 'webp',
+    );
+    if (!isset($ext[$mime])) fail('対応していない画像形式です（JPEG/PNG/GIF/WebP）');
+    if (!is_dir(UPLOAD_DIR)) @mkdir(UPLOAD_DIR, 0775, true);
+    $name = date('Ymd') . '_' . bin2hex(random_bytes(8)) . '.' . $ext[$mime];
+    $dest = rtrim(UPLOAD_DIR, '/') . '/' . $name;
+    if (!move_uploaded_file($f['tmp_name'], $dest)) fail('保存に失敗しました（uploadsの書き込み権限をご確認ください）', 500);
+    @chmod($dest, 0644);
+    ok(array('url' => rtrim(UPLOAD_URL, '/') . '/' . $name));
+  }
 
   default:
     fail('不明なアクションです: ' . $action, 404);

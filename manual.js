@@ -1,7 +1,8 @@
 /* ============================================================
-   Case By Case — manual.js  v1
+   Case By Case — manual.js  v2
    ツリー型 作業マニュアル（チャットボット風ナビゲーション）
-   データは localStorage に保存。JSON でエクスポート／インポート可能。
+   サーバー(PHP+DB)接続時は「サーバーが唯一の正データ」で複数人共有。
+   未接続時は localStorage で単体動作。CSV入出力・画像添付に対応。
    ============================================================ */
 (() => {
   'use strict';
@@ -190,8 +191,100 @@
   }
 
   /* ============================================================
+     SERVER DATA LAYER
+     サーバー(DB)接続時は「サーバーを唯一の正データ」とし、項目ごとに
+     追加/更新/削除/並び替えする（丸ごと上書きしないので同時編集に強い）。
+     未接続時は従来どおり localStorage で動作。
+     ============================================================ */
+  function buildTreeFromRows(rows) {
+    const map = new Map();
+    rows.forEach((r) => map.set(r.id, {
+      id: r.id, title: r.title, body: r.body || '', children: [],
+      _p: r.parent_id || '', _o: Number(r.sort_order) || 0,
+    }));
+    const roots = [];
+    map.forEach((n) => {
+      const p = n._p && map.get(n._p);
+      if (p && p !== n) p.children.push(n); else roots.push(n);
+    });
+    const clean = (arr) => {
+      arr.sort((a, b) => a._o - b._o);
+      arr.forEach((n) => { clean(n.children); delete n._o; delete n._p; });
+    };
+    clean(roots);
+    return roots;
+  }
+  function rowsHash(rows) {
+    return JSON.stringify(rows.map((r) => [r.id, r.parent_id, r.sort_order, r.title, r.body]));
+  }
+  let lastTreeHash = '';
+  function applyRows(rows) {
+    tree = buildTreeFromRows(rows);
+    persist();
+    lastTreeHash = rowsHash(rows);
+  }
+  async function reloadFromServer() {
+    const data = await apiCall('tree');
+    applyRows(data.nodes || []);
+  }
+
+  const serverMode = () => serverAvailable && dbConnected;
+
+  async function opCreate(parentId, title, body) {
+    if (serverMode()) {
+      await apiCall('node_create', { method: 'POST', body: { parent_id: parentId || '', title, body } });
+      await reloadFromServer();
+    } else {
+      const newNode = { id: uid(), title, body, children: [] };
+      if (parentId) { const p = findNode(parentId); if (p) p.children.push(newNode); }
+      else tree.push(newNode);
+      persist();
+    }
+  }
+  async function opUpdate(id, title, body) {
+    if (serverMode()) {
+      await apiCall('node_update', { method: 'POST', body: { id, title, body } });
+      await reloadFromServer();
+    } else {
+      const n = findNode(id); if (n) { n.title = title; n.body = body; } persist();
+    }
+  }
+  async function opDelete(id) {
+    if (serverMode()) {
+      await apiCall('node_delete', { method: 'POST', body: { id } });
+      await reloadFromServer();
+    } else {
+      const loc = locate(id); if (loc) loc.arr.splice(loc.index, 1); persist();
+    }
+  }
+  async function opMove(id, dir) {
+    if (serverMode()) {
+      await apiCall('node_move', { method: 'POST', body: { id, dir } });
+      await reloadFromServer();
+    } else {
+      const loc = locate(id);
+      if (loc) { const j = loc.index + dir; if (j >= 0 && j < loc.arr.length) [loc.arr[loc.index], loc.arr[j]] = [loc.arr[j], loc.arr[loc.index]]; }
+      persist();
+    }
+  }
+  async function opReplaceAll(nodes) {
+    if (serverMode()) {
+      await apiCall('replace_all', { method: 'POST', body: { nodes: treeToRows(nodes) } });
+      await reloadFromServer();
+    } else {
+      tree = nodes; persist();
+    }
+  }
+
+  /* ============================================================
      BODY rendering (very small markdown-ish)
      ============================================================ */
+  function safeUrl(u) {
+    u = String(u).trim();
+    if (/^(https?:\/\/|\/?uploads\/)/i.test(u)) return u;
+    if (/^[\w./-]+\.(png|jpe?g|gif|webp)$/i.test(u)) return u;
+    return null;
+  }
   function renderBody(text) {
     const lines = String(text).replace(/\r\n/g, '\n').split('\n');
     let html = '';
@@ -202,7 +295,12 @@
 
     for (const raw of lines) {
       const line = raw.trimEnd();
-      if (/^#{1,3}\s+/.test(line)) {
+      const img = line.match(/^!\[([^\]]*)\]\(([^)]+)\)\s*$/);
+      if (img) {
+        closeList();
+        const u = safeUrl(img[2]);
+        if (u) html += `<img class="tm-body-img" src="${esc(u)}" alt="${esc(img[1])}" loading="lazy">`;
+      } else if (/^#{1,3}\s+/.test(line)) {
         closeList();
         html += `<h3>${inline(line.replace(/^#{1,3}\s+/, ''))}</h3>`;
       } else if (/^[-*]\s+/.test(line)) {
@@ -426,16 +524,12 @@
     }
   });
 
-  function moveNode(id, dir) {
-    const loc = locate(id);
-    if (!loc) return;
-    const { arr, index } = loc;
-    const j = index + dir;
-    if (j < 0 || j >= arr.length) return;
-    [arr[index], arr[j]] = [arr[j], arr[index]];
-    persist();
-    renderEdit();
-    flashSaved('並び順を変更しました');
+  async function moveNode(id, dir) {
+    try {
+      await opMove(id, dir);
+      renderEdit();
+      flashSaved('並び順を変更しました');
+    } catch (e) { flashSaved('変更に失敗：' + e.message); }
   }
 
   $('#addRootBtn').addEventListener('click', () => openNodeDialog(null, null));
@@ -462,40 +556,91 @@
       nodeTitleInput.value = '';
       nodeBodyInput.value = '';
     }
+    if (nodeErrorEl) nodeErrorEl.textContent = '';
+    if (nodeImgBtn) {
+      nodeImgBtn.disabled = false;
+      nodeImgBtn.title = serverMode() ? '' : '画像はサーバー(DB)接続時のみ';
+    }
     nodeDialog.showModal();
     nodeTitleInput.focus();
   }
 
-  nodeForm.addEventListener('submit', (e) => {
+  nodeForm.addEventListener('submit', async (e) => {
     e.preventDefault();
     const title = nodeTitleInput.value.trim();
     if (!title) return;
     const body = nodeBodyInput.value;
-    let appendRow = null;
-    if (dialogTarget.mode === 'edit') {
-      const node = findNode(dialogTarget.id);
-      if (node) { node.title = title; node.body = body; }
-    } else {
-      const newNode = { id: uid(), title, body, children: [] };
-      if (dialogTarget.parentId) {
-        const parent = findNode(dialogTarget.parentId);
-        if (parent) {
-          parent.children.push(newNode);
-          openNodes.add(parent.id); persistOpen();
-          appendRow = { id: newNode.id, parent_id: parent.id, sort_order: parent.children.length - 1, title, body };
-        }
+    const submitBtn = nodeForm.querySelector('button[type=submit]');
+    submitBtn.disabled = true;
+    nodeError('');
+    try {
+      if (dialogTarget.mode === 'edit') {
+        await opUpdate(dialogTarget.id, title, body);
       } else {
-        tree.push(newNode);
-        appendRow = { id: newNode.id, parent_id: '', sort_order: tree.length - 1, title, body };
+        if (dialogTarget.parentId) { openNodes.add(dialogTarget.parentId); persistOpen(); }
+        await opCreate(dialogTarget.parentId, title, body);
       }
+      nodeDialog.close();
+      renderEdit();
+      flashSaved();
+    } catch (err) {
+      nodeError('保存に失敗しました：' + err.message);
+    } finally {
+      submitBtn.disabled = false;
     }
-    persist();
-    nodeDialog.close();
-    renderEdit();
-    flashSaved();
-    if (appendRow) maybeAutoAppend(appendRow); // サーバーCSVへ自動追記（設定時）
   });
   $('#nodeCancelBtn').addEventListener('click', () => nodeDialog.close());
+
+  /* ---------- 画像アップロード / 貼り付け ---------- */
+  const nodeImgBtn = $('#nodeImgBtn');
+  const nodeImgFile = $('#nodeImgFile');
+  const nodeErrorEl = $('#nodeError');
+  function nodeError(msg) { if (nodeErrorEl) nodeErrorEl.textContent = msg || ''; }
+
+  function insertAtCursor(ta, text) {
+    const s = ta.selectionStart || 0, en = ta.selectionEnd || 0;
+    ta.value = ta.value.slice(0, s) + text + ta.value.slice(en);
+    ta.selectionStart = ta.selectionEnd = s + text.length;
+    ta.focus();
+  }
+  async function uploadImage(file) {
+    if (!serverMode()) { nodeError('画像はサーバー(DB)接続時のみ追加できます'); return; }
+    if (!/^image\//.test(file.type)) { nodeError('画像ファイルを選んでください'); return; }
+    try {
+      nodeError('画像をアップロード中…');
+      const fd = new FormData();
+      fd.append('file', file);
+      const headers = {};
+      const tok = apiToken();
+      if (tok) headers['X-Api-Token'] = tok;
+      const res = await fetch(`${API}?action=upload`, { method: 'POST', headers, body: fd });
+      const data = await res.json();
+      if (!res.ok || data.ok === false) throw new Error(data.error || ('HTTP ' + res.status));
+      insertAtCursor(nodeBodyInput, `\n![](${data.url})\n`);
+      nodeError('画像を挿入しました');
+    } catch (e) { nodeError('画像アップロード失敗：' + e.message); }
+  }
+  if (nodeImgBtn) {
+    nodeImgBtn.addEventListener('click', () => {
+      if (!serverMode()) { nodeError('画像はサーバー(DB)接続時のみ追加できます'); return; }
+      nodeImgFile.click();
+    });
+    nodeImgFile.addEventListener('change', () => {
+      const f = nodeImgFile.files[0]; if (f) uploadImage(f); nodeImgFile.value = '';
+    });
+    nodeBodyInput.addEventListener('paste', (e) => {
+      const items = e.clipboardData && e.clipboardData.items;
+      if (!items) return;
+      for (const it of items) {
+        if (it.type && it.type.indexOf('image/') === 0) {
+          e.preventDefault();
+          const f = it.getAsFile();
+          if (f) uploadImage(f);
+          break;
+        }
+      }
+    });
+  }
 
   /* ---------- confirm dialog ---------- */
   const confirmDialog = $('#confirmDialog');
@@ -521,9 +666,10 @@
     if (!node) return;
     const count = countDescendants(node);
     const extra = count > 0 ? `（子項目 ${count} 件も一緒に削除されます）` : '';
-    askConfirm(`「${node.title}」を削除しますか？${extra}`, () => {
-      const loc = locate(id);
-      if (loc) { loc.arr.splice(loc.index, 1); persist(); renderEdit(); flashSaved('削除しました'); }
+    const shared = serverMode() ? '（共有データから削除されます）' : '';
+    askConfirm(`「${node.title}」を削除しますか？${extra}${shared}`, async () => {
+      try { await opDelete(id); renderEdit(); flashSaved('削除しました'); }
+      catch (e) { flashSaved('削除に失敗：' + e.message); }
     }, '削除');
   }
   function countDescendants(node) {
@@ -556,12 +702,14 @@
     reader.onload = () => {
       try {
         const clean = sanitize(csvToTree(reader.result));
-        askConfirm('現在のデータを、読み込んだCSVの内容で置き換えますか？', () => {
-          tree = clean;
-          persist();
-          navRestart();
-          renderEdit();
-          flashSaved('CSVを取り込みました');
+        const shared = serverMode() ? '（サーバー上の全員の共有データが置き換わります）' : '';
+        askConfirm(`現在のデータを、読み込んだCSVの内容で置き換えますか？${shared}`, async () => {
+          try {
+            await opReplaceAll(clean);
+            navRestart();
+            renderEdit();
+            flashSaved('CSVを取り込みました');
+          } catch (e) { saveStatus.textContent = '✗ 取込に失敗しました：' + e.message; }
         }, '置き換える');
       } catch (err) {
         saveStatus.textContent = '✗ 読み込みに失敗しました：' + err.message;
@@ -583,39 +731,41 @@
   }
 
   $('#resetBtn').addEventListener('click', () => {
-    askConfirm('すべてのデータを初期状態（サンプル）に戻しますか？この操作は元に戻せません。', () => {
-      tree = seedData();
-      openNodes = new Set();
-      persist();
-      persistOpen();
-      navRestart();
-      renderEdit();
-      flashSaved('初期化しました');
+    const shared = serverMode() ? ' サーバー上の全員の共有データがサンプルに置き換わります。' : '';
+    askConfirm('すべてのデータを初期状態（サンプル）に戻しますか？この操作は元に戻せません。' + shared, async () => {
+      try {
+        await opReplaceAll(seedData());
+        openNodes = new Set();
+        persistOpen();
+        navRestart();
+        renderEdit();
+        flashSaved('初期化しました');
+      } catch (e) { saveStatus.textContent = '✗ 初期化に失敗しました：' + e.message; }
     }, '初期化する');
   });
 
   /* ============================================================
-     SERVER / FTP SYNC  (PHP backend: api.php)
+     SERVER SYNC  (PHP + DB backend: api.php)
      ============================================================ */
   const API = 'api.php';
   const TOKEN_KEY = 'treeManual.apiToken.v1';
-  const AUTO_KEY = 'treeManual.autoAppend.v1';
   const apiTokenInput = $('#apiToken');
-  const autoAppendChk = $('#autoAppend');
   const serverStatusEl = $('#serverStatus');
   const syncStatusEl = $('#syncStatus');
+  const serverNoteEl = $('#serverNote');
 
-  let serverAvailable = false;
-  let ftpConfigured = false;
+  let serverAvailable = false;   // api.php に到達できる
+  let dbConnected = false;       // DB が使える → サーバーが正データ
+  let hasToken = false;          // サーバー側でトークン必須か
+  let dbError = null;
 
   apiTokenInput.value = localStorage.getItem(TOKEN_KEY) || '';
-  autoAppendChk.checked = localStorage.getItem(AUTO_KEY) === '1';
-  apiTokenInput.addEventListener('change', () => {
+  apiTokenInput.addEventListener('change', async () => {
     localStorage.setItem(TOKEN_KEY, apiTokenInput.value.trim());
-    detectServer();
-  });
-  autoAppendChk.addEventListener('change', () => {
-    localStorage.setItem(AUTO_KEY, autoAppendChk.checked ? '1' : '0');
+    await detectServer();
+    if (serverMode()) {
+      try { await reloadFromServer(); if (!editView.hidden) renderEdit(); else navRestart(); } catch (e) {}
+    }
   });
 
   function apiToken() { return (apiTokenInput.value || '').trim(); }
@@ -637,97 +787,85 @@
     const res = await fetch(`${API}?action=${encodeURIComponent(action)}`, opts);
     let data = null;
     try { data = await res.json(); } catch (e) { /* non-JSON */ }
-    // PHP 未対応のホストが api.php を素のテキストで 200 返す場合などを弾く
     if (data === null || typeof data !== 'object') throw new Error('サーバー応答が不正です（PHP未対応の可能性）');
-    if (!res.ok || data.ok === false) {
-      throw new Error(data.error || data.message || `HTTP ${res.status}`);
-    }
+    if (!res.ok || data.ok === false) throw new Error(data.error || data.message || `HTTP ${res.status}`);
     return data;
   }
 
   function setServerStatus() {
     serverStatusEl.classList.remove('is-off', 'is-on', 'is-ftp');
-    if (!serverAvailable) {
-      serverStatusEl.classList.add('is-off');
-      serverStatusEl.textContent = 'サーバー未接続';
-    } else if (ftpConfigured) {
-      serverStatusEl.classList.add('is-ftp');
-      serverStatusEl.textContent = '接続済み（FTP設定あり）';
-    } else {
+    if (serverAvailable && dbConnected) {
       serverStatusEl.classList.add('is-on');
-      serverStatusEl.textContent = '接続済み';
+      serverStatusEl.textContent = hasToken ? 'DB接続済み（共有中・要トークン）' : 'DB接続済み（共有中）';
+    } else if (serverAvailable && !dbConnected) {
+      serverStatusEl.classList.add('is-ftp');
+      serverStatusEl.textContent = 'DB未接続（設定を確認）';
+    } else {
+      serverStatusEl.classList.add('is-off');
+      serverStatusEl.textContent = 'サーバー未接続（この端末のみ）';
     }
-    // enable/disable buttons
-    ['serverLoadBtn', 'serverSaveBtn'].forEach((id) => { $('#' + id).disabled = !serverAvailable; });
-    ['ftpPullBtn', 'ftpPushBtn'].forEach((id) => { $('#' + id).disabled = !(serverAvailable && ftpConfigured); });
+    const dis = !(serverAvailable && dbConnected);
+    const rb = $('#reloadBtn'), mb = $('#migrateBtn');
+    if (rb) rb.disabled = dis;
+    if (mb) mb.disabled = dis;
+    if (serverNoteEl && serverAvailable && !dbConnected && dbError) {
+      serverNoteEl.textContent = 'DBに接続できません（config.php の設定をご確認ください）: ' + dbError;
+    }
   }
 
   async function detectServer() {
     try {
       const cfg = await apiCall('config');
       serverAvailable = true;
-      ftpConfigured = !!cfg.ftpConfigured;
+      dbConnected = !!cfg.dbConnected;
+      hasToken = !!cfg.hasToken;
+      dbError = cfg.error || null;
     } catch (e) {
-      serverAvailable = false;
-      ftpConfigured = false;
+      serverAvailable = false; dbConnected = false; hasToken = false; dbError = null;
     }
     setServerStatus();
   }
 
-  function replaceTreeFromCsv(csv, label) {
-    const clean = sanitize(csvToTree(csv || ''));
-    if (clean.length === 0) { syncMsg('サーバーのCSVは空でした', true); return; }
-    askConfirm(`${label}の内容で、現在のデータを置き換えますか？`, () => {
-      tree = clean;
-      persist();
-      navRestart();
-      renderEdit();
-      syncMsg(`${label}を読み込みました`);
-    }, '置き換える');
-  }
-
-  $('#serverLoadBtn').addEventListener('click', async () => {
+  $('#reloadBtn').addEventListener('click', async () => {
+    if (!serverMode()) { syncMsg('サーバー未接続です', true); return; }
     try {
-      syncMsg('サーバーから読込中…');
-      const data = await apiCall('load');
-      replaceTreeFromCsv(data.csv, 'サーバーCSV');
-    } catch (e) { syncMsg('読込に失敗：' + e.message, true); }
+      syncMsg('最新に更新中…');
+      await reloadFromServer();
+      if (!editView.hidden) renderEdit(); else navRestart();
+      syncMsg('最新に更新しました');
+    } catch (e) { syncMsg('更新に失敗：' + e.message, true); }
   });
 
-  $('#serverSaveBtn').addEventListener('click', async () => {
-    try {
-      syncMsg('サーバーへ保存中…');
-      await apiCall('save', { method: 'POST', body: { csv: rowsToCsv(treeToRows()) } });
-      syncMsg('サーバーCSVへ保存しました');
-    } catch (e) { syncMsg('保存に失敗：' + e.message, true); }
-  });
-
-  $('#ftpPullBtn').addEventListener('click', async () => {
-    try {
-      syncMsg('FTPから取得中…');
-      const data = await apiCall('ftp_pull', { method: 'POST' });
-      replaceTreeFromCsv(data.csv, 'FTPのCSV');
-    } catch (e) { syncMsg('FTP取得に失敗：' + e.message, true); }
-  });
-
-  $('#ftpPushBtn').addEventListener('click', async () => {
-    askConfirm('現在の内容をCSVに変換し、FTP先を一括更新します。よろしいですか？', async () => {
+  $('#migrateBtn').addEventListener('click', () => {
+    if (!serverMode()) { syncMsg('サーバー未接続です', true); return; }
+    askConfirm('この端末の現在の内容で、サーバー（全員の共有データ）を置き換えて登録します。よろしいですか？', async () => {
       try {
-        syncMsg('FTPへ送信中…');
-        await apiCall('ftp_push', { method: 'POST', body: { csv: rowsToCsv(treeToRows()) } });
-        syncMsg('FTPへ送信（一括更新）しました');
-      } catch (e) { syncMsg('FTP送信に失敗：' + e.message, true); }
-    }, '送信する');
+        syncMsg('サーバーへ登録中…');
+        await apiCall('replace_all', { method: 'POST', body: { nodes: treeToRows() } });
+        await reloadFromServer();
+        renderEdit();
+        syncMsg('サーバーへ登録しました');
+      } catch (e) { syncMsg('登録に失敗：' + e.message, true); }
+    }, '登録する');
   });
 
-  // 項目追加時にサーバーCSVへ1行追記（設定ON かつ 接続時のみ）
-  async function maybeAutoAppend(row) {
-    if (!autoAppendChk.checked || !serverAvailable) return;
+  /* ---------- 他端末の変更を反映（軽いポーリング + 可視化時） ---------- */
+  async function pollTick() {
+    if (!serverMode() || document.hidden) return;
+    if (nodeDialog.open || confirmDialog.open) return; // 編集中は邪魔しない
     try {
-      await apiCall('append', { method: 'POST', body: { rows: [row] } });
-      syncMsg('サーバーCSVに追記しました');
-    } catch (e) { syncMsg('自動追記に失敗：' + e.message, true); }
+      const data = await apiCall('tree');
+      const rows = data.nodes || [];
+      const h = rowsHash(rows);
+      if (h !== lastTreeHash) {
+        applyRows(rows);
+        if (!editView.hidden) renderEdit(); else renderNav();
+        syncMsg('他の端末の変更を反映しました');
+      }
+    } catch (e) { /* 一時的なエラーは無視 */ }
   }
+  setInterval(pollTick, 30000);
+  document.addEventListener('visibilitychange', () => { if (!document.hidden) pollTick(); });
 
   /* ============================================================
      MODE SWITCH
@@ -842,7 +980,12 @@
   }
 
   /* ---------- boot ---------- */
-  setServerStatus();
-  detectServer();
-  setMode('nav');
+  (async () => {
+    setServerStatus();
+    await detectServer();
+    if (serverMode()) {
+      try { await reloadFromServer(); } catch (e) { /* fallback: localStorage */ }
+    }
+    setMode('nav');
+  })();
 })();
