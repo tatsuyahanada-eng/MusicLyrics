@@ -772,22 +772,74 @@
       navigator.serviceWorker.register('sw.js').catch(() => {});
     });
   }
+  const DISMISS_KEY = 'treeManual.installDismissed.v1';
+  const RENAG_MS = 7 * 24 * 60 * 60 * 1000; // 「あとで」から7日後に再表示
   let deferredPrompt = null;
-  const installHint = $('#installHint');
+
+  const installHint = $('#installHint');   // フッターの手動トリガー
   const installBtn = $('#installBtn');
+  const banner = $('#installBanner');
+  const installMsg = $('#installMsg');
+
+  const isStandalone = () =>
+    window.matchMedia('(display-mode: standalone)').matches || navigator.standalone === true;
+  const isIOS = () =>
+    /iphone|ipad|ipod/i.test(navigator.userAgent) && !window.MSStream;
+  const recentlyDismissed = () => {
+    const t = Number(localStorage.getItem(DISMISS_KEY) || 0);
+    return t && (Date.now() - t) < RENAG_MS;
+  };
+
+  function showBanner(mode) {
+    if (isStandalone() || recentlyDismissed()) return;
+    if (mode === 'ios') {
+      banner.classList.add('is-ios');
+      installMsg.innerHTML =
+        'Safari で <b>共有</b> ボタン → <b>「ホーム画面に追加」</b> を選ぶと、アプリのように使えます。';
+    }
+    banner.hidden = false;
+  }
+  function hideBanner(remember) {
+    banner.hidden = true;
+    if (remember) localStorage.setItem(DISMISS_KEY, String(Date.now()));
+  }
+
+  async function runInstall() {
+    if (!deferredPrompt) return;
+    deferredPrompt.prompt();
+    const res = await deferredPrompt.userChoice;
+    deferredPrompt = null;
+    installHint.hidden = true;
+    hideBanner(res && res.outcome === 'dismissed');
+  }
+
+  // Android / デスクトップ Chrome 等：インストール可能になったら確認バナー表示
   window.addEventListener('beforeinstallprompt', (e) => {
     e.preventDefault();
     deferredPrompt = e;
-    installHint.hidden = false;
+    installHint.hidden = false;   // フッターにも常設の導線
+    showBanner('prompt');
   });
-  installBtn.addEventListener('click', async () => {
-    if (!deferredPrompt) return;
-    deferredPrompt.prompt();
-    await deferredPrompt.userChoice;
-    deferredPrompt = null;
+
+  $('#installNow').addEventListener('click', runInstall);
+  installBtn.addEventListener('click', () => {
+    if (deferredPrompt) runInstall();
+    else if (isIOS()) { localStorage.removeItem(DISMISS_KEY); showBanner('ios'); }
+  });
+  $('#installLater').addEventListener('click', () => hideBanner(true));
+  $('#installClose').addEventListener('click', () => hideBanner(true));
+
+  window.addEventListener('appinstalled', () => {
     installHint.hidden = true;
+    hideBanner(false);
+    deferredPrompt = null;
   });
-  window.addEventListener('appinstalled', () => { installHint.hidden = true; });
+
+  // iOS Safari は beforeinstallprompt 非対応 → 手動で案内バナーを表示
+  if (isIOS() && !isStandalone()) {
+    installHint.hidden = false;
+    setTimeout(() => showBanner('ios'), 800);
+  }
 
   /* ---------- boot ---------- */
   setServerStatus();

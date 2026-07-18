@@ -8,7 +8,7 @@
   <title>Case By Case — 作業マニュアル</title>
   <link rel="manifest" href="manifest.webmanifest">
   <link rel="icon" href="icon.svg" type="image/svg+xml">
-  <link rel="apple-touch-icon" href="icon.svg">
+  <link rel="apple-touch-icon" href="icon-192.png">
   <link rel="stylesheet" href="manual.css?v=2">
 </head>
 <body class="tm-body">
@@ -142,6 +142,20 @@
     </span>
     <span class="tm-footer-note">データはこの端末のブラウザに保存されます</span>
   </footer>
+
+  <!-- ===== Install banner ===== -->
+  <div id="installBanner" class="tm-install-banner" hidden role="dialog" aria-label="アプリのインストール">
+    <img class="tm-install-icon" src="icon-192.png" alt="" width="52" height="52">
+    <div class="tm-install-text">
+      <strong class="tm-install-heading">アプリとしてインストールしますか？</strong>
+      <span id="installMsg" class="tm-install-desc">ホーム画面に追加すると、アプリのように起動できオフラインでも使えます。</span>
+    </div>
+    <div class="tm-install-actions">
+      <button id="installLater" class="tm-btn tm-btn-outline" type="button">あとで</button>
+      <button id="installNow" class="tm-btn tm-btn-primary" type="button">インストール</button>
+    </div>
+    <button id="installClose" class="tm-install-close" type="button" aria-label="閉じる">&#10005;</button>
+  </div>
 
   <!-- ===== Node Edit Dialog ===== -->
   <dialog id="nodeDialog" class="tm-dialog">

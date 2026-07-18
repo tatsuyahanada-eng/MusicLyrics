@@ -574,6 +574,58 @@
 .tm-dialog-actions { display: flex; justify-content: flex-end; gap: 10px; }
 .tm-confirm-msg { font-size: 14px; line-height: 1.7; color: var(--tm-text); }
 
+/* ---------- Install banner ---------- */
+.tm-install-banner {
+  position: fixed;
+  z-index: 50;
+  left: 50%;
+  bottom: max(16px, env(safe-area-inset-bottom));
+  transform: translateX(-50%);
+  width: min(560px, calc(100vw - 24px));
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 14px 44px 14px 16px;
+  background: linear-gradient(180deg, rgba(14, 34, 48, 0.98), rgba(9, 24, 36, 0.98));
+  border: 1px solid var(--tm-line-strong);
+  border-radius: 10px;
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.6), 0 0 24px rgba(63, 224, 224, 0.18);
+  backdrop-filter: blur(6px);
+  animation: tm-install-in .35s ease;
+}
+@keyframes tm-install-in {
+  from { opacity: 0; transform: translate(-50%, 16px); }
+  to   { opacity: 1; transform: translate(-50%, 0); }
+}
+.tm-install-icon {
+  flex-shrink: 0;
+  width: 52px; height: 52px;
+  border-radius: 12px;
+  border: 1px solid var(--tm-line);
+}
+.tm-install-text { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 3px; }
+.tm-install-heading { font-size: 14px; color: var(--tm-cyan); letter-spacing: .5px; }
+.tm-install-desc { font-size: 12px; line-height: 1.6; color: var(--tm-muted); }
+.tm-install-actions { flex-shrink: 0; display: flex; gap: 8px; }
+.tm-install-close {
+  position: absolute;
+  top: 8px; right: 10px;
+  width: 24px; height: 24px;
+  background: transparent;
+  border: none;
+  color: var(--tm-muted);
+  cursor: pointer;
+  font-size: 13px;
+  line-height: 1;
+}
+.tm-install-close:hover { color: var(--tm-text); }
+.tm-install-banner.is-ios .tm-install-actions { display: none; }
+
+@media (max-width: 520px) {
+  .tm-install-banner { flex-wrap: wrap; padding-right: 40px; }
+  .tm-install-actions { width: 100%; justify-content: flex-end; }
+}
+
 /* ---------- Footer ---------- */
 .tm-footer {
   position: relative;
