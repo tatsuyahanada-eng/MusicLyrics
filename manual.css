@@ -373,8 +373,26 @@
 
 /* ---------- Nav: current location & content ---------- */
 .tm-current { padding: 4px 2px 2px; }
+.tm-current-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+.tm-current-headtext { min-width: 0; }
 .tm-current-kicker { font-family: var(--tm-mono); font-size: 11px; letter-spacing: 2px; color: var(--tm-cyan-dim); }
 .tm-current-title { font-size: clamp(18px, 3vw, 24px); color: var(--tm-cyan); margin: 4px 0 12px; letter-spacing: 1px; }
+.tm-editthis {
+  flex-shrink: 0;
+  font-family: var(--tm-mono);
+  font-size: 12px;
+  letter-spacing: 1px;
+  color: var(--tm-cyan);
+  background: transparent;
+  border: 1px solid var(--tm-line-strong);
+  padding: 8px 13px;
+  border-radius: 4px;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background .15s, box-shadow .15s;
+}
+.tm-editthis:hover { background: rgba(63, 224, 224, 0.12); box-shadow: 0 0 12px rgba(63, 224, 224, 0.2); }
+.tm-content-empty { border-left-color: var(--tm-line-strong); }
 .tm-content-card {
   background: rgba(9, 30, 40, 0.7);
   border: 1px solid var(--tm-line);

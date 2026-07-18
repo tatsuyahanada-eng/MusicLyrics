@@ -462,16 +462,21 @@
       const leaf = kids.length === 0;
       const meta = nodeMetaText(curNode);
       html += `<div class="tm-current">
-        <div class="tm-current-kicker">現在地 · ${depthLabel(navPath.length - 1)}</div>
-        <h2 class="tm-current-title">${esc(curNode.title)}</h2>`;
+        <div class="tm-current-head">
+          <div class="tm-current-headtext">
+            <div class="tm-current-kicker">現在地 · ${depthLabel(navPath.length - 1)}</div>
+            <h2 class="tm-current-title">${esc(curNode.title)}</h2>
+          </div>
+          <button class="tm-editthis" data-editthis="${curNode.id}" type="button">&#9998; この項目を編集</button>
+        </div>`;
       if (curNode.body && curNode.body.trim()) {
         html += `<div class="tm-content-card ${leaf ? 'is-final' : ''}">
           ${leaf ? '<span class="tm-leaf-tag">最終作業項目</span>' : ''}
           <div class="tm-content-body">${renderBody(curNode.body)}</div>
           ${meta ? `<div class="tm-content-meta">${esc(meta)}</div>` : ''}
         </div>`;
-      } else if (leaf) {
-        html += `<div class="tm-content-card"><p class="tm-emptynote">この項目にはまだ内容が登録されていません。編集モードから追加できます。</p></div>`;
+      } else {
+        html += `<div class="tm-content-card tm-content-empty"><p class="tm-emptynote">まだ内容がありません。「この項目を編集」から手順や画像・ファイルを追加できます。</p></div>`;
       }
       html += `</div>`;
     }
@@ -518,6 +523,10 @@
   choiceDock.addEventListener('click', (e) => {
     const btn = e.target.closest('[data-goto]');
     if (btn) navGoto(btn.dataset.goto);
+  });
+  chatLog.addEventListener('click', (e) => {
+    const eb = e.target.closest('[data-editthis]');
+    if (eb) openNodeDialog(eb.dataset.editthis); // 案内モードから直接編集
   });
   breadcrumbBar.addEventListener('click', (e) => {
     if (e.target.closest('[data-crumb-home]')) return navRestart();
@@ -815,6 +824,7 @@
       }
       nodeDialog.close();
       renderEdit();
+      if (!navView.hidden) renderNav(); // 案内モードから編集した場合は即反映
       flashSaved();
     } catch (err) {
       nodeError('保存に失敗しました：' + err.message);
