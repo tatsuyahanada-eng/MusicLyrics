@@ -383,6 +383,76 @@
   margin-bottom: 10px;
 }
 
+/* ---------- Data sync panel ---------- */
+.tm-sync {
+  border: 1px solid var(--tm-line);
+  border-radius: 4px;
+  background: rgba(8, 22, 32, 0.55);
+  margin-bottom: 14px;
+}
+.tm-sync-summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 11px 14px;
+  cursor: pointer;
+  list-style: none;
+  font-size: 13px;
+}
+.tm-sync-summary::-webkit-details-marker { display: none; }
+.tm-sync-title { font-family: var(--tm-mono); letter-spacing: 1px; color: var(--tm-cyan); }
+.tm-server-status {
+  font-family: var(--tm-mono);
+  font-size: 11px;
+  letter-spacing: 1px;
+  padding: 2px 10px;
+  border-radius: 3px;
+  border: 1px solid var(--tm-line);
+}
+.tm-server-status.is-off { color: var(--tm-muted); }
+.tm-server-status.is-on { color: #041018; background: var(--tm-cyan); border-color: var(--tm-cyan); }
+.tm-server-status.is-ftp { color: #041018; background: var(--tm-warn); border-color: var(--tm-warn); }
+
+.tm-sync-body {
+  padding: 0 14px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  border-top: 1px solid var(--tm-line);
+  padding-top: 14px;
+}
+.tm-sync-note { font-size: 12px; line-height: 1.7; color: var(--tm-muted); }
+.tm-sync-note code {
+  font-family: var(--tm-mono);
+  color: var(--tm-cyan);
+  background: rgba(63, 224, 224, 0.08);
+  padding: 1px 5px;
+  border-radius: 3px;
+}
+.tm-sync-field { display: flex; flex-direction: column; gap: 5px; max-width: 360px; }
+.tm-sync-field-label { font-size: 12px; color: var(--tm-muted); }
+.tm-sync-group { display: flex; flex-direction: column; gap: 8px; }
+.tm-sync-group-label {
+  font-family: var(--tm-mono);
+  font-size: 11px;
+  letter-spacing: 1px;
+  color: var(--tm-muted);
+}
+.tm-sync-row { display: flex; flex-wrap: wrap; gap: 8px; }
+.tm-sync-toggle {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  color: var(--tm-text);
+  cursor: pointer;
+}
+.tm-sync-toggle input { width: 16px; height: 16px; accent-color: var(--tm-cyan); }
+.tm-sync-status { min-height: 18px; font-family: var(--tm-mono); font-size: 12px; color: var(--tm-cyan); }
+.tm-sync-status.is-err { color: var(--tm-danger); }
+.tm-btn:disabled { opacity: .4; cursor: not-allowed; }
+
 .tm-edittree { display: flex; flex-direction: column; gap: 6px; }
 
 .tm-treenode {

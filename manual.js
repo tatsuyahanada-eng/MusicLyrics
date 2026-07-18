@@ -99,6 +99,97 @@
   }
 
   /* ============================================================
+     CSV  <->  TREE
+     フラットな隣接リスト形式: id, parent_id, sort_order, title, body
+     （将来の MySQL テーブルにそのまま対応）
+     ============================================================ */
+  const CSV_HEADER = ['id', 'parent_id', 'sort_order', 'title', 'body'];
+
+  function csvCell(v) {
+    v = v == null ? '' : String(v);
+    return /[",\r\n]/.test(v) ? '"' + v.replace(/"/g, '""') + '"' : v;
+  }
+  function rowsToCsv(rows) {
+    const lines = [CSV_HEADER.join(',')];
+    for (const r of rows) lines.push(CSV_HEADER.map((h) => csvCell(r[h])).join(','));
+    return lines.join('\r\n') + '\r\n';
+  }
+  // RFC4180-ish parser: handles quotes, commas, and newlines inside fields.
+  function parseCsv(text) {
+    const rows = [];
+    let row = [], field = '', inQ = false;
+    text = String(text).replace(/^﻿/, '');
+    for (let i = 0; i < text.length; i++) {
+      const c = text[i];
+      if (inQ) {
+        if (c === '"') {
+          if (text[i + 1] === '"') { field += '"'; i++; }
+          else inQ = false;
+        } else field += c;
+      } else if (c === '"') {
+        inQ = true;
+      } else if (c === ',') {
+        row.push(field); field = '';
+      } else if (c === '\r') {
+        /* ignore */
+      } else if (c === '\n') {
+        row.push(field); rows.push(row); row = []; field = '';
+      } else field += c;
+    }
+    if (field.length || row.length) { row.push(field); rows.push(row); }
+    return rows;
+  }
+
+  function treeToRows(nodes = tree, parentId = '', out = []) {
+    nodes.forEach((n, idx) => {
+      out.push({ id: n.id, parent_id: parentId, sort_order: idx, title: n.title, body: n.body || '' });
+      treeToRows(n.children || [], n.id, out);
+    });
+    return out;
+  }
+
+  function csvToTree(text) {
+    const grid = parseCsv(text).filter((r) => r.length && r.some((c) => c !== ''));
+    if (grid.length === 0) return [];
+    // header detection
+    let start = 0;
+    const first = grid[0].map((s) => s.trim().toLowerCase());
+    const idx = { id: 0, parent_id: 1, sort_order: 2, title: 3, body: 4 };
+    if (first.includes('title') || first.includes('id')) {
+      CSV_HEADER.forEach((h) => { const p = first.indexOf(h); if (p >= 0) idx[h] = p; });
+      start = 1;
+    }
+    const map = new Map();
+    const orderOf = [];
+    for (let i = start; i < grid.length; i++) {
+      const r = grid[i];
+      const id = (r[idx.id] || '').trim() || uid();
+      map.set(id, {
+        id,
+        title: r[idx.title] != null ? r[idx.title] : '（無題）',
+        body: r[idx.body] != null ? r[idx.body] : '',
+        children: [],
+        _parent: (r[idx.parent_id] || '').trim(),
+        _order: Number(r[idx.sort_order]) || i,
+      });
+      orderOf.push(id);
+    }
+    const roots = [];
+    for (const id of orderOf) {
+      const node = map.get(id);
+      const parent = node._parent && map.get(node._parent);
+      if (parent && parent !== node) parent.children.push(node);
+      else roots.push(node);
+    }
+    const clean = (arr) => {
+      arr.sort((a, b) => a._order - b._order);
+      arr.forEach((n) => { clean(n.children); delete n._order; delete n._parent; });
+    };
+    clean(roots);
+    return roots;
+  }
+
+  /* ============================================================
      BODY rendering (very small markdown-ish)
      ============================================================ */
   function renderBody(text) {
@@ -380,6 +471,7 @@
     const title = nodeTitleInput.value.trim();
     if (!title) return;
     const body = nodeBodyInput.value;
+    let appendRow = null;
     if (dialogTarget.mode === 'edit') {
       const node = findNode(dialogTarget.id);
       if (node) { node.title = title; node.body = body; }
@@ -387,15 +479,21 @@
       const newNode = { id: uid(), title, body, children: [] };
       if (dialogTarget.parentId) {
         const parent = findNode(dialogTarget.parentId);
-        if (parent) { parent.children.push(newNode); openNodes.add(parent.id); persistOpen(); }
+        if (parent) {
+          parent.children.push(newNode);
+          openNodes.add(parent.id); persistOpen();
+          appendRow = { id: newNode.id, parent_id: parent.id, sort_order: parent.children.length - 1, title, body };
+        }
       } else {
         tree.push(newNode);
+        appendRow = { id: newNode.id, parent_id: '', sort_order: tree.length - 1, title, body };
       }
     }
     persist();
     nodeDialog.close();
     renderEdit();
     flashSaved();
+    if (appendRow) maybeAutoAppend(appendRow); // サーバーCSVへ自動追記（設定時）
   });
   $('#nodeCancelBtn').addEventListener('click', () => nodeDialog.close());
 
@@ -434,17 +532,19 @@
     return c;
   }
 
-  /* ---------- export / import / reset ---------- */
+  /* ---------- CSV export / import / reset ---------- */
   $('#exportBtn').addEventListener('click', () => {
-    const blob = new Blob([JSON.stringify(tree, null, 2)], { type: 'application/json' });
+    // UTF-8 BOM 付きで Excel でも文字化けしにくくする
+    const csv = '﻿' + rowsToCsv(treeToRows());
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     const ymd = new Date().toISOString().slice(0, 10);
     a.href = url;
-    a.download = `tree-manual-${ymd}.json`;
+    a.download = `manual-${ymd}.csv`;
     a.click();
     URL.revokeObjectURL(url);
-    flashSaved('エクスポートしました');
+    flashSaved('CSVを出力しました');
   });
 
   const importFile = $('#importFile');
@@ -455,15 +555,13 @@
     const reader = new FileReader();
     reader.onload = () => {
       try {
-        const data = JSON.parse(reader.result);
-        if (!Array.isArray(data)) throw new Error('形式が不正です');
-        const clean = sanitize(data);
-        askConfirm('現在のデータを、読み込んだ内容で置き換えますか？', () => {
+        const clean = sanitize(csvToTree(reader.result));
+        askConfirm('現在のデータを、読み込んだCSVの内容で置き換えますか？', () => {
           tree = clean;
           persist();
           navRestart();
           renderEdit();
-          flashSaved('インポートしました');
+          flashSaved('CSVを取り込みました');
         }, '置き換える');
       } catch (err) {
         saveStatus.textContent = '✗ 読み込みに失敗しました：' + err.message;
@@ -495,6 +593,141 @@
       flashSaved('初期化しました');
     }, '初期化する');
   });
+
+  /* ============================================================
+     SERVER / FTP SYNC  (PHP backend: api.php)
+     ============================================================ */
+  const API = 'api.php';
+  const TOKEN_KEY = 'treeManual.apiToken.v1';
+  const AUTO_KEY = 'treeManual.autoAppend.v1';
+  const apiTokenInput = $('#apiToken');
+  const autoAppendChk = $('#autoAppend');
+  const serverStatusEl = $('#serverStatus');
+  const syncStatusEl = $('#syncStatus');
+
+  let serverAvailable = false;
+  let ftpConfigured = false;
+
+  apiTokenInput.value = localStorage.getItem(TOKEN_KEY) || '';
+  autoAppendChk.checked = localStorage.getItem(AUTO_KEY) === '1';
+  apiTokenInput.addEventListener('change', () => {
+    localStorage.setItem(TOKEN_KEY, apiTokenInput.value.trim());
+    detectServer();
+  });
+  autoAppendChk.addEventListener('change', () => {
+    localStorage.setItem(AUTO_KEY, autoAppendChk.checked ? '1' : '0');
+  });
+
+  function apiToken() { return (apiTokenInput.value || '').trim(); }
+
+  function syncMsg(msg, isErr = false) {
+    syncStatusEl.textContent = msg;
+    syncStatusEl.classList.toggle('is-err', isErr);
+    if (!isErr) {
+      clearTimeout(syncMsg._t);
+      syncMsg._t = setTimeout(() => { syncStatusEl.textContent = ''; }, 4000);
+    }
+  }
+
+  async function apiCall(action, { method = 'GET', body = null } = {}) {
+    const opts = { method, headers: {}, cache: 'no-store' };
+    const tok = apiToken();
+    if (tok) opts.headers['X-Api-Token'] = tok;
+    if (body != null) { opts.headers['Content-Type'] = 'application/json'; opts.body = JSON.stringify(body); }
+    const res = await fetch(`${API}?action=${encodeURIComponent(action)}`, opts);
+    let data = null;
+    try { data = await res.json(); } catch (e) { /* non-JSON */ }
+    // PHP 未対応のホストが api.php を素のテキストで 200 返す場合などを弾く
+    if (data === null || typeof data !== 'object') throw new Error('サーバー応答が不正です（PHP未対応の可能性）');
+    if (!res.ok || data.ok === false) {
+      throw new Error(data.error || data.message || `HTTP ${res.status}`);
+    }
+    return data;
+  }
+
+  function setServerStatus() {
+    serverStatusEl.classList.remove('is-off', 'is-on', 'is-ftp');
+    if (!serverAvailable) {
+      serverStatusEl.classList.add('is-off');
+      serverStatusEl.textContent = 'サーバー未接続';
+    } else if (ftpConfigured) {
+      serverStatusEl.classList.add('is-ftp');
+      serverStatusEl.textContent = '接続済み（FTP設定あり）';
+    } else {
+      serverStatusEl.classList.add('is-on');
+      serverStatusEl.textContent = '接続済み';
+    }
+    // enable/disable buttons
+    ['serverLoadBtn', 'serverSaveBtn'].forEach((id) => { $('#' + id).disabled = !serverAvailable; });
+    ['ftpPullBtn', 'ftpPushBtn'].forEach((id) => { $('#' + id).disabled = !(serverAvailable && ftpConfigured); });
+  }
+
+  async function detectServer() {
+    try {
+      const cfg = await apiCall('config');
+      serverAvailable = true;
+      ftpConfigured = !!cfg.ftpConfigured;
+    } catch (e) {
+      serverAvailable = false;
+      ftpConfigured = false;
+    }
+    setServerStatus();
+  }
+
+  function replaceTreeFromCsv(csv, label) {
+    const clean = sanitize(csvToTree(csv || ''));
+    if (clean.length === 0) { syncMsg('サーバーのCSVは空でした', true); return; }
+    askConfirm(`${label}の内容で、現在のデータを置き換えますか？`, () => {
+      tree = clean;
+      persist();
+      navRestart();
+      renderEdit();
+      syncMsg(`${label}を読み込みました`);
+    }, '置き換える');
+  }
+
+  $('#serverLoadBtn').addEventListener('click', async () => {
+    try {
+      syncMsg('サーバーから読込中…');
+      const data = await apiCall('load');
+      replaceTreeFromCsv(data.csv, 'サーバーCSV');
+    } catch (e) { syncMsg('読込に失敗：' + e.message, true); }
+  });
+
+  $('#serverSaveBtn').addEventListener('click', async () => {
+    try {
+      syncMsg('サーバーへ保存中…');
+      await apiCall('save', { method: 'POST', body: { csv: rowsToCsv(treeToRows()) } });
+      syncMsg('サーバーCSVへ保存しました');
+    } catch (e) { syncMsg('保存に失敗：' + e.message, true); }
+  });
+
+  $('#ftpPullBtn').addEventListener('click', async () => {
+    try {
+      syncMsg('FTPから取得中…');
+      const data = await apiCall('ftp_pull', { method: 'POST' });
+      replaceTreeFromCsv(data.csv, 'FTPのCSV');
+    } catch (e) { syncMsg('FTP取得に失敗：' + e.message, true); }
+  });
+
+  $('#ftpPushBtn').addEventListener('click', async () => {
+    askConfirm('現在の内容をCSVに変換し、FTP先を一括更新します。よろしいですか？', async () => {
+      try {
+        syncMsg('FTPへ送信中…');
+        await apiCall('ftp_push', { method: 'POST', body: { csv: rowsToCsv(treeToRows()) } });
+        syncMsg('FTPへ送信（一括更新）しました');
+      } catch (e) { syncMsg('FTP送信に失敗：' + e.message, true); }
+    }, '送信する');
+  });
+
+  // 項目追加時にサーバーCSVへ1行追記（設定ON かつ 接続時のみ）
+  async function maybeAutoAppend(row) {
+    if (!autoAppendChk.checked || !serverAvailable) return;
+    try {
+      await apiCall('append', { method: 'POST', body: { rows: [row] } });
+      syncMsg('サーバーCSVに追記しました');
+    } catch (e) { syncMsg('自動追記に失敗：' + e.message, true); }
+  }
 
   /* ============================================================
      MODE SWITCH
@@ -557,5 +790,7 @@
   window.addEventListener('appinstalled', () => { installHint.hidden = true; });
 
   /* ---------- boot ---------- */
+  setServerStatus();
+  detectServer();
   setMode('nav');
 })();

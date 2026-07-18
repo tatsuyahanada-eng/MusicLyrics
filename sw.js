@@ -1,9 +1,9 @@
 /* TREE MANUAL — service worker (offline cache, app-shell) */
-const CACHE = 'tree-manual-v1';
+const CACHE = 'tree-manual-v2';
 const ASSETS = [
   'manual.html',
-  'manual.css?v=1',
-  'manual.js?v=1',
+  'manual.css?v=2',
+  'manual.js?v=2',
   'manifest.webmanifest',
   'icon.svg',
 ];
@@ -28,6 +28,8 @@ self.addEventListener('fetch', (event) => {
   if (req.method !== 'GET') return;
   const url = new URL(req.url);
   if (url.origin !== self.location.origin) return;
+  // API（動的データ）はキャッシュせず常にネットワークへ
+  if (url.pathname.endsWith('api.php') || url.pathname.includes('/api')) return;
 
   event.respondWith(
     caches.match(req).then((cached) => {

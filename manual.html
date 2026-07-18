@@ -9,7 +9,7 @@
   <link rel="manifest" href="manifest.webmanifest">
   <link rel="icon" href="icon.svg" type="image/svg+xml">
   <link rel="apple-touch-icon" href="icon.svg">
-  <link rel="stylesheet" href="manual.css?v=1">
+  <link rel="stylesheet" href="manual.css?v=2">
 </head>
 <body class="tm-body">
 
@@ -80,11 +80,53 @@
         <div class="tm-edit-toolbar">
           <button id="addRootBtn" class="tm-btn tm-btn-primary" type="button">&#43; 大項目（カテゴリ）を追加</button>
           <div class="tm-edit-toolbar-spacer"></div>
-          <button id="exportBtn" class="tm-btn tm-btn-outline" type="button">&#8681; エクスポート</button>
-          <button id="importBtn" class="tm-btn tm-btn-outline" type="button">&#8679; インポート</button>
-          <input id="importFile" type="file" accept="application/json,.json" hidden>
+          <button id="exportBtn" class="tm-btn tm-btn-outline" type="button">&#8681; CSV出力</button>
+          <button id="importBtn" class="tm-btn tm-btn-outline" type="button">&#8679; CSV取込</button>
+          <input id="importFile" type="file" accept=".csv,text/csv" hidden>
           <button id="resetBtn" class="tm-btn tm-btn-danger-outline" type="button">初期化</button>
         </div>
+
+        <!-- ===== Data sync (server CSV / FTP) ===== -->
+        <details id="syncPanel" class="tm-sync">
+          <summary class="tm-sync-summary">
+            <span class="tm-sync-title">&#8646; サーバー連携（CSV / FTP）</span>
+            <span id="serverStatus" class="tm-server-status is-off">サーバー未接続</span>
+          </summary>
+          <div class="tm-sync-body">
+            <p class="tm-sync-note">
+              サーバー（PHP）に <code>api.php</code> を設置すると、特定の場所のCSVファイルを読み書き・追記でき、FTPで一括更新できます。
+              未設置の場合は上の「CSV出力／取込」でファイルとして管理できます。
+            </p>
+
+            <label class="tm-sync-field">
+              <span class="tm-sync-field-label">APIトークン（サーバー側で設定した場合のみ）</span>
+              <input id="apiToken" class="tm-input" type="password" autocomplete="off" placeholder="未設定なら空欄でOK">
+            </label>
+
+            <div class="tm-sync-group">
+              <span class="tm-sync-group-label">サーバー上のCSV</span>
+              <div class="tm-sync-row">
+                <button id="serverLoadBtn" class="tm-btn tm-btn-outline" type="button">&#8681; サーバーから読込</button>
+                <button id="serverSaveBtn" class="tm-btn tm-btn-outline" type="button">&#8679; サーバーへ保存（全体）</button>
+              </div>
+            </div>
+
+            <div class="tm-sync-group">
+              <span class="tm-sync-group-label">FTP（別サーバー／指定パスへ一括更新）</span>
+              <div class="tm-sync-row">
+                <button id="ftpPullBtn" class="tm-btn tm-btn-outline" type="button">&#8681; FTPから取得</button>
+                <button id="ftpPushBtn" class="tm-btn tm-btn-outline" type="button">&#8679; FTPへ送信（一括更新）</button>
+              </div>
+            </div>
+
+            <label class="tm-sync-toggle">
+              <input type="checkbox" id="autoAppend">
+              <span>項目を追加したら、サーバーCSVにも自動で追記する</span>
+            </label>
+
+            <p id="syncStatus" class="tm-sync-status" aria-live="polite"></p>
+          </div>
+        </details>
 
         <p id="saveStatus" class="tm-savestatus" aria-live="polite"></p>
 
@@ -140,6 +182,6 @@
     </div>
   </dialog>
 
-  <script src="manual.js?v=1"></script>
+  <script src="manual.js?v=2"></script>
 </body>
 </html>

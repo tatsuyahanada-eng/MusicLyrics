@@ -1,2 +1,8 @@
 MusicLyrics/
 *.zip
+
+# 秘密情報・生成データはコミットしない
+config.php
+data/*.csv
+data/*.tmp
+node_modules/
