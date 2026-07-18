@@ -48,6 +48,14 @@
   function depthLabel(level) {
     return level === 0 ? '大項目' : level === 1 ? '中項目' : '小項目';
   }
+  // 本文末尾の「最終更新: 日付時刻 ・ 編集者」薄枠スタンプ
+  function editStampHtml(node) {
+    const t = fmtTime(node.updated_at || node.created_at);
+    const by = node.updated_by || node.created_by;
+    if (!t && !by) return '';
+    const info = [t, by].filter(Boolean).join(' ・ ');
+    return `<span class="tm-editstamp"><span class="tm-editstamp-label">最終更新</span>${esc(info)}</span>`;
+  }
 
   /* ============================================================
      DATA
@@ -478,7 +486,7 @@
       </div>`;
     } else if (curNode) {
       const leaf = kids.length === 0;
-      const meta = nodeMetaText(curNode);
+      const stamp = editStampHtml(curNode);
       html += `<div class="tm-current">
         <div class="tm-current-head">
           <div class="tm-current-headtext">
@@ -491,10 +499,13 @@
         html += `<div class="tm-content-card ${leaf ? 'is-final' : ''}">
           ${leaf ? '<span class="tm-leaf-tag">最終作業項目</span>' : ''}
           <div class="tm-content-body">${renderBody(curNode.body)}</div>
-          ${meta ? `<div class="tm-content-meta">${esc(meta)}</div>` : ''}
+          ${stamp ? `<div class="tm-stamp-row">${stamp}</div>` : ''}
         </div>`;
       } else {
-        html += `<div class="tm-content-card tm-content-empty"><p class="tm-emptynote">まだ内容がありません。「この項目を編集」から手順や画像・ファイルを追加できます。</p></div>`;
+        html += `<div class="tm-content-card tm-content-empty">
+          <p class="tm-emptynote">まだ内容がありません。「この項目を編集」から手順や画像・ファイルを追加できます。</p>
+          ${stamp ? `<div class="tm-stamp-row">${stamp}</div>` : ''}
+        </div>`;
       }
       html += `</div>`;
     }

@@ -450,6 +450,24 @@
 }
 .tm-choice-main { display: block; font-size: 14px; color: var(--tm-text); }
 
+/* 本文末尾の編集スタンプ（薄い枠） */
+.tm-stamp-row { margin-top: 12px; text-align: right; }
+.tm-editstamp {
+  display: inline-block;
+  font-family: var(--tm-mono);
+  font-size: 11px;
+  color: var(--tm-muted);
+  border: 1px solid var(--tm-line);
+  background: rgba(63, 224, 224, 0.04);
+  border-radius: 6px;
+  padding: 5px 11px;
+}
+.tm-editstamp-label {
+  color: var(--tm-cyan-dim);
+  margin-right: 8px;
+  letter-spacing: 1px;
+}
+
 /* ---------- Edit: author bar & clickable rows ---------- */
 .tm-author-bar { display: flex; align-items: center; gap: 10px; margin-bottom: 12px; flex-wrap: wrap; }
 .tm-author-label { font-family: var(--tm-mono); font-size: 12px; color: var(--tm-cyan); white-space: nowrap; }
