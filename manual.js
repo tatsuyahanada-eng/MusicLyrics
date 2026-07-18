@@ -493,7 +493,7 @@
     }
 
     backBtn.disabled = atRoot;
-    remainHint.textContent = kids.length ? `${kids.length} 項目` : '';
+    remainHint.textContent = '';
   }
 
   function navGoto(id) {
@@ -584,8 +584,8 @@
 
     return `
       <div class="tm-treenode">
-        <div class="tm-treenode-row" draggable="true" data-id="${node.id}">
-          <span class="tm-drag-handle" title="ドラッグで移動（並べ替え・階層変更）">&#8942;&#8942;</span>
+        <div class="tm-treenode-row" data-id="${node.id}">
+          <span class="tm-drag-handle" title="長押し／ハンドルをドラッグで移動（並べ替え・階層変更）">&#8942;&#8942;</span>
           ${toggle}
           <button class="tm-treenode-main" data-edit="${node.id}" title="クリックで内容を編集">
             <span class="tm-treenode-title">${esc(node.title)}</span>
@@ -602,6 +602,7 @@
   }
 
   editTree.addEventListener('click', (e) => {
+    if (Date.now() < suppressClickUntil) return; // 直前のドラッグ操作のクリックを無視
     const t = e.target.closest('button');
     if (!t) return;
     const d = t.dataset;
@@ -660,58 +661,100 @@
     editTree.classList.remove('drop-root');
   }
 
-  let dragId = null;
-  editTree.addEventListener('dragstart', (e) => {
-    const row = e.target.closest('.tm-treenode-row');
-    if (!row) return;
-    dragId = row.dataset.id;
-    e.dataTransfer.effectAllowed = 'move';
-    try { e.dataTransfer.setData('text/plain', dragId); } catch (_) {}
-    row.classList.add('dragging');
-  });
-  editTree.addEventListener('dragend', () => {
-    dragId = null;
+  /* ポインタ操作：タッチは「長押し」、マウスはハンドルのドラッグで移動 */
+  const LONGPRESS_MS = 350;
+  const MOVE_TOL = 8;
+  let drag = null;                // 進行中のドラッグ状態
+  let suppressClickUntil = 0;     // ドラッグ直後のクリック抑制
+
+  function beginDrag() {
+    if (!drag) return;
+    drag.active = true;
+    drag.row.classList.add('dragging');
+    document.body.classList.add('tm-dragging');
+    try { drag.row.setPointerCapture(drag.pointerId); } catch (_) {}
+    if (navigator.vibrate) { try { navigator.vibrate(12); } catch (_) {} }
+    updateDropTarget(drag.startX, drag.startY);
+  }
+  function updateDropTarget(x, y) {
     clearDropMarks();
-    editTree.querySelectorAll('.dragging').forEach((el) => el.classList.remove('dragging'));
-  });
-  editTree.addEventListener('dragover', (e) => {
-    if (!dragId) return;
-    clearDropMarks();
-    const row = e.target.closest('.tm-treenode-row');
-    if (!row) { editTree.classList.add('drop-root'); e.preventDefault(); return; }
+    drag.target = null;
+    const el = document.elementFromPoint(x, y);
+    const row = el && el.closest ? el.closest('.tm-treenode-row') : null;
+    if (!row) { editTree.classList.add('drop-root'); drag.target = { root: true }; return; }
     const tid = row.dataset.id;
-    if (tid === dragId || isInSubtree(tid, dragId)) return; // 不可
-    e.preventDefault();
+    if (tid === drag.id || isInSubtree(tid, drag.id)) return;
     const rect = row.getBoundingClientRect();
-    const y = e.clientY - rect.top;
-    const pos = y < rect.height * 0.28 ? 'before' : (y > rect.height * 0.72 ? 'after' : 'inside');
+    const ry = y - rect.top;
+    const pos = ry < rect.height * 0.30 ? 'before' : (ry > rect.height * 0.70 ? 'after' : 'inside');
     row.classList.add(pos === 'before' ? 'drop-before' : pos === 'after' ? 'drop-after' : 'drop-inside');
-    row.dataset.dropPos = pos;
-  });
-  editTree.addEventListener('drop', (e) => {
-    if (!dragId) return;
-    e.preventDefault();
-    const draggedId = dragId;
-    const row = e.target.closest('.tm-treenode-row');
-    let parentId = '', beforeId = null;
-    if (row) {
-      const tid = row.dataset.id;
-      if (tid === draggedId || isInSubtree(tid, draggedId)) { clearDropMarks(); return; }
-      const pos = row.dataset.dropPos || 'inside';
-      if (pos === 'inside') {
-        parentId = tid; beforeId = null;
-        openNodes.add(tid); persistOpen();
-      } else {
-        parentId = findParentId(tid) || '';
-        beforeId = pos === 'before' ? tid : nextSiblingId(tid);
-      }
-    }
+    drag.target = { tid, pos };
+  }
+  function autoScroll(y) {
+    const m = 64;
+    if (y < m) window.scrollBy(0, -14);
+    else if (y > window.innerHeight - m) window.scrollBy(0, 14);
+  }
+  function cancelDrag() {
+    if (!drag) return;
+    if (drag.timer) clearTimeout(drag.timer);
+    if (drag.row) drag.row.classList.remove('dragging');
+    try { drag.row.releasePointerCapture(drag.pointerId); } catch (_) {}
     clearDropMarks();
+    document.body.classList.remove('tm-dragging');
+    drag = null;
+  }
+  function finishDrag() {
+    if (!drag) return;
+    const wasActive = drag.active;
+    const info = drag.target;
+    const draggedId = drag.id;
+    if (drag.timer) clearTimeout(drag.timer);
+    if (drag.row) drag.row.classList.remove('dragging');
+    clearDropMarks();
+    document.body.classList.remove('tm-dragging');
+    drag = null;
+    if (!wasActive) return;             // タップ扱い（クリックへ）
+    suppressClickUntil = Date.now() + 500;
+    if (!info) return;                  // 移動先なし
+    let parentId = '', beforeId = null;
+    if (!info.root) {
+      if (info.tid === draggedId || isInSubtree(info.tid, draggedId)) return;
+      if (info.pos === 'inside') { parentId = info.tid; beforeId = null; openNodes.add(info.tid); persistOpen(); }
+      else { parentId = findParentId(info.tid) || ''; beforeId = info.pos === 'before' ? info.tid : nextSiblingId(info.tid); }
+    }
     (async () => {
       try { await opReparent(draggedId, parentId, beforeId); renderEdit(); flashSaved('移動しました'); }
       catch (err) { flashSaved('移動に失敗：' + err.message); }
     })();
+  }
+
+  editTree.addEventListener('pointerdown', (e) => {
+    if (e.button != null && e.button > 0) return;
+    const row = e.target.closest('.tm-treenode-row');
+    if (!row) return;
+    const onHandle = !!e.target.closest('.tm-drag-handle');
+    // アイコン操作・入力欄などでは開始しない（ハンドルは常に開始）
+    if (!onHandle && e.target.closest('.tm-treenode-toggle, .tm-iconbtn, .tm-treenode-addchild, input, textarea, select, a')) return;
+    drag = { id: row.dataset.id, pointerId: e.pointerId, startX: e.clientX, startY: e.clientY, active: false, target: null, timer: null, row };
+    if (onHandle) beginDrag();
+    else drag.timer = setTimeout(beginDrag, LONGPRESS_MS);
   });
+  editTree.addEventListener('pointermove', (e) => {
+    if (!drag) return;
+    if (!drag.active) {
+      const dx = e.clientX - drag.startX, dy = e.clientY - drag.startY;
+      if (Math.abs(dx) > MOVE_TOL || Math.abs(dy) > MOVE_TOL) cancelDrag(); // 長押し前に動いた＝スクロール
+      return;
+    }
+    e.preventDefault();
+    autoScroll(e.clientY);
+    updateDropTarget(e.clientX, e.clientY);
+  });
+  editTree.addEventListener('pointerup', finishDrag);
+  editTree.addEventListener('pointercancel', cancelDrag);
+  // ドラッグ中はタッチスクロールを抑止
+  editTree.addEventListener('touchmove', (e) => { if (drag && drag.active) e.preventDefault(); }, { passive: false });
 
   $('#addRootBtn').addEventListener('click', () => openNodeDialog(null, null));
 
