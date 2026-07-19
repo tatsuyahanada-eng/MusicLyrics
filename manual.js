@@ -32,8 +32,8 @@
   // body 内のメディア種別（🖼 画像 / 📎 ファイル）
   function mediaFlag(body) {
     if (!body) return '';
-    if (/!\[[^\]]*\]\([^)]+\)/.test(body) || /\]\(\/?uploads\/[^)]+\.(png|jpe?g|gif|webp)\)/i.test(body)) return '🖼';
-    if (/\]\(\/?uploads\/[^)]+\)/.test(body) || /\]\(https?:\/\/[^)]+\)/.test(body)) return '📎';
+    if (/<img\b/i.test(body) || /!\[[^\]]*\]\([^)]+\)/.test(body) || /\]\(\/?uploads\/[^)]+\.(png|jpe?g|gif|webp)\)/i.test(body)) return '🖼';
+    if (/<a\b/i.test(body) || /\]\(\/?uploads\/[^)]+\)/.test(body) || /\]\(https?:\/\/[^)]+\)/.test(body)) return '📎';
     return '';
   }
   function nodeMetaText(node) {
@@ -366,7 +366,89 @@
     html = html.replace(/\[(xbig|big|small)\]([\s\S]*?)\[\/\1\]/gi, (m, s, t) => `<span class="tm-fs-${s.toLowerCase()}">${t}</span>`);
     return html;
   }
+
+  /* ---------- HTML サニタイズ（共有される本文HTMLを安全に描画） ---------- */
+  const ALLOWED_TAGS = {
+    b: {}, strong: {}, i: {}, em: {}, u: {},
+    span: { attrs: ['style'] }, font: { attrs: ['color', 'size'] },
+    br: { void: true }, div: { attrs: ['style'] }, p: { attrs: ['style'] },
+    a: { attrs: ['href', 'style'] }, img: { attrs: ['src', 'style'], void: true },
+  };
+  function safeLinkUrl(u) {
+    u = String(u).trim();
+    return /^(https?:\/\/|\/?uploads\/|mailto:)/i.test(u) ? u : null;
+  }
+  function sanitizeStyle(style) {
+    const allow = { color: 1, 'font-size': 1, 'font-weight': 1, 'text-decoration': 1, 'font-style': 1, 'background-color': 1, 'text-align': 1 };
+    const out = [];
+    String(style).split(';').forEach((decl) => {
+      const i = decl.indexOf(':');
+      if (i < 0) return;
+      const prop = decl.slice(0, i).trim().toLowerCase();
+      const val = decl.slice(i + 1).trim();
+      if (!allow[prop]) return;
+      if (/url\(|expression|javascript:|@import/i.test(val)) return;
+      if (!/^[#a-zA-Z0-9.,%()\s-]+$/.test(val)) return;
+      out.push(`${prop}:${val}`);
+    });
+    return out.join(';');
+  }
+  function sanitizeInto(node, out) {
+    node.childNodes.forEach((child) => {
+      if (child.nodeType === 3) { out.push(esc(child.nodeValue)); return; }
+      if (child.nodeType !== 1) return;
+      const tag = child.tagName.toLowerCase();
+      const spec = ALLOWED_TAGS[tag];
+      if (!spec) {
+        if (tag === 'script' || tag === 'style') return;
+        sanitizeInto(child, out); // 不許可タグは中身だけ残す
+        return;
+      }
+      let attrs = '';
+      (spec.attrs || []).forEach((a) => {
+        let v = child.getAttribute(a);
+        if (v == null) return;
+        if (a === 'href') { v = safeLinkUrl(v); if (!v) return; }
+        else if (a === 'src') { v = safeUrl(v); if (!v) return; }
+        else if (a === 'style') { v = sanitizeStyle(v); if (!v) return; }
+        else if (a === 'color') { v = cssColor(v); }
+        else if (a === 'size') { if (!/^[1-7]$/.test(v)) return; }
+        attrs += ` ${a}="${esc(v)}"`;
+      });
+      if (tag === 'a') attrs += ' target="_blank" rel="noopener"';
+      if (spec.void) { out.push(`<${tag}${attrs}>`); return; }
+      out.push(`<${tag}${attrs}>`);
+      sanitizeInto(child, out);
+      out.push(`</${tag}>`);
+    });
+  }
+  function sanitizeHtml(html) {
+    const tpl = document.createElement('template');
+    tpl.innerHTML = String(html == null ? '' : html);
+    const out = [];
+    sanitizeInto(tpl.content, out);
+    return out.join('');
+  }
+  // HTML本文をプレーンテキスト化（Excel出力・検索用）
+  function htmlToPlain(html) {
+    const s = String(html == null ? '' : html);
+    if (!/<[a-z!/]/i.test(s)) return s; // 既にプレーン/旧記法
+    let t = s.replace(/<\s*br\s*\/?>/gi, '\n').replace(/<\/(div|p|li|h[1-6])\s*>/gi, '\n');
+    t = t.replace(/<[^>]+>/g, '');
+    const ta = document.createElement('textarea');
+    ta.innerHTML = t;
+    t = ta.value;
+    return t.replace(/\n{3,}/g, '\n\n').replace(/[ \t]+\n/g, '\n').trim();
+  }
+  // 本文がHTMLらしいか（新方式）／プレーン・旧記法か（レガシー）で描画を切替
+  function looksLikeHtml(s) { return /<(b|strong|i|em|u|span|font|br|div|p|a|img)\b[^>]*>/i.test(String(s)); }
   function renderBody(text) {
+    const s = String(text == null ? '' : text);
+    if (looksLikeHtml(s)) return sanitizeHtml(s);
+    return renderLegacyBody(s);
+  }
+
+  function renderLegacyBody(text) {
     const lines = String(text).replace(/\r\n/g, '\n').replace(/\r/g, '\n').split('\n');
     let html = '';
     let inList = false;
@@ -839,8 +921,21 @@
   const nodeForm = $('#nodeForm');
   const nodeTitleInput = $('#nodeTitleInput');
   const nodeAuthorInput = $('#nodeAuthorInput');
-  const nodeBodyInput = $('#nodeBodyInput');
+  const nodeBodyEditor = $('#nodeBodyEditor');
   const nodeDialogTitle = $('#nodeDialogTitle');
+
+  // エディタのHTMLをサニタイズし、空なら '' を返す
+  function normalizeBody(html) {
+    const clean = sanitizeHtml(html);
+    const tmp = document.createElement('div');
+    tmp.innerHTML = clean;
+    if (!tmp.textContent.trim() && !tmp.querySelector('img, a')) return '';
+    return clean;
+  }
+  function insertEditorHtml(html) {
+    nodeBodyEditor.focus();
+    document.execCommand('insertHTML', false, html);
+  }
   let dialogTarget = null; // { mode: 'edit'|'add', id, parentId }
 
   const nodeMetaEl = $('#nodeMeta');
@@ -852,7 +947,7 @@
       dialogTarget = { mode: 'edit', id: editId };
       nodeDialogTitle.textContent = '項目を編集';
       nodeTitleInput.value = node.title;
-      nodeBodyInput.value = node.body || '';
+      nodeBodyEditor.innerHTML = node.body ? renderBody(node.body) : ''; // レガシーは自動でHTML化
       const upd = fmtTime(node.updated_at);
       const crt = fmtTime(node.created_at);
       const bits = [];
@@ -863,7 +958,7 @@
       dialogTarget = { mode: 'add', parentId: parentId || null };
       nodeDialogTitle.textContent = parentId ? '子項目を追加' : '大項目（カテゴリ）を追加';
       nodeTitleInput.value = '';
-      nodeBodyInput.value = '';
+      nodeBodyEditor.innerHTML = '';
     }
     if (nodeAuthorInput) nodeAuthorInput.value = authorName(); // 既定は記入者名。項目ごとに変更可
     if (nodeMetaEl) nodeMetaEl.textContent = metaStr;
@@ -880,7 +975,7 @@
     e.preventDefault();
     const title = nodeTitleInput.value.trim();
     if (!title) return;
-    const body = nodeBodyInput.value;
+    const body = normalizeBody(nodeBodyEditor.innerHTML);
     const author = (nodeAuthorInput ? nodeAuthorInput.value : '').trim();
     // 入力した登録者名を既定値としても記憶
     localStorage.setItem(AUTHOR_KEY, author);
@@ -907,37 +1002,22 @@
   });
   $('#nodeCancelBtn').addEventListener('click', () => nodeDialog.close());
 
-  /* ---------- 文字装飾ツールバー ---------- */
-  function wrapSel(before, after) {
-    const ta = nodeBodyInput;
-    const s = ta.selectionStart || 0, e = ta.selectionEnd || 0;
-    const sel = ta.value.slice(s, e) || 'テキスト';
-    ta.value = ta.value.slice(0, s) + before + sel + after + ta.value.slice(e);
-    ta.focus();
-    ta.selectionStart = s + before.length;
-    ta.selectionEnd = s + before.length + sel.length;
-  }
-  function linePrefix(prefix) {
-    const ta = nodeBodyInput;
-    const s = ta.selectionStart || 0;
-    const lineStart = ta.value.lastIndexOf('\n', s - 1) + 1;
-    ta.value = ta.value.slice(0, lineStart) + prefix + ta.value.slice(lineStart);
-    ta.focus();
-    ta.selectionStart = ta.selectionEnd = s + prefix.length;
-  }
-  const fmtBar = nodeForm.querySelector('.tm-fmtbar');
+  /* ---------- 文字装飾ツールバー（選択部分にWord風に反映） ---------- */
+  const fmtBar = $('#fmtBar');
   if (fmtBar) {
+    // ボタン押下でエディタの選択が外れないように
+    fmtBar.addEventListener('mousedown', (e) => { if (e.target.closest('button')) e.preventDefault(); });
     fmtBar.addEventListener('click', (e) => {
-      const btn = e.target.closest('.tm-fmtbtn');
+      const btn = e.target.closest('button');
       if (!btn) return;
       e.preventDefault();
-      const f = btn.dataset.fmt;
-      if (f === 'bold') wrapSel('**', '**');
-      else if (f === 'head') linePrefix('# ');
-      else if (f === 'list') linePrefix('- ');
+      nodeBodyEditor.focus();
+      try { document.execCommand('styleWithCSS', false, true); } catch (_) {}
+      if (btn.dataset.cmd === 'bold') document.execCommand('bold');
+      else if (btn.dataset.size) document.execCommand('fontSize', false, btn.dataset.size);
+      else if (btn.dataset.color) document.execCommand('foreColor', false, btn.dataset.color);
+      else if (btn.dataset.clear) { document.execCommand('removeFormat'); }
     });
-    $('#fmtColor').addEventListener('change', (e) => { if (e.target.value) wrapSel(`[color=${e.target.value}]`, '[/color]'); e.target.value = ''; });
-    $('#fmtSize').addEventListener('change', (e) => { if (e.target.value) wrapSel(`[${e.target.value}]`, `[/${e.target.value}]`); e.target.value = ''; });
   }
 
   /* ---------- 画像アップロード / 貼り付け ---------- */
@@ -946,12 +1026,6 @@
   const nodeErrorEl = $('#nodeError');
   function nodeError(msg) { if (nodeErrorEl) nodeErrorEl.textContent = msg || ''; }
 
-  function insertAtCursor(ta, text) {
-    const s = ta.selectionStart || 0, en = ta.selectionEnd || 0;
-    ta.value = ta.value.slice(0, s) + text + ta.value.slice(en);
-    ta.selectionStart = ta.selectionEnd = s + text.length;
-    ta.focus();
-  }
   const nodeFileBtn = $('#nodeFileBtn');
   const nodeFileFile = $('#nodeFileFile');
 
@@ -979,10 +1053,10 @@
         if (!data || typeof data !== 'object') throw new Error('サーバー応答が不正です');
         if (!res.ok || data.ok === false) throw new Error(data.error || ('HTTP ' + res.status));
         if (data.is_image) {
-          insertAtCursor(nodeBodyInput, `\n![](${data.url})\n`);
+          insertEditorHtml(`<img src="${esc(data.url)}" style="max-width:100%"><br>`);
           nodeError('画像を挿入しました');
         } else {
-          insertAtCursor(nodeBodyInput, `\n📎 [${data.name || 'ファイル'}](${data.url})\n`);
+          insertEditorHtml(`<a href="${esc(data.url)}">📎 ${esc(data.name || 'ファイル')}</a>&nbsp;`);
           nodeError('ファイルを添付しました');
         }
         break;
@@ -1004,7 +1078,7 @@
     nodeFileFile.addEventListener('change', () => {
       const f = nodeFileFile.files[0]; if (f) uploadAttachment(f); nodeFileFile.value = '';
     });
-    nodeBodyInput.addEventListener('paste', (e) => {
+    nodeBodyEditor.addEventListener('paste', (e) => {
       const items = e.clipboardData && e.clipboardData.items;
       if (!items) return;
       for (const it of items) {
@@ -1221,7 +1295,8 @@
       nodes.forEach((n) => {
         const row = new Array(head.length).fill('');
         row[Math.min(d, cols.length - 1)] = n.title;
-        if (n.body && n.body.trim()) row[cols.length] = n.body;
+        const plainBody = htmlToPlain(n.body);
+        if (plainBody) row[cols.length] = plainBody;
         const by = n.updated_by || n.created_by;
         if (by) row[cols.length + 1] = by;
         aoa.push(row);

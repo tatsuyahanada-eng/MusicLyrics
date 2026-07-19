@@ -480,9 +480,10 @@
 .tm-fs-small { font-size: 0.85em; }
 
 /* 編集ダイアログ 装飾ツールバー */
-.tm-fmtbar { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 6px; }
-.tm-fmtbtn, .tm-fmtsel {
+.tm-fmtbar { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-bottom: 6px; }
+.tm-fmtbtn {
   font-size: 12px;
+  min-width: 30px;
   color: var(--tm-text);
   background: rgba(4, 16, 24, 0.8);
   border: 1px solid var(--tm-line);
@@ -491,7 +492,35 @@
   cursor: pointer;
 }
 .tm-fmtbtn:hover { border-color: var(--tm-cyan); color: var(--tm-cyan); }
-.tm-fmtsel { padding: 5px 6px; }
+.tm-fmtclear { color: var(--tm-muted); }
+.tm-fmt-sep { width: 1px; height: 18px; background: var(--tm-line); margin: 0 2px; }
+.tm-fmtcolor {
+  width: 22px; height: 22px;
+  border: 1px solid var(--tm-line-strong);
+  border-radius: 50%;
+  cursor: pointer;
+  padding: 0;
+}
+.tm-fmtcolor:hover { box-shadow: 0 0 8px rgba(63, 224, 224, 0.5); }
+
+/* Word風エディタ（contenteditable） */
+.tm-editor {
+  min-height: 170px;
+  max-height: 46vh;
+  overflow-y: auto;
+  line-height: 1.8;
+  white-space: pre-wrap;
+  word-break: break-word;
+  cursor: text;
+}
+.tm-editor:focus { outline: none; border-color: var(--tm-cyan); box-shadow: 0 0 0 2px rgba(63, 224, 224, 0.2); }
+.tm-editor:empty::before {
+  content: attr(data-placeholder);
+  color: var(--tm-muted);
+  pointer-events: none;
+}
+.tm-editor img { max-width: 100%; height: auto; border-radius: 6px; margin: 6px 0; display: block; }
+.tm-editor a { color: var(--tm-cyan); }
 .tm-content-card {
   background: rgba(9, 30, 40, 0.7);
   border: 1px solid var(--tm-line);

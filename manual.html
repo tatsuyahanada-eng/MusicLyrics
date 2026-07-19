@@ -9,7 +9,7 @@
   <link rel="manifest" href="manifest.webmanifest">
   <link rel="icon" href="icon.svg" type="image/svg+xml">
   <link rel="apple-touch-icon" href="icon-192.png">
-  <link rel="stylesheet" href="manual.css?v=16">
+  <link rel="stylesheet" href="manual.css?v=17">
 </head>
 <body class="tm-body">
 
@@ -186,34 +186,30 @@
           autocomplete="off" placeholder="あなたの名前">
       </label>
 
-      <label class="tm-field">
+      <div class="tm-field">
         <span class="tm-field-label">
           説明・作業内容（任意）
-          <span class="tm-field-hint">選択したテキストにボタンで装飾できます（太字・色・大きさ・見出し・箇条書き）。</span>
+          <span class="tm-field-hint">文字を選んでボタンを押すと、太字・色・大きさが反映されます。</span>
         </span>
-        <div class="tm-fmtbar">
-          <button type="button" class="tm-fmtbtn" data-fmt="bold" title="太字"><b>B</b></button>
-          <select class="tm-fmtsel" id="fmtColor" title="文字色" aria-label="文字色">
-            <option value="">色</option>
-            <option value="red">赤</option>
-            <option value="blue">青</option>
-            <option value="green">緑</option>
-            <option value="yellow">黄</option>
-            <option value="cyan">水色</option>
-            <option value="white">白</option>
-          </select>
-          <select class="tm-fmtsel" id="fmtSize" title="文字サイズ" aria-label="文字サイズ">
-            <option value="">大きさ</option>
-            <option value="xbig">特大</option>
-            <option value="big">大</option>
-            <option value="small">小</option>
-          </select>
-          <button type="button" class="tm-fmtbtn" data-fmt="head" title="見出し">&#35; 見出し</button>
-          <button type="button" class="tm-fmtbtn" data-fmt="list" title="箇条書き">&#8226; 箇条書き</button>
+        <div class="tm-fmtbar" id="fmtBar">
+          <button type="button" class="tm-fmtbtn" data-cmd="bold" title="太字"><b>B</b></button>
+          <span class="tm-fmt-sep"></span>
+          <button type="button" class="tm-fmtbtn" data-size="2" title="小">小</button>
+          <button type="button" class="tm-fmtbtn" data-size="3" title="標準">標準</button>
+          <button type="button" class="tm-fmtbtn" data-size="5" title="大">大</button>
+          <button type="button" class="tm-fmtbtn" data-size="6" title="特大">特大</button>
+          <span class="tm-fmt-sep"></span>
+          <button type="button" class="tm-fmtcolor" data-color="#ff5a6e" style="background:#ff5a6e" title="赤"></button>
+          <button type="button" class="tm-fmtcolor" data-color="#4aa3ff" style="background:#4aa3ff" title="青"></button>
+          <button type="button" class="tm-fmtcolor" data-color="#38d39f" style="background:#38d39f" title="緑"></button>
+          <button type="button" class="tm-fmtcolor" data-color="#ffd54a" style="background:#ffd54a" title="黄"></button>
+          <button type="button" class="tm-fmtcolor" data-color="#e86b2c" style="background:#e86b2c" title="オレンジ"></button>
+          <button type="button" class="tm-fmtcolor" data-color="#111111" style="background:#111111" title="黒"></button>
+          <button type="button" class="tm-fmtbtn tm-fmtclear" data-clear="1" title="書式を消す">&#10005;</button>
         </div>
-        <textarea id="nodeBodyInput" class="tm-input tm-textarea" rows="8"
-          placeholder="手順や案内文を入力。空行で段落、行頭「- 」で箇条書き、「# 」で見出し。&#10;装飾例: **太字**  [color=red]赤字[/color]  [big]大きい[/big]  [small]小さい[/small]"></textarea>
-      </label>
+        <div id="nodeBodyEditor" class="tm-input tm-editor" contenteditable="true"
+          data-placeholder="手順や案内文を入力してください。"></div>
+      </div>
 
       <div class="tm-dialog-imgrow">
         <button type="button" id="nodeImgBtn" class="tm-btn tm-btn-outline tm-btn-sm">&#128247; 画像を追加</button>
@@ -296,6 +292,6 @@
   </dialog>
 
   <script src="vendor/xlsx.full.min.js"></script>
-  <script src="manual.js?v=17"></script>
+  <script src="manual.js?v=18"></script>
 </body>
 </html>
