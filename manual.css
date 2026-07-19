@@ -371,24 +371,25 @@
 }
 
 /* ---------- Nav: hero & big category tiles ---------- */
-.tm-hero { text-align: center; padding: 4px 10px 8px; }
-.tm-hero-kicker { font-family: var(--tm-mono); font-size: 11px; letter-spacing: 3px; color: var(--tm-cyan-dim); }
+.tm-hero { text-align: center; padding: 0 10px 2px; }
+.tm-hero-kicker { font-family: var(--tm-mono); font-size: 10px; letter-spacing: 2px; color: var(--tm-cyan-dim); }
 .tm-hero-title {
-  font-size: clamp(22px, 4vw, 30px);
-  letter-spacing: 2px;
+  font-size: clamp(17px, 3vw, 22px);
+  letter-spacing: 1px;
   color: var(--tm-cyan);
-  text-shadow: 0 0 16px rgba(63, 224, 224, 0.4);
-  margin: 6px 0;
+  text-shadow: 0 0 12px rgba(63, 224, 224, 0.35);
+  margin: 2px 0 3px;
 }
-.tm-hero-sub { font-size: 13px; color: var(--tm-muted); }
+.tm-hero-sub { font-size: 12px; color: var(--tm-muted); }
 
 /* 大項目は縦に列挙（1列） */
 .tm-cat-grid {
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: 9px;
   border-top: none;
-  padding-top: 4px;
+  margin-top: 8px;
+  padding-top: 0;
 }
 .tm-cat-tile {
   position: relative;

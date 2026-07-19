@@ -1053,6 +1053,31 @@
   $('#tokenCancel').addEventListener('click', () => { tokenDialog.close(); resolveToken(null); });
   tokenDialog.addEventListener('cancel', () => resolveToken(null));
 
+  /* ---------- admin password dialog（初期化などの保護） ---------- */
+  const ADMIN_PW = 'Welsys1234'; // 管理者パスワード（変更する場合はこの値を書き換え）
+  const adminDialog = $('#adminDialog');
+  const adminForm = $('#adminForm');
+  const adminInput = $('#adminInput');
+  const adminErrorEl = $('#adminError');
+  let adminResolve = null;
+  function askAdmin() {
+    return new Promise((resolve) => {
+      adminResolve = resolve;
+      adminInput.value = '';
+      adminErrorEl.textContent = '';
+      adminDialog.showModal();
+      adminInput.focus();
+    });
+  }
+  function resolveAdmin(ok) { const r = adminResolve; adminResolve = null; if (r) r(ok); }
+  adminForm.addEventListener('submit', (e) => {
+    e.preventDefault();
+    if (adminInput.value === ADMIN_PW) { adminDialog.close(); resolveAdmin(true); }
+    else { adminErrorEl.textContent = 'パスワードが違います。'; adminInput.select(); }
+  });
+  $('#adminCancel').addEventListener('click', () => { adminDialog.close(); resolveAdmin(false); });
+  adminDialog.addEventListener('cancel', () => resolveAdmin(false));
+
   function confirmDelete(id) {
     const node = findNode(id);
     if (!node) return;
@@ -1122,7 +1147,8 @@
     }));
   }
 
-  $('#resetBtn').addEventListener('click', () => {
+  $('#resetBtn').addEventListener('click', async () => {
+    if (!(await askAdmin())) return; // 管理者パスワードが必要
     const shared = serverMode() ? ' サーバー上の全員の共有データがサンプルに置き換わります。' : '';
     askConfirm('すべてのデータを初期状態（サンプル）に戻しますか？この操作は元に戻せません。' + shared, async () => {
       try {

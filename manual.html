@@ -9,7 +9,7 @@
   <link rel="manifest" href="manifest.webmanifest">
   <link rel="icon" href="icon.svg" type="image/svg+xml">
   <link rel="apple-touch-icon" href="icon-192.png">
-  <link rel="stylesheet" href="manual.css?v=14">
+  <link rel="stylesheet" href="manual.css?v=15">
 </head>
 <body class="tm-body">
 
@@ -240,6 +240,23 @@
     </div>
   </dialog>
 
+  <!-- ===== Admin password Dialog ===== -->
+  <dialog id="adminDialog" class="tm-dialog">
+    <form id="adminForm" method="dialog" class="tm-dialog-form">
+      <h2 class="tm-dialog-title">管理者パスワード</h2>
+      <p class="tm-confirm-msg">この操作（初期化）には管理者パスワードが必要です。</p>
+      <label class="tm-field">
+        <span class="tm-field-label">パスワード</span>
+        <input id="adminInput" class="tm-input" type="password" autocomplete="off" placeholder="管理者パスワード">
+      </label>
+      <p id="adminError" class="tm-dialog-err" aria-live="polite"></p>
+      <div class="tm-dialog-actions">
+        <button type="button" id="adminCancel" class="tm-btn tm-btn-outline">キャンセル</button>
+        <button type="submit" class="tm-btn tm-btn-primary">確認</button>
+      </div>
+    </form>
+  </dialog>
+
   <!-- ===== Token Dialog ===== -->
   <dialog id="tokenDialog" class="tm-dialog">
     <form id="tokenForm" method="dialog" class="tm-dialog-form">
@@ -273,6 +290,6 @@
   </dialog>
 
   <script src="vendor/xlsx.full.min.js"></script>
-  <script src="manual.js?v=14"></script>
+  <script src="manual.js?v=15"></script>
 </body>
 </html>
