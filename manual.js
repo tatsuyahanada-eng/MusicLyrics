@@ -640,8 +640,19 @@
     remainHint.textContent = '';
   }
 
+  /* ---- 端末(Android等)の戻るで1つ前に戻るための履歴連携 ---- */
+  let cbcDepth = 0;       // pushState で積んだマーカー数
+  let cbcSuppress = 0;    // プログラムによる history 操作を無視するカウンタ
+  try { history.replaceState({ cbcBase: 1 }, ''); } catch (_) {}
+  function cbcPush() { cbcDepth++; try { history.pushState({ cbc: cbcDepth }, ''); } catch (_) {} }
+  function cbcBackTo(target) {
+    const n = cbcDepth - target;
+    if (n > 0) { cbcSuppress += n; cbcDepth = target; try { history.go(-n); } catch (_) {} }
+  }
+
   function navGoto(id) {
     navPath.push(id);
+    cbcPush();
     renderNav();
   }
   function navBack() {
@@ -653,11 +664,25 @@
     const idx = navPath.indexOf(id);
     if (idx >= 0) navPath = navPath.slice(0, idx + 1);
     renderNav();
+    cbcBackTo(navPath.length);
   }
   function navRestart() {
     navPath = [];
     renderNav();
+    cbcBackTo(0);
   }
+
+  // 端末の戻るボタン（popstate）
+  window.addEventListener('popstate', () => {
+    if (cbcSuppress > 0) { cbcSuppress--; return; }
+    if (cbcDepth > 0) cbcDepth--;
+    const dlgs = [xlsxDialog, adminDialog, tokenDialog, nodeDialog, confirmDialog];
+    const openDlg = dlgs.find((d) => d && d.open);
+    if (openDlg) { openDlg.close(); cbcPush(); return; } // ダイアログを閉じてその場に留まる
+    if (!editView.hidden) { setMode('nav'); return; }    // 編集モード→案内モード
+    if (navPath.length > 0) { navPath.pop(); renderNav(); return; } // 案内を1つ戻る
+    // 案内の最上位：これ以上は戻らない（次の戻るでアプリ/ページを離脱）
+  });
 
   choiceDock.addEventListener('click', (e) => {
     const btn = e.target.closest('[data-goto]');
@@ -682,7 +707,7 @@
     const c = e.target.closest('[data-crumb]');
     if (c) navTo(c.dataset.crumb);
   });
-  backBtn.addEventListener('click', navBack);
+  backBtn.addEventListener('click', () => history.back()); // 端末の戻ると同じ挙動
   restartBtn.addEventListener('click', navRestart);
 
   /* ============================================================
@@ -1669,8 +1694,8 @@
       renderEdit();
     }
   }
-  navModeBtn.addEventListener('click', () => setMode('nav'));
-  editModeBtn.addEventListener('click', () => setMode('edit'));
+  navModeBtn.addEventListener('click', () => { setMode('nav'); cbcBackTo(navPath.length); });
+  editModeBtn.addEventListener('click', () => { setMode('edit'); cbcPush(); });
 
   /* ============================================================
      PWA
