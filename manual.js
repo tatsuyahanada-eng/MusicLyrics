@@ -365,10 +365,13 @@
     return html;
   }
   function renderBody(text) {
-    const lines = String(text).replace(/\r\n/g, '\n').split('\n');
+    const lines = String(text).replace(/\r\n/g, '\n').replace(/\r/g, '\n').split('\n');
     let html = '';
     let inList = false;
+    let para = [];
     const closeList = () => { if (inList) { html += '</ul>'; inList = false; } };
+    // 連続した通常行は1段落にまとめ、改行(Enter)は<br>で表示。空行で段落を分ける。
+    const flushPara = () => { if (para.length) { html += `<p>${para.join('<br>')}</p>`; para = []; } };
     // [ラベル](URL) のリンク と 素のURL を安全にリンク化
     const inline = (raw) => {
       let out = '';
@@ -395,23 +398,24 @@
       const line = raw.trimEnd();
       const img = line.match(/^!\[([^\]]*)\]\(([^)]+)\)\s*$/);
       if (img) {
-        closeList();
+        flushPara(); closeList();
         const u = safeUrl(img[2]);
         if (u) html += `<img class="tm-body-img" src="${esc(u)}" alt="${esc(img[1])}" loading="lazy">`;
       } else if (/^#{1,3}\s+/.test(line)) {
-        closeList();
+        flushPara(); closeList();
         html += `<h3>${inline(line.replace(/^#{1,3}\s+/, ''))}</h3>`;
       } else if (/^[-*]\s+/.test(line)) {
+        flushPara();
         if (!inList) { html += '<ul>'; inList = true; }
         html += `<li>${inline(line.replace(/^[-*]\s+/, ''))}</li>`;
       } else if (line.trim() === '') {
-        closeList();
+        flushPara(); closeList();
       } else {
         closeList();
-        html += `<p>${inline(line)}</p>`;
+        para.push(inline(line));
       }
     }
-    closeList();
+    flushPara(); closeList();
     return html;
   }
 
