@@ -64,25 +64,25 @@
   function seedData() {
     const n = (title, body, children = []) => ({ id: uid(), title, body, children });
     return [
-      n('ドミネーターが起動しない', '', [
-        n('ウォレットが接続できない', '', [
-          n('「CONNECT WALLET」を押しても反応しない',
-            '# 対処手順\n- ブラウザを最新版に更新してください。\n- 拡張機能（ウォレット）が有効か確認してください。\n- 別のブラウザ／シークレットウィンドウで再試行してください。\n\nそれでも解決しない場合はサポートへ連絡してください。'),
-          n('接続後にエラーが表示される',
-            '# 対処手順\n- 対応ネットワークに切り替わっているか確認してください。\n- ウォレットを一度切断し、再接続してください。\n- キャッシュをクリアして再読み込みしてください。'),
+      n('パソコンのトラブル', '', [
+        n('起動しない', '', [
+          n('電源が入らない',
+            '# 対処手順\n- 電源ケーブルが正しく接続されているか確認します。\n- 電源ボタンを10秒ほど長押しして放電します。\n- 別のコンセントで試します。\n\n改善しない場合は情報システム担当へ連絡してください。'),
+          n('画面が真っ暗のまま',
+            '# 対処手順\n- モニターの電源と接続ケーブルを確認します。\n- 画面の明るさ設定を上げます。\n- 本体の電源ランプが点灯しているか確認します。'),
         ]),
-        n('バッテリー残量が0になっている',
-          '# バッテリー切れの対処\n- バッテリーNFTを補充してください。\n- 補充後、ページを再読み込みすると残量が反映されます。'),
+        n('インターネットにつながらない',
+          '# 対処手順\n- 無線／有線の接続状態を確認します。\n- ルーターを再起動します。\n- 他の端末でもつながらない場合は回線側の問題の可能性があります。'),
       ]),
-      n('色相診断ゲームの進め方', '', [
-        n('測定モードを開始したい',
-          '# 測定モードの開始\n- TOP から「色相診断ゲーム」を選択します。\n- ドミネーターを選択します。\n- 質問に回答すると診断が進みます（全5会話）。'),
-        n('診断結果の見方を知りたい',
-          '# 結果の見方\n- CRIME COEFFICIENT：犯罪係数。数値が低いほど安全域です。\n- COLOR：色相。あなたの回答傾向を色で表します。\n- HUE POINTS：色相ポイント。'),
+      n('来客対応', '', [
+        n('受付の基本の流れ',
+          '# 受付手順\n1. 笑顔で挨拶し、会社名・お名前・ご用件を伺います。\n2. 担当者へ内線で連絡します。\n3. 応接室へご案内します。'),
+        n('会議室の準備',
+          '# 準備リスト\n- 人数分の椅子と資料を用意\n- プロジェクター／モニターの動作確認\n- お茶・お水の準備'),
       ]),
-      n('NFT・ガチャについて', '', [
-        n('ガチャのセット内容を知りたい',
-          '# セット内容\n## セットA\n- パラライザー ×350 ＋ バッテリーNFT\n- エリミネーター ×120 ＋ バッテリーNFT\n- デコンポーザー ×30 ＋ バッテリーNFT\n\n## セットB\n- 各ドミネーター ＋ バッテリーNFT ＋ マスターNFT（MR）'),
+      n('備品・消耗品', '', [
+        n('発注のしかた',
+          '# 発注手順\n- 在庫が残りわずかになったら発注します。\n- 所定の発注フォームに記入します。\n- 上長の承認を得てから発注します。'),
       ]),
     ];
   }
@@ -271,24 +271,26 @@
 
   const serverMode = () => serverAvailable && dbConnected;
 
-  async function opCreate(parentId, title, body) {
+  async function opCreate(parentId, title, body, author) {
+    const who = author != null ? author : authorName();
     if (serverMode()) {
-      await apiCall('node_create', { method: 'POST', body: { parent_id: parentId || '', title, body, author: authorName() } });
+      await apiCall('node_create', { method: 'POST', body: { parent_id: parentId || '', title, body, author: who } });
       await reloadFromServer();
     } else {
       const now = Date.now();
-      const newNode = { id: uid(), title, body, children: [], created_by: authorName(), updated_by: authorName(), created_at: now, updated_at: now };
+      const newNode = { id: uid(), title, body, children: [], created_by: who, updated_by: who, created_at: now, updated_at: now };
       if (parentId) { const p = findNode(parentId); if (p) p.children.push(newNode); }
       else tree.push(newNode);
       persist();
     }
   }
-  async function opUpdate(id, title, body) {
+  async function opUpdate(id, title, body, author) {
+    const who = author != null ? author : authorName();
     if (serverMode()) {
-      await apiCall('node_update', { method: 'POST', body: { id, title, body, author: authorName() } });
+      await apiCall('node_update', { method: 'POST', body: { id, title, body, author: who } });
       await reloadFromServer();
     } else {
-      const n = findNode(id); if (n) { n.title = title; n.body = body; n.updated_by = authorName() || n.updated_by; n.updated_at = Date.now(); } persist();
+      const n = findNode(id); if (n) { n.title = title; n.body = body; n.updated_by = who || n.updated_by; n.updated_at = Date.now(); } persist();
     }
   }
   async function opDelete(id) {
@@ -836,6 +838,7 @@
   const nodeDialog = $('#nodeDialog');
   const nodeForm = $('#nodeForm');
   const nodeTitleInput = $('#nodeTitleInput');
+  const nodeAuthorInput = $('#nodeAuthorInput');
   const nodeBodyInput = $('#nodeBodyInput');
   const nodeDialogTitle = $('#nodeDialogTitle');
   let dialogTarget = null; // { mode: 'edit'|'add', id, parentId }
@@ -862,6 +865,7 @@
       nodeTitleInput.value = '';
       nodeBodyInput.value = '';
     }
+    if (nodeAuthorInput) nodeAuthorInput.value = authorName(); // 既定は記入者名。項目ごとに変更可
     if (nodeMetaEl) nodeMetaEl.textContent = metaStr;
     if (nodeErrorEl) nodeErrorEl.textContent = '';
     const canAttach = serverMode();
@@ -877,15 +881,19 @@
     const title = nodeTitleInput.value.trim();
     if (!title) return;
     const body = nodeBodyInput.value;
+    const author = (nodeAuthorInput ? nodeAuthorInput.value : '').trim();
+    // 入力した登録者名を既定値としても記憶
+    localStorage.setItem(AUTHOR_KEY, author);
+    if (typeof authorInput !== 'undefined' && authorInput) authorInput.value = author;
     const submitBtn = nodeForm.querySelector('button[type=submit]');
     submitBtn.disabled = true;
     nodeError('');
     try {
       if (dialogTarget.mode === 'edit') {
-        await opUpdate(dialogTarget.id, title, body);
+        await opUpdate(dialogTarget.id, title, body, author);
       } else {
         if (dialogTarget.parentId) { openNodes.add(dialogTarget.parentId); persistOpen(); }
-        await opCreate(dialogTarget.parentId, title, body);
+        await opCreate(dialogTarget.parentId, title, body, author);
       }
       nodeDialog.close();
       renderEdit();

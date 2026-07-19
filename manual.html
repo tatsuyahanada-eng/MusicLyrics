@@ -49,7 +49,7 @@
         <div class="tm-panel-corner tm-corner-br"></div>
 
         <div class="tm-panel-head">
-          <span class="tm-panel-head-label">MEASUREMENT MODE</span>
+          <span class="tm-panel-head-label">GUIDE MODE</span>
           <span class="tm-panel-head-jp">案内モード</span>
           <span id="remainHint" class="tm-panel-head-remain"></span>
         </div>
@@ -177,7 +177,13 @@
       <label class="tm-field">
         <span class="tm-field-label">項目名（選択肢に表示されます）</span>
         <input id="nodeTitleInput" class="tm-input" type="text" required maxlength="120"
-          placeholder="例：ドミネーターが起動しない">
+          placeholder="例：パソコンが起動しない">
+      </label>
+
+      <label class="tm-field">
+        <span class="tm-field-label">登録者名（この項目を入力・修正した人）</span>
+        <input id="nodeAuthorInput" class="tm-input" type="text" maxlength="40"
+          autocomplete="off" placeholder="あなたの名前">
       </label>
 
       <label class="tm-field">
@@ -290,6 +296,6 @@
   </dialog>
 
   <script src="vendor/xlsx.full.min.js"></script>
-  <script src="manual.js?v=16"></script>
+  <script src="manual.js?v=17"></script>
 </body>
 </html>
