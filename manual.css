@@ -497,6 +497,7 @@
   text-align: left;
   background: transparent;
   border: none;
+  color: var(--tm-text);
   cursor: pointer;
   display: flex;
   flex-direction: column;
@@ -738,6 +739,7 @@ body.tm-dragging .tm-treenode-row { cursor: grabbing; }
   flex: 1;
   min-width: 0;
   font-size: 14px;
+  color: var(--tm-text);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
