@@ -471,6 +471,24 @@
   }
 
   function renderNav() {
+    // DB未接続（サーバーには繋がるがDBに接続できない）ときは項目を出さずエラー表示
+    if (serverAvailable && !dbConnected) {
+      breadcrumbBar.innerHTML = `<span class="tm-crumb is-current" data-crumb-home>TOP</span>`;
+      chatLog.innerHTML = `<div class="tm-naverror">
+        <div class="tm-naverror-title">&#9888; データベースに接続できません</div>
+        <p class="tm-naverror-msg">サーバーのデータベースに接続できないため、内容を表示できません。<br>
+          管理者は <b>config.php</b> の設定（ホスト・DB名・ユーザー・パスワード）とPHPのバージョンをご確認ください。</p>
+        ${dbError ? `<div class="tm-naverror-detail">詳細: ${esc(dbError)}</div>` : ''}
+        <button class="tm-btn tm-btn-outline" id="navRetryBtn" type="button">&#8635; 再接続を試す</button>
+      </div>`;
+      choiceDock.className = 'tm-choicedock';
+      choiceDock.innerHTML = '';
+      navAddDock.innerHTML = '';
+      backBtn.disabled = true;
+      remainHint.textContent = '';
+      return;
+    }
+
     const atRoot = navPath.length === 0;
     const curNode = atRoot ? null : findNode(navPath[navPath.length - 1]);
     const kids = currentChildren();
@@ -558,9 +576,15 @@
     if (btn) navGoto(btn.dataset.goto);
   });
   chatLog.addEventListener('click', (e) => {
+    if (e.target.closest('#navRetryBtn')) { retryConnect(); return; }
     const eb = e.target.closest('[data-editthis]');
     if (eb) openNodeDialog(eb.dataset.editthis); // 案内モードから直接編集
   });
+  async function retryConnect() {
+    await detectServer();
+    if (serverMode()) { try { await reloadFromServer(); } catch (e) {} }
+    renderNav();
+  }
   navAddDock.addEventListener('click', (e) => {
     const el = e.target.closest('[data-add]');
     if (el) openNodeDialog(null, el.dataset.add || null); // 案内モードから直接追加
