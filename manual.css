@@ -78,6 +78,22 @@
   letter-spacing: 1px;
   color: var(--tm-muted);
 }
+.tm-connchip {
+  display: inline-block;
+  margin-left: 8px;
+  font-family: var(--tm-mono);
+  font-size: 10px;
+  letter-spacing: 1px;
+  padding: 1px 9px;
+  border-radius: 10px;
+  border: 1px solid var(--tm-line);
+  color: var(--tm-muted);
+  vertical-align: middle;
+  white-space: nowrap;
+}
+.tm-connchip.is-shared { color: #041018; background: var(--tm-cyan); border-color: var(--tm-cyan); }
+.tm-connchip.is-nodb { color: var(--tm-warn); border-color: rgba(255, 207, 63, 0.5); }
+.tm-connchip.is-local { color: var(--tm-muted); }
 .tm-header-nav { display: flex; gap: 8px; }
 
 .tm-navbtn {
@@ -345,10 +361,11 @@
 }
 .tm-hero-sub { font-size: 13px; color: var(--tm-muted); }
 
+/* 大項目は縦に列挙（1列） */
 .tm-cat-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
-  gap: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
   border-top: none;
   padding-top: 4px;
 }
@@ -357,19 +374,20 @@
   text-align: left;
   cursor: pointer;
   display: flex;
-  flex-direction: column;
-  gap: 6px;
-  padding: 16px 16px 14px;
-  min-height: 100px;
+  flex-direction: row;
+  align-items: center;
+  gap: 14px;
+  padding: 15px 18px;
   background: linear-gradient(160deg, rgba(20, 52, 62, 0.7), rgba(10, 26, 38, 0.7));
   border: 1px solid var(--tm-line);
+  border-left: 3px solid var(--tm-cyan);
   border-radius: 8px;
   transition: border-color .15s, box-shadow .15s, transform .1s;
 }
-.tm-cat-tile:hover { border-color: var(--tm-cyan); box-shadow: 0 0 18px rgba(63, 224, 224, 0.25); transform: translateY(-2px); }
-.tm-cat-no { font-family: var(--tm-mono); font-size: 12px; color: var(--tm-cyan-dim); letter-spacing: 1px; }
-.tm-cat-name { font-size: 16px; font-weight: 600; color: var(--tm-text); line-height: 1.4; }
-.tm-cat-sub { margin-top: auto; font-family: var(--tm-mono); font-size: 11px; color: var(--tm-muted); }
+.tm-cat-tile:hover { border-color: var(--tm-cyan); box-shadow: 0 0 18px rgba(63, 224, 224, 0.22); transform: translateX(2px); }
+.tm-cat-no { flex-shrink: 0; font-family: var(--tm-mono); font-size: 14px; color: var(--tm-cyan-dim); letter-spacing: 1px; }
+.tm-cat-name { flex: 1; min-width: 0; font-size: 16px; font-weight: 600; color: var(--tm-text); line-height: 1.4; }
+.tm-cat-sub { flex-shrink: 0; font-family: var(--tm-mono); font-size: 11px; color: var(--tm-muted); }
 
 /* ---------- Nav: current location & content ---------- */
 .tm-current { padding: 4px 2px 2px; }

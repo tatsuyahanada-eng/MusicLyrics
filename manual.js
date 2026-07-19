@@ -1404,6 +1404,14 @@
     const rb = $('#reloadBtn'), mb = $('#migrateBtn');
     if (rb) rb.disabled = dis;
     if (mb) mb.disabled = dis;
+    // ヘッダーの共有状態チップ（常時表示・端末間の食い違い診断用）
+    const chip = $('#connChip');
+    if (chip) {
+      chip.classList.remove('is-shared', 'is-nodb', 'is-local');
+      if (serverAvailable && dbConnected) { chip.textContent = '● 共有中'; chip.classList.add('is-shared'); }
+      else if (serverAvailable && !dbConnected) { chip.textContent = '● DB未接続'; chip.classList.add('is-nodb'); }
+      else { chip.textContent = '● この端末のみ'; chip.classList.add('is-local'); }
+    }
     if (serverNoteEl && serverAvailable && !dbConnected && dbError) {
       serverNoteEl.textContent = 'DBに接続できません（config.php の設定をご確認ください）: ' + dbError;
     }
