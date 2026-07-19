@@ -94,6 +94,27 @@
 .tm-connchip.is-shared { color: #041018; background: var(--tm-cyan); border-color: var(--tm-cyan); }
 .tm-connchip.is-nodb { color: var(--tm-warn); border-color: rgba(255, 207, 63, 0.5); }
 .tm-connchip.is-local { color: var(--tm-muted); }
+
+/* DB接続エラー通知バー */
+.tm-dberror {
+  position: relative;
+  z-index: 4;
+  margin: 0;
+  padding: 11px clamp(14px, 4vw, 40px);
+  font-size: 13px;
+  line-height: 1.7;
+  color: var(--tm-warn);
+  background: rgba(255, 207, 63, 0.08);
+  border-bottom: 1px solid rgba(255, 207, 63, 0.4);
+}
+.tm-dberror-detail {
+  display: block;
+  margin-top: 4px;
+  font-family: var(--tm-mono);
+  font-size: 11px;
+  color: var(--tm-muted);
+  word-break: break-all;
+}
 .tm-header-nav { display: flex; gap: 8px; }
 
 .tm-navbtn {

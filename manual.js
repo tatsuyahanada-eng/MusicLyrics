@@ -1412,6 +1412,18 @@
       else if (serverAvailable && !dbConnected) { chip.textContent = '● DB未接続'; chip.classList.add('is-nodb'); }
       else { chip.textContent = '● この端末のみ'; chip.classList.add('is-local'); }
     }
+    // DB接続エラーの内容を画面に表示（原因特定用）
+    const eb = $('#dbErrorBar');
+    if (eb) {
+      if (serverAvailable && !dbConnected) {
+        eb.hidden = false;
+        eb.innerHTML = '⚠ サーバーのデータベースに接続できません。<b>config.php</b> の設定'
+          + '（データベースホスト・データベース名・ユーザー名・パスワード）と、PHPのバージョン（7.4以上）をご確認ください。'
+          + (dbError ? `<span class="tm-dberror-detail">詳細: ${esc(dbError)}</span>` : '');
+      } else {
+        eb.hidden = true;
+      }
+    }
     if (serverNoteEl && serverAvailable && !dbConnected && dbError) {
       serverNoteEl.textContent = 'DBに接続できません（config.php の設定をご確認ください）: ' + dbError;
     }
