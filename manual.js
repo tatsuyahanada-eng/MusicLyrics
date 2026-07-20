@@ -475,15 +475,43 @@
     });
     return out.join(';');
   }
-  function sanitizeInto(node, out) {
+  // 素のURLを安全に <a> 化（既に<a>内のテキストは対象外）
+  function linkifyText(text) {
+    const s = String(text);
+    if (s.indexOf('http') < 0) return esc(s);
+    let out = '';
+    let last = 0;
+    const re = /https?:\/\/[^\s<>"'）)】」』]+/g;
+    let m;
+    while ((m = re.exec(s))) {
+      out += esc(s.slice(last, m.index));
+      let url = m[0];
+      const tm = url.match(/[.,!?;:、。]+$/); // 末尾の句読点はリンクから除外
+      let tail = '';
+      if (tm) { tail = url.slice(url.length - tm[0].length); url = url.slice(0, url.length - tm[0].length); }
+      const safe = safeLinkUrl(url);
+      out += safe
+        ? `<a href="${esc(safe)}" target="_blank" rel="noopener">${esc(url)}</a>${esc(tail)}`
+        : esc(m[0]);
+      last = re.lastIndex;
+    }
+    out += esc(s.slice(last));
+    return out;
+  }
+  // プレーンテキスト（メモ等の貼り付け）を改行を保ったHTMLに変換
+  function plainToHtml(text) {
+    const norm = String(text == null ? '' : text).replace(/\r\n/g, '\n').replace(/\r/g, '\n');
+    return norm.split('\n').map((l) => linkifyText(l) || '').join('<br>');
+  }
+  function sanitizeInto(node, out, insideLink) {
     node.childNodes.forEach((child) => {
-      if (child.nodeType === 3) { out.push(esc(child.nodeValue)); return; }
+      if (child.nodeType === 3) { out.push(insideLink ? esc(child.nodeValue) : linkifyText(child.nodeValue)); return; }
       if (child.nodeType !== 1) return;
       const tag = child.tagName.toLowerCase();
       const spec = ALLOWED_TAGS[tag];
       if (!spec) {
         if (tag === 'script' || tag === 'style') return;
-        sanitizeInto(child, out); // 不許可タグは中身だけ残す
+        sanitizeInto(child, out, insideLink); // 不許可タグは中身だけ残す
         return;
       }
       let attrs = '';
@@ -500,7 +528,7 @@
       if (tag === 'a') attrs += ' target="_blank" rel="noopener"';
       if (spec.void) { out.push(`<${tag}${attrs}>`); return; }
       out.push(`<${tag}${attrs}>`);
-      sanitizeInto(child, out);
+      sanitizeInto(child, out, insideLink || tag === 'a');
       out.push(`</${tag}>`);
     });
   }
@@ -1226,16 +1254,25 @@
       const f = nodeFileFile.files[0]; if (f) uploadAttachment(f); nodeFileFile.value = '';
     });
     nodeBodyEditor.addEventListener('paste', (e) => {
-      const items = e.clipboardData && e.clipboardData.items;
-      if (!items) return;
-      for (const it of items) {
-        if (it.type && it.type.indexOf('image/') === 0) {
-          e.preventDefault();
-          const f = it.getAsFile();
-          if (f) uploadAttachment(f);
-          break;
+      const cd = e.clipboardData;
+      const items = cd && cd.items;
+      // 画像の貼り付けはアップロード
+      if (items) {
+        for (const it of items) {
+          if (it.type && it.type.indexOf('image/') === 0) {
+            e.preventDefault();
+            const f = it.getAsFile();
+            if (f) uploadAttachment(f);
+            return;
+          }
         }
       }
+      if (!cd) return;
+      // メモ等からの貼り付けは改行を確実に反映し、URLはリンク化する
+      const text = cd.getData('text/plain');
+      if (text == null || text === '') return; // ファイル等はブラウザ既定に任せる
+      e.preventDefault();
+      insertEditorHtml(plainToHtml(text));
     });
   }
 
