@@ -473,6 +473,52 @@
   transition: background .15s, box-shadow .15s;
 }
 .tm-addhere:hover { background: rgba(63, 224, 224, 0.14); box-shadow: 0 0 12px rgba(63, 224, 224, 0.2); }
+/* 簡易並べ替えの切替ボタン */
+.tm-sorttoggle {
+  width: 100%;
+  margin-top: 8px;
+  font-family: var(--tm-mono);
+  font-size: 13px;
+  letter-spacing: 1px;
+  color: var(--tm-warn);
+  background: rgba(255, 207, 63, 0.06);
+  border: 1px dashed rgba(255, 207, 63, 0.5);
+  padding: 10px 14px;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: background .15s, box-shadow .15s;
+}
+.tm-sorttoggle:hover { background: rgba(255, 207, 63, 0.14); }
+.tm-sorttoggle.is-active { background: rgba(255, 207, 63, 0.16); box-shadow: 0 0 12px rgba(255, 207, 63, 0.25); }
+
+/* 簡易並べ替えモードの表示 */
+.tm-sortmode { display: flex; flex-direction: column; gap: 8px; }
+.tm-sort-hint {
+  font-family: var(--tm-mono);
+  font-size: 12px;
+  color: var(--tm-warn);
+  padding: 2px 2px 4px;
+}
+.tm-sortrow {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  background: rgba(9, 30, 40, 0.6);
+  border: 1px solid var(--tm-line);
+  border-left: 3px solid var(--tm-warn);
+  border-radius: 6px;
+}
+.tm-sortrow-name {
+  flex: 1;
+  min-width: 0;
+  color: var(--tm-text);
+  font-size: 14px;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+.tm-sortrow-ctrls { display: flex; gap: 6px; flex-shrink: 0; }
+.tm-sortrow-ctrls .tm-iconbtn { width: 34px; height: 34px; font-size: 14px; }
 
 /* 本文の文字サイズ装飾 */
 .tm-fs-xbig { font-size: 1.6em; font-weight: 600; }

@@ -631,6 +631,7 @@
 
   // navPath: array of node ids representing current descent (empty = root)
   let navPath = [];
+  let navReorder = false; // 案内モードの簡易並べ替えモード
 
   function currentChildren() {
     if (navPath.length === 0) return tree;
@@ -673,6 +674,18 @@
       <span class="tm-choice-main">${locked ? '🔒 ' : ''}${esc(c.title)}</span>
       <span class="tm-choice-meta">${!locked && flag ? flag + ' · ' : ''}${meta}</span>
     </button>`;
+  }
+
+  // 簡易並べ替えモードの1行（▲▼で上下移動）
+  function sortRow(c, i, n) {
+    const locked = isLocked(c);
+    return `<div class="tm-sortrow">
+      <span class="tm-sortrow-name">${locked ? '🔒 ' : ''}${esc(c.title)}</span>
+      <span class="tm-sortrow-ctrls">
+        <button class="tm-iconbtn" data-navup="${c.id}" type="button" ${i === 0 ? 'disabled' : ''} title="上へ">&#9650;</button>
+        <button class="tm-iconbtn" data-navdown="${c.id}" type="button" ${i === n - 1 ? 'disabled' : ''} title="下へ">&#9660;</button>
+      </span>
+    </div>`;
   }
 
   function renderNav() {
@@ -735,8 +748,16 @@
     chatLog.innerHTML = html;
     chatLog.scrollTop = 0;
 
+    const canReorder = kids.length > 1;
+    if (navReorder && !canReorder) navReorder = false; // 並べ替え対象が無ければ解除
+
     if (kids.length > 0) {
-      if (atRoot) {
+      if (navReorder) {
+        choiceDock.className = 'tm-choicedock tm-sortmode';
+        choiceDock.innerHTML =
+          `<div class="tm-sort-hint">&#8645; 並べ替え中：▲▼ でこの階層の順番を変更できます。</div>` +
+          kids.map((c, i) => sortRow(c, i, kids.length)).join('');
+      } else if (atRoot) {
         choiceDock.className = 'tm-choicedock tm-cat-grid';
         choiceDock.innerHTML = kids.map((c, i) => categoryTile(c, i)).join('');
       } else {
@@ -749,9 +770,13 @@
       choiceDock.innerHTML = '';
     }
 
-    // 直接追加ボタン（案内モードから子項目/大項目をその場で追加）
+    // 直接追加ボタン ＋ 簡易並べ替えの切替
     const addParent = atRoot ? '' : curNode.id;
-    navAddDock.innerHTML = `<button class="tm-addhere" data-add="${addParent}" type="button">&#43; ${depthLabel(navPath.length)}を追加</button>`;
+    let addHtml = `<button class="tm-addhere" data-add="${addParent}" type="button">&#43; ${depthLabel(navPath.length)}を追加</button>`;
+    if (canReorder) {
+      addHtml += `<button class="tm-sorttoggle ${navReorder ? 'is-active' : ''}" data-sorttoggle type="button">${navReorder ? '&#10003; 並べ替えを終了' : '&#8645; 並べ替え'}</button>`;
+    }
+    navAddDock.innerHTML = addHtml;
 
     backBtn.disabled = atRoot;
     remainHint.textContent = '';
@@ -772,22 +797,26 @@
     if (isLocked(node)) {
       if (!(await ensureUnlocked(node))) return;
     }
+    navReorder = false;
     navPath.push(id);
     cbcPush();
     renderNav();
   }
   function navBack() {
+    navReorder = false;
     navPath.pop();
     renderNav();
   }
   function navTo(id) {
     // jump to a specific ancestor in the path
+    navReorder = false;
     const idx = navPath.indexOf(id);
     if (idx >= 0) navPath = navPath.slice(0, idx + 1);
     renderNav();
     cbcBackTo(navPath.length);
   }
   function navRestart() {
+    navReorder = false;
     navPath = [];
     renderNav();
     cbcBackTo(0);
@@ -801,11 +830,22 @@
     const openDlg = dlgs.find((d) => d && d.open);
     if (openDlg) { openDlg.close(); cbcPush(); return; } // ダイアログを閉じてその場に留まる
     if (!editView.hidden) { setMode('nav'); return; }    // 編集モード→案内モード
+    if (navReorder) { navReorder = false; renderNav(); return; }  // 並べ替え中の戻るは並べ替えを終了
     if (navPath.length > 0) { navPath.pop(); renderNav(); return; } // 案内を1つ戻る
     // 案内の最上位：これ以上は戻らない（次の戻るでアプリ/ページを離脱）
   });
 
+  async function navReorderMove(id, dir) {
+    try {
+      await opMove(id, dir);
+      renderNav();
+    } catch (err) { syncMsg('並べ替えに失敗：' + err.message, true); }
+  }
   choiceDock.addEventListener('click', (e) => {
+    const up = e.target.closest('[data-navup]');
+    if (up) { if (!up.disabled) navReorderMove(up.dataset.navup, -1); return; }
+    const down = e.target.closest('[data-navdown]');
+    if (down) { if (!down.disabled) navReorderMove(down.dataset.navdown, 1); return; }
     const btn = e.target.closest('[data-goto]');
     if (btn) navGoto(btn.dataset.goto);
   });
@@ -824,6 +864,7 @@
     renderNav();
   }
   navAddDock.addEventListener('click', (e) => {
+    if (e.target.closest('[data-sorttoggle]')) { navReorder = !navReorder; renderNav(); return; }
     const el = e.target.closest('[data-add]');
     if (el) openNodeDialog(null, el.dataset.add || null); // 案内モードから直接追加
   });
