@@ -1274,6 +1274,18 @@
       e.preventDefault();
       insertEditorHtml(plainToHtml(text));
     });
+    // 編集画面で画像をタップすると削除できる
+    nodeBodyEditor.addEventListener('click', (e) => {
+      const img = e.target.closest('img');
+      if (!img) return;
+      e.preventDefault();
+      askConfirm('この画像を削除しますか？', () => {
+        const next = img.nextSibling;
+        img.remove();
+        if (next && next.nodeType === 1 && next.tagName === 'BR') next.remove();
+        nodeBodyEditor.focus();
+      }, '削除');
+    });
   }
 
   /* ---------- confirm dialog ---------- */

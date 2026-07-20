@@ -9,7 +9,7 @@
   <link rel="manifest" href="manifest.webmanifest">
   <link rel="icon" href="icon.svg" type="image/svg+xml">
   <link rel="apple-touch-icon" href="icon-192.png">
-  <link rel="stylesheet" href="manual.css?v=20">
+  <link rel="stylesheet" href="manual.css?v=21">
 </head>
 <body class="tm-body">
 
@@ -226,7 +226,7 @@
         <button type="button" id="nodeFileBtn" class="tm-btn tm-btn-outline tm-btn-sm">&#128206; ファイルを添付</button>
         <input type="file" id="nodeImgFile" accept="image/*" hidden>
         <input type="file" id="nodeFileFile" accept=".pdf,.txt,.csv,.zip,.doc,.docx,.xls,.xlsx,.ppt,.pptx,image/*" hidden>
-        <span class="tm-dialog-imghint">画像は貼り付け（Ctrl+V）でも挿入できます</span>
+        <span class="tm-dialog-imghint">画像は貼り付け（Ctrl+V）でも挿入できます。画像をタップすると削除できます。</span>
       </div>
 
       <p id="nodeError" class="tm-dialog-err" aria-live="polite"></p>
@@ -319,6 +319,6 @@
   </dialog>
 
   <script src="vendor/xlsx.full.min.js"></script>
-  <script src="manual.js?v=21"></script>
+  <script src="manual.js?v=22"></script>
 </body>
 </html>

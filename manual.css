@@ -519,7 +519,16 @@
   color: var(--tm-muted);
   pointer-events: none;
 }
-.tm-editor img { max-width: 100%; height: auto; border-radius: 6px; margin: 6px 0; display: block; }
+.tm-editor img {
+  max-width: 100%;
+  height: auto;
+  max-height: 40vh;
+  border-radius: 6px;
+  margin: 6px 0;
+  display: block;
+  cursor: pointer;
+}
+.tm-editor img:hover { outline: 2px solid var(--tm-warn); outline-offset: 1px; }
 .tm-editor a { color: var(--tm-cyan); }
 .tm-content-card {
   background: rgba(9, 30, 40, 0.7);
@@ -552,7 +561,17 @@
 .tm-content-body ul { margin: 6px 0 9px; padding-left: 22px; list-style: disc; }
 .tm-content-body li { margin: 4px 0; }
 .tm-content-body a { color: var(--tm-cyan); overflow-wrap: anywhere; word-break: break-all; }
-.tm-content-body > img.tm-body-img:first-child { margin-top: 0; }
+/* 本文の画像は枠に収め、画面に適したサイズに（元サイズで巨大表示されないように） */
+.tm-content-body img {
+  display: block;
+  max-width: 100%;
+  height: auto;
+  max-height: 70vh;
+  margin: 8px 0;
+  border: 1px solid var(--tm-line);
+  border-radius: 6px;
+}
+.tm-content-body > img:first-child { margin-top: 0; }
 
 .tm-content-meta {
   margin-top: 10px;
