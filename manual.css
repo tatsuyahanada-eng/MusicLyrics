@@ -609,6 +609,23 @@
 .tm-iconbtn-edit:hover { color: var(--tm-cyan); border-color: var(--tm-line-strong); }
 .tm-dialog-meta { font-family: var(--tm-mono); font-size: 11px; color: var(--tm-muted); margin-top: -6px; }
 
+/* 閲覧ロック */
+.tm-lock-toggle { display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--tm-text); cursor: pointer; }
+.tm-lock-toggle input { width: 16px; height: 16px; accent-color: var(--tm-warn); }
+.tm-lock-badge {
+  font-family: var(--tm-mono);
+  font-size: 10px;
+  letter-spacing: 1px;
+  color: var(--tm-warn);
+  border: 1px solid rgba(255, 207, 63, 0.5);
+  border-radius: 3px;
+  padding: 1px 6px;
+  flex-shrink: 0;
+}
+.tm-cat-tile .tm-lock-i, .tm-choice .tm-lock-i { color: var(--tm-warn); }
+.tm-cat-tile.is-locked, .tm-choice.is-locked { border-color: rgba(255, 207, 63, 0.4); }
+.tm-cat-tile.is-locked .tm-cat-sub, .tm-choice.is-locked .tm-choice-meta { color: var(--tm-warn); }
+
 /* ---------- Nav controls ---------- */
 .tm-navctrls {
   display: flex;

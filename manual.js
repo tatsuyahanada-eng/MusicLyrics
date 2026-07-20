@@ -241,6 +241,7 @@
       id: r.id, title: r.title, body: r.body || '', children: [],
       created_by: r.created_by || '', updated_by: r.updated_by || '',
       updated_at: Number(r.updated_at) || 0, created_at: Number(r.created_at) || 0,
+      locked: !!r.locked, lock: r.lock || '',
       _p: r.parent_id || '', _o: Number(r.sort_order) || 0,
     }));
     const roots = [];
@@ -256,7 +257,7 @@
     return roots;
   }
   function rowsHash(rows) {
-    return JSON.stringify(rows.map((r) => [r.id, r.parent_id, r.sort_order, r.title, r.body]));
+    return JSON.stringify(rows.map((r) => [r.id, r.parent_id, r.sort_order, r.title, r.body, r.locked ? 1 : 0]));
   }
   let lastTreeHash = '';
   function applyRows(rows) {
@@ -267,30 +268,111 @@
   async function reloadFromServer() {
     const data = await apiCall('tree');
     applyRows(data.nodes || []);
+    await reapplyUnlocks();
   }
 
   const serverMode = () => serverAvailable && dbConnected;
 
-  async function opCreate(parentId, title, body, author) {
+  /* ---------- 閲覧ロック（項目パスワード） ---------- */
+  const unlockPw = new Map();     // id -> 入力済みパスワード（この端末のセッション中のみ保持）
+  const unlockedIds = new Set();  // この端末で解錠済みの項目ID（保存はしない）
+
+  // 実際に「今ロックされて見えない」状態か（解錠済みなら false）
+  function isLocked(node) { return !!(node && node.locked) && !unlockedIds.has(node.id); }
+
+  function mergeUnlockRows(id, rows) {
+    // サーバーから返ってきた解錠済みサブツリーを、現在のツリーに反映する
+    const sub = buildTreeFromRows(rows || []);
+    const target = findNode(id);
+    if (!target) return;
+    const fresh = sub.find((n) => n.id === id) || (sub.length ? sub[0] : null);
+    if (fresh) { target.body = fresh.body; target.children = fresh.children; }
+    unlockedIds.add(id);
+  }
+
+  async function reapplyUnlocks() {
+    // ツリー再取得後、記憶しているパスワードで自動的に解錠し直す
+    if (!unlockPw.size) return;
+    unlockedIds.clear();
+    for (let pass = 0; pass < 6; pass++) {
+      let did = false;
+      for (const [id, pw] of unlockPw) {
+        const node = findNode(id);
+        if (!node || isLocked(node) === false) continue;
+        try {
+          if (serverMode()) {
+            const res = await apiCall('unlock', { method: 'POST', body: { id, password: pw } });
+            if (res && res.nodes) { mergeUnlockRows(id, res.nodes); did = true; }
+          } else {
+            if (pw === node.lock || pw === ADMIN_PW) { unlockedIds.add(id); did = true; }
+          }
+        } catch (_) { /* 失敗時は次回に委ねる */ }
+      }
+      if (!did) break;
+    }
+  }
+
+  async function ensureUnlocked(node) {
+    if (!isLocked(node)) return true;
+    // 既知パスワードで自動解錠を試す
+    if (unlockPw.has(node.id)) {
+      const pw = unlockPw.get(node.id);
+      if (serverMode()) {
+        try { const res = await apiCall('unlock', { method: 'POST', body: { id: node.id, password: pw } }); if (res && res.nodes) { mergeUnlockRows(node.id, res.nodes); return true; } } catch (_) {}
+      } else if (pw === node.lock || pw === ADMIN_PW) { unlockedIds.add(node.id); return true; }
+    }
+    let err = '';
+    for (;;) {
+      const pw = await askUnlock(node.title, err);
+      if (pw == null) return false;
+      if (serverMode()) {
+        try {
+          const res = await apiCall('unlock', { method: 'POST', body: { id: node.id, password: pw } });
+          if (res && res.nodes) { mergeUnlockRows(node.id, res.nodes); unlockPw.set(node.id, pw); return true; }
+          err = 'パスワードが違います。';
+        } catch (_) { err = 'パスワードが違います。'; }
+      } else {
+        if (pw === node.lock || pw === ADMIN_PW) { unlockedIds.add(node.id); unlockPw.set(node.id, pw); return true; }
+        err = 'パスワードが違います。';
+      }
+    }
+  }
+
+  function lockFields(lockOpt) {
+    // サーバー送信用の閲覧ロック指定。lockOpt 未指定なら変更なし。
+    if (!lockOpt) return {};
+    return { lock_enabled: lockOpt.enabled ? 1 : 0, lock: lockOpt.pw || '' };
+  }
+  async function opCreate(parentId, title, body, author, lockOpt) {
     const who = author != null ? author : authorName();
     if (serverMode()) {
-      await apiCall('node_create', { method: 'POST', body: { parent_id: parentId || '', title, body, author: who } });
+      await apiCall('node_create', { method: 'POST', body: Object.assign({ parent_id: parentId || '', title, body, author: who }, lockFields(lockOpt)) });
       await reloadFromServer();
     } else {
       const now = Date.now();
-      const newNode = { id: uid(), title, body, children: [], created_by: who, updated_by: who, created_at: now, updated_at: now };
+      const newNode = { id: uid(), title, body, children: [], created_by: who, updated_by: who, created_at: now, updated_at: now, locked: false, lock: '' };
+      if (lockOpt && lockOpt.enabled && lockOpt.pw) { newNode.lock = lockOpt.pw; newNode.locked = true; unlockPw.set(newNode.id, lockOpt.pw); unlockedIds.add(newNode.id); }
       if (parentId) { const p = findNode(parentId); if (p) p.children.push(newNode); }
       else tree.push(newNode);
       persist();
     }
   }
-  async function opUpdate(id, title, body, author) {
+  async function opUpdate(id, title, body, author, lockOpt) {
     const who = author != null ? author : authorName();
     if (serverMode()) {
-      await apiCall('node_update', { method: 'POST', body: { id, title, body, author: who } });
+      await apiCall('node_update', { method: 'POST', body: Object.assign({ id, title, body, author: who }, lockFields(lockOpt)) });
       await reloadFromServer();
     } else {
-      const n = findNode(id); if (n) { n.title = title; n.body = body; n.updated_by = who || n.updated_by; n.updated_at = Date.now(); } persist();
+      const n = findNode(id);
+      if (n) {
+        n.title = title; n.body = body; n.updated_by = who || n.updated_by; n.updated_at = Date.now();
+        if (lockOpt) {
+          if (!lockOpt.enabled) { n.lock = ''; n.locked = false; unlockPw.delete(id); unlockedIds.delete(id); }
+          else if (lockOpt.pw) { n.lock = lockOpt.pw; n.locked = true; unlockPw.set(id, lockOpt.pw); unlockedIds.add(id); }
+          // enabled かつ pw 空 → 既存のロック状態・パスワードを維持（変更なし）
+        }
+      }
+      persist();
     }
   }
   async function opDelete(id) {
@@ -540,21 +622,23 @@
   function categoryTile(c, i) {
     const count = (c.children || []).length;
     const flag = mediaFlag(c.body);
-    const sub = count ? `${count} 項目` : (c.body && c.body.trim() ? '内容あり' : '未登録');
-    return `<button class="tm-cat-tile" data-goto="${c.id}">
-      <span class="tm-cat-no">${String(i + 1).padStart(2, '0')}</span>
+    const locked = isLocked(c);
+    const sub = locked ? '要パスワード' : (count ? `${count} 項目` : (c.body && c.body.trim() ? '内容あり' : '未登録'));
+    return `<button class="tm-cat-tile${locked ? ' is-locked' : ''}" data-goto="${c.id}">
+      <span class="tm-cat-no">${locked ? '<span class="tm-lock-i">🔒</span>' : String(i + 1).padStart(2, '0')}</span>
       <span class="tm-cat-name">${esc(c.title)}</span>
-      <span class="tm-cat-sub">${sub}${flag ? ' · ' + flag : ''}</span>
+      <span class="tm-cat-sub">${sub}${!locked && flag ? ' · ' + flag : ''}</span>
     </button>`;
   }
 
   function choiceRow(c) {
     const count = (c.children || []).length;
     const flag = mediaFlag(c.body);
-    const meta = count ? `${count} 項目` : (c.body && c.body.trim() ? '作業内容を表示' : '未登録');
-    return `<button class="tm-choice" data-goto="${c.id}">
-      <span class="tm-choice-main">${esc(c.title)}</span>
-      <span class="tm-choice-meta">${flag ? flag + ' · ' : ''}${meta}</span>
+    const locked = isLocked(c);
+    const meta = locked ? '要パスワード' : (count ? `${count} 項目` : (c.body && c.body.trim() ? '作業内容を表示' : '未登録'));
+    return `<button class="tm-choice${locked ? ' is-locked' : ''}" data-goto="${c.id}">
+      <span class="tm-choice-main">${locked ? '🔒 ' : ''}${esc(c.title)}</span>
+      <span class="tm-choice-meta">${!locked && flag ? flag + ' · ' : ''}${meta}</span>
     </button>`;
   }
 
@@ -650,7 +734,11 @@
     if (n > 0) { cbcSuppress += n; cbcDepth = target; try { history.go(-n); } catch (_) {} }
   }
 
-  function navGoto(id) {
+  async function navGoto(id) {
+    const node = findNode(id);
+    if (isLocked(node)) {
+      if (!(await ensureUnlocked(node))) return;
+    }
     navPath.push(id);
     cbcPush();
     renderNav();
@@ -691,7 +779,11 @@
   chatLog.addEventListener('click', (e) => {
     if (e.target.closest('#navRetryBtn')) { retryConnect(); return; }
     const eb = e.target.closest('[data-editthis]');
-    if (eb) openNodeDialog(eb.dataset.editthis); // 案内モードから直接編集
+    if (eb) { // 案内モードから直接編集
+      const node = findNode(eb.dataset.editthis);
+      if (isLocked(node)) { ensureUnlocked(node).then((ok) => { if (ok) openNodeDialog(eb.dataset.editthis); }); }
+      else openNodeDialog(eb.dataset.editthis);
+    }
   });
   async function retryConnect() {
     await detectServer();
@@ -771,7 +863,7 @@
           <span class="tm-drag-handle" title="長押し／ハンドルをドラッグで移動（並べ替え・階層変更）">&#8942;&#8942;</span>
           ${toggle}
           <button class="tm-treenode-main" data-edit="${node.id}" title="クリックで内容を編集">
-            <span class="tm-treenode-title">${esc(node.title)}</span>
+            <span class="tm-treenode-title">${node.locked ? '<span class="tm-lock-badge">🔒</span> ' : ''}${esc(node.title)}</span>
             ${metaText ? `<span class="tm-treenode-meta">${esc(metaText)}</span>` : ''}
           </button>
           ${badge}
@@ -790,13 +882,19 @@
     if (!t) return;
     const d = t.dataset;
     if (d.toggle) {
+      const node = findNode(d.toggle);
+      if (isLocked(node)) { ensureUnlocked(node).then((ok) => { if (ok) { openNodes.add(d.toggle); persistOpen(); renderEdit(); } }); return; }
       if (openNodes.has(d.toggle)) openNodes.delete(d.toggle);
       else openNodes.add(d.toggle);
       persistOpen();
       renderEdit();
     } else if (d.edit) {
+      const node = findNode(d.edit);
+      if (isLocked(node)) { ensureUnlocked(node).then((ok) => { if (ok) openNodeDialog(d.edit); }); return; }
       openNodeDialog(d.edit);
     } else if (d.addchild) {
+      const node = findNode(d.addchild);
+      if (isLocked(node)) { ensureUnlocked(node).then((ok) => { if (ok) openNodeDialog(null, d.addchild); }); return; }
       openNodeDialog(null, d.addchild);
     } else if (d.del) {
       confirmDelete(d.del);
@@ -948,6 +1046,17 @@
   const nodeAuthorInput = $('#nodeAuthorInput');
   const nodeBodyEditor = $('#nodeBodyEditor');
   const nodeDialogTitle = $('#nodeDialogTitle');
+  const nodeLockChk = $('#nodeLockChk');
+  const nodeLockPw = $('#nodeLockPw');
+  const nodeLockHint = $('#nodeLockHint');
+  if (nodeLockChk) {
+    nodeLockChk.addEventListener('change', () => {
+      const on = nodeLockChk.checked;
+      if (nodeLockPw) nodeLockPw.hidden = !on;
+      if (nodeLockHint) nodeLockHint.hidden = !on;
+      if (on && nodeLockPw) nodeLockPw.focus();
+    });
+  }
 
   // エディタのHTMLをサニタイズし、空なら '' を返す
   function normalizeBody(html) {
@@ -979,11 +1088,21 @@
       if (node.updated_by || upd) bits.push(`最終更新: ${node.updated_by || '—'}${upd ? ' · ' + upd : ''}`);
       if (node.created_by || crt) bits.push(`作成: ${node.created_by || '—'}${crt ? ' · ' + crt : ''}`);
       metaStr = bits.join('　／　');
+      if (nodeLockChk) {
+        nodeLockChk.checked = !!node.locked;
+        if (nodeLockPw) { nodeLockPw.value = ''; nodeLockPw.hidden = !node.locked; nodeLockPw.placeholder = node.locked ? '変更する場合のみ入力' : 'パスワードを設定'; }
+        if (nodeLockHint) { nodeLockHint.hidden = !node.locked; nodeLockHint.textContent = node.locked ? '空欄のままなら現在のパスワードを維持します。管理者パスワードでも上書きできます。' : ''; }
+      }
     } else {
       dialogTarget = { mode: 'add', parentId: parentId || null };
       nodeDialogTitle.textContent = parentId ? '子項目を追加' : '大項目（カテゴリ）を追加';
       nodeTitleInput.value = '';
       nodeBodyEditor.innerHTML = '';
+      if (nodeLockChk) {
+        nodeLockChk.checked = false;
+        if (nodeLockPw) { nodeLockPw.value = ''; nodeLockPw.hidden = true; nodeLockPw.placeholder = 'パスワードを設定'; }
+        if (nodeLockHint) { nodeLockHint.hidden = true; nodeLockHint.textContent = ''; }
+      }
     }
     if (nodeAuthorInput) nodeAuthorInput.value = authorName(); // 既定は記入者名。項目ごとに変更可
     if (nodeMetaEl) nodeMetaEl.textContent = metaStr;
@@ -1005,15 +1124,18 @@
     // 入力した登録者名を既定値としても記憶
     localStorage.setItem(AUTHOR_KEY, author);
     if (typeof authorInput !== 'undefined' && authorInput) authorInput.value = author;
+    const lockOpt = nodeLockChk
+      ? { enabled: nodeLockChk.checked, pw: nodeLockPw ? nodeLockPw.value : '' }
+      : null;
     const submitBtn = nodeForm.querySelector('button[type=submit]');
     submitBtn.disabled = true;
     nodeError('');
     try {
       if (dialogTarget.mode === 'edit') {
-        await opUpdate(dialogTarget.id, title, body, author);
+        await opUpdate(dialogTarget.id, title, body, author, lockOpt);
       } else {
         if (dialogTarget.parentId) { openNodes.add(dialogTarget.parentId); persistOpen(); }
-        await opCreate(dialogTarget.parentId, title, body, author);
+        await opCreate(dialogTarget.parentId, title, body, author, lockOpt);
       }
       nodeDialog.close();
       renderEdit();
@@ -1188,6 +1310,33 @@
   });
   $('#adminCancel').addEventListener('click', () => { adminDialog.close(); resolveAdmin(false); });
   adminDialog.addEventListener('cancel', () => resolveAdmin(false));
+
+  /* ---------- unlock dialog（項目の閲覧パスワード） ---------- */
+  const unlockDialog = $('#unlockDialog');
+  const unlockForm = $('#unlockForm');
+  const unlockInput = $('#unlockInput');
+  const unlockMsg = $('#unlockMsg');
+  const unlockErrorEl = $('#unlockError');
+  let unlockResolve = null;
+  function askUnlock(title, err) {
+    return new Promise((resolve) => {
+      unlockResolve = resolve;
+      unlockInput.value = '';
+      if (unlockMsg) unlockMsg.textContent = `「${title || ''}」は閲覧パスワードで保護されています。`;
+      unlockErrorEl.textContent = err || '';
+      unlockDialog.showModal();
+      unlockInput.focus();
+    });
+  }
+  function resolveUnlock(v) { const r = unlockResolve; unlockResolve = null; if (r) r(v); }
+  unlockForm.addEventListener('submit', (e) => {
+    e.preventDefault();
+    const v = unlockInput.value;
+    unlockDialog.close();
+    resolveUnlock(v === '' ? null : v);
+  });
+  $('#unlockCancel').addEventListener('click', () => { unlockDialog.close(); resolveUnlock(null); });
+  unlockDialog.addEventListener('cancel', () => resolveUnlock(null));
 
   function confirmDelete(id) {
     const node = findNode(id);
@@ -1653,6 +1802,7 @@
       const h = rowsHash(rows);
       if (h !== lastTreeHash) {
         applyRows(rows);
+        await reapplyUnlocks();
         if (!editView.hidden) renderEdit(); else renderNav();
         syncMsg('他の端末の変更を反映しました');
       }

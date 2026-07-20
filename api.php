@@ -15,6 +15,7 @@ if (is_file($cfgFile)) require_once $cfgFile;
 require_once __DIR__ . '/db.php';
 
 if (!defined('API_TOKEN'))        define('API_TOKEN', '');
+if (!defined('ADMIN_PW'))         define('ADMIN_PW', 'Welsys1234');
 if (!defined('UPLOAD_DIR'))       define('UPLOAD_DIR', __DIR__ . '/uploads');
 if (!defined('UPLOAD_URL'))       define('UPLOAD_URL', 'uploads');
 if (!defined('UPLOAD_MAX_BYTES')) define('UPLOAD_MAX_BYTES', 5 * 1024 * 1024);
@@ -41,6 +42,35 @@ function author_of($d) {
   $a = isset($d['author']) ? trim((string)$d['author']) : '';
   if ($a === '') return null;
   return mb_substr($a, 0, 120);
+}
+// node_create/update に渡された lock 指定から lock_hash を決める
+//   戻り値: array($set(bool), $hash(null|string)) — $set が false のとき更新しない
+function lock_hash_from($d, $current = null) {
+  if (!array_key_exists('lock_enabled', $d)) return array(false, null); // 指定なし=変更しない
+  $enabled = !!$d['lock_enabled'];
+  if (!$enabled) return array(true, null); // ロック解除
+  $pw = isset($d['lock']) ? (string)$d['lock'] : '';
+  if ($pw === '') return array(true, $current); // 有効だがパスワード未入力=既存を維持
+  return array(true, password_hash($pw, PASSWORD_DEFAULT));
+}
+// ロックされた項目は body と配下を隠して返す（locked=1 を付与、lock_hash は返さない）
+function prune_locked($rows) {
+  $childrenOf = array(); $byId = array();
+  foreach ($rows as $r) { $byId[$r['id']] = $r; $childrenOf[$r['parent_id']][] = $r['id']; }
+  $out = array();
+  $emit = function ($id) use (&$emit, &$out, &$byId, &$childrenOf) {
+    $r = $byId[$id];
+    $locked = !empty($r['lock_hash']);
+    $out[] = array(
+      'id' => $r['id'], 'parent_id' => $r['parent_id'], 'sort_order' => $r['sort_order'], 'title' => $r['title'],
+      'body' => $locked ? '' : $r['body'], 'created_by' => $r['created_by'], 'updated_by' => $r['updated_by'],
+      'updated_at' => $r['updated_at'], 'created_at' => $r['created_at'], 'locked' => $locked ? 1 : 0,
+    );
+    if ($locked) return; // 配下は隠す
+    if (!empty($childrenOf[$id])) foreach ($childrenOf[$id] as $c) $emit($c);
+  };
+  if (!empty($childrenOf[null])) foreach ($childrenOf[null] as $c) $emit($c);
+  return $out;
 }
 
 function require_token() {
@@ -72,8 +102,8 @@ catch (Throwable $e) { fail('DBに接続できません: ' . $e->getMessage(), 5
 switch ($action) {
 
   case 'tree': {
-    $rows = $pdo->query('SELECT id, parent_id, sort_order, title, body, created_by, updated_by, updated_at, created_at FROM nodes ORDER BY parent_id, sort_order, created_at')->fetchAll();
-    ok(array('nodes' => $rows));
+    $rows = $pdo->query('SELECT id, parent_id, sort_order, title, body, created_by, updated_by, updated_at, created_at, lock_hash FROM nodes ORDER BY parent_id, sort_order, created_at')->fetchAll();
+    ok(array('nodes' => prune_locked($rows)));
   }
 
   case 'node_create': {
@@ -93,8 +123,10 @@ switch ($action) {
     $id = gen_id();
     $ts = now_ms();
     $who = author_of($d);
-    $ins = $pdo->prepare('INSERT INTO nodes (id, parent_id, sort_order, title, body, created_by, updated_by, updated_at, created_at) VALUES (?,?,?,?,?,?,?,?,?)');
-    $ins->execute(array($id, $parent, $sort, $title, isset($d['body']) ? $d['body'] : '', $who, $who, $ts, $ts));
+    list($lset, $lhash) = lock_hash_from($d, null);
+    $finalLock = $lset ? $lhash : null;
+    $ins = $pdo->prepare('INSERT INTO nodes (id, parent_id, sort_order, title, body, created_by, updated_by, lock_hash, updated_at, created_at) VALUES (?,?,?,?,?,?,?,?,?,?)');
+    $ins->execute(array($id, $parent, $sort, $title, isset($d['body']) ? $d['body'] : '', $who, $who, $finalLock, $ts, $ts));
     ok(array('node' => array('id' => $id, 'parent_id' => $parent, 'sort_order' => $sort, 'title' => $title, 'body' => isset($d['body']) ? $d['body'] : '')));
   }
 
@@ -105,9 +137,50 @@ switch ($action) {
     $title = trim(isset($d['title']) ? $d['title'] : '');
     if ($title === '') fail('title は必須です');
     $who = author_of($d);
-    $up = $pdo->prepare('UPDATE nodes SET title = ?, body = ?, updated_by = COALESCE(?, updated_by), updated_at = ? WHERE id = ?');
-    $up->execute(array($title, isset($d['body']) ? $d['body'] : '', $who, now_ms(), $d['id']));
+    $curq = $pdo->prepare('SELECT lock_hash FROM nodes WHERE id = ?');
+    $curq->execute(array($d['id']));
+    $curHash = $curq->fetchColumn();
+    if ($curHash === false) $curHash = null;
+    list($lset, $lhash) = lock_hash_from($d, $curHash);
+    if ($lset) {
+      $up = $pdo->prepare('UPDATE nodes SET title = ?, body = ?, updated_by = COALESCE(?, updated_by), lock_hash = ?, updated_at = ? WHERE id = ?');
+      $up->execute(array($title, isset($d['body']) ? $d['body'] : '', $who, $lhash, now_ms(), $d['id']));
+    } else {
+      $up = $pdo->prepare('UPDATE nodes SET title = ?, body = ?, updated_by = COALESCE(?, updated_by), updated_at = ? WHERE id = ?');
+      $up->execute(array($title, isset($d['body']) ? $d['body'] : '', $who, now_ms(), $d['id']));
+    }
     ok();
+  }
+
+  case 'unlock': {
+    $d = body_json();
+    if (empty($d['id'])) fail('id は必須です');
+    $pw = isset($d['password']) ? (string)$d['password'] : '';
+    $q = $pdo->prepare('SELECT lock_hash FROM nodes WHERE id = ?');
+    $q->execute(array($d['id']));
+    $row = $q->fetch();
+    if (!$row) fail('項目が存在しません', 404);
+    $hash = $row['lock_hash'];
+    $okpw = empty($hash) || ($pw !== '' && (password_verify($pw, $hash) || hash_equals(ADMIN_PW, $pw)));
+    if (!$okpw) fail('パスワードが違います', 403);
+    // 対象のサブツリーを返す（対象自身は解錠、ネストされたロックは維持）
+    $all = $pdo->query('SELECT id, parent_id, sort_order, title, body, created_by, updated_by, updated_at, created_at, lock_hash FROM nodes ORDER BY parent_id, sort_order, created_at')->fetchAll();
+    $childrenOf = array(); $byId = array();
+    foreach ($all as $r) { $byId[$r['id']] = $r; $childrenOf[$r['parent_id']][] = $r['id']; }
+    $out = array();
+    $emit = function ($id, $isRoot) use (&$emit, &$out, &$byId, &$childrenOf) {
+      $r = $byId[$id];
+      $locked = !empty($r['lock_hash']) && !$isRoot;
+      $out[] = array(
+        'id' => $r['id'], 'parent_id' => $r['parent_id'], 'sort_order' => $r['sort_order'], 'title' => $r['title'],
+        'body' => $locked ? '' : $r['body'], 'created_by' => $r['created_by'], 'updated_by' => $r['updated_by'],
+        'updated_at' => $r['updated_at'], 'created_at' => $r['created_at'], 'locked' => $locked ? 1 : 0,
+      );
+      if ($locked) return;
+      if (!empty($childrenOf[$id])) foreach ($childrenOf[$id] as $c) $emit($c, false);
+    };
+    $emit($d['id'], true);
+    ok(array('nodes' => $out));
   }
 
   case 'node_delete': {

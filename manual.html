@@ -9,7 +9,7 @@
   <link rel="manifest" href="manifest.webmanifest">
   <link rel="icon" href="icon.svg" type="image/svg+xml">
   <link rel="apple-touch-icon" href="icon-192.png">
-  <link rel="stylesheet" href="manual.css?v=18">
+  <link rel="stylesheet" href="manual.css?v=19">
 </head>
 <body class="tm-body">
 
@@ -187,6 +187,16 @@
       </label>
 
       <div class="tm-field">
+        <label class="tm-lock-toggle">
+          <input type="checkbox" id="nodeLockChk">
+          <span>&#128274; 閲覧パスワードでロックする（この項目と配下を保護）</span>
+        </label>
+        <input id="nodeLockPw" class="tm-input" type="text" maxlength="60" autocomplete="off"
+          placeholder="パスワードを設定" hidden>
+        <span class="tm-field-hint" id="nodeLockHint" hidden></span>
+      </div>
+
+      <div class="tm-field">
         <span class="tm-field-label">
           説明・作業内容（任意）
           <span class="tm-field-hint">文字を選んでボタンを押すと、太字・色・大きさが反映されます。</span>
@@ -242,6 +252,23 @@
     </div>
   </dialog>
 
+  <!-- ===== Unlock (閲覧パスワード) Dialog ===== -->
+  <dialog id="unlockDialog" class="tm-dialog">
+    <form id="unlockForm" method="dialog" class="tm-dialog-form">
+      <h2 class="tm-dialog-title">&#128274; 閲覧パスワード</h2>
+      <p id="unlockMsg" class="tm-confirm-msg">この項目を見るにはパスワードが必要です。</p>
+      <label class="tm-field">
+        <span class="tm-field-label">パスワード（管理者パスワードでも解除できます）</span>
+        <input id="unlockInput" class="tm-input" type="password" autocomplete="off" placeholder="パスワード">
+      </label>
+      <p id="unlockError" class="tm-dialog-err" aria-live="polite"></p>
+      <div class="tm-dialog-actions">
+        <button type="button" id="unlockCancel" class="tm-btn tm-btn-outline">キャンセル</button>
+        <button type="submit" class="tm-btn tm-btn-primary">解除</button>
+      </div>
+    </form>
+  </dialog>
+
   <!-- ===== Admin password Dialog ===== -->
   <dialog id="adminDialog" class="tm-dialog">
     <form id="adminForm" method="dialog" class="tm-dialog-form">
@@ -292,6 +319,6 @@
   </dialog>
 
   <script src="vendor/xlsx.full.min.js"></script>
-  <script src="manual.js?v=19"></script>
+  <script src="manual.js?v=20"></script>
 </body>
 </html>

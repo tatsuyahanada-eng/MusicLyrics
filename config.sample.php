@@ -32,6 +32,12 @@ define('DB_SQLITE_PATH', __DIR__ . '/data/manual.sqlite');
 */
 define('API_TOKEN', '');
 
+/* ---------- 管理者パスワード ----------
+   項目の「閲覧ロック」を、個別パスワードを知らなくても解除できる管理用パスワード。
+   初期化などの管理操作にも使います。
+*/
+define('ADMIN_PW', 'Welsys1234');
+
 /* ---------- 画像アップロード ---------- */
 define('UPLOAD_DIR',       __DIR__ . '/uploads');   // 保存先（書き込み権限が必要）
 define('UPLOAD_URL',       'uploads');              // ブラウザからの相対URL

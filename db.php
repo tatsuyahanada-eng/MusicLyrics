@@ -52,6 +52,7 @@ function cbc_init_schema($pdo, $driver) {
         body       MEDIUMTEXT   NULL,
         created_by VARCHAR(120) NULL,
         updated_by VARCHAR(120) NULL,
+        lock_hash  VARCHAR(255) NULL,
         updated_at BIGINT       NOT NULL DEFAULT 0,
         created_at BIGINT       NOT NULL DEFAULT 0,
         INDEX idx_parent (parent_id)
@@ -67,6 +68,7 @@ function cbc_init_schema($pdo, $driver) {
         body       TEXT         NULL,
         created_by VARCHAR(120) NULL,
         updated_by VARCHAR(120) NULL,
+        lock_hash  VARCHAR(255) NULL,
         updated_at BIGINT       NOT NULL DEFAULT 0,
         created_at BIGINT       NOT NULL DEFAULT 0
       )"
@@ -94,6 +96,9 @@ function cbc_ensure_columns($pdo, $driver) {
       if (!in_array($col, $cols, true)) {
         $pdo->exec("ALTER TABLE nodes ADD COLUMN $col VARCHAR(120) NULL");
       }
+    }
+    if (!in_array('lock_hash', $cols, true)) {
+      $pdo->exec("ALTER TABLE nodes ADD COLUMN lock_hash VARCHAR(255) NULL");
     }
   } catch (Throwable $e) { /* 追加できなくても致命ではない */ }
 }
