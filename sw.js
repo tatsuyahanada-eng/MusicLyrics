@@ -1,9 +1,9 @@
 /* Case By Case — service worker (offline cache, app-shell) */
-const CACHE = 'case-by-case-v25';
+const CACHE = 'case-by-case-v26';
 const ASSETS = [
   'manual.html',
-  'manual.css?v=21',
-  'manual.js?v=22',
+  'manual.css?v=22',
+  'manual.js?v=23',
   'manifest.webmanifest',
   'icon.svg',
   'vendor/xlsx.full.min.js',

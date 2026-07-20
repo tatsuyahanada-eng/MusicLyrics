@@ -454,8 +454,12 @@
     b: {}, strong: {}, i: {}, em: {}, u: {},
     span: { attrs: ['style'] }, font: { attrs: ['color', 'size'] },
     br: { void: true }, div: { attrs: ['style'] }, p: { attrs: ['style'] },
-    a: { attrs: ['href', 'style'] }, img: { attrs: ['src', 'style'], void: true },
+    a: { attrs: ['href', 'style', 'class'] }, img: { attrs: ['src', 'style', 'class'], void: true },
   };
+  function sanitizeClass(v) {
+    const allow = { 'tm-filechip': 1, 'tm-body-img': 1 };
+    return String(v).split(/\s+/).filter((t) => allow[t]).join(' ');
+  }
   function safeLinkUrl(u) {
     u = String(u).trim();
     return /^(https?:\/\/|\/?uploads\/|mailto:)/i.test(u) ? u : null;
@@ -520,6 +524,7 @@
         if (v == null) return;
         if (a === 'href') { v = safeLinkUrl(v); if (!v) return; }
         else if (a === 'src') { v = safeUrl(v); if (!v) return; }
+        else if (a === 'class') { v = sanitizeClass(v); if (!v) return; }
         else if (a === 'style') { v = sanitizeStyle(v); if (!v) return; }
         else if (a === 'color') { v = cssColor(v); }
         else if (a === 'size') { if (!/^[1-7]$/.test(v)) return; }
@@ -1098,6 +1103,23 @@
     nodeBodyEditor.focus();
     document.execCommand('insertHTML', false, html);
   }
+  // 添付（画像・ファイル）は本文の末尾に追加する
+  function appendEditorHtml(html) {
+    nodeBodyEditor.insertAdjacentHTML('beforeend', html);
+    nodeBodyEditor.scrollTop = nodeBodyEditor.scrollHeight;
+  }
+  // 拡張子に応じた小さなファイルアイコン（絵文字）
+  function fileIcon(name) {
+    const ext = String(name || '').split('.').pop().toLowerCase();
+    if (ext === 'pdf') return '📕';
+    if (['xls', 'xlsx', 'xlsm', 'csv'].includes(ext)) return '📊';
+    if (['doc', 'docx'].includes(ext)) return '📘';
+    if (['ppt', 'pptx'].includes(ext)) return '📙';
+    if (['zip', 'rar', '7z'].includes(ext)) return '📦';
+    if (['txt', 'md'].includes(ext)) return '📃';
+    if (['png', 'jpg', 'jpeg', 'gif', 'webp', 'svg'].includes(ext)) return '🖼️';
+    return '📎';
+  }
   let dialogTarget = null; // { mode: 'edit'|'add', id, parentId }
 
   const nodeMetaEl = $('#nodeMeta');
@@ -1228,11 +1250,12 @@
         if (!data || typeof data !== 'object') throw new Error('サーバー応答が不正です');
         if (!res.ok || data.ok === false) throw new Error(data.error || ('HTTP ' + res.status));
         if (data.is_image) {
-          insertEditorHtml(`<img src="${esc(data.url)}" style="max-width:100%"><br>`);
-          nodeError('画像を挿入しました');
+          appendEditorHtml(`<img src="${esc(data.url)}"><br>`);
+          nodeError('画像を本文の下に追加しました');
         } else {
-          insertEditorHtml(`<a href="${esc(data.url)}">📎 ${esc(data.name || 'ファイル')}</a>&nbsp;`);
-          nodeError('ファイルを添付しました');
+          const nm = data.name || 'ファイル';
+          appendEditorHtml(`<a class="tm-filechip" href="${esc(data.url)}">${fileIcon(nm)} ${esc(nm)}</a> `);
+          nodeError('ファイルを文末に追加しました');
         }
         break;
       }
@@ -1274,15 +1297,18 @@
       e.preventDefault();
       insertEditorHtml(plainToHtml(text));
     });
-    // 編集画面で画像をタップすると削除できる
+    // 編集画面で画像・添付ファイルをタップすると削除できる
     nodeBodyEditor.addEventListener('click', (e) => {
-      const img = e.target.closest('img');
-      if (!img) return;
+      const el = e.target.closest('img, a.tm-filechip');
+      if (!el) return;
       e.preventDefault();
-      askConfirm('この画像を削除しますか？', () => {
-        const next = img.nextSibling;
-        img.remove();
+      const isImg = el.tagName === 'IMG';
+      askConfirm(isImg ? 'この画像を削除しますか？' : 'この添付ファイルを削除しますか？', () => {
+        const next = el.nextSibling;
+        el.remove();
+        // 直後の改行や空白（挿入時に付けたもの）も取り除く
         if (next && next.nodeType === 1 && next.tagName === 'BR') next.remove();
+        else if (next && next.nodeType === 3 && !next.nodeValue.trim()) next.remove();
         nodeBodyEditor.focus();
       }, '削除');
     });

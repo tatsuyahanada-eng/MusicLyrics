@@ -530,6 +530,27 @@
 }
 .tm-editor img:hover { outline: 2px solid var(--tm-warn); outline-offset: 1px; }
 .tm-editor a { color: var(--tm-cyan); }
+/* 添付ファイルのチップ（小さなアイコン付き） */
+.tm-filechip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  max-width: 100%;
+  margin: 4px 6px 4px 0;
+  padding: 4px 10px;
+  font-size: 13px;
+  line-height: 1.3;
+  color: var(--tm-cyan);
+  text-decoration: none;
+  background: rgba(63, 224, 224, 0.08);
+  border: 1px solid var(--tm-line);
+  border-radius: 14px;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+.tm-editor a.tm-filechip { cursor: pointer; }
+.tm-editor a.tm-filechip:hover { outline: 2px solid var(--tm-warn); outline-offset: 1px; }
+.tm-content-body a.tm-filechip:hover { background: rgba(63, 224, 224, 0.16); }
 .tm-content-card {
   background: rgba(9, 30, 40, 0.7);
   border: 1px solid var(--tm-line);
