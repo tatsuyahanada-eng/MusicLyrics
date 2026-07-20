@@ -1205,7 +1205,7 @@ function interpretYouTubeError(status, body) {
       return '本日の API クォータを使い切りました。明日まで待つか、Google Cloud Console でクォータを増やしてください。';
     case 'rateLimitExceeded':
     case 'userRateLimitExceeded':
-      return 'リクエストが多すぎます。少し時間を置いて再試行してください。';
+      return 'YouTube 側の一時的な混雑で自動再試行しましたがブロックが続いています。1〜2分ほど置いてもう一度お試しください。';
   }
 
   /* Message-based fallback patterns */
@@ -1222,6 +1222,22 @@ function interpretYouTubeError(status, body) {
   return msg;
 }
 
+/* iTunes often returns Japanese songs formatted as "曲名 - Romaji"
+   (e.g. "燦然 - Sanzen"). The suffix hurts YouTube search accuracy
+   because official MV titles rarely include the romaji. Strip a
+   short trailing "- English" cue only when the base title is
+   Japanese, so we don't damage titles like "紅蓮華 -CIVIL WAR-"
+   or English-only songs. */
+function stripRomajiSuffix(title) {
+  if (!/[぀-ヿ一-鿿]/.test(title)) return title;
+  const m = title.match(/^(.+?)\s+[-–—]\s+([A-Za-z][A-Za-z0-9\s]*)$/);
+  if (!m) return title;
+  const jp = m[1].trim();
+  const en = m[2].trim();
+  if (en.split(/\s+/).length <= 2 && en.length <= 20) return jp;
+  return title;
+}
+
 async function searchYouTube(artist, title) {
   const key = getApiKey();
   if (!key) {
@@ -1234,9 +1250,10 @@ async function searchYouTube(artist, title) {
      If the first pass returns nothing (rare — some legit MVs live
      under Entertainment), retry without the category filter as a
      graceful fallback. */
+  const searchTitle = stripRomajiSuffix(title);
   const baseParams = {
     part: 'snippet',
-    q: `${artist} ${title}`,
+    q: `${artist} ${searchTitle}`,
     type: 'video',
     videoEmbeddable: 'true',
     maxResults: '25',
@@ -1541,13 +1558,42 @@ function cachePut(map, key, val) {
   map.set(key, val);
 }
 
+/* True when the error came from YouTube's rate-limit response
+   ("too many requests" / rateLimitExceeded / userRateLimitExceeded).
+   These are transient — the user shouldn't have to press retry
+   themselves. */
+function isYtRateLimit(err) {
+  const msg = String((err && err.message) || err || '');
+  return /リクエストが多すぎます|too many requests|rate ?limit|user ?rate/i.test(msg);
+}
+
 async function searchYouTubeCached(artist, title) {
   const key = `${artist}|${title}`;
   const cached = ytSearchCache.get(key);
   if (cached) return cached;
-  const result = await searchYouTube(artist, title);
-  cachePut(ytSearchCache, key, result);
-  return result;
+
+  /* Auto-retry on rate-limit errors with exponential backoff so the
+     user doesn't see "リクエストが多すぎます" and have to press ▶
+     themselves when YouTube momentarily throttles us. Total window
+     ~33 s (1.5 + 3.5 + 8 + 20) — long enough to ride out a typical
+     per-minute throttle, short enough not to feel stuck. */
+  const backoffs = [1500, 3500, 8000, 20000];
+  let lastErr;
+  for (let attempt = 0; attempt <= backoffs.length; attempt++) {
+    try {
+      const result = await searchYouTube(artist, title);
+      cachePut(ytSearchCache, key, result);
+      return result;
+    } catch (err) {
+      lastErr = err;
+      if (attempt < backoffs.length && isYtRateLimit(err)) {
+        await new Promise(r => setTimeout(r, backoffs[attempt]));
+        continue;
+      }
+      throw err;
+    }
+  }
+  throw lastErr;
 }
 
 async function fetchLyricsCached(artist, title) {
