@@ -676,10 +676,11 @@
     </button>`;
   }
 
-  // 簡易並べ替えモードの1行（▲▼で上下移動）
+  // 簡易並べ替えモードの1行（長押し／ハンドルのドラッグで移動、▲▼でも移動可）
   function sortRow(c, i, n) {
     const locked = isLocked(c);
-    return `<div class="tm-sortrow">
+    return `<div class="tm-sortrow" data-sortid="${c.id}">
+      <span class="tm-drag-handle" title="長押し／ハンドルをドラッグで並べ替え">&#8942;&#8942;</span>
       <span class="tm-sortrow-name">${locked ? '🔒 ' : ''}${esc(c.title)}</span>
       <span class="tm-sortrow-ctrls">
         <button class="tm-iconbtn" data-navup="${c.id}" type="button" ${i === 0 ? 'disabled' : ''} title="上へ">&#9650;</button>
@@ -755,7 +756,7 @@
       if (navReorder) {
         choiceDock.className = 'tm-choicedock tm-sortmode';
         choiceDock.innerHTML =
-          `<div class="tm-sort-hint">&#8645; 並べ替え中：▲▼ でこの階層の順番を変更できます。</div>` +
+          `<div class="tm-sort-hint">&#8645; 並べ替え中：<strong>長押し</strong>（またはハンドル&#8942;&#8942;をドラッグ）や ▲▼ でこの階層の順番を変更できます。</div>` +
           kids.map((c, i) => sortRow(c, i, kids.length)).join('');
       } else if (atRoot) {
         choiceDock.className = 'tm-choicedock tm-cat-grid';
@@ -842,6 +843,7 @@
     } catch (err) { syncMsg('並べ替えに失敗：' + err.message, true); }
   }
   choiceDock.addEventListener('click', (e) => {
+    if (Date.now() < suppressClickUntil) return; // 直前のドラッグのクリックを無視
     const up = e.target.closest('[data-navup]');
     if (up) { if (!up.disabled) navReorderMove(up.dataset.navup, -1); return; }
     const down = e.target.closest('[data-navdown]');
@@ -849,6 +851,90 @@
     const btn = e.target.closest('[data-goto]');
     if (btn) navGoto(btn.dataset.goto);
   });
+
+  /* ---- 案内モードの簡易並べ替え：長押し／ハンドルのドラッグ（編集モードと同じ操作感） ---- */
+  let sortDrag = null;
+  function clearSortMarks() {
+    choiceDock.querySelectorAll('.drop-before,.drop-after')
+      .forEach((el) => el.classList.remove('drop-before', 'drop-after'));
+  }
+  function sortBeginDrag() {
+    if (!sortDrag) return;
+    sortDrag.active = true;
+    sortDrag.row.classList.add('dragging');
+    document.body.classList.add('tm-dragging');
+    try { sortDrag.row.setPointerCapture(sortDrag.pointerId); } catch (_) {}
+    if (navigator.vibrate) { try { navigator.vibrate(12); } catch (_) {} }
+    sortUpdateTarget(sortDrag.startX, sortDrag.startY);
+  }
+  function sortUpdateTarget(x, y) {
+    clearSortMarks();
+    sortDrag.target = null;
+    const el = document.elementFromPoint(x, y);
+    const row = el && el.closest ? el.closest('.tm-sortrow') : null;
+    if (!row || row === sortDrag.row) return;
+    const rect = row.getBoundingClientRect();
+    const pos = (y - rect.top) < rect.height / 2 ? 'before' : 'after';
+    row.classList.add(pos === 'before' ? 'drop-before' : 'drop-after');
+    sortDrag.target = { tid: row.dataset.sortid, pos };
+  }
+  function sortCancelDrag() {
+    if (!sortDrag) return;
+    if (sortDrag.timer) clearTimeout(sortDrag.timer);
+    if (sortDrag.row) sortDrag.row.classList.remove('dragging');
+    try { sortDrag.row.releasePointerCapture(sortDrag.pointerId); } catch (_) {}
+    clearSortMarks();
+    document.body.classList.remove('tm-dragging');
+    sortDrag = null;
+  }
+  function sortFinishDrag() {
+    if (!sortDrag) return;
+    const wasActive = sortDrag.active;
+    const info = sortDrag.target;
+    const draggedId = sortDrag.id;
+    if (sortDrag.timer) clearTimeout(sortDrag.timer);
+    if (sortDrag.row) sortDrag.row.classList.remove('dragging');
+    clearSortMarks();
+    document.body.classList.remove('tm-dragging');
+    sortDrag = null;
+    if (!wasActive) return;              // タップ扱い
+    suppressClickUntil = Date.now() + 500;
+    if (!info || info.tid === draggedId) return;
+    const parentId = navPath.length ? navPath[navPath.length - 1] : '';
+    const order = currentChildren().map((k) => k.id);
+    const tIdx = order.indexOf(info.tid);
+    let beforeId = info.pos === 'before' ? info.tid : (tIdx + 1 < order.length ? order[tIdx + 1] : null);
+    if (beforeId === draggedId) return;  // 位置変化なし
+    (async () => {
+      try { await opReparent(draggedId, parentId, beforeId); renderNav(); }
+      catch (err) { syncMsg('並べ替えに失敗：' + err.message, true); }
+    })();
+  }
+  choiceDock.addEventListener('pointerdown', (e) => {
+    if (!navReorder) return;
+    if (e.button != null && e.button > 0) return;
+    const row = e.target.closest('.tm-sortrow');
+    if (!row) return;
+    const onHandle = !!e.target.closest('.tm-drag-handle');
+    if (!onHandle && e.target.closest('.tm-iconbtn, button')) return; // ▲▼等では開始しない
+    sortDrag = { id: row.dataset.sortid, pointerId: e.pointerId, startX: e.clientX, startY: e.clientY, active: false, target: null, timer: null, row };
+    if (onHandle) sortBeginDrag();
+    else sortDrag.timer = setTimeout(sortBeginDrag, LONGPRESS_MS);
+  });
+  choiceDock.addEventListener('pointermove', (e) => {
+    if (!sortDrag) return;
+    if (!sortDrag.active) {
+      const dx = e.clientX - sortDrag.startX, dy = e.clientY - sortDrag.startY;
+      if (Math.abs(dx) > MOVE_TOL || Math.abs(dy) > MOVE_TOL) sortCancelDrag();
+      return;
+    }
+    e.preventDefault();
+    autoScroll(e.clientY);
+    sortUpdateTarget(e.clientX, e.clientY);
+  });
+  choiceDock.addEventListener('pointerup', sortFinishDrag);
+  choiceDock.addEventListener('pointercancel', sortCancelDrag);
+  choiceDock.addEventListener('touchmove', (e) => { if (sortDrag && sortDrag.active) e.preventDefault(); }, { passive: false });
   chatLog.addEventListener('click', (e) => {
     if (e.target.closest('#navRetryBtn')) { retryConnect(); return; }
     const eb = e.target.closest('[data-editthis]');

@@ -457,10 +457,10 @@
 .tm-content-empty { border-left-color: var(--tm-line-strong); }
 
 /* 直接追加ボタン（案内モード） */
-.tm-navadd { margin-top: 12px; }
+.tm-navadd { margin-top: 12px; display: flex; gap: 8px; flex-wrap: wrap; }
 .tm-navadd:empty { display: none; }
 .tm-addhere {
-  width: 100%;
+  flex: 1 1 auto;
   font-family: var(--tm-mono);
   font-size: 13px;
   letter-spacing: 1px;
@@ -475,8 +475,7 @@
 .tm-addhere:hover { background: rgba(63, 224, 224, 0.14); box-shadow: 0 0 12px rgba(63, 224, 224, 0.2); }
 /* 簡易並べ替えの切替ボタン */
 .tm-sorttoggle {
-  width: 100%;
-  margin-top: 8px;
+  flex: 0 0 auto;
   font-family: var(--tm-mono);
   font-size: 13px;
   letter-spacing: 1px;
@@ -500,15 +499,17 @@
   padding: 2px 2px 4px;
 }
 .tm-sortrow {
+  position: relative;
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 8px;
   padding: 10px 12px;
   background: rgba(9, 30, 40, 0.6);
   border: 1px solid var(--tm-line);
   border-left: 3px solid var(--tm-warn);
   border-radius: 6px;
 }
+.tm-sortrow .tm-drag-handle { flex-shrink: 0; cursor: grab; color: var(--tm-warn); }
 .tm-sortrow-name {
   flex: 1;
   min-width: 0;
@@ -519,6 +520,20 @@
 }
 .tm-sortrow-ctrls { display: flex; gap: 6px; flex-shrink: 0; }
 .tm-sortrow-ctrls .tm-iconbtn { width: 34px; height: 34px; font-size: 14px; }
+.tm-sortrow.dragging { opacity: .45; }
+.tm-sortrow.drop-before::before,
+.tm-sortrow.drop-after::after {
+  content: "";
+  position: absolute;
+  left: 8px; right: 8px;
+  height: 3px;
+  background: var(--tm-warn);
+  box-shadow: 0 0 8px var(--tm-warn);
+  border-radius: 2px;
+}
+.tm-sortrow.drop-before::before { top: -6px; }
+.tm-sortrow.drop-after::after { bottom: -6px; }
+body.tm-dragging .tm-sortrow { cursor: grabbing; }
 
 /* 本文の文字サイズ装飾 */
 .tm-fs-xbig { font-size: 1.6em; font-weight: 600; }
