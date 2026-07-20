@@ -1847,31 +1847,28 @@ body.theme-light .ly-fs-offset .ly-bar-label,
 body.theme-light .ly-fs-offset .ly-offset-end,
 body.theme-light .ly-fs-offset .ly-offset-val { color: #be185d; }
 
-/* ---- Glass colour theme — a proper frosted acrylic pane. The
-        stage background paints colourful abstract shapes that
-        represent what's "behind" the glass; #stage::before then
-        applies backdrop-filter blur + a subtle white gradient to
-        create the real frosted-panel effect. Lyric text sits on
-        top of the pane. ---- */
+/* ---- Glass colour theme — a lighter frosted acrylic pane. The
+        stage background paints softer abstract shapes behind the
+        pane; #stage::before applies a gentler backdrop-filter
+        blur + subtle white gradient so the glass feels thinner /
+        more transparent while keeping its frosted quality. ---- */
 body.theme-glass #stage,
 body.theme-glass.lyrics-fs #stage,
 body.theme-glass.karaoke-mode #stage {
   position: relative;
-  /* Colourful abstract blobs — these get blurred by the pane above,
-     giving the frosted glass its authentic soft-color transparency. */
+  /* Softer abstract blobs — reduced opacity so the pane looks
+     thinner rather than a saturated stained-glass panel. */
   background:
-    radial-gradient(circle at 22% 26%, rgba(139, 92, 246, 0.55) 0%, transparent 42%),
-    radial-gradient(circle at 78% 20%, rgba(236, 72, 153, 0.50) 0%, transparent 40%),
-    radial-gradient(circle at 82% 78%, rgba(59, 130, 246, 0.55) 0%, transparent 44%),
-    radial-gradient(circle at 20% 82%, rgba(52, 211, 153, 0.45) 0%, transparent 40%),
-    radial-gradient(circle at 55% 55%, rgba(251, 191, 36, 0.30) 0%, transparent 45%),
-    linear-gradient(180deg, #0f172a 0%, #1e293b 100%);
+    radial-gradient(circle at 22% 26%, rgba(139, 92, 246, 0.38) 0%, transparent 42%),
+    radial-gradient(circle at 78% 20%, rgba(236, 72, 153, 0.34) 0%, transparent 40%),
+    radial-gradient(circle at 82% 78%, rgba(59, 130, 246, 0.38) 0%, transparent 44%),
+    radial-gradient(circle at 20% 82%, rgba(52, 211, 153, 0.30) 0%, transparent 40%),
+    radial-gradient(circle at 55% 55%, rgba(251, 191, 36, 0.22) 0%, transparent 45%),
+    linear-gradient(180deg, #131b2e 0%, #1e293b 100%);
 }
 
-/* The glass pane itself: translucent white with real backdrop
-   blur, layered highlight sweep, frost speckles, and glass-edge
-   inset shadows. Sits above the coloured backdrop and .ly-fx,
-   below the lyric text. */
+/* The glass pane — thinner blur, lighter white overlay so it
+   reads as a slim clear-acrylic sheet rather than a milky slab. */
 body.theme-glass #stage::before {
   content: '';
   position: absolute;
@@ -1879,42 +1876,40 @@ body.theme-glass #stage::before {
   pointer-events: none;
   z-index: 1;
   background:
-    /* Frost speckle stipple to hint at glass texture */
-    radial-gradient(circle 2px at 18% 14%, rgba(255,255,255,0.30), transparent 60%),
-    radial-gradient(circle 3px at 68% 24%, rgba(255,255,255,0.22), transparent 60%),
-    radial-gradient(circle 2px at 44% 48%, rgba(255,255,255,0.25), transparent 60%),
-    radial-gradient(circle 3px at 82% 60%, rgba(255,255,255,0.20), transparent 60%),
-    radial-gradient(circle 2px at 15% 72%, rgba(255,255,255,0.22), transparent 60%),
-    radial-gradient(circle 2px at 55% 82%, rgba(255,255,255,0.18), transparent 60%),
-    radial-gradient(circle 2px at 88% 14%, rgba(255,255,255,0.22), transparent 60%),
-    radial-gradient(circle 2px at 32% 88%, rgba(255,255,255,0.18), transparent 60%),
-    /* Diagonal light refraction streak across the pane */
+    /* Frost speckle stipple — reduced so the pane isn't too milky */
+    radial-gradient(circle 2px at 18% 14%, rgba(255,255,255,0.20), transparent 60%),
+    radial-gradient(circle 3px at 68% 24%, rgba(255,255,255,0.14), transparent 60%),
+    radial-gradient(circle 2px at 44% 48%, rgba(255,255,255,0.16), transparent 60%),
+    radial-gradient(circle 3px at 82% 60%, rgba(255,255,255,0.13), transparent 60%),
+    radial-gradient(circle 2px at 15% 72%, rgba(255,255,255,0.15), transparent 60%),
+    radial-gradient(circle 2px at 55% 82%, rgba(255,255,255,0.12), transparent 60%),
+    radial-gradient(circle 2px at 88% 14%, rgba(255,255,255,0.15), transparent 60%),
+    /* Diagonal light refraction streak — softened */
     linear-gradient(118deg,
-      transparent 30%,
-      rgba(255,255,255,0.12) 46%,
-      rgba(255,255,255,0.34) 50%,
-      rgba(255,255,255,0.12) 54%,
+      transparent 32%,
+      rgba(255,255,255,0.08) 47%,
+      rgba(255,255,255,0.22) 50%,
+      rgba(255,255,255,0.08) 53%,
       transparent 68%),
-    /* Bright top-left corner reflection */
-    radial-gradient(ellipse 60% 42% at 15% 10%, rgba(255,255,255,0.35) 0%, transparent 65%),
+    /* Bright top-left corner reflection — kept for glass identity */
+    radial-gradient(ellipse 60% 42% at 15% 10%, rgba(255,255,255,0.22) 0%, transparent 65%),
     /* Secondary lower-right sheen */
-    radial-gradient(ellipse 50% 40% at 85% 88%, rgba(255,255,255,0.14) 0%, transparent 60%),
-    /* Panel body — very subtle white overlay so backdrop-filter has
-       something to blend with */
-    linear-gradient(180deg, rgba(255,255,255,0.16), rgba(255,255,255,0.06));
-  backdrop-filter: blur(28px) saturate(1.5);
-  -webkit-backdrop-filter: blur(28px) saturate(1.5);
+    radial-gradient(ellipse 50% 40% at 85% 88%, rgba(255,255,255,0.08) 0%, transparent 60%),
+    /* Very light white overlay — thinner than v67 */
+    linear-gradient(180deg, rgba(255,255,255,0.09), rgba(255,255,255,0.03));
+  backdrop-filter: blur(18px) saturate(1.2);
+  -webkit-backdrop-filter: blur(18px) saturate(1.2);
   box-shadow:
-    /* Bright top edge — light catches on the glass rim */
-    inset  0  1px 0 rgba(255,255,255,0.85),
+    /* Bright top edge — kept so the rim still catches light */
+    inset  0  1px 0 rgba(255,255,255,0.55),
     /* Left edge highlight */
-    inset  1px 0 0 rgba(255,255,255,0.32),
+    inset  1px 0 0 rgba(255,255,255,0.22),
     /* Bottom edge shadow */
-    inset  0 -1px 0 rgba(0, 0, 0, 0.35),
+    inset  0 -1px 0 rgba(0, 0, 0, 0.25),
     /* Right edge shadow */
-    inset -1px 0 0 rgba(0, 0, 0, 0.22),
-    /* Outer soft depth shadow so the pane feels lifted */
-    0 8px 32px rgba(0, 0, 0, 0.25);
+    inset -1px 0 0 rgba(0, 0, 0, 0.16),
+    /* Softer outer depth shadow */
+    0 4px 20px rgba(0, 0, 0, 0.20);
 }
 
 /* Text on the glass — light and crisp with a soft dark shadow so

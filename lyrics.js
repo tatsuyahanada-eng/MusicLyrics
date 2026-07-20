@@ -1564,20 +1564,37 @@ function cachePut(map, key, val) {
    themselves. */
 function isYtRateLimit(err) {
   const msg = String((err && err.message) || err || '');
-  return /リクエストが多すぎます|too many requests|rate ?limit|user ?rate/i.test(msg);
+  return /リクエストが多すぎます|一時的な混雑|too many requests|rate ?limit|user ?rate/i.test(msg);
 }
+
+/* Track per-session songs that keep hitting rate limits so we
+   don't repeatedly burn the 100-second-per-user quota on the
+   same lost-cause song. Cleared on page reload. */
+const ytRateLimitSkip = new Set();
 
 async function searchYouTubeCached(artist, title) {
   const key = `${artist}|${title}`;
   const cached = ytSearchCache.get(key);
   if (cached) return cached;
 
+  /* If this song already hit the rate limit twice in this session,
+     assume the quota is exhausted for now and bail immediately so
+     the user isn't stuck waiting another 90 s per song. */
+  if (ytRateLimitSkip.has(key)) {
+    const err = new Error(
+      '本日の YouTube 検索クォータが不足しているようです。しばらく置いて再読み込みしてください。'
+    );
+    err.rateLimit = true;
+    throw err;
+  }
+
   /* Auto-retry on rate-limit errors with exponential backoff so the
      user doesn't see "リクエストが多すぎます" and have to press ▶
      themselves when YouTube momentarily throttles us. Total window
-     ~33 s (1.5 + 3.5 + 8 + 20) — long enough to ride out a typical
-     per-minute throttle, short enough not to feel stuck. */
-  const backoffs = [1500, 3500, 8000, 20000];
+     ~103 s (2 + 5 + 12 + 30 + 54) — long enough to ride out the
+     per-user 100-second quota window. Status updates keep the user
+     informed instead of the app looking hung. */
+  const backoffs = [2000, 5000, 12000, 30000, 54000];
   let lastErr;
   for (let attempt = 0; attempt <= backoffs.length; attempt++) {
     try {
@@ -1587,12 +1604,22 @@ async function searchYouTubeCached(artist, title) {
     } catch (err) {
       lastErr = err;
       if (attempt < backoffs.length && isYtRateLimit(err)) {
-        await new Promise(r => setTimeout(r, backoffs[attempt]));
+        const wait = backoffs[attempt];
+        const remaining = backoffs.slice(attempt).reduce((a, b) => a + b, 0);
+        setStatus(
+          `YouTube 側が混雑中です。自動で再試行します (${attempt + 1}/${backoffs.length}, ` +
+          `あと最大 ${Math.round(remaining / 1000)} 秒)…`,
+          'loading'
+        );
+        await new Promise(r => setTimeout(r, wait));
         continue;
       }
       throw err;
     }
   }
+  /* All retries exhausted for a rate-limit case — remember so
+     subsequent songs bail early instead of each waiting 100 s. */
+  if (isYtRateLimit(lastErr)) ytRateLimitSkip.add(key);
   throw lastErr;
 }
 
