@@ -1833,88 +1833,138 @@ body.theme-light .ly-fs-offset .ly-bar-label,
 body.theme-light .ly-fs-offset .ly-offset-end,
 body.theme-light .ly-fs-offset .ly-offset-val { color: #be185d; }
 
-/* ---- Black colour theme (warm paper background, deep-black text
-        with a soft drop shadow — the "black-with-shadow" look) ---- */
-body.theme-black #stage,
-body.theme-black.lyrics-fs #stage,
-body.theme-black.karaoke-mode #stage {
-  background: linear-gradient(180deg, #f5f2ec 0%, #dcd7cd 100%);
+/* ---- Glass colour theme — a proper frosted-glass panel look.
+        Multi-layer gradients give it edge highlights, diagonal
+        light refraction, a cool sheen and a subtle inner-shadow
+        so it reads as glass, not just a gradient. ---- */
+body.theme-glass #stage,
+body.theme-glass.lyrics-fs #stage,
+body.theme-glass.karaoke-mode #stage {
+  position: relative;
+  background:
+    /* Bright top-left corner arc (main reflection) */
+    radial-gradient(ellipse 65% 42% at 18% 14%, rgba(255,255,255,0.58) 0%, transparent 62%),
+    /* Softer lower-right sheen */
+    radial-gradient(ellipse 55% 45% at 82% 84%, rgba(255,255,255,0.24) 0%, transparent 55%),
+    /* Cool tint centre */
+    radial-gradient(circle at 52% 50%, rgba(190,215,235,0.20) 0%, transparent 75%),
+    /* Diagonal light refraction streak */
+    linear-gradient(115deg,
+      transparent 30%,
+      rgba(255,255,255,0.10) 45%,
+      rgba(255,255,255,0.22) 50%,
+      rgba(255,255,255,0.10) 55%,
+      transparent 70%),
+    /* Panel body */
+    linear-gradient(155deg, #d0dae8 0%, #a8b8ca 42%, #7d90a7 100%);
 }
-body.theme-black .ly-now-playing { color: #57534e; }
-body.theme-black .ly-line { color: #101015; }
-body.theme-black .ly-line-far-past,
-body.theme-black .ly-line-far-next { color: #78716c; opacity: 0.32; }
-body.theme-black .ly-line-past,
-body.theme-black .ly-line-next {
-  color: #292524;
-  opacity: 0.5;
-  text-shadow: 0 1px 3px rgba(0,0,0,0.15);
-}
-body.theme-black .ly-line-current {
-  color: #0a0a0a;
-  text-shadow:
-    0 2px 4px  rgba(0,0,0,0.28),
-    0 5px 14px rgba(0,0,0,0.18),
-    0 0 22px   rgba(30,30,40,0.12);
-}
-body.theme-black .ly-scatter-token {
-  color: #0a0a0a;
-  text-shadow: 0 2px 5px rgba(0,0,0,0.3), 0 5px 14px rgba(0,0,0,0.2);
-}
-body.theme-black .ly-stage-msg {
-  color: rgba(15,15,20,0.55);
-  text-shadow: 0 2px 8px rgba(0,0,0,0.2);
-}
-body.theme-black .ly-fs-offset {
-  background: rgba(255,255,255,0.72);
-  border-color: rgba(0,0,0,0.14);
-  color: #101015;
-}
-body.theme-black .ly-fs-offset .ly-bar-label,
-body.theme-black .ly-fs-offset .ly-offset-end,
-body.theme-black .ly-fs-offset .ly-offset-val { color: #292524; }
 
-/* ---- Glass FX theme — frosted-glass background gradient on the
-        stage. No particle elements (buildFx returns early). ---- */
-body.fx-glass #stage,
-body.fx-glass.lyrics-fs #stage,
-body.fx-glass.karaoke-mode #stage {
+/* Frost speckle + inner glass edge — layered via ::before so it
+   sits above the stage background but below lyrics/fx. */
+body.theme-glass #stage::before {
+  content: '';
+  position: absolute;
+  inset: 6px;
+  pointer-events: none;
+  z-index: 0;
+  border-radius: 10px;
   background:
-    /* Diagonal highlight sweep across the pane */
-    linear-gradient(135deg,
-      rgba(255,255,255,0.28) 0%,
-      rgba(255,255,255,0.04) 32%,
-      rgba(0,0,0,0.05)       68%,
-      rgba(0,0,0,0.18)       100%),
-    /* Two soft light "reflections" */
-    radial-gradient(ellipse at 22% 22%, rgba(255,255,255,0.36), transparent 42%),
-    radial-gradient(ellipse at 78% 78%, rgba(180,200,225,0.30), transparent 44%),
-    /* Base translucent slate */
-    linear-gradient(180deg, #b8c5d6 0%, #7f8fa4 100%);
+    /* Small frosted spots to break the smoothness */
+    radial-gradient(circle 3px at 18% 26%, rgba(255,255,255,0.22), transparent 70%),
+    radial-gradient(circle 4px at 42% 68%, rgba(255,255,255,0.18), transparent 70%),
+    radial-gradient(circle 3px at 73% 34%, rgba(255,255,255,0.20), transparent 70%),
+    radial-gradient(circle 2px at 85% 78%, rgba(255,255,255,0.16), transparent 70%),
+    radial-gradient(circle 3px at 32% 12%, rgba(255,255,255,0.14), transparent 70%),
+    radial-gradient(circle 2px at 62% 88%, rgba(255,255,255,0.14), transparent 70%);
+  box-shadow:
+    /* Glass edge highlights (top / left brighter, bottom / right darker) */
+    inset  0  1px 0 rgba(255,255,255,0.55),
+    inset  0 -1px 0 rgba(15, 25, 45,0.22),
+    inset  1px  0 0 rgba(255,255,255,0.28),
+    inset -1px  0 0 rgba(15, 25, 45,0.18);
 }
-/* Give the light-theme + glass combo a pale, milky version instead
-   of the slate look so the two settings stay readable together. */
-body.fx-glass.theme-light #stage,
-body.fx-glass.theme-light.lyrics-fs #stage {
-  background:
-    linear-gradient(135deg,
-      rgba(255,255,255,0.55) 0%,
-      rgba(255,255,255,0.15) 40%,
-      rgba(120,140,170,0.10) 100%),
-    radial-gradient(ellipse at 22% 22%, rgba(255,255,255,0.5), transparent 45%),
-    radial-gradient(ellipse at 78% 78%, rgba(200,215,235,0.4), transparent 45%),
-    linear-gradient(180deg, #f2f5fa 0%, #d8dee9 100%);
+
+/* Text on the glass panel — cool navy with a bright halo so the
+   letters look like they're sitting on the glass surface. */
+body.theme-glass .ly-now-playing {
+  color: rgba(30, 45, 70, 0.85);
+  text-shadow: 0 1px 2px rgba(255,255,255,0.5);
 }
-body.fx-glass.theme-black #stage,
-body.fx-glass.theme-black.lyrics-fs #stage {
-  background:
-    linear-gradient(135deg,
-      rgba(255,255,255,0.55) 0%,
-      rgba(255,255,255,0.18) 40%,
-      rgba(0,0,0,0.06) 100%),
-    radial-gradient(ellipse at 22% 22%, rgba(255,255,255,0.55), transparent 46%),
-    radial-gradient(ellipse at 78% 78%, rgba(200,195,180,0.4), transparent 46%),
-    linear-gradient(180deg, #ece7dd 0%, #cfc8bb 100%);
+body.theme-glass .ly-line {
+  color: #1e293b;
+  text-shadow: 0 1px 2px rgba(255,255,255,0.55);
+}
+body.theme-glass .ly-line-far-past,
+body.theme-glass .ly-line-far-next { color: #64748b; opacity: 0.4; }
+body.theme-glass .ly-line-past,
+body.theme-glass .ly-line-next     { color: #334155; opacity: 0.6; }
+body.theme-glass .ly-line-current {
+  color: #0f172a;
+  text-shadow:
+    0 1px 2px rgba(255,255,255,0.75),
+    0 3px 10px rgba(15, 23, 42, 0.25),
+    0 0 22px rgba(200, 220, 240, 0.4);
+}
+body.theme-glass .ly-scatter-token {
+  color: #0f172a;
+  text-shadow: 0 1px 3px rgba(255,255,255,0.65), 0 3px 10px rgba(15, 23, 42, 0.25);
+}
+body.theme-glass .ly-stage-msg {
+  color: rgba(15, 23, 42, 0.7);
+  text-shadow: 0 1px 3px rgba(255,255,255,0.6);
+}
+body.theme-glass .ly-fs-offset {
+  background: rgba(255,255,255,0.55);
+  border-color: rgba(15, 23, 42, 0.18);
+  color: #1e293b;
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+}
+body.theme-glass .ly-fs-offset .ly-bar-label,
+body.theme-glass .ly-fs-offset .ly-offset-end,
+body.theme-glass .ly-fs-offset .ly-offset-val { color: #4c1d95; }
+
+/* ---- Effect-particle overrides for light + glass themes so
+        rings / squares / triangles / mix stay visible against a
+        bright background. Deeper, higher-saturation strokes plus
+        a soft dark halo so each shape reads on any theme. ---- */
+body.theme-light .ly-ripple,
+body.theme-glass .ly-ripple {
+  border-color: rgba(76, 29, 149, 0.55);
+  box-shadow: 0 0 22px rgba(76, 29, 149, 0.22);
+}
+body.theme-light .ly-ripple:nth-child(2),
+body.theme-glass .ly-ripple:nth-child(2) {
+  border-color: rgba(190, 24, 93, 0.55);
+  box-shadow: 0 0 22px rgba(190, 24, 93, 0.22);
+}
+body.theme-light .ly-ripple:nth-child(3),
+body.theme-glass .ly-ripple:nth-child(3) {
+  border-color: rgba(29, 78, 216, 0.55);
+  box-shadow: 0 0 22px rgba(29, 78, 216, 0.22);
+}
+body.theme-light .ly-ripple:nth-child(4),
+body.theme-glass .ly-ripple:nth-child(4) {
+  border-color: rgba(4, 120, 87, 0.55);
+  box-shadow: 0 0 22px rgba(4, 120, 87, 0.22);
+}
+body.theme-light .ly-ripple:nth-child(5),
+body.theme-glass .ly-ripple:nth-child(5) {
+  border-color: rgba(107, 33, 168, 0.55);
+  box-shadow: 0 0 22px rgba(107, 33, 168, 0.22);
+}
+body.theme-light .ly-ripple:nth-child(6),
+body.theme-glass .ly-ripple:nth-child(6) {
+  border-color: rgba(190, 24, 93, 0.55);
+  box-shadow: 0 0 22px rgba(190, 24, 93, 0.22);
+}
+/* Add a subtle dark drop-shadow around square / triangle particles
+   so their colour doesn't wash out on a bright panel. */
+body.theme-light .ly-square,
+body.theme-light .ly-triangle,
+body.theme-glass .ly-square,
+body.theme-glass .ly-triangle {
+  filter: drop-shadow(0 2px 6px rgba(15, 23, 42, 0.35));
 }
 
 /* ---- Universal overflow protection: keep lyric lines inside the

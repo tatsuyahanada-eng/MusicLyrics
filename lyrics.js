@@ -159,13 +159,13 @@ const LYRIC_STYLE_LABELS = {
 };
 let lyricStyle = 'random';
 let fxTheme = 'rings';
-const COLOR_THEMES = ['dark', 'light', 'black'];
+const COLOR_THEMES = ['dark', 'light', 'glass'];
 const COLOR_THEME_LABELS = {
   dark:  '🌙ダーク',
   light: '☀ライト',
-  black: '✒ブラック',
+  glass: '🪟ガラス',
 };
-let colorTheme = 'dark';    /* 'dark' | 'light' | 'black' */
+let colorTheme = 'dark';    /* 'dark' | 'light' | 'glass' */
 
 /* ============================================================
    API key access — a site-wide key set in config.js takes
@@ -309,7 +309,8 @@ function init() {
   fxTheme = FX_THEMES.includes(savedFx) ? savedFx : 'rings';
   buildFx();
 
-  /* Restore saved colour theme (dark / light / black) */
+  /* Restore saved colour theme (dark / light / glass). Legacy
+     'black' entries from v65 gracefully fall back to 'dark'. */
   const savedColor = localStorage.getItem('color_theme');
   colorTheme = COLOR_THEMES.includes(savedColor) ? savedColor : 'dark';
   applyColorTheme();
@@ -2249,7 +2250,8 @@ function toggleColorTheme() {
 
 function applyColorTheme() {
   document.body.classList.toggle('theme-light', colorTheme === 'light');
-  document.body.classList.toggle('theme-black', colorTheme === 'black');
+  document.body.classList.toggle('theme-glass', colorTheme === 'glass');
+  document.body.classList.remove('theme-black');   /* retired */
   if (elColorToggleBtn) {
     elColorToggleBtn.textContent =
       COLOR_THEME_LABELS[colorTheme] || COLOR_THEME_LABELS.dark;
@@ -2260,15 +2262,12 @@ function applyColorTheme() {
    Background FX themes
    (rings / stars / streaks / squares / triangles / mix)
    ============================================================ */
-const FX_THEMES = ['rings', 'stars', 'streaks', 'squares', 'triangles', 'mix', 'glass'];
+const FX_THEMES = ['rings', 'squares', 'triangles', 'mix'];
 const FX_LABELS = {
   rings:    '✨リング',
-  stars:    '✨スター',
-  streaks:  '✨流星',
   squares:  '✨スクエア',
   triangles:'✨三角',
   mix:      '✨ミックス',
-  glass:    '✨ガラス',
 };
 const SQUARE_TINTS = [
   'rgba(167,139,250,0.85)', 'rgba(244,114,182,0.82)',
@@ -2288,38 +2287,11 @@ function buildFx() {
   if (!elFx) return;
   elFx.innerHTML = '';
   elFx.dataset.theme = fxTheme;
-  /* Glass style paints the background via body.fx-glass CSS; no
-     particle elements are needed. */
-  document.body.classList.toggle('fx-glass', fxTheme === 'glass');
+  document.body.classList.remove('fx-glass');   /* retired */
   if (elFxThemeBtn) elFxThemeBtn.textContent = FX_LABELS[fxTheme] || '✨';
-  if (fxTheme === 'glass') return;
 
   if (fxTheme === 'rings') {
     for (let i = 0; i < 6; i++) elFx.appendChild(mkEl('span', 'ly-ripple'));
-
-  } else if (fxTheme === 'stars') {
-    for (let i = 0; i < 30; i++) {
-      const p = mkEl('span', 'ly-particle');
-      const sz = (2 + Math.random() * 5).toFixed(1);
-      p.style.left   = (Math.random() * 100).toFixed(1) + '%';
-      p.style.top    = (Math.random() * 100).toFixed(1) + '%';
-      p.style.width  = sz + 'px';
-      p.style.height = sz + 'px';
-      p.style.animationDuration = (2.5 + Math.random() * 4).toFixed(2) + 's';
-      p.style.animationDelay    = (Math.random() * 5).toFixed(2) + 's';
-      elFx.appendChild(p);
-    }
-
-  } else if (fxTheme === 'streaks') {
-    for (let i = 0; i < 12; i++) {
-      const s = mkEl('span', 'ly-streak');
-      s.style.left  = (Math.random() * 90 - 10).toFixed(1) + '%';
-      s.style.top   = (Math.random() * 70 - 20).toFixed(1) + '%';
-      s.style.width = (18 + Math.random() * 26).toFixed(1) + 'vmin';
-      s.style.animationDuration = (2.2 + Math.random() * 2.6).toFixed(2) + 's';
-      s.style.animationDelay    = (Math.random() * 4).toFixed(2) + 's';
-      elFx.appendChild(s);
-    }
 
   } else if (fxTheme === 'squares') {
     for (let i = 0; i < 8; i++) elFx.appendChild(buildBlinker('square', i));
