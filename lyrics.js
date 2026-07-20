@@ -159,7 +159,13 @@ const LYRIC_STYLE_LABELS = {
 };
 let lyricStyle = 'random';
 let fxTheme = 'rings';
-let colorTheme = 'dark';    /* 'dark' | 'light' */
+const COLOR_THEMES = ['dark', 'light', 'black'];
+const COLOR_THEME_LABELS = {
+  dark:  '🌙ダーク',
+  light: '☀ライト',
+  black: '✒ブラック',
+};
+let colorTheme = 'dark';    /* 'dark' | 'light' | 'black' */
 
 /* ============================================================
    API key access — a site-wide key set in config.js takes
@@ -303,8 +309,9 @@ function init() {
   fxTheme = FX_THEMES.includes(savedFx) ? savedFx : 'rings';
   buildFx();
 
-  /* Restore saved colour theme */
-  colorTheme = localStorage.getItem('color_theme') === 'light' ? 'light' : 'dark';
+  /* Restore saved colour theme (dark / light / black) */
+  const savedColor = localStorage.getItem('color_theme');
+  colorTheme = COLOR_THEMES.includes(savedColor) ? savedColor : 'dark';
   applyColorTheme();
 
   if (elCurrentOrigin) elCurrentOrigin.textContent = location.origin || location.href;
@@ -1275,21 +1282,62 @@ function normalizeMatchText(s) {
     .trim();
 }
 
-/* Rank YouTube results as MVs:
-   1) RELEVANCE first (does the title/channel actually contain the
-      artist and song name?) — mismatches sink hard.
-   2) MV signals — "official music video", VEVO channel, Official
-      Artist Channel — get the biggest positive weight so real MVs
-      float above audio-only variants.
-   3) Audio-only markers ("Official Audio", "- Topic" channels) get
-      a negative weight so they land below MV candidates.
-   4) Non-music markers (live/cover/karaoke/#shorts) sink lower.
-   Nothing is hard-rejected — soft scoring so we always return
-   something rather than silently dropping to zero results. */
+/* Return true only when the item looks like a real MV: a
+   music-video title cue, VEVO channel, or the artist's Official
+   Artist Channel. Hard-rejects audio-only markers and non-music
+   noise (live/cover/karaoke/#shorts). */
+const MV_TITLE_SIGNALS = [
+  /official music video/i,
+  /music video/i,
+  /ミュージックビデオ/,
+  /オフィシャルビデオ/,
+  /公式ビデオ/,
+  /オフィシャル/,
+  /公式/,
+  /\bmv\b/i,
+  /\bm\/v\b/i,
+  /\bpv\b/i,
+  /\bp\/v\b/i,
+  /ｍｖ/,
+];
+
+function isMvCandidate(item, artist) {
+  const rawT = (item.title   || '').toLowerCase();
+  const rawC = (item.channel || '').toLowerCase();
+  const cNorm = normalizeMatchText(item.channel);
+  const artistN = normalizeMatchText(artist);
+
+  /* Hard reject audio-only tracks — the user asked to skip them */
+  if (/official audio|audio only|audio version|audio track|full audio/i.test(rawT)) return false;
+  if (/(^|\s)-?\s*topic$/i.test(rawC.trim())) return false;
+
+  /* Hard reject non-music noise */
+  if (MV_REJECT_KEYWORDS.some(kw => rawT.includes(kw))) return false;
+
+  const hasMvTitle = MV_TITLE_SIGNALS.some(re => re.test(rawT));
+  const isVevo = rawC.includes('vevo');
+  const isOfficialArtistChannel = artistN && cNorm === artistN;
+  const isOfficialChannel = /official/.test(rawC);
+  const isRecordsChannel = /records|entertainment/.test(rawC);
+
+  return hasMvTitle || isVevo || isOfficialArtistChannel
+      || isOfficialChannel || isRecordsChannel;
+}
+
+/* Rank YouTube results as MVs. MV filter is now strict — if the
+   pool contains no real MV candidates, an empty array is returned
+   so the app shows "no YouTube results" rather than playing a
+   half-relevant audio track. Within the MV set the same scoring
+   still orders best-matches first. */
 function rankMusicOnly(items, artist, title) {
-  const scored = items.map(it => ({ it, s: scoreMusicCandidate(it, artist, title) }));
+  const scored = items.map(it => ({
+    it,
+    s: scoreMusicCandidate(it, artist, title),
+    isMv: isMvCandidate(it, artist),
+  }));
   scored.sort((a, b) => b.s - a.s);
-  return scored.slice(0, 10).map(x => x.it);
+  const mvOnly = scored.filter(x => x.isMv).slice(0, 10);
+  return mvOnly.map(x => x.it);
 }
 
 function scoreMusicCandidate(item, artist, title) {
@@ -2193,15 +2241,18 @@ function applyLyricStyle() {
 
 /* Colour theme (lyrics on dark vs. light background) */
 function toggleColorTheme() {
-  colorTheme = (colorTheme === 'light') ? 'dark' : 'light';
+  const i = COLOR_THEMES.indexOf(colorTheme);
+  colorTheme = COLOR_THEMES[(i + 1) % COLOR_THEMES.length];
   localStorage.setItem('color_theme', colorTheme);
   applyColorTheme();
 }
 
 function applyColorTheme() {
   document.body.classList.toggle('theme-light', colorTheme === 'light');
+  document.body.classList.toggle('theme-black', colorTheme === 'black');
   if (elColorToggleBtn) {
-    elColorToggleBtn.textContent = colorTheme === 'light' ? '☀ライト' : '🌙ダーク';
+    elColorToggleBtn.textContent =
+      COLOR_THEME_LABELS[colorTheme] || COLOR_THEME_LABELS.dark;
   }
 }
 
@@ -2209,7 +2260,7 @@ function applyColorTheme() {
    Background FX themes
    (rings / stars / streaks / squares / triangles / mix)
    ============================================================ */
-const FX_THEMES = ['rings', 'stars', 'streaks', 'squares', 'triangles', 'mix'];
+const FX_THEMES = ['rings', 'stars', 'streaks', 'squares', 'triangles', 'mix', 'glass'];
 const FX_LABELS = {
   rings:    '✨リング',
   stars:    '✨スター',
@@ -2217,6 +2268,7 @@ const FX_LABELS = {
   squares:  '✨スクエア',
   triangles:'✨三角',
   mix:      '✨ミックス',
+  glass:    '✨ガラス',
 };
 const SQUARE_TINTS = [
   'rgba(167,139,250,0.85)', 'rgba(244,114,182,0.82)',
@@ -2236,7 +2288,11 @@ function buildFx() {
   if (!elFx) return;
   elFx.innerHTML = '';
   elFx.dataset.theme = fxTheme;
+  /* Glass style paints the background via body.fx-glass CSS; no
+     particle elements are needed. */
+  document.body.classList.toggle('fx-glass', fxTheme === 'glass');
   if (elFxThemeBtn) elFxThemeBtn.textContent = FX_LABELS[fxTheme] || '✨';
+  if (fxTheme === 'glass') return;
 
   if (fxTheme === 'rings') {
     for (let i = 0; i < 6; i++) elFx.appendChild(mkEl('span', 'ly-ripple'));

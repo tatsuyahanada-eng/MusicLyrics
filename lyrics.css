@@ -1739,12 +1739,9 @@ body.theme-light.lyric-dynamic .ly-line-current[data-variant="sans-mixed"] {
 }
 
 /* ============================================================
-   NORMAL style — one line at a time, no past/next context.
-   The centre slot stays visible; every other slot is hidden so
-   the eye locks onto the currently sung line without competing
-   text around it. Uses the standard whole-line entrance
-   animation (no per-char reveal, no variant rotation).
-   ============================================================ */
+   NORMAL style — the simplest lyric presentation. One line at a
+   time, no past/next context, only a soft opacity fade (no
+   translate, scale or blur). ============================================================ */
 body.lyric-normal .ly-line-far-past,
 body.lyric-normal .ly-line-past,
 body.lyric-normal .ly-line-next,
@@ -1752,13 +1749,28 @@ body.lyric-normal .ly-line-far-next {
   display: none;
 }
 body.lyric-normal .ly-line-current {
-  font-size: clamp(1.8rem, 6vw, 3.4rem);
-  font-weight: 800;
-  letter-spacing: 0.03em;
+  font-size: clamp(1.6rem, 5.5vw, 3rem);
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  padding: 0 12px;
 }
 body.lyric-normal.lyrics-fs #stage .ly-line-current,
 body.lyric-normal.karaoke-mode #stage .ly-line-current {
-  font-size: clamp(2.6rem, 8vw, 5.5rem);
+  font-size: clamp(2.4rem, 7.5vw, 5rem);
+}
+/* Override the stack-mode's boosted entrance so normal really is
+   the simplest — just fade. */
+body.lyric-normal .ly-line-current.enter,
+body.lyric-normal .ly-line-current.enter.dir-up,
+body.lyric-normal .ly-line-current.enter.dir-down,
+body.lyric-normal .ly-line-current.enter.dir-left,
+body.lyric-normal .ly-line-current.enter.dir-right,
+body.lyric-normal .ly-line-current.enter.dir-zoom {
+  animation: ly-normal-fade 0.35s ease-out both;
+}
+@keyframes ly-normal-fade {
+  0%   { opacity: 0; }
+  100% { opacity: 1; }
 }
 
 /* ---- Stage message overlay (e.g. "No Lyrics") ---- */
@@ -1820,6 +1832,125 @@ body.theme-light .ly-fs-offset {
 body.theme-light .ly-fs-offset .ly-bar-label,
 body.theme-light .ly-fs-offset .ly-offset-end,
 body.theme-light .ly-fs-offset .ly-offset-val { color: #be185d; }
+
+/* ---- Black colour theme (warm paper background, deep-black text
+        with a soft drop shadow — the "black-with-shadow" look) ---- */
+body.theme-black #stage,
+body.theme-black.lyrics-fs #stage,
+body.theme-black.karaoke-mode #stage {
+  background: linear-gradient(180deg, #f5f2ec 0%, #dcd7cd 100%);
+}
+body.theme-black .ly-now-playing { color: #57534e; }
+body.theme-black .ly-line { color: #101015; }
+body.theme-black .ly-line-far-past,
+body.theme-black .ly-line-far-next { color: #78716c; opacity: 0.32; }
+body.theme-black .ly-line-past,
+body.theme-black .ly-line-next {
+  color: #292524;
+  opacity: 0.5;
+  text-shadow: 0 1px 3px rgba(0,0,0,0.15);
+}
+body.theme-black .ly-line-current {
+  color: #0a0a0a;
+  text-shadow:
+    0 2px 4px  rgba(0,0,0,0.28),
+    0 5px 14px rgba(0,0,0,0.18),
+    0 0 22px   rgba(30,30,40,0.12);
+}
+body.theme-black .ly-scatter-token {
+  color: #0a0a0a;
+  text-shadow: 0 2px 5px rgba(0,0,0,0.3), 0 5px 14px rgba(0,0,0,0.2);
+}
+body.theme-black .ly-stage-msg {
+  color: rgba(15,15,20,0.55);
+  text-shadow: 0 2px 8px rgba(0,0,0,0.2);
+}
+body.theme-black .ly-fs-offset {
+  background: rgba(255,255,255,0.72);
+  border-color: rgba(0,0,0,0.14);
+  color: #101015;
+}
+body.theme-black .ly-fs-offset .ly-bar-label,
+body.theme-black .ly-fs-offset .ly-offset-end,
+body.theme-black .ly-fs-offset .ly-offset-val { color: #292524; }
+
+/* ---- Glass FX theme — frosted-glass background gradient on the
+        stage. No particle elements (buildFx returns early). ---- */
+body.fx-glass #stage,
+body.fx-glass.lyrics-fs #stage,
+body.fx-glass.karaoke-mode #stage {
+  background:
+    /* Diagonal highlight sweep across the pane */
+    linear-gradient(135deg,
+      rgba(255,255,255,0.28) 0%,
+      rgba(255,255,255,0.04) 32%,
+      rgba(0,0,0,0.05)       68%,
+      rgba(0,0,0,0.18)       100%),
+    /* Two soft light "reflections" */
+    radial-gradient(ellipse at 22% 22%, rgba(255,255,255,0.36), transparent 42%),
+    radial-gradient(ellipse at 78% 78%, rgba(180,200,225,0.30), transparent 44%),
+    /* Base translucent slate */
+    linear-gradient(180deg, #b8c5d6 0%, #7f8fa4 100%);
+}
+/* Give the light-theme + glass combo a pale, milky version instead
+   of the slate look so the two settings stay readable together. */
+body.fx-glass.theme-light #stage,
+body.fx-glass.theme-light.lyrics-fs #stage {
+  background:
+    linear-gradient(135deg,
+      rgba(255,255,255,0.55) 0%,
+      rgba(255,255,255,0.15) 40%,
+      rgba(120,140,170,0.10) 100%),
+    radial-gradient(ellipse at 22% 22%, rgba(255,255,255,0.5), transparent 45%),
+    radial-gradient(ellipse at 78% 78%, rgba(200,215,235,0.4), transparent 45%),
+    linear-gradient(180deg, #f2f5fa 0%, #d8dee9 100%);
+}
+body.fx-glass.theme-black #stage,
+body.fx-glass.theme-black.lyrics-fs #stage {
+  background:
+    linear-gradient(135deg,
+      rgba(255,255,255,0.55) 0%,
+      rgba(255,255,255,0.18) 40%,
+      rgba(0,0,0,0.06) 100%),
+    radial-gradient(ellipse at 22% 22%, rgba(255,255,255,0.55), transparent 46%),
+    radial-gradient(ellipse at 78% 78%, rgba(200,195,180,0.4), transparent 46%),
+    linear-gradient(180deg, #ece7dd 0%, #cfc8bb 100%);
+}
+
+/* ---- Universal overflow protection: keep lyric lines inside the
+        stage even on very narrow screens or with the largest
+        variant paddings. ---- */
+.ly-line {
+  overflow-wrap: anywhere;   /* allow break at any character if a
+                                run of glyphs is wider than the box */
+}
+@media (max-width: 600px) {
+  .ly-line { max-width: 96%; padding: 0 4px; }
+  .ly-line-current { font-size: clamp(1.4rem, 5vw, 2.5rem); }
+  body.lyrics-fs #stage .ly-line-current { font-size: clamp(1.9rem, 7vw, 3.6rem); }
+  body.lyric-dynamic .ly-line-current[data-variant="impact-block"] {
+    padding: 8px 14px 10px;
+    letter-spacing: 0.03em;
+  }
+  body.lyric-dynamic .ly-line-current[data-variant="katakana-large"] {
+    padding: 4px 12px 8px;
+  }
+  body.lyric-dynamic .ly-line-current[data-variant="underline"] {
+    padding: 8px 8px;
+  }
+  body.lyric-dynamic .ly-line-current[data-variant="serif-right"] {
+    padding-right: 40px;   /* was 56px */
+  }
+  body.lyric-dynamic .ly-line-current[data-variant="serif-right"]::after {
+    box-shadow:
+      -16px -12px 0 rgba(163,163,173,0.75),
+      -4px 16px 0 rgba(148,163,184,0.65);
+  }
+}
+@media (max-width: 380px) {
+  .ly-line-current { font-size: clamp(1.3rem, 5.2vw, 2.1rem); }
+  body.lyric-normal .ly-line-current { font-size: clamp(1.3rem, 5.2vw, 2.2rem); }
+}
 
 /* ---- Fancy directional entrances (fullscreen / karaoke) ---- */
 .ly-line-current.enter.dir-up    { animation: ly-enter-up    0.62s cubic-bezier(0.22,1,0.36,1) both; }
