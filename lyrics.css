@@ -1172,7 +1172,61 @@ body.song-active .ly-fx { display: block; }
   100% { transform: translate(-50%, -50%) scale(2.3) rotate(var(--rot, 0deg)); opacity: 0; } /* rest (gap) */
 }
 
+/* ---- Water FX — bubbles rising with a gentle sway, over a
+        cool blue tint that reads as "under water" ---- */
+.ly-fx[data-theme="water"] {
+  background:
+    radial-gradient(ellipse at 40% 20%, rgba(125, 211, 252, 0.14) 0%, transparent 55%),
+    radial-gradient(ellipse at 70% 70%, rgba(56, 189, 248, 0.10) 0%, transparent 55%),
+    linear-gradient(180deg, rgba(56, 189, 248, 0.10) 0%, rgba(30, 64, 175, 0.22) 100%);
+}
+.ly-bubble {
+  position: absolute;
+  bottom: -8%;
+  border-radius: 50%;
+  background:
+    radial-gradient(circle at 30% 30%,
+      rgba(255,255,255,0.75) 0%,
+      rgba(255,255,255,0.25) 35%,
+      rgba(180,220,255,0.10) 65%,
+      transparent 80%);
+  border: 1px solid rgba(255,255,255,0.35);
+  box-shadow: inset 0 0 4px rgba(255,255,255,0.4);
+  will-change: transform, opacity;
+  animation: ly-bubble-rise linear infinite;
+  --sway: 18px;
+}
+@keyframes ly-bubble-rise {
+  0%   { transform: translate(0, 0)             scale(0.6); opacity: 0; }
+  10%  { opacity: 0.9; }
+  50%  { transform: translate(var(--sway), -60vh) scale(1); }
+  90%  { opacity: 0.85; }
+  100% { transform: translate(calc(var(--sway) * -0.5), -120vh) scale(1.05); opacity: 0; }
+}
 
+/* ---- Cloud FX — soft blurred drifting shapes ---- */
+.ly-fx[data-theme="clouds"] {
+  background: linear-gradient(180deg, rgba(255,255,255,0.02), transparent 60%);
+}
+.ly-cloud {
+  position: absolute;
+  left: -35%;
+  width: 44vw;
+  max-width: 480px;
+  height: 70px;
+  background:
+    radial-gradient(ellipse at 25% 50%, rgba(255,255,255,0.42) 0%, transparent 55%),
+    radial-gradient(ellipse at 50% 45%, rgba(255,255,255,0.55) 0%, transparent 60%),
+    radial-gradient(ellipse at 70% 55%, rgba(255,255,255,0.40) 0%, transparent 55%);
+  filter: blur(14px);
+  will-change: transform;
+  animation: ly-cloud-drift linear infinite;
+  --cloud-scale: 1;
+}
+@keyframes ly-cloud-drift {
+  0%   { transform: translateX(-30vw) scale(var(--cloud-scale, 1)); }
+  100% { transform: translateX(160vw) scale(var(--cloud-scale, 1)); }
+}
 
 /* Lyric stack — fills the rest, centred */
 .ly-lyric-stack {
@@ -1847,28 +1901,28 @@ body.theme-light .ly-fs-offset .ly-bar-label,
 body.theme-light .ly-fs-offset .ly-offset-end,
 body.theme-light .ly-fs-offset .ly-offset-val { color: #be185d; }
 
-/* ---- Glass colour theme — a lighter frosted acrylic pane. The
-        stage background paints softer abstract shapes behind the
-        pane; #stage::before applies a gentler backdrop-filter
-        blur + subtle white gradient so the glass feels thinner /
-        more transparent while keeping its frosted quality. ---- */
+/* ---- Glass colour theme — a truly clear acrylic panel modelled
+        after transparent-OLED displays (Pixie Dust Persephone,
+        SCREENBOX). Almost no frost; the pane is defined by its
+        bright rim highlights and a diagonal specular reflection
+        streak, so whatever is behind (rings, water, clouds, none)
+        stays clearly visible through it. ---- */
 body.theme-glass #stage,
 body.theme-glass.lyrics-fs #stage,
 body.theme-glass.karaoke-mode #stage {
   position: relative;
-  /* Softer abstract blobs — reduced opacity so the pane looks
-     thinner rather than a saturated stained-glass panel. */
+  /* Deep neutral backdrop — subtle, so the pane and its rim can
+     be seen. The FX layer (rings / water / clouds / …) will be
+     what actually shows through the glass. */
   background:
-    radial-gradient(circle at 22% 26%, rgba(139, 92, 246, 0.38) 0%, transparent 42%),
-    radial-gradient(circle at 78% 20%, rgba(236, 72, 153, 0.34) 0%, transparent 40%),
-    radial-gradient(circle at 82% 78%, rgba(59, 130, 246, 0.38) 0%, transparent 44%),
-    radial-gradient(circle at 20% 82%, rgba(52, 211, 153, 0.30) 0%, transparent 40%),
-    radial-gradient(circle at 55% 55%, rgba(251, 191, 36, 0.22) 0%, transparent 45%),
-    linear-gradient(180deg, #131b2e 0%, #1e293b 100%);
+    radial-gradient(circle at 25% 30%, rgba(30, 41, 65, 0.60) 0%, transparent 55%),
+    radial-gradient(circle at 75% 70%, rgba(20, 30, 55, 0.55) 0%, transparent 55%),
+    linear-gradient(180deg, #0a1120 0%, #131b2e 100%);
 }
 
-/* The glass pane — thinner blur, lighter white overlay so it
-   reads as a slim clear-acrylic sheet rather than a milky slab. */
+/* The glass pane itself — minimal backdrop blur, no milky overlay.
+   The identity comes from the bright rim highlights and the sharp
+   diagonal specular reflection strip that runs across the panel. */
 body.theme-glass #stage::before {
   content: '';
   position: absolute;
@@ -1876,40 +1930,35 @@ body.theme-glass #stage::before {
   pointer-events: none;
   z-index: 1;
   background:
-    /* Frost speckle stipple — reduced so the pane isn't too milky */
-    radial-gradient(circle 2px at 18% 14%, rgba(255,255,255,0.20), transparent 60%),
-    radial-gradient(circle 3px at 68% 24%, rgba(255,255,255,0.14), transparent 60%),
-    radial-gradient(circle 2px at 44% 48%, rgba(255,255,255,0.16), transparent 60%),
-    radial-gradient(circle 3px at 82% 60%, rgba(255,255,255,0.13), transparent 60%),
-    radial-gradient(circle 2px at 15% 72%, rgba(255,255,255,0.15), transparent 60%),
-    radial-gradient(circle 2px at 55% 82%, rgba(255,255,255,0.12), transparent 60%),
-    radial-gradient(circle 2px at 88% 14%, rgba(255,255,255,0.15), transparent 60%),
-    /* Diagonal light refraction streak — softened */
+    /* Sharp diagonal specular reflection — the strongest cue that
+       there IS a glass pane between the viewer and the content. */
     linear-gradient(118deg,
-      transparent 32%,
-      rgba(255,255,255,0.08) 47%,
-      rgba(255,255,255,0.22) 50%,
-      rgba(255,255,255,0.08) 53%,
-      transparent 68%),
-    /* Bright top-left corner reflection — kept for glass identity */
-    radial-gradient(ellipse 60% 42% at 15% 10%, rgba(255,255,255,0.22) 0%, transparent 65%),
-    /* Secondary lower-right sheen */
-    radial-gradient(ellipse 50% 40% at 85% 88%, rgba(255,255,255,0.08) 0%, transparent 60%),
-    /* Very light white overlay — thinner than v67 */
-    linear-gradient(180deg, rgba(255,255,255,0.09), rgba(255,255,255,0.03));
-  backdrop-filter: blur(18px) saturate(1.2);
-  -webkit-backdrop-filter: blur(18px) saturate(1.2);
+      transparent 34%,
+      rgba(255,255,255,0.05) 46%,
+      rgba(255,255,255,0.32) 50%,
+      rgba(255,255,255,0.05) 54%,
+      transparent 66%),
+    /* Subtle bright top-left corner reflection */
+    radial-gradient(ellipse 55% 40% at 12% 8%, rgba(255,255,255,0.18) 0%, transparent 60%),
+    /* A hint of lower-right sheen */
+    radial-gradient(ellipse 45% 35% at 88% 90%, rgba(255,255,255,0.06) 0%, transparent 60%),
+    /* Barely-there white haze so the panel reads as material */
+    linear-gradient(180deg, rgba(255,255,255,0.03), rgba(255,255,255,0.01));
+  /* Just a touch of blur so the FX behind acquire a soft-focus
+     quality without hiding what they are. */
+  backdrop-filter: blur(3px) saturate(1.1);
+  -webkit-backdrop-filter: blur(3px) saturate(1.1);
   box-shadow:
-    /* Bright top edge — kept so the rim still catches light */
-    inset  0  1px 0 rgba(255,255,255,0.55),
-    /* Left edge highlight */
-    inset  1px 0 0 rgba(255,255,255,0.22),
-    /* Bottom edge shadow */
-    inset  0 -1px 0 rgba(0, 0, 0, 0.25),
-    /* Right edge shadow */
-    inset -1px 0 0 rgba(0, 0, 0, 0.16),
-    /* Softer outer depth shadow */
-    0 4px 20px rgba(0, 0, 0, 0.20);
+    /* Sharp bright top rim */
+    inset  0  1px 0 rgba(255,255,255,0.75),
+    /* Left rim */
+    inset  1px 0 0 rgba(255,255,255,0.28),
+    /* Bottom rim shadow */
+    inset  0 -1px 0 rgba(0, 0, 0, 0.28),
+    /* Right rim shadow */
+    inset -1px 0 0 rgba(0, 0, 0, 0.18),
+    /* Outer depth shadow */
+    0 6px 22px rgba(0, 0, 0, 0.28);
 }
 
 /* Text on the glass — light and crisp with a soft dark shadow so

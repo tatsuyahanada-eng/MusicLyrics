@@ -2335,12 +2335,13 @@ function applyColorTheme() {
    Background FX themes
    (rings / stars / streaks / squares / triangles / mix)
    ============================================================ */
-const FX_THEMES = ['rings', 'squares', 'triangles', 'mix'];
+const FX_THEMES = ['rings', 'squares', 'water', 'clouds', 'none'];
 const FX_LABELS = {
   rings:    '✨リング',
   squares:  '✨スクエア',
-  triangles:'✨三角',
-  mix:      '✨ミックス',
+  water:    '💧水中',
+  clouds:   '☁ 雲',
+  none:     '⛶ なし',
 };
 const SQUARE_TINTS = [
   'rgba(167,139,250,0.85)', 'rgba(244,114,182,0.82)',
@@ -2368,15 +2369,35 @@ function buildFx() {
 
   } else if (fxTheme === 'squares') {
     for (let i = 0; i < 8; i++) elFx.appendChild(buildBlinker('square', i));
-  } else if (fxTheme === 'triangles') {
-    for (let i = 0; i < 8; i++) elFx.appendChild(buildBlinker('triangle', i));
-  } else if (fxTheme === 'mix') {
-    const shapes = ['ring', 'square', 'triangle'];
-    for (let i = 0; i < 9; i++) {
-      const s = shapes[Math.floor(Math.random() * shapes.length)];
-      elFx.appendChild(buildBlinker(s, i));
+
+  } else if (fxTheme === 'water') {
+    /* Bubbles rising slowly from the bottom of the stage */
+    for (let i = 0; i < 16; i++) {
+      const b = mkEl('span', 'ly-bubble');
+      const size = 6 + Math.random() * 20;
+      b.style.width  = size.toFixed(1) + 'px';
+      b.style.height = size.toFixed(1) + 'px';
+      b.style.left   = (Math.random() * 100).toFixed(1) + '%';
+      b.style.animationDuration = (7 + Math.random() * 9).toFixed(2) + 's';
+      b.style.animationDelay    = (-Math.random() * 10).toFixed(2) + 's';
+      b.style.setProperty('--sway', (12 + Math.random() * 18).toFixed(1) + 'px');
+      elFx.appendChild(b);
     }
-  }
+
+  } else if (fxTheme === 'clouds') {
+    /* Slow drifting soft cloud shapes */
+    for (let i = 0; i < 5; i++) {
+      const c = mkEl('span', 'ly-cloud');
+      const scale = 0.6 + Math.random() * 0.9;
+      c.style.setProperty('--cloud-scale', scale.toFixed(2));
+      c.style.top = (8 + Math.random() * 74).toFixed(1) + '%';
+      c.style.animationDuration = (28 + Math.random() * 24).toFixed(2) + 's';
+      c.style.animationDelay    = (-Math.random() * 40).toFixed(2) + 's';
+      c.style.opacity = (0.32 + Math.random() * 0.38).toFixed(2);
+      elFx.appendChild(c);
+    }
+
+  } /* fxTheme === 'none' → leave elFx empty */
 }
 
 /* Shared "expand & blink" element builder. Supports square /
