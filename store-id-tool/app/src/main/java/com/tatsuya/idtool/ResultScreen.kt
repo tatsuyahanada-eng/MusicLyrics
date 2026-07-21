@@ -60,7 +60,7 @@ import java.util.Calendar
 import java.util.Date
 import java.util.Locale
 
-private val ResultOptions = listOf("最適", "良", "圏外", "送受信エラー")
+private val ResultOptions = listOf("最適", "良", "圏外", "送受信エラー", "無線リンクエラー")
 // 送信先メールの初期値（変更可）
 private const val DEFAULT_EMAIL = "jrss-03@alljrs.co.jp"
 private val GRID_LEFT_W = 96.dp

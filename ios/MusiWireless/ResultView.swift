@@ -1,7 +1,7 @@
 import SwiftUI
 import MessageUI
 
-private let resultOptions = ["", "最適", "良", "圏外", "送受信エラー"]
+private let resultOptions = ["", "最適", "良", "圏外", "送受信エラー", "無線リンクエラー"]
 private let fieldDefs = ["電波強度送信", "電波強度受信", "ノイズ送信", "ノイズ受信", "送信ﾊﾟｹ", "受信ﾊﾟｹ"]
 private let fieldLabels = ["電波送", "電波受", "ﾉｲｽﾞ送", "ﾉｲｽﾞ受", "ﾊﾟｹ送", "ﾊﾟｹ受"]
 
