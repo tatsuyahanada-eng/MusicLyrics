@@ -1335,49 +1335,57 @@ async function searchYouTube(artist, title) {
     e.code = 'NO_KEY';
     throw e;
   }
-  /* Target YouTube Music: restrict to the Music category (10) so
-     random gameplay clips, reactions, and podcasts don't sneak in.
-     If the first pass returns nothing (rare — some legit MVs live
-     under Entertainment), retry without the category filter as a
-     graceful fallback. */
+  /* Single API call — the strict MV filter (isMvCandidate) below
+     drops non-music results, so we no longer need a videoCategoryId
+     first pass + fallback. Previously that combination could burn
+     200 units per song (Music-cat miss then unrestricted retry);
+     one broader query with local filtering halves that. */
   const searchTitle = stripRomajiSuffix(title);
-  const baseParams = {
+  const params = new URLSearchParams({
     part: 'snippet',
     q: `${artist} ${searchTitle}`,
     type: 'video',
     videoEmbeddable: 'true',
     maxResults: '25',
     key,
-  };
-
-  const runQuery = async (extra) => {
-    const params = new URLSearchParams({ ...baseParams, ...extra });
-    const res = await fetchWithTimeout(`${YT_SEARCH}?${params}`, 12000);
-    if (!res.ok) {
-      const body = await res.json().catch(() => ({}));
-      if ((res.status === 400 || res.status === 403) && !getBuiltinKey()) {
-        localStorage.removeItem('yt_api_key_verified');
-        setApiKeyStatus('invalid', key);
-      }
-      throw new Error(interpretYouTubeError(res.status, body));
+  });
+  const res = await fetchWithTimeout(`${YT_SEARCH}?${params}`, 12000);
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}));
+    if ((res.status === 400 || res.status === 403) && !getBuiltinKey()) {
+      localStorage.removeItem('yt_api_key_verified');
+      setApiKeyStatus('invalid', key);
     }
-    const data = await res.json();
-    return (data.items || []).map(it => ({
-      videoId: it.id.videoId,
-      title:   it.snippet.title,
-      channel: it.snippet.channelTitle,
-      thumb:   it.snippet.thumbnails?.default?.url || '',
-    }));
-  };
-
-  let raw = await runQuery({ videoCategoryId: '10' });
-  if (!raw.length) {
-    /* Music-category pass returned nothing — retry unrestricted so
-       the user isn't left with an empty result. Scoring still
-       prefers YT Music indicators, so audio tracks stay on top. */
-    raw = await runQuery({});
+    throw new Error(interpretYouTubeError(res.status, body));
   }
+  const data = await res.json();
+  const raw = (data.items || []).map(it => ({
+    videoId: it.id.videoId,
+    title:   it.snippet.title,
+    channel: it.snippet.channelTitle,
+    thumb:   it.snippet.thumbnails?.default?.url || '',
+  }));
+  incrementYtQuotaCounter();
   return rankMusicOnly(raw, artist, title);
+}
+
+/* Cheap running-total of YouTube search calls this session so the
+   user can gauge quota usage. Each search.list costs 100 units;
+   the daily default cap is 10,000 (≈ 100 searches). */
+let ytSearchCount = 0;
+function incrementYtQuotaCounter() {
+  ytSearchCount++;
+  /* Persist to sessionStorage so refreshes within a tab keep the
+     count going. Cleared on tab close. */
+  try { sessionStorage.setItem('yt_search_count', String(ytSearchCount)); } catch (_) {}
+}
+try {
+  const saved = Number(sessionStorage.getItem('yt_search_count') || 0);
+  if (Number.isFinite(saved) && saved > 0) ytSearchCount = saved;
+} catch (_) {}
+function getYtQuotaSummary() {
+  const units = ytSearchCount * 100;
+  return `YT検索 ${ytSearchCount}回 / 約${units}units 消費 (日次 10,000 units)`;
 }
 
 /* Loose normalisation for relevance checks — lower-case and
@@ -1638,14 +1646,62 @@ async function fetchSongsByArtist(artist) {
    Song search (lyrics + YouTube)
    ============================================================ */
 /* In-memory caches so back/forth navigation and prefetches don't
-   re-hit the YouTube/lyrics APIs. */
+   re-hit the YouTube/lyrics APIs. YT results are also mirrored
+   to localStorage with a 30-day TTL so returning users don't burn
+   quota re-searching the same songs across sessions. */
 const ytSearchCache = new Map();
 const lyricsCache   = new Map();   /* value: lyrics-string OR null = known-miss */
 const FETCH_CACHE_MAX = 80;
+const YT_CACHE_LS_PREFIX = 'yt_cache_v1:';
+const YT_CACHE_TTL_MS    = 30 * 24 * 60 * 60 * 1000;   /* 30 days */
 
 function cachePut(map, key, val) {
   if (map.size >= FETCH_CACHE_MAX) map.delete(map.keys().next().value);
   map.set(key, val);
+}
+
+/* Persist YT results to localStorage so a page reload doesn't
+   throw away everything the user searched today. */
+function ytCacheReadLocal(key) {
+  try {
+    const raw = localStorage.getItem(YT_CACHE_LS_PREFIX + key);
+    if (!raw) return null;
+    const obj = JSON.parse(raw);
+    if (!obj || !Array.isArray(obj.results)) return null;
+    if (typeof obj.ts !== 'number' || Date.now() - obj.ts > YT_CACHE_TTL_MS) {
+      localStorage.removeItem(YT_CACHE_LS_PREFIX + key);
+      return null;
+    }
+    return obj.results;
+  } catch (_) { return null; }
+}
+function ytCacheWriteLocal(key, results) {
+  try {
+    localStorage.setItem(
+      YT_CACHE_LS_PREFIX + key,
+      JSON.stringify({ ts: Date.now(), results })
+    );
+  } catch (_) {
+    /* QuotaExceeded — prune half of the oldest yt_cache entries. */
+    try {
+      const entries = [];
+      for (let i = 0; i < localStorage.length; i++) {
+        const k = localStorage.key(i);
+        if (k && k.startsWith(YT_CACHE_LS_PREFIX)) {
+          const v = JSON.parse(localStorage.getItem(k) || '{}');
+          entries.push({ k, ts: v.ts || 0 });
+        }
+      }
+      entries.sort((a, b) => a.ts - b.ts);
+      for (let i = 0; i < Math.ceil(entries.length / 2); i++) {
+        localStorage.removeItem(entries[i].k);
+      }
+      localStorage.setItem(
+        YT_CACHE_LS_PREFIX + key,
+        JSON.stringify({ ts: Date.now(), results })
+      );
+    } catch (_2) { /* give up silently */ }
+  }
 }
 
 /* True when the error came from YouTube's rate-limit response
@@ -1667,6 +1723,14 @@ async function searchYouTubeCached(artist, title) {
   const cached = ytSearchCache.get(key);
   if (cached) return cached;
 
+  /* Persistent cache lookup — a hit here saves a full 100-unit
+     API call across page reloads. */
+  const persisted = ytCacheReadLocal(key);
+  if (persisted) {
+    ytSearchCache.set(key, persisted);
+    return persisted;
+  }
+
   /* If this song already hit the rate limit twice in this session,
      assume the quota is exhausted for now and bail immediately so
      the user isn't stuck waiting another 90 s per song. */
@@ -1678,18 +1742,16 @@ async function searchYouTubeCached(artist, title) {
     throw err;
   }
 
-  /* Auto-retry on rate-limit errors with exponential backoff so the
-     user doesn't see "リクエストが多すぎます" and have to press ▶
-     themselves when YouTube momentarily throttles us. Total window
-     ~103 s (2 + 5 + 12 + 30 + 54) — long enough to ride out the
-     per-user 100-second quota window. Status updates keep the user
-     informed instead of the app looking hung. */
-  const backoffs = [2000, 5000, 12000, 30000, 54000];
+  /* Auto-retry on rate-limit errors with exponential backoff.
+     Kept short (3 attempts, ~19 s window) so a rate-limit spiral
+     can't burn a huge chunk of the daily quota on a single song. */
+  const backoffs = [2000, 5000, 12000];
   let lastErr;
   for (let attempt = 0; attempt <= backoffs.length; attempt++) {
     try {
       const result = await searchYouTube(artist, title);
       cachePut(ytSearchCache, key, result);
+      ytCacheWriteLocal(key, result);
       return result;
     } catch (err) {
       lastErr = err;
@@ -1829,7 +1891,7 @@ async function handleSongSearch(artist, title, opts = {}) {
       enableTransportControls(true);
       if (autoplay) loadYtVideo(0);
       else { updateNextSongPeek(); prefetchNextSongLyrics(); }
-      setStatus(`▶ ${escapeHTML(title)}`, 'success');
+      setStatus(`▶ ${escapeHTML(title)}  · ${getYtQuotaSummary()}`, 'success');
       return;
     }
 
