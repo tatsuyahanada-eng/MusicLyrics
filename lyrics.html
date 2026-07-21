@@ -15,7 +15,7 @@
   <link rel="icon" href="icon.svg" type="image/svg+xml">
   <link rel="apple-touch-icon" href="icon-192.png">
   <title>Music Lyrics</title>
-  <link rel="stylesheet" href="lyrics.css?v=70">
+  <link rel="stylesheet" href="lyrics.css?v=71">
 </head>
 <body class="ly-body">
 
@@ -91,7 +91,10 @@
     <div class="ly-song-list-inner">
       <div class="ly-song-list-header">
         <span id="songListInfo" class="ly-song-list-info"></span>
-        <button id="artistRandomBtn" type="button" class="ly-artist-random-btn">🎲 このアーティストでランダム再生</button>
+        <button id="artistRandomBtn" type="button" class="ly-artist-random-btn">🎲 このアーティストだけで再生</button>
+        <button id="addToMixBtn" type="button" class="ly-mix-add-btn">➕ MIXに追加</button>
+        <button id="mixRandomBtn" type="button" class="ly-mix-play-btn" hidden>🎲 MIXで再生 (0曲)</button>
+        <button id="clearMixBtn" type="button" class="ly-mix-clear-btn" hidden aria-label="MIXリストをクリア">🗑</button>
         <button id="closeSongList" class="ly-close-btn" aria-label="リストを閉じる">✕ 閉じる</button>
       </div>
       <div id="songCards" class="ly-song-cards"></div>
@@ -187,7 +190,7 @@
     </div>
   </div>
 
-  <script src="config.js?v=70"></script>
-  <script src="lyrics.js?v=70"></script>
+  <script src="config.js?v=71"></script>
+  <script src="lyrics.js?v=71"></script>
 </body>
 </html>

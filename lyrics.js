@@ -139,6 +139,7 @@ let elArtist, elTitle, elTitleWrap, elFetchBtn, elSearchHint, elStatus,
     elLyricsStartBtn, elLyricsResetBtn, elStyleToggleBtn,
     elRandomPlayBtn, elOpenInYoutubeBtn, elFullscreenBtn,
     elExitKaraokeBtn, elArtistRandomBtn,
+    elAddToMixBtn, elMixRandomBtn, elClearMixBtn,
     elNextSongPeek, elNextSongPeekTitle,
     elLyricTimeInfo,
     elNowPlaying, elLyricStack, elScatterLayer, elStageExitBtn, elLyricsFsBtn,
@@ -241,6 +242,9 @@ function init() {
   elLyricsFsBtn    = document.getElementById('lyricsFsBtn');
   elExitKaraokeBtn = document.getElementById('exitKaraokeBtn');
   elArtistRandomBtn = document.getElementById('artistRandomBtn');
+  elAddToMixBtn     = document.getElementById('addToMixBtn');
+  elMixRandomBtn    = document.getElementById('mixRandomBtn');
+  elClearMixBtn     = document.getElementById('clearMixBtn');
   elNextSongPeek     = document.getElementById('nextSongPeek');
   elNextSongPeekTitle = document.getElementById('nextSongPeekTitle');
   elLyricTimeInfo    = document.getElementById('lyricTimeInfo');
@@ -270,6 +274,9 @@ function init() {
   elLyricsResetBtn.addEventListener('click', resetLyricsStart);
   elRandomPlayBtn.addEventListener('click', handleRandomPlay);
   elArtistRandomBtn.addEventListener('click', toggleArtistRandomPlay);
+  if (elAddToMixBtn)  elAddToMixBtn.addEventListener('click',  addCurrentArtistToMix);
+  if (elMixRandomBtn) elMixRandomBtn.addEventListener('click', toggleMixRandomPlay);
+  if (elClearMixBtn)  elClearMixBtn.addEventListener('click',  clearMixPool);
   elOpenInYoutubeBtn.addEventListener('click', openInYouTube);
   elFullscreenBtn.addEventListener('click', enterKaraokeMode);
   elLyricsFsBtn.addEventListener('click', enterLyricsFullscreen);
@@ -887,24 +894,107 @@ function startArtistRandomPlay() {
   );
 }
 
+/* ---- Multi-artist MIX pool ---------------------------------
+   User can search several artists in a row and add each catalogue
+   to a temporary pool, then shuffle across the whole pool. */
+const mixPool = [];               /* { artist, title } */
+const mixArtists = new Set();     /* unique artist names */
+
+function addCurrentArtistToMix() {
+  if (!songList.songs.length) {
+    setStatus('アーティストの曲リストがありません。先に検索してください。', 'error');
+    return;
+  }
+  const artistName = songList.songs[0]?.artist || '';
+  /* De-dup songs already in the pool so re-adding the same artist
+     doesn't stack copies. */
+  const seen = new Set(mixPool.map(s => `${s.artist}|${s.title}`));
+  let added = 0;
+  for (const s of songList.songs) {
+    const k = `${s.artist}|${s.title}`;
+    if (!seen.has(k)) {
+      mixPool.push(s);
+      seen.add(k);
+      added++;
+    }
+  }
+  if (artistName) mixArtists.add(artistName);
+  updateMixUI();
+  if (added > 0) {
+    setStatus(
+      `➕ ${escapeHTML(artistName)} の ${added} 曲を MIX に追加しました ` +
+      `(合計 ${mixArtists.size} アーティスト / ${mixPool.length} 曲)`,
+      'success'
+    );
+  } else {
+    setStatus(`このアーティストの曲はすでに MIX に追加済みです。`, '');
+  }
+}
+
+function clearMixPool() {
+  if (shuffleActive && shuffleKind === 'mix') stopShufflePlay();
+  mixPool.length = 0;
+  mixArtists.clear();
+  updateMixUI();
+  setStatus('MIX リストをクリアしました。', '');
+}
+
+function toggleMixRandomPlay() {
+  if (shuffleActive && shuffleKind === 'mix') {
+    stopShufflePlay();
+    setStatus('MIX ランダム再生を停止しました。', '');
+    return;
+  }
+  if (!mixPool.length) {
+    setStatus('先に「MIX に追加」で 1 人以上のアーティストを追加してください。', 'error');
+    return;
+  }
+  startShufflePlay(
+    mixPool, 'mix',
+    `🎲 MIX ランダム再生中 (${mixArtists.size} アーティスト / ${mixPool.length} 曲)`
+  );
+}
+
+function updateMixUI() {
+  if (elMixRandomBtn) {
+    const has = mixPool.length > 0;
+    const running = shuffleActive && shuffleKind === 'mix';
+    elMixRandomBtn.hidden = !has;
+    elMixRandomBtn.classList.toggle('active', running);
+    elMixRandomBtn.textContent = running
+      ? `⏹ MIX 停止 (${mixPool.length}曲)`
+      : `🎲 MIXで再生 (${mixArtists.size}人・${mixPool.length}曲)`;
+  }
+  if (elClearMixBtn) elClearMixBtn.hidden = mixPool.length === 0;
+  if (elAddToMixBtn) {
+    /* Highlight the add button when the current artist is already
+       part of the pool, so users know it's a re-add. */
+    const currentArtist = songList.songs[0]?.artist || '';
+    const alreadyIn = currentArtist && mixArtists.has(currentArtist);
+    elAddToMixBtn.textContent = alreadyIn ? '✓ MIX 追加済み' : '➕ MIXに追加';
+    elAddToMixBtn.classList.toggle('added', !!alreadyIn);
+  }
+}
+
 function updateShuffleUI() {
   if (elArtistRandomBtn) {
     const isArtist = shuffleActive && shuffleKind === 'artist';
     elArtistRandomBtn.classList.toggle('active', isArtist);
     elArtistRandomBtn.textContent = isArtist
-      ? '⏹ ランダム再生を停止'
-      : '🎲 このアーティストでランダム再生';
+      ? '⏹ 停止'
+      : '🎲 このアーティストだけで再生';
   }
   if (elRandomPlayBtn) {
     const isChart = shuffleActive && shuffleKind === 'chart';
     elRandomPlayBtn.classList.toggle('active', isChart);
     elRandomPlayBtn.textContent = isChart
-      ? '⏹ おまかせ再生を停止'
-      : '🎲 おまかせ再生（人気ランキング）';
+      ? '⏹ 停止'
+      : '🎲 おまかせ再生';
   }
   if (elNextSongBtn) {
     elNextSongBtn.textContent = shuffleActive ? '🎲 次の曲 ▶▶' : '次の曲 ▶▶';
   }
+  updateMixUI();
 }
 
 function shuffleArray(arr) {
@@ -1793,6 +1883,7 @@ function loadLyrics(raw) {
 function showSongList() {
   elSongList.hidden = false;
   renderSongListPage();
+  updateMixUI();
   elSongList.scrollIntoView({ behavior: 'smooth', block: 'start' });
 }
 
