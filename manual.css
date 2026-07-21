@@ -350,10 +350,11 @@
   font-size: 11px;
   transition: transform .15s;
 }
-.tm-choice:hover {
+.tm-choice:hover, .tm-choice:focus-visible {
   border-color: var(--tm-cyan);
   background: rgba(20, 52, 62, 0.9);
-  box-shadow: 0 0 14px rgba(63, 224, 224, 0.25);
+  box-shadow: inset 0 0 0 1px var(--tm-cyan), 0 0 22px rgba(63, 224, 224, 0.6);
+  outline: none;
 }
 .tm-choice:hover::before { transform: translateY(-50%) translateX(3px); }
 .tm-choice-meta {
@@ -406,7 +407,7 @@
   border-radius: 8px;
   transition: border-color .15s, box-shadow .15s, transform .1s;
 }
-.tm-cat-tile:hover { border-color: var(--tm-cyan); box-shadow: 0 0 18px rgba(63, 224, 224, 0.22); transform: translateX(2px); }
+.tm-cat-tile:hover, .tm-cat-tile:focus-visible { border-color: var(--tm-cyan); box-shadow: inset 0 0 0 1px var(--tm-cyan), 0 0 26px rgba(63, 224, 224, 0.6); transform: translateX(2px); outline: none; }
 .tm-cat-no { flex-shrink: 0; font-family: var(--tm-mono); font-size: 14px; color: var(--tm-cyan-dim); letter-spacing: 1px; }
 .tm-cat-name { flex: 1; min-width: 0; font-size: 16px; font-weight: 600; color: var(--tm-text); line-height: 1.4; }
 .tm-cat-sub { flex-shrink: 0; font-family: var(--tm-mono); font-size: 11px; color: var(--tm-muted); }
@@ -460,14 +461,14 @@
 .tm-navadd { margin-top: 12px; display: flex; gap: 8px; flex-wrap: wrap; }
 .tm-navadd:empty { display: none; }
 .tm-addhere {
-  flex: 1 1 auto;
+  flex: 0 0 auto;
   font-family: var(--tm-mono);
   font-size: 13px;
   letter-spacing: 1px;
   color: var(--tm-cyan);
   background: rgba(63, 224, 224, 0.06);
   border: 1px dashed var(--tm-line-strong);
-  padding: 11px 14px;
+  padding: 10px 14px;
   border-radius: 6px;
   cursor: pointer;
   transition: background .15s, box-shadow .15s;
