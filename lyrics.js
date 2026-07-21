@@ -2462,16 +2462,18 @@ function buildFx() {
     for (let i = 0; i < 8; i++) elFx.appendChild(buildBlinker('square', i));
 
   } else if (fxTheme === 'water') {
-    /* Bubbles rising slowly from the bottom of the stage */
-    for (let i = 0; i < 16; i++) {
+    /* Aquarium-tank feel: fewer, larger, slower bubbles so the
+       stage stays calm and the lyrics stay dominant. */
+    for (let i = 0; i < 8; i++) {
       const b = mkEl('span', 'ly-bubble');
-      const size = 6 + Math.random() * 20;
+      const size = 7 + Math.random() * 16;
       b.style.width  = size.toFixed(1) + 'px';
       b.style.height = size.toFixed(1) + 'px';
       b.style.left   = (Math.random() * 100).toFixed(1) + '%';
-      b.style.animationDuration = (7 + Math.random() * 9).toFixed(2) + 's';
-      b.style.animationDelay    = (-Math.random() * 10).toFixed(2) + 's';
-      b.style.setProperty('--sway', (12 + Math.random() * 18).toFixed(1) + 'px');
+      /* 18–34s per rise — languid, not lively */
+      b.style.animationDuration = (18 + Math.random() * 16).toFixed(2) + 's';
+      b.style.animationDelay    = (-Math.random() * 22).toFixed(2) + 's';
+      b.style.setProperty('--sway', (10 + Math.random() * 16).toFixed(1) + 'px');
       elFx.appendChild(b);
     }
 
