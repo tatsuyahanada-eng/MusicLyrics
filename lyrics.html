@@ -15,7 +15,7 @@
   <link rel="icon" href="icon.svg" type="image/svg+xml">
   <link rel="apple-touch-icon" href="icon-192.png">
   <title>Music Lyrics</title>
-  <link rel="stylesheet" href="lyrics.css?v=73">
+  <link rel="stylesheet" href="lyrics.css?v=74">
 </head>
 <body class="ly-body">
 
@@ -173,6 +173,16 @@
         <span class="ly-next-peek-label">▶▶ 次</span>
         <span id="nextSongPeekTitle" class="ly-next-peek-title"></span>
       </button>
+      <!-- Lyric browser overlay — swipe up/down on the stage or tap
+           the ☰ button to open. Lists all LRC lines; tap a line to
+           seek playback to that timestamp. -->
+      <div id="lyricBrowser" class="ly-lyric-browser" hidden aria-hidden="true">
+        <div class="ly-lyric-browser-header">
+          <span class="ly-lyric-browser-title">歌詞を選んで再生位置へジャンプ</span>
+          <button id="closeLyricBrowser" type="button" class="ly-lyric-browser-close" aria-label="閉じる">✕</button>
+        </div>
+        <div id="lyricBrowserList" class="ly-lyric-browser-list" role="list"></div>
+      </div>
     </div>
 
     <!-- Exit-karaoke button (only visible in karaoke mode) -->
@@ -190,7 +200,7 @@
     </div>
   </div>
 
-  <script src="config.js?v=73"></script>
-  <script src="lyrics.js?v=73"></script>
+  <script src="config.js?v=74"></script>
+  <script src="lyrics.js?v=74"></script>
 </body>
 </html>

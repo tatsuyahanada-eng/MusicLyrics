@@ -1607,7 +1607,17 @@ body.lyrics-fs #stage {
   z-index: 200;
   background: linear-gradient(180deg, #0d0d14 0%, #1a1a2e 100%);
 }
-body.lyrics-fs #stage .ly-now-playing { font-size: 1rem; padding-top: 18px; }
+/* Push the title well below the top-left exit button so tapping
+   the button never grazes the title text. */
+body.lyrics-fs #stage .ly-now-playing {
+  font-size: 1rem;
+  padding-top: 58px;
+  padding-left: 100px;   /* keep clear of the exit chip on the left */
+  padding-right: 20px;
+}
+body.karaoke-mode #stage .ly-now-playing {
+  padding-top: 8px;
+}
 body.lyrics-fs #stage .ly-line-current { font-size: clamp(2.2rem, 7.5vw, 5rem); }
 body.lyrics-fs #stage .ly-line-past,
 body.lyrics-fs #stage .ly-line-next { font-size: clamp(1.1rem, 3vw, 1.9rem); }
@@ -2223,6 +2233,124 @@ body.theme-light .ly-triangle {
   100% { opacity: 1; transform: scale(1); filter: blur(0); }
 }
 
+
+/* ---- Lyric browser overlay — swipe up/down on the stage or
+        press Esc to toggle. Full-viewport panel that lists every
+        LRC line with its timestamp; tapping a row seeks playback
+        to that moment. ---- */
+.ly-lyric-browser {
+  position: fixed;
+  inset: 0;
+  z-index: 320;
+  display: flex;
+  flex-direction: column;
+  background: rgba(10, 12, 20, 0.82);
+  backdrop-filter: blur(14px) saturate(1.15);
+  -webkit-backdrop-filter: blur(14px) saturate(1.15);
+  padding: 18px 14px 14px;
+  animation: ly-browser-in 0.22s cubic-bezier(0.22, 1, 0.36, 1);
+}
+@keyframes ly-browser-in {
+  0%   { opacity: 0; transform: translateY(8px); }
+  100% { opacity: 1; transform: translateY(0); }
+}
+.ly-lyric-browser-header {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 4px 4px 12px;
+  border-bottom: 1px solid rgba(255,255,255,0.12);
+}
+.ly-lyric-browser-title {
+  font-size: 0.9rem;
+  font-weight: 700;
+  color: #e2e8f0;
+  letter-spacing: 0.02em;
+}
+.ly-lyric-browser-close {
+  background: rgba(255,255,255,0.08);
+  border: 1px solid rgba(255,255,255,0.18);
+  color: #e2e8f0;
+  border-radius: 999px;
+  width: 34px;
+  height: 34px;
+  cursor: pointer;
+  font-size: 1rem;
+  transition: background 0.15s, transform 0.1s;
+  touch-action: manipulation;
+}
+.ly-lyric-browser-close:hover { background: rgba(255,255,255,0.18); }
+.ly-lyric-browser-close:active { transform: scale(0.96); }
+
+.ly-lyric-browser-list {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding: 8px 0 100px;   /* extra bottom so scroll can centre last lines */
+  scroll-behavior: smooth;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+}
+
+.ly-lyric-browser-row {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  width: 100%;
+  padding: 10px 12px;
+  background: transparent;
+  border: none;
+  border-left: 3px solid transparent;
+  text-align: left;
+  cursor: pointer;
+  color: #cbd5e1;
+  transition: background 0.12s ease, color 0.12s ease, border-color 0.12s ease;
+  font-family: inherit;
+  touch-action: manipulation;
+}
+.ly-lyric-browser-row:hover  { background: rgba(255,255,255,0.06); }
+.ly-lyric-browser-row:active { background: rgba(255,255,255,0.10); }
+
+.ly-lyric-browser-time {
+  flex-shrink: 0;
+  min-width: 46px;
+  font-size: 0.72rem;
+  font-variant-numeric: tabular-nums;
+  color: #94a3b8;
+  padding-top: 2px;
+}
+.ly-lyric-browser-text {
+  flex: 1;
+  font-size: 0.98rem;
+  line-height: 1.35;
+  color: #e2e8f0;
+  overflow-wrap: anywhere;
+}
+.ly-lyric-browser-row.current {
+  background: rgba(124, 58, 237, 0.20);
+  border-left-color: #a78bfa;
+}
+.ly-lyric-browser-row.current .ly-lyric-browser-time {
+  color: #c4b5fd;
+  font-weight: 700;
+}
+.ly-lyric-browser-row.current .ly-lyric-browser-text {
+  color: #fff;
+  font-weight: 700;
+}
+
+/* Give the stage body a hint that swipe is available */
+body.lyric-browsing #stage { pointer-events: none; }
+body.lyric-browsing .ly-lyric-browser { pointer-events: auto; }
+
+@media (max-width: 600px) {
+  .ly-lyric-browser { padding: 14px 10px 10px; }
+  .ly-lyric-browser-text { font-size: 0.92rem; }
+  .ly-lyric-browser-row { padding: 8px 10px; }
+}
 
 /* ---- Control Bar ---- */
 /* ============================================================

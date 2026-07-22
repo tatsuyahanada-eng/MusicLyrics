@@ -143,6 +143,7 @@ let elArtist, elTitle, elTitleWrap, elFetchBtn, elSearchHint, elStatus,
     elNextSongPeek, elNextSongPeekTitle,
     elLyricTimeInfo,
     elNowPlaying, elLyricStack, elScatterLayer, elStageExitBtn, elLyricsFsBtn,
+    elLyricBrowser, elLyricBrowserList, elCloseLyricBrowser,
     elFx, elFxThemeBtn, elColorToggleBtn;
 
 /* Lyric display styles cycle in this order:
@@ -198,6 +199,9 @@ function init() {
   elScatterLayer   = document.getElementById('scatterLayer');
   elFx             = document.getElementById('lyricFx');
   elStageExitBtn   = document.getElementById('stageExitBtn');
+  elLyricBrowser     = document.getElementById('lyricBrowser');
+  elLyricBrowserList = document.getElementById('lyricBrowserList');
+  elCloseLyricBrowser = document.getElementById('closeLyricBrowser');
   elPlayPauseBtn   = document.getElementById('playPauseBtn');
   elTimer          = document.getElementById('timer');
   elDuration       = document.getElementById('duration');
@@ -270,6 +274,32 @@ function init() {
     syncLyricsToLine(Number(raw), target);
   });
 
+  /* Vertical-swipe on the stage opens the lyric-browser overlay so
+     the user can peek forward / backward in the lyrics and tap a
+     line to seek playback to that timestamp. Registers touch-based
+     and pointer-based listeners so it works on both mobile and
+     desktop drag. */
+  setupLyricSwipe();
+  if (elLyricBrowser) {
+    elLyricBrowser.addEventListener('click', (e) => {
+      /* Tap on the background (not on a lyric line / close btn) closes */
+      if (e.target === elLyricBrowser) closeLyricBrowser();
+    });
+    if (elLyricBrowserList) {
+      elLyricBrowserList.addEventListener('click', (e) => {
+        const row = e.target.closest('.ly-lyric-browser-row');
+        if (!row) return;
+        const idx = Number(row.dataset.lrcIdx);
+        if (!Number.isFinite(idx)) return;
+        seekToLyricLine(idx);
+        closeLyricBrowser();
+      });
+    }
+  }
+  if (elCloseLyricBrowser) {
+    elCloseLyricBrowser.addEventListener('click', closeLyricBrowser);
+  }
+
   elLyricsStartBtn.addEventListener('click', lyricsStartHere);
   elLyricsResetBtn.addEventListener('click', resetLyricsStart);
   elRandomPlayBtn.addEventListener('click', handleRandomPlay);
@@ -286,6 +316,7 @@ function init() {
   /* Esc to leave the maximized view even when not in real fullscreen */
   document.addEventListener('keydown', (e) => {
     if (e.key !== 'Escape') return;
+    if (document.body.classList.contains('lyric-browsing')) { closeLyricBrowser(); return; }
     if (document.body.classList.contains('lyrics-fs')) exitLyricsFullscreen();
     else if (document.body.classList.contains('karaoke-mode')) exitKaraokeMode();
   });
@@ -508,6 +539,10 @@ function pollProgress() {
 
   if (state.useLrc && state.lrcLines.length) syncLrc(cur);
   updateLyricTimeInfo(cur);
+  /* Keep the browser's "current" highlight fresh if it's open */
+  if (document.body.classList.contains('lyric-browsing')) {
+    highlightCurrentBrowserRow();
+  }
 }
 
 /* ============================================================
@@ -2419,6 +2454,137 @@ function flashSyncedLine(el) {
   void el.offsetWidth;
   el.classList.add('ly-sync-flash');
   setTimeout(() => el.classList.remove('ly-sync-flash'), 800);
+}
+
+/* ============================================================
+   Lyric browser overlay
+   - Vertical swipe on the stage opens a scrollable list of every
+     LRC line so the user can peek forwards / backwards.
+   - Tapping a line seeks playback to that line's timestamp
+     (a proper fast-forward, unlike tap-to-sync which just
+     adjusts the offset).
+   - The overlay auto-scrolls to the currently sung line on open.
+   ============================================================ */
+function openLyricBrowser() {
+  if (!elLyricBrowser || !elLyricBrowserList) return;
+  if (!state.useLrc || !state.lrcLines.length) {
+    setStatus('この曲は行タイミング付きの歌詞（LRC）が無いため一覧はできません。', '');
+    return;
+  }
+  populateLyricBrowser();
+  elLyricBrowser.hidden = false;
+  elLyricBrowser.setAttribute('aria-hidden', 'false');
+  document.body.classList.add('lyric-browsing');
+  /* Centre the current line after layout kicks in */
+  requestAnimationFrame(() => scrollLyricBrowserToCurrent(false));
+}
+
+function closeLyricBrowser() {
+  if (!elLyricBrowser) return;
+  elLyricBrowser.hidden = true;
+  elLyricBrowser.setAttribute('aria-hidden', 'true');
+  document.body.classList.remove('lyric-browsing');
+}
+
+function populateLyricBrowser() {
+  if (!elLyricBrowserList) return;
+  const rows = state.lrcLines.map((line, i) => {
+    const time = formatTime(line.time);
+    const text = escapeHTML((line.text || '').trim() || '♪');
+    return (
+      `<button type="button" class="ly-lyric-browser-row" data-lrc-idx="${i}" role="listitem">` +
+        `<span class="ly-lyric-browser-time">${time}</span>` +
+        `<span class="ly-lyric-browser-text">${text}</span>` +
+      `</button>`
+    );
+  });
+  elLyricBrowserList.innerHTML = rows.join('');
+  highlightCurrentBrowserRow();
+}
+
+function highlightCurrentBrowserRow() {
+  if (!elLyricBrowserList) return;
+  const prev = elLyricBrowserList.querySelector('.ly-lyric-browser-row.current');
+  if (prev) prev.classList.remove('current');
+  const idx = state.currentIndex;
+  if (idx < 0) return;
+  const row = elLyricBrowserList.querySelector(`.ly-lyric-browser-row[data-lrc-idx="${idx}"]`);
+  if (row) row.classList.add('current');
+}
+
+function scrollLyricBrowserToCurrent(smooth = true) {
+  if (!elLyricBrowserList) return;
+  const row = elLyricBrowserList.querySelector('.ly-lyric-browser-row.current');
+  if (!row) return;
+  row.scrollIntoView({ behavior: smooth ? 'smooth' : 'auto', block: 'center' });
+}
+
+/* Seek YouTube playback to the timestamp of lrcLines[idx], adjusted
+   by the current per-song lyric offset so the display stays in
+   sync afterwards. */
+function seekToLyricLine(idx) {
+  if (!state.useLrc || !state.lrcLines.length) return;
+  if (idx < 0 || idx >= state.lrcLines.length) return;
+  if (!state.ytPlayer || !state.ytReady) return;
+  const line = state.lrcLines[idx];
+  if (!line) return;
+  const targetPlaybackSec = Math.max(0, line.time + state.lyricsOffset);
+  try {
+    state.ytPlayer.seekTo(targetPlaybackSec, true);
+    state.ytPlayer.playVideo();
+  } catch (_) {}
+  state.currentIndex = idx;
+  renderLrcView();
+  updateLyricTimeInfo(targetPlaybackSec);
+  setStatus(`⏩ ${formatTime(line.time)} 付近へ移動しました`, 'success');
+}
+
+/* ---- Swipe detection on the stage ---- */
+let swipeStartY = null;
+let swipeStartX = null;
+let swipeStartT = 0;
+const SWIPE_MIN_DIST = 55;      /* px, vertical distance to qualify */
+const SWIPE_MAX_HORIZ = 40;     /* px, horizontal wobble tolerance */
+const SWIPE_MAX_TIME = 600;     /* ms, must be faster than this */
+
+function setupLyricSwipe() {
+  if (!elStage) return;
+  const onDown = (e) => {
+    /* Ignore touches that start on interactive controls so we don't
+       intercept button presses. */
+    if (e.target.closest('button, input, .ly-fs-offset, .ly-stage-controls')) {
+      swipeStartY = null;
+      return;
+    }
+    const p = e.touches ? e.touches[0] : e;
+    swipeStartY = p.clientY;
+    swipeStartX = p.clientX;
+    swipeStartT = Date.now();
+  };
+  const onUp = (e) => {
+    if (swipeStartY == null) return;
+    const p = e.changedTouches ? e.changedTouches[0] : e;
+    const dy = p.clientY - swipeStartY;
+    const dx = p.clientX - swipeStartX;
+    const dt = Date.now() - swipeStartT;
+    swipeStartY = null;
+    if (Math.abs(dy) < SWIPE_MIN_DIST) return;
+    if (Math.abs(dx) > SWIPE_MAX_HORIZ) return;
+    if (dt > SWIPE_MAX_TIME) return;
+    /* Only open the browser when we have LRC lyrics to browse */
+    if (!state.useLrc || !state.lrcLines.length) return;
+    openLyricBrowser();
+  };
+  elStage.addEventListener('touchstart', onDown, { passive: true });
+  elStage.addEventListener('touchend',   onUp,   { passive: true });
+  elStage.addEventListener('pointerdown', (e) => {
+    if (e.pointerType === 'touch') return;   /* handled by touch* */
+    onDown(e);
+  });
+  elStage.addEventListener('pointerup', (e) => {
+    if (e.pointerType === 'touch') return;
+    onUp(e);
+  });
 }
 
 function updateLyricsOffsetSliderDisplay() {
