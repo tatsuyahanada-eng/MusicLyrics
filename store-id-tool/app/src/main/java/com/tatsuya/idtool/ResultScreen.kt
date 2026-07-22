@@ -211,7 +211,7 @@ fun ResultScreen(modifier: Modifier = Modifier) {
         }
         Spacer(Modifier.height(8.dp))
         OutlinedButton(
-            onClick = { exportXlsx(context, idInfo, visibleRows, data, locCount, ordered, unit) },
+            onClick = { exportXlsx(context, idInfo, data, locCount, ordered, unit) },
             modifier = Modifier.fillMaxWidth()
         ) { Text("Excel（結果シート）出力") }
         Spacer(Modifier.height(8.dp))
@@ -224,7 +224,7 @@ fun ResultScreen(modifier: Modifier = Modifier) {
                     date = data["日付"].orEmpty(),
                     idInfo = idInfo,
                     csv = buildCsv(idInfo, visibleRows, data, locCount, ordered, unit),
-                    xlsx = XlsxExport.buildResultXlsx(idInfo, visibleRows, data, locCount, ordered, unit),
+                    xlsx = XlsxExport.buildResultXlsx(context, idInfo, data, locCount, ordered, unit),
                     xlsxName = XlsxExport.fileName(data),
                     data = data
                 )
@@ -488,11 +488,11 @@ private fun sendByEmail(
 }
 
 private fun exportXlsx(
-    context: Context, idInfo: IdInfo, rows: List<IdRow>,
+    context: Context, idInfo: IdInfo,
     data: Map<String, String>, locCount: Int, ordered: List<Record>, unit: DistUnit
 ) {
     try {
-        val bytes = XlsxExport.buildResultXlsx(idInfo, rows, data, locCount, ordered, unit)
+        val bytes = XlsxExport.buildResultXlsx(context, idInfo, data, locCount, ordered, unit)
         val file = File(context.cacheDir, XlsxExport.fileName(data))
         file.writeBytes(bytes)
         val uri = FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", file)
