@@ -210,6 +210,11 @@ fun ResultScreen(modifier: Modifier = Modifier) {
             ) { Text("CSV出力") }
         }
         Spacer(Modifier.height(8.dp))
+        OutlinedButton(
+            onClick = { exportXlsx(context, idInfo, visibleRows, data, locCount, ordered, unit) },
+            modifier = Modifier.fillMaxWidth()
+        ) { Text("Excel（結果シート）出力") }
+        Spacer(Modifier.height(8.dp))
         Button(
             onClick = {
                 sendByEmail(
@@ -219,12 +224,14 @@ fun ResultScreen(modifier: Modifier = Modifier) {
                     date = data["日付"].orEmpty(),
                     idInfo = idInfo,
                     csv = buildCsv(idInfo, visibleRows, data, locCount, ordered, unit),
+                    xlsx = XlsxExport.buildResultXlsx(idInfo, visibleRows, data, locCount, ordered, unit),
+                    xlsxName = XlsxExport.fileName(data),
                     data = data
                 )
             },
             modifier = Modifier.fillMaxWidth()
-        ) { Text("メールで送信（作図PDF＋結果CSVを添付）", fontWeight = FontWeight.Bold) }
-        Text("作図（見取り図）と結果CSVを添付してメール送信します。宛先は上の「送信先メール」欄で変更できます。",
+        ) { Text("メールで送信（Excel＋CSV＋作図PDFを添付）", fontWeight = FontWeight.Bold) }
+        Text("無線テスト結果シート（Excel）・結果CSV・見取り図（PDF）を添付してメール送信します。宛先は上の「送信先メール」欄で変更できます。",
             fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant,
             modifier = Modifier.padding(top = 4.dp))
         Spacer(Modifier.height(24.dp))
@@ -424,14 +431,19 @@ private fun writeCsvFile(context: Context, csv: String): File {
     return file
 }
 
-/** 作図PDFと結果CSVを添付してメール送信する。 */
+/** 作図PDF・結果CSV・結果Excel(.xlsx)を添付してメール送信する。 */
 private fun sendByEmail(
     context: Context, email: String, storeName: String, date: String,
-    idInfo: IdInfo, csv: String, data: Map<String, String>
+    idInfo: IdInfo, csv: String, xlsx: ByteArray, xlsxName: String, data: Map<String, String>
 ) {
     try {
         val uris = ArrayList<Uri>()
         val auth = "${context.packageName}.fileprovider"
+
+        // 結果Excel（無線テスト結果シート）
+        val xlsxFile = File(context.cacheDir, xlsxName)
+        xlsxFile.writeBytes(xlsx)
+        uris.add(FileProvider.getUriForFile(context, auth, xlsxFile))
 
         // 結果CSV
         val csvFile = writeCsvFile(context, csv)
@@ -453,9 +465,11 @@ private fun sendByEmail(
             append("対象機器：${idInfo.brand.label}\n")
             if (!data["作業員"].isNullOrBlank()) append("作業員：${data["作業員"]}\n")
             append("\n添付ファイル：\n")
+            append("・無線テスト結果シート（Excel）\n")
+            append("・無線テスト結果表（CSV）\n")
             append("・見取り図（PDF）")
             if (drawFile == null) append("　※作図データが無いため未添付")
-            append("\n・無線テスト結果表（CSV）\n\n")
+            append("\n\n")
             append("ご確認のほど、よろしくお願いいたします。")
         }
 
@@ -470,6 +484,26 @@ private fun sendByEmail(
         context.startActivity(Intent.createChooser(intent, "メールアプリを選択"))
     } catch (e: Exception) {
         Toast.makeText(context, "メール作成に失敗: ${e.message}", Toast.LENGTH_LONG).show()
+    }
+}
+
+private fun exportXlsx(
+    context: Context, idInfo: IdInfo, rows: List<IdRow>,
+    data: Map<String, String>, locCount: Int, ordered: List<Record>, unit: DistUnit
+) {
+    try {
+        val bytes = XlsxExport.buildResultXlsx(idInfo, rows, data, locCount, ordered, unit)
+        val file = File(context.cacheDir, XlsxExport.fileName(data))
+        file.writeBytes(bytes)
+        val uri = FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", file)
+        val intent = Intent(Intent.ACTION_SEND).apply {
+            type = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+            putExtra(Intent.EXTRA_STREAM, uri)
+            addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+        }
+        context.startActivity(Intent.createChooser(intent, "Excelを保存・共有"))
+    } catch (e: Exception) {
+        Toast.makeText(context, "Excel出力に失敗: ${e.message}", Toast.LENGTH_LONG).show()
     }
 }
 
