@@ -2250,6 +2250,12 @@ body.theme-light .ly-triangle {
   padding: 18px 14px 14px;
   animation: ly-browser-in 0.22s cubic-bezier(0.22, 1, 0.36, 1);
 }
+/* Same-specificity rule must come AFTER the base so `hidden`
+   attribute really hides the panel — without this, display:flex
+   above wins over the UA [hidden]{display:none} and the browser
+   silently covers the stage from page load, swallowing taps and
+   swipes. */
+.ly-lyric-browser[hidden] { display: none; }
 @keyframes ly-browser-in {
   0%   { opacity: 0; transform: translateY(8px); }
   100% { opacity: 1; transform: translateY(0); }

@@ -2543,9 +2543,9 @@ function seekToLyricLine(idx) {
 let swipeStartY = null;
 let swipeStartX = null;
 let swipeStartT = 0;
-const SWIPE_MIN_DIST = 55;      /* px, vertical distance to qualify */
-const SWIPE_MAX_HORIZ = 40;     /* px, horizontal wobble tolerance */
-const SWIPE_MAX_TIME = 600;     /* ms, must be faster than this */
+const SWIPE_MIN_DIST = 45;      /* px, vertical distance to qualify */
+const SWIPE_MAX_HORIZ = 48;     /* px, horizontal wobble tolerance */
+const SWIPE_MAX_TIME = 900;     /* ms, must be faster than this */
 
 function setupLyricSwipe() {
   if (!elStage) return;
