@@ -783,14 +783,22 @@
     remainHint.textContent = '';
   }
 
-  /* ---- 端末(Android等)の戻るで1つ前に戻るための履歴連携 ---- */
-  let cbcDepth = 0;       // pushState で積んだマーカー数
-  let cbcSuppress = 0;    // プログラムによる history 操作を無視するカウンタ
+  /* ---- 端末(Android等)の戻るで1つ前に戻るための履歴連携（単一センチネル方式） ----
+     「戻るで閉じたい状態」がある間だけ、履歴マーカーを常に1個だけ積む。
+     OSの戻る(popstate)で1階層だけ閉じ、まだ閉じたい状態が残っていれば積み直す。
+     history.go(-n) を使わないので、ブラウザ毎の popstate 発火数の違いに影響されない
+     （従来は go(-n) の発火数を数え違え、以降の「戻る」が効かなくなる不具合があった）。 */
+  let trapped = false;    // センチネルを積んでいるか
+  let absorbPop = false;  // 直後の1回の popstate を無視（プログラム的 back 用）
   try { history.replaceState({ cbcBase: 1 }, ''); } catch (_) {}
-  function cbcPush() { cbcDepth++; try { history.pushState({ cbc: cbcDepth }, ''); } catch (_) {} }
-  function cbcBackTo(target) {
-    const n = cbcDepth - target;
-    if (n > 0) { cbcSuppress += n; cbcDepth = target; try { history.go(-n); } catch (_) {} }
+  function needTrap() { return navPath.length > 0 || !editView.hidden || navReorder; }
+  function syncTrap() {
+    if (needTrap()) {
+      if (!trapped) { try { history.pushState({ cbc: 1 }, ''); trapped = true; } catch (_) {} }
+    } else if (trapped) {
+      absorbPop = true; trapped = false;
+      try { history.back(); } catch (_) { absorbPop = false; }
+    }
   }
 
   async function navGoto(id) {
@@ -800,13 +808,14 @@
     }
     navReorder = false;
     navPath.push(id);
-    cbcPush();
     renderNav();
+    syncTrap();
   }
   function navBack() {
     navReorder = false;
     navPath.pop();
     renderNav();
+    syncTrap();
   }
   function navTo(id) {
     // jump to a specific ancestor in the path
@@ -814,26 +823,26 @@
     const idx = navPath.indexOf(id);
     if (idx >= 0) navPath = navPath.slice(0, idx + 1);
     renderNav();
-    cbcBackTo(navPath.length);
+    syncTrap();
   }
   function navRestart() {
     navReorder = false;
     navPath = [];
     renderNav();
-    cbcBackTo(0);
+    syncTrap();
   }
 
-  // 端末の戻るボタン（popstate）
+  // 端末の戻るボタン（popstate）: このpopstateでセンチネルが1つ消費されている
   window.addEventListener('popstate', () => {
-    if (cbcSuppress > 0) { cbcSuppress--; return; }
-    if (cbcDepth > 0) cbcDepth--;
-    const dlgs = [xlsxDialog, adminDialog, tokenDialog, nodeDialog, confirmDialog];
-    const openDlg = dlgs.find((d) => d && d.open);
-    if (openDlg) { openDlg.close(); cbcPush(); return; } // ダイアログを閉じてその場に留まる
-    if (!editView.hidden) { setMode('nav'); return; }    // 編集モード→案内モード
-    if (navReorder) { navReorder = false; renderNav(); return; }  // 並べ替え中の戻るは並べ替えを終了
-    if (navPath.length > 0) { navPath.pop(); renderNav(); return; } // 案内を1つ戻る
-    // 案内の最上位：これ以上は戻らない（次の戻るでアプリ/ページを離脱）
+    if (absorbPop) { absorbPop = false; return; } // プログラム的backの分は無視
+    trapped = false;
+    const dlg = document.querySelector('dialog[open]');
+    if (dlg) { dlg.close(); }                                  // 開いているダイアログを閉じる
+    else if (!editView.hidden) { setMode('nav'); }             // 編集モード→案内モード
+    else if (navReorder) { navReorder = false; renderNav(); }  // 並べ替えを終了
+    else if (navPath.length > 0) { navPath.pop(); renderNav(); } // 案内を1つ戻る
+    // まだ閉じたい状態が残っていればセンチネルを積み直す（無ければ次の戻るで離脱）
+    syncTrap();
   });
 
   async function navReorderMove(id, dir) {
@@ -950,7 +959,7 @@
     renderNav();
   }
   navAddDock.addEventListener('click', (e) => {
-    if (e.target.closest('[data-sorttoggle]')) { navReorder = !navReorder; renderNav(); return; }
+    if (e.target.closest('[data-sorttoggle]')) { navReorder = !navReorder; renderNav(); syncTrap(); return; }
     const el = e.target.closest('[data-add]');
     if (el) openNodeDialog(null, el.dataset.add || null); // 案内モードから直接追加
   });
@@ -2023,6 +2032,7 @@
 
   function setMode(mode) {
     const isNav = mode === 'nav';
+    navReorder = false; // モード切替時は簡易並べ替えを解除
     navView.hidden = !isNav;
     editView.hidden = isNav;
     navModeBtn.classList.toggle('is-active', isNav);
@@ -2046,8 +2056,8 @@
       renderEdit();
     }
   }
-  navModeBtn.addEventListener('click', () => { setMode('nav'); cbcBackTo(navPath.length); });
-  editModeBtn.addEventListener('click', () => { setMode('edit'); cbcPush(); });
+  navModeBtn.addEventListener('click', () => { setMode('nav'); syncTrap(); });
+  editModeBtn.addEventListener('click', () => { setMode('edit'); syncTrap(); });
 
   /* ============================================================
      PWA
