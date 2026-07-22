@@ -291,7 +291,10 @@ function init() {
         if (!row) return;
         const idx = Number(row.dataset.lrcIdx);
         if (!Number.isFinite(idx)) return;
-        seekToLyricLine(idx);
+        /* Sync-only: keep the video / audio playing, just adjust
+           the per-song lyric offset so the tapped line aligns
+           with the current playback moment. */
+        syncLyricsToLine(idx);
         closeLyricBrowser();
       });
     }
