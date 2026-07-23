@@ -76,6 +76,66 @@ function cbc_init_schema($pdo, $driver) {
     $pdo->exec("CREATE INDEX IF NOT EXISTS idx_parent ON nodes (parent_id)");
   }
   cbc_ensure_columns($pdo, $driver);
+  cbc_init_inventory($pdo, $driver);
+}
+
+/* 在庫管理テーブル（初回アクセス時に自動作成）。
+   inv_items : 商品マスタ（商品名・型番・現在個数）
+   inv_logs  : 使用履歴（持ち出し／返却／使用／調整、いつ・何個・誰が） */
+function cbc_init_inventory($pdo, $driver) {
+  if ($driver === 'mysql') {
+    $pdo->exec(
+      "CREATE TABLE IF NOT EXISTS inv_items (
+        id         VARCHAR(40)  NOT NULL PRIMARY KEY,
+        name       VARCHAR(255) NOT NULL,
+        model      VARCHAR(255) NULL,
+        qty        INT          NOT NULL DEFAULT 0,
+        note       VARCHAR(255) NULL,
+        sort_order INT          NOT NULL DEFAULT 0,
+        created_at BIGINT       NOT NULL DEFAULT 0,
+        updated_at BIGINT       NOT NULL DEFAULT 0
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci"
+    );
+    $pdo->exec(
+      "CREATE TABLE IF NOT EXISTS inv_logs (
+        id         VARCHAR(40)  NOT NULL PRIMARY KEY,
+        item_id    VARCHAR(40)  NOT NULL,
+        action     VARCHAR(20)  NOT NULL,
+        qty        INT          NOT NULL DEFAULT 0,
+        balance    INT          NOT NULL DEFAULT 0,
+        person     VARCHAR(120) NULL,
+        note       VARCHAR(255) NULL,
+        created_at BIGINT       NOT NULL DEFAULT 0,
+        INDEX idx_inv_item (item_id)
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci"
+    );
+  } else { // sqlite / pgsql
+    $pdo->exec(
+      "CREATE TABLE IF NOT EXISTS inv_items (
+        id         VARCHAR(40)  NOT NULL PRIMARY KEY,
+        name       VARCHAR(255) NOT NULL,
+        model      VARCHAR(255) NULL,
+        qty        INTEGER      NOT NULL DEFAULT 0,
+        note       VARCHAR(255) NULL,
+        sort_order INTEGER      NOT NULL DEFAULT 0,
+        created_at BIGINT       NOT NULL DEFAULT 0,
+        updated_at BIGINT       NOT NULL DEFAULT 0
+      )"
+    );
+    $pdo->exec(
+      "CREATE TABLE IF NOT EXISTS inv_logs (
+        id         VARCHAR(40)  NOT NULL PRIMARY KEY,
+        item_id    VARCHAR(40)  NOT NULL,
+        action     VARCHAR(20)  NOT NULL,
+        qty        INTEGER      NOT NULL DEFAULT 0,
+        balance    INTEGER      NOT NULL DEFAULT 0,
+        person     VARCHAR(120) NULL,
+        note       VARCHAR(255) NULL,
+        created_at BIGINT       NOT NULL DEFAULT 0
+      )"
+    );
+    $pdo->exec("CREATE INDEX IF NOT EXISTS idx_inv_item ON inv_logs (item_id)");
+  }
 }
 
 /* 既存DBに不足しているカラムを追加（記入者カラムの後付け対応） */

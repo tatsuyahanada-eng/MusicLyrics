@@ -126,6 +126,57 @@ FTPソフトで、`uploads/` フォルダのパーミッションを **705（必
 | `node_move` | POST `{id,dir}` | 並び替え（±1） |
 | `replace_all` | POST `{nodes:[...]}` | 全置換（CSV取込・移行用） |
 | `upload` | POST (multipart `file`) | 画像アップロード → URLを返す |
+| `inv_list` | GET | 在庫の商品一覧 |
+| `inv_history` | POST `{item_id}` | 商品の使用履歴 |
+| `inv_item_create` | POST `{name,model,qty,note}` | 商品を追加 |
+| `inv_item_update` | POST `{id,name,model,note}` | 商品情報を更新 |
+| `inv_item_delete` | POST `{id}` | 商品と履歴を削除 |
+| `inv_action` | POST `{id,action,qty,note}` | 持ち出し/返却/使用/調整（在庫増減＋履歴記録） |
+
+## 在庫管理（商品の持ち出し・返却）
+
+案内モードの大項目一覧の先頭にある **「📦 在庫管理」** から使えます。
+
+- 一覧テーブルで **商品名 / 型番 / 現在個数** を表示。行ごとに操作できます。
+  - **− 持ち出し**: 現在個数を減らし、いつ・何個・誰が を履歴に記録。
+  - **＋ 返却**: 使わずに戻したぶんを現在個数に足し、履歴に記録。
+  - **使用（消費）**: 使い切ったぶんを減らして記録（持ち出しダイアログ内で切替）。
+  - **履歴**: その商品の全操作（日時・種別・個数・実施者・残数・メモ）を新しい順に表示。
+  - **編集 / 削除**: 商品名・型番・メモの修正、商品ごと削除（履歴も一緒に削除）。
+- DB接続時は全端末で共有。未接続時はその端末内のみ（localStorage）に保存されます。
+
+### 在庫用テーブル（自動作成されます）
+
+**手動でSQLを実行する必要はありません。** `nodes` テーブルと同様、初回アクセス時に
+`db.php` が自動作成します（MySQL / SQLite / PostgreSQL 共通）。テーブル名は次の2つです。
+
+**`inv_items`（商品マスタ）**
+
+| カラム | 型(MySQL) | 内容 |
+|---|---|---|
+| `id` | VARCHAR(40) PK | 商品ID |
+| `name` | VARCHAR(255) | 商品名 |
+| `model` | VARCHAR(255) | 型番 |
+| `qty` | INT | 現在個数 |
+| `note` | VARCHAR(255) | メモ（保管場所など） |
+| `sort_order` | INT | 並び順 |
+| `created_at` / `updated_at` | BIGINT | 作成/更新時刻(ミリ秒) |
+
+**`inv_logs`（使用履歴）**
+
+| カラム | 型(MySQL) | 内容 |
+|---|---|---|
+| `id` | VARCHAR(40) PK | 履歴ID |
+| `item_id` | VARCHAR(40) | 対象商品ID（INDEX） |
+| `action` | VARCHAR(20) | `out`(持ち出し)/`return`(返却)/`use`(使用)/`init`(初期)/`adjust`(調整) |
+| `qty` | INT | 増減した個数（返却・初期は＋、持ち出し・使用は＋値で記録し種別で符号判断） |
+| `balance` | INT | その操作後の在庫数 |
+| `person` | VARCHAR(120) | 実施者 |
+| `note` | VARCHAR(255) | メモ |
+| `created_at` | BIGINT | 実施時刻(ミリ秒) |
+
+MySQL側で用意するのは**データベース1個だけ**（既存の `LAA0000000-casebycase` をそのまま
+使えます）。上記テーブルはその中に自動で作られます。文字コードは utf8mb4 です。
 
 ## アップデート（差し替え）時の注意
 

@@ -632,6 +632,7 @@
   // navPath: array of node ids representing current descent (empty = root)
   let navPath = [];
   let navReorder = false; // 案内モードの簡易並べ替えモード
+  let invOpen = false;    // 在庫管理ビューを開いているか
 
   function currentChildren() {
     if (navPath.length === 0) return tree;
@@ -752,20 +753,25 @@
     const canReorder = kids.length > 1;
     if (navReorder && !canReorder) navReorder = false; // 並べ替え対象が無ければ解除
 
-    if (kids.length > 0) {
-      if (navReorder) {
-        choiceDock.className = 'tm-choicedock tm-sortmode';
-        choiceDock.innerHTML =
-          `<div class="tm-sort-hint">&#8645; 並べ替え中：<strong>長押し</strong>（またはハンドル&#8942;&#8942;をドラッグ）や ▲▼ でこの階層の順番を変更できます。</div>` +
-          kids.map((c, i) => sortRow(c, i, kids.length)).join('');
-      } else if (atRoot) {
-        choiceDock.className = 'tm-choicedock tm-cat-grid';
-        choiceDock.innerHTML = kids.map((c, i) => categoryTile(c, i)).join('');
-      } else {
-        choiceDock.className = 'tm-choicedock';
-        choiceDock.innerHTML = `<div class="tm-choice-label">${depthLabel(navPath.length)}を選択</div>` +
-          kids.map((c) => choiceRow(c)).join('');
-      }
+    // 大項目一覧の先頭に出す「在庫管理」タイル（特別項目）
+    const invTile = `<button class="tm-cat-tile tm-inv-tile" data-inv type="button">
+      <span class="tm-cat-no">&#128230;</span>
+      <span class="tm-cat-name">在庫管理</span>
+      <span class="tm-cat-sub">持ち出し・返却・使用履歴</span>
+    </button>`;
+
+    if (navReorder && kids.length > 0) {
+      choiceDock.className = 'tm-choicedock tm-sortmode';
+      choiceDock.innerHTML =
+        `<div class="tm-sort-hint">&#8645; 並べ替え中：<strong>長押し</strong>（またはハンドル&#8942;&#8942;をドラッグ）や ▲▼ でこの階層の順番を変更できます。</div>` +
+        kids.map((c, i) => sortRow(c, i, kids.length)).join('');
+    } else if (atRoot) {
+      choiceDock.className = 'tm-choicedock tm-cat-grid';
+      choiceDock.innerHTML = invTile + kids.map((c, i) => categoryTile(c, i)).join('');
+    } else if (kids.length > 0) {
+      choiceDock.className = 'tm-choicedock';
+      choiceDock.innerHTML = `<div class="tm-choice-label">${depthLabel(navPath.length)}を選択</div>` +
+        kids.map((c) => choiceRow(c)).join('');
     } else {
       choiceDock.className = 'tm-choicedock';
       choiceDock.innerHTML = '';
@@ -791,7 +797,7 @@
   let trapped = false;    // センチネルを積んでいるか
   let absorbPop = false;  // 直後の1回の popstate を無視（プログラム的 back 用）
   try { history.replaceState({ cbcBase: 1 }, ''); } catch (_) {}
-  function needTrap() { return navPath.length > 0 || !editView.hidden || navReorder; }
+  function needTrap() { return navPath.length > 0 || !editView.hidden || navReorder || invOpen; }
   function syncTrap() {
     if (needTrap()) {
       if (!trapped) { try { history.pushState({ cbc: 1 }, ''); trapped = true; } catch (_) {} }
@@ -839,6 +845,7 @@
     const dlg = document.querySelector('dialog[open]');
     if (dlg) { dlg.close(); }                                  // 開いているダイアログを閉じる
     else if (!editView.hidden) { setMode('nav'); }             // 編集モード→案内モード
+    else if (invOpen) { closeInventory(); }                    // 在庫管理→大項目へ
     else if (navReorder) { navReorder = false; renderNav(); }  // 並べ替えを終了
     else if (navPath.length > 0) { navPath.pop(); renderNav(); } // 案内を1つ戻る
     // まだ閉じたい状態が残っていればセンチネルを積み直す（無ければ次の戻るで離脱）
@@ -853,6 +860,7 @@
   }
   choiceDock.addEventListener('click', (e) => {
     if (Date.now() < suppressClickUntil) return; // 直前のドラッグのクリックを無視
+    if (e.target.closest('[data-inv]')) { openInventory(); return; }
     const up = e.target.closest('[data-navup]');
     if (up) { if (!up.disabled) navReorderMove(up.dataset.navup, -1); return; }
     const down = e.target.closest('[data-navdown]');
@@ -2027,12 +2035,15 @@
      ============================================================ */
   const navView = $('#navView');
   const editView = $('#editView');
+  const invViewEl = $('#invView');
   const navModeBtn = $('#navModeBtn');
   const editModeBtn = $('#editModeBtn');
 
   function setMode(mode) {
     const isNav = mode === 'nav';
     navReorder = false; // モード切替時は簡易並べ替えを解除
+    invOpen = false;    // モード切替時は在庫管理を閉じる
+    if (invViewEl) invViewEl.hidden = true;
     navView.hidden = !isNav;
     editView.hidden = isNav;
     navModeBtn.classList.toggle('is-active', isNav);
@@ -2058,6 +2069,285 @@
   }
   navModeBtn.addEventListener('click', () => { setMode('nav'); syncTrap(); });
   editModeBtn.addEventListener('click', () => { setMode('edit'); syncTrap(); });
+
+  /* ============================================================
+     INVENTORY（在庫管理）
+     ============================================================ */
+  const INV_ITEMS_KEY = 'treeManual.inv.items.v1';
+  const INV_LOGS_KEY = 'treeManual.inv.logs.v1';
+  let invItems = [];
+
+  const invTableWrap = $('#invTableWrap');
+  const invMsgEl = $('#invMsg');
+  function invSetMsg(m, isErr) { if (invMsgEl) { invMsgEl.textContent = m || ''; invMsgEl.style.color = isErr ? 'var(--tm-danger)' : ''; } }
+
+  // オフライン（この端末のみ）用ストア
+  function invLoadLocal() { try { return JSON.parse(localStorage.getItem(INV_ITEMS_KEY) || '[]'); } catch (_) { return []; } }
+  function invSaveLocal(items) { try { localStorage.setItem(INV_ITEMS_KEY, JSON.stringify(items)); } catch (_) {} }
+  function invLoadLogs() { try { return JSON.parse(localStorage.getItem(INV_LOGS_KEY) || '[]'); } catch (_) { return []; } }
+  function invSaveLogs(logs) { try { localStorage.setItem(INV_LOGS_KEY, JSON.stringify(logs)); } catch (_) {} }
+  function invAddLocalLog(item_id, action, qty, balance, person, note) {
+    const logs = invLoadLogs();
+    logs.push({ id: uid(), item_id, action, qty, balance, person, note, created_at: Date.now() });
+    invSaveLogs(logs);
+  }
+
+  async function invFetch() {
+    if (serverMode()) { const d = await apiCall('inv_list'); invItems = d.items || []; }
+    else { invItems = invLoadLocal(); }
+  }
+
+  function openInventory() {
+    invOpen = true;
+    navView.hidden = true; if (invViewEl) invViewEl.hidden = false; editView.hidden = true;
+    breadcrumbBar.style.display = 'none';
+    syncTrap();
+    invSetMsg(serverMode() ? '読み込み中…' : 'この端末のみで保存中（サーバー未接続）');
+    invTableWrap.innerHTML = '';
+    invFetch().then(() => { if (serverMode()) invSetMsg(''); renderInventory(); })
+      .catch((e) => { invSetMsg('読み込みに失敗：' + e.message, true); renderInventory(); });
+  }
+  function closeInventory() {
+    invOpen = false;
+    if (invViewEl) invViewEl.hidden = true;
+    navView.hidden = false;
+    breadcrumbBar.style.display = '';
+    renderNav();
+    syncTrap();
+  }
+
+  function renderInventory() {
+    if (!invTableWrap) return;
+    if (!invItems.length) {
+      invTableWrap.innerHTML = '<div class="tm-inv-empty">まだ商品が登録されていません。「＋ 商品を追加」から登録してください。</div>';
+      return;
+    }
+    const rows = invItems.map((it) => {
+      const q = Number(it.qty) || 0;
+      const cls = q <= 0 ? 'is-zero' : (q <= 2 ? 'is-low' : 'is-ok');
+      return `<tr>
+        <td><div class="tm-inv-name">${esc(it.name)}</div>${it.note ? `<div class="tm-inv-itemnote">${esc(it.note)}</div>` : ''}</td>
+        <td><span class="tm-inv-model">${esc(it.model || '—')}</span></td>
+        <td><div class="tm-inv-qty ${cls}">${q}</div></td>
+        <td><div class="tm-inv-actions">
+          <button class="tm-inv-btn is-out" data-act="out" data-id="${it.id}" type="button">− 持ち出し</button>
+          <button class="tm-inv-btn is-return" data-act="return" data-id="${it.id}" type="button">＋ 返却</button>
+          <button class="tm-inv-btn is-plain" data-act="history" data-id="${it.id}" type="button">履歴</button>
+          <button class="tm-inv-btn is-plain" data-act="edit" data-id="${it.id}" type="button">編集</button>
+        </div></td>
+      </tr>`;
+    }).join('');
+    invTableWrap.innerHTML = `<table class="tm-inv-table">
+      <thead><tr><th>商品名</th><th>型番</th><th>現在個数</th><th>操作</th></tr></thead>
+      <tbody>${rows}</tbody></table>`;
+  }
+
+  if (invTableWrap) {
+    invTableWrap.addEventListener('click', (e) => {
+      const btn = e.target.closest('[data-act]');
+      if (!btn) return;
+      const id = btn.dataset.id, act = btn.dataset.act;
+      if (act === 'history') openInvHistory(id);
+      else if (act === 'edit') openInvItemDialog(id);
+      else openInvActionDialog(id, act);
+    });
+  }
+  $('#invAddBtn').addEventListener('click', () => openInvItemDialog(null));
+  $('#invReloadBtn').addEventListener('click', async () => {
+    invSetMsg('更新中…');
+    try { await invFetch(); invSetMsg(''); renderInventory(); }
+    catch (e) { invSetMsg('更新に失敗：' + e.message, true); }
+  });
+  $('#invBackBtn').addEventListener('click', () => closeInventory());
+
+  /* ---- 在庫: 商品の追加/編集ダイアログ ---- */
+  const invItemDialog = $('#invItemDialog');
+  const invItemForm = $('#invItemForm');
+  let invEditId = null;
+  function openInvItemDialog(id) {
+    invEditId = id;
+    const qtyField = $('#invQtyField');
+    const delBtn = $('#invItemDelete');
+    $('#invItemError').textContent = '';
+    if (id) {
+      const it = invItems.find((x) => x.id === id);
+      if (!it) return;
+      $('#invItemTitle').textContent = '商品を編集';
+      $('#invName').value = it.name || '';
+      $('#invModel').value = it.model || '';
+      $('#invItemNote').value = it.note || '';
+      if (qtyField) qtyField.hidden = true; // 個数は持ち出し/返却で変更
+      if (delBtn) delBtn.hidden = false;
+    } else {
+      $('#invItemTitle').textContent = '商品を追加';
+      $('#invName').value = ''; $('#invModel').value = ''; $('#invItemNote').value = ''; $('#invQty').value = '0';
+      if (qtyField) qtyField.hidden = false;
+      if (delBtn) delBtn.hidden = true;
+    }
+    invItemDialog.showModal();
+    $('#invName').focus();
+  }
+  invItemForm.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const name = $('#invName').value.trim();
+    if (!name) { $('#invItemError').textContent = '商品名を入力してください'; return; }
+    const model = $('#invModel').value.trim();
+    const note = $('#invItemNote').value.trim();
+    const qty = parseInt($('#invQty').value, 10) || 0;
+    const btn = invItemForm.querySelector('button[type=submit]');
+    btn.disabled = true;
+    try {
+      if (invEditId) await invUpdateItem(invEditId, { name, model, note });
+      else await invCreateItem({ name, model, note, qty });
+      invItemDialog.close();
+      await invFetch(); renderInventory();
+    } catch (err) { $('#invItemError').textContent = '保存に失敗：' + err.message; }
+    finally { btn.disabled = false; }
+  });
+  $('#invItemCancel').addEventListener('click', () => invItemDialog.close());
+  $('#invItemDelete').addEventListener('click', () => {
+    if (!invEditId) return;
+    const it = invItems.find((x) => x.id === invEditId);
+    askConfirm(`商品「${it ? it.name : ''}」と、その使用履歴を削除しますか？この操作は元に戻せません。`, async () => {
+      try { await invDeleteItem(invEditId); invItemDialog.close(); await invFetch(); renderInventory(); }
+      catch (err) { $('#invItemError').textContent = '削除に失敗：' + err.message; }
+    }, '削除する');
+  });
+
+  /* ---- 在庫: 持ち出し/返却/使用ダイアログ ---- */
+  const invActionDialog = $('#invActionDialog');
+  const invActionForm = $('#invActionForm');
+  let invActionId = null, invActionKind = 'out';
+  const INV_KIND_LABEL = { out: '持ち出し', return: '返却（戻す）', use: '使用（消費）' };
+  function setInvKind(kind) {
+    invActionKind = kind;
+    const box = $('#invActionKind');
+    box.querySelectorAll('.tm-inv-kind').forEach((b) => b.classList.toggle('is-active', b.dataset.kind === kind));
+    $('#invActionTitle').textContent = INV_KIND_LABEL[kind] || '操作';
+    $('#invActionSubmit').textContent = INV_KIND_LABEL[kind] || '実行';
+  }
+  function openInvActionDialog(id, kind) {
+    const it = invItems.find((x) => x.id === id);
+    if (!it) return;
+    invActionId = id;
+    $('#invActionItem').textContent = `${it.name}${it.model ? '（' + it.model + '）' : ''} ／ 現在 ${Number(it.qty) || 0} 個`;
+    $('#invActionQty').value = '1';
+    $('#invActionPerson').value = authorName();
+    $('#invActionNote').value = '';
+    $('#invActionError').textContent = '';
+    setInvKind(kind || 'out');
+    invActionDialog.showModal();
+    $('#invActionQty').focus(); $('#invActionQty').select();
+  }
+  $('#invActionKind').addEventListener('click', (e) => { const b = e.target.closest('[data-kind]'); if (b) setInvKind(b.dataset.kind); });
+  invActionForm.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const qty = parseInt($('#invActionQty').value, 10) || 0;
+    if (qty <= 0) { $('#invActionError').textContent = '個数は1以上を入力してください'; return; }
+    const person = $('#invActionPerson').value.trim();
+    const note = $('#invActionNote').value.trim();
+    const btn = $('#invActionSubmit');
+    btn.disabled = true;
+    try {
+      await invDoAction(invActionId, invActionKind, qty, person, note);
+      invActionDialog.close();
+      await invFetch(); renderInventory();
+    } catch (err) { $('#invActionError').textContent = err.message; }
+    finally { btn.disabled = false; }
+  });
+  $('#invActionCancel').addEventListener('click', () => invActionDialog.close());
+
+  /* ---- 在庫: 使用履歴ダイアログ ---- */
+  const invHistoryDialog = $('#invHistoryDialog');
+  const INV_ACT_LABEL = { out: '持ち出し', return: '返却', use: '使用', init: '初期登録', adjust: '調整' };
+  function invFmtWhen(ms) {
+    const d = new Date(Number(ms) || 0);
+    if (isNaN(d.getTime())) return '';
+    const p = (n) => String(n).padStart(2, '0');
+    return `${d.getFullYear()}/${p(d.getMonth() + 1)}/${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}`;
+  }
+  async function openInvHistory(id) {
+    const it = invItems.find((x) => x.id === id);
+    $('#invHistoryTitle').textContent = `使用履歴：${it ? it.name : ''}`;
+    const body = $('#invHistoryBody');
+    body.innerHTML = '<div class="tm-inv-empty">読み込み中…</div>';
+    invHistoryDialog.showModal();
+    try {
+      const logs = await invFetchHistory(id);
+      if (!logs.length) { body.innerHTML = '<div class="tm-inv-empty">履歴はありません。</div>'; return; }
+      body.innerHTML = logs.map((l) => {
+        const sign = (l.action === 'return' || l.action === 'init') ? '＋'
+          : (l.action === 'adjust' ? (Number(l.qty) >= 0 ? '＋' : '−') : '−');
+        const qtyAbs = Math.abs(Number(l.qty) || 0);
+        return `<div class="tm-inv-logrow">
+          <span class="tm-inv-when">${invFmtWhen(l.created_at)}</span>
+          <span class="tm-inv-badge a-${l.action}">${INV_ACT_LABEL[l.action] || l.action}</span>
+          <span class="tm-inv-logmain">${sign}${qtyAbs}個　${esc(l.person || '—')}</span>
+          <span class="tm-inv-logbal">残 ${Number(l.balance) || 0}</span>
+          ${l.note ? `<span class="tm-inv-lognote">${esc(l.note)}</span>` : ''}
+        </div>`;
+      }).join('');
+    } catch (e) { body.innerHTML = '<div class="tm-inv-empty">履歴の取得に失敗しました。</div>'; }
+  }
+  $('#invHistoryClose').addEventListener('click', () => invHistoryDialog.close());
+
+  /* ---- 在庫: 操作（サーバー / オフライン） ---- */
+  async function invCreateItem({ name, model, note, qty }) {
+    if (serverMode()) {
+      await apiCall('inv_item_create', { method: 'POST', body: { name, model, note, qty, author: authorName() } });
+    } else {
+      const now = Date.now(), id = uid();
+      invItems = invLoadLocal();
+      const q = Math.max(0, qty | 0);
+      invItems.push({ id, name, model, note, qty: q, created_at: now, updated_at: now });
+      invSaveLocal(invItems);
+      if (q > 0) invAddLocalLog(id, 'init', q, q, authorName(), '初期登録');
+    }
+  }
+  async function invUpdateItem(id, { name, model, note }) {
+    if (serverMode()) {
+      await apiCall('inv_item_update', { method: 'POST', body: { id, name, model, note } });
+    } else {
+      invItems = invLoadLocal();
+      const it = invItems.find((x) => x.id === id);
+      if (it) { it.name = name; it.model = model; it.note = note; it.updated_at = Date.now(); invSaveLocal(invItems); }
+    }
+  }
+  async function invDeleteItem(id) {
+    if (serverMode()) {
+      await apiCall('inv_item_delete', { method: 'POST', body: { id } });
+    } else {
+      invSaveLocal(invLoadLocal().filter((x) => x.id !== id));
+      invSaveLogs(invLoadLogs().filter((l) => l.item_id !== id));
+    }
+  }
+  async function invDoAction(id, kind, qty, person, note) {
+    if (serverMode()) {
+      await apiCall('inv_action', { method: 'POST', body: { id, action: kind, qty, author: person, note } });
+    } else {
+      invItems = invLoadLocal();
+      const it = invItems.find((x) => x.id === id);
+      if (!it) throw new Error('商品が存在しません');
+      const cur = Number(it.qty) || 0;
+      let newQty, logQty;
+      if (kind === 'out' || kind === 'use') {
+        if (qty > cur) throw new Error('現在個数（' + cur + '）を超える数は指定できません');
+        newQty = cur - qty; logQty = qty;
+      } else if (kind === 'return') { newQty = cur + qty; logQty = qty; }
+      else { newQty = qty < 0 ? 0 : qty; logQty = newQty - cur; }
+      it.qty = newQty; it.updated_at = Date.now(); invSaveLocal(invItems);
+      invAddLocalLog(id, kind, logQty, newQty, person || authorName(), note);
+    }
+  }
+  async function invFetchHistory(id) {
+    if (serverMode()) {
+      const d = await apiCall('inv_history', { method: 'POST', body: { item_id: id || '' } });
+      return d.logs || [];
+    }
+    let logs = invLoadLogs().filter((l) => !id || l.item_id === id);
+    logs.sort((a, b) => (Number(b.created_at) || 0) - (Number(a.created_at) || 0));
+    return logs;
+  }
 
   /* ============================================================
      PWA

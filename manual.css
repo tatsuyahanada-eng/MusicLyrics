@@ -1166,3 +1166,76 @@ body.tm-dragging .tm-treenode-row { cursor: grabbing; }
   .tm-msg { max-width: 100%; }
   .tm-choice { padding-left: 36px; }
 }
+
+/* ============================================================
+   在庫管理（Inventory）
+   ============================================================ */
+/* 大項目一覧に出す「在庫管理」タイル */
+.tm-cat-tile.tm-inv-tile { border-color: rgba(255, 207, 63, 0.5); background: rgba(40, 34, 10, 0.5); }
+.tm-cat-tile.tm-inv-tile:hover, .tm-cat-tile.tm-inv-tile:focus-visible {
+  border-color: var(--tm-warn);
+  box-shadow: inset 0 0 0 1px var(--tm-warn), 0 0 26px rgba(255, 207, 63, 0.5);
+}
+.tm-cat-tile.tm-inv-tile .tm-cat-no { color: var(--tm-warn); }
+.tm-cat-tile.tm-inv-tile .tm-cat-name { color: var(--tm-warn); }
+
+.tm-inv-toolbar { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 10px; }
+.tm-inv-tablewrap { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+
+.tm-inv-table { width: 100%; border-collapse: collapse; font-size: 14px; min-width: 520px; }
+.tm-inv-table th, .tm-inv-table td { padding: 10px 12px; text-align: left; border-bottom: 1px solid var(--tm-line); vertical-align: middle; }
+.tm-inv-table th {
+  font-family: var(--tm-mono); font-size: 11px; letter-spacing: 1px;
+  color: var(--tm-cyan); text-transform: uppercase; white-space: nowrap;
+  border-bottom: 1px solid var(--tm-line-strong);
+}
+.tm-inv-table tbody tr:hover { background: rgba(63, 224, 224, 0.05); }
+.tm-inv-name { font-weight: 600; color: var(--tm-text); }
+.tm-inv-model { font-family: var(--tm-mono); font-size: 12px; color: var(--tm-muted); }
+.tm-inv-itemnote { font-size: 11px; color: var(--tm-muted); margin-top: 2px; }
+.tm-inv-qty { font-family: var(--tm-mono); font-weight: 700; font-size: 18px; text-align: center; }
+.tm-inv-qty.is-zero { color: var(--tm-danger); }
+.tm-inv-qty.is-low { color: var(--tm-warn); }
+.tm-inv-qty.is-ok { color: var(--tm-cyan); }
+.tm-inv-actions { display: flex; flex-wrap: wrap; gap: 6px; }
+.tm-inv-btn {
+  font-family: var(--tm-mono); font-size: 12px; letter-spacing: .5px;
+  padding: 6px 10px; border-radius: 4px; cursor: pointer; white-space: nowrap;
+  border: 1px solid var(--tm-line); background: transparent; color: var(--tm-text);
+  transition: border-color .15s, background .15s, color .15s;
+}
+.tm-inv-btn.is-out { color: var(--tm-warn); border-color: rgba(255, 207, 63, 0.5); }
+.tm-inv-btn.is-out:hover { background: rgba(255, 207, 63, 0.14); }
+.tm-inv-btn.is-return { color: var(--tm-cyan); border-color: var(--tm-line-strong); }
+.tm-inv-btn.is-return:hover { background: rgba(63, 224, 224, 0.14); }
+.tm-inv-btn.is-plain:hover { border-color: var(--tm-line-strong); color: var(--tm-cyan); }
+.tm-inv-empty { padding: 24px 8px; text-align: center; color: var(--tm-muted); }
+
+/* 操作ダイアログの種別ボタン */
+.tm-inv-actionbtns { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 12px; }
+.tm-inv-kind {
+  flex: 1 1 auto; padding: 10px 8px; border-radius: 6px; cursor: pointer;
+  font-family: var(--tm-mono); font-size: 13px;
+  border: 1px solid var(--tm-line); background: rgba(9, 30, 40, 0.6); color: var(--tm-muted);
+  transition: all .15s;
+}
+.tm-inv-kind.is-active { color: var(--tm-text); border-color: var(--tm-cyan); background: rgba(63, 224, 224, 0.12); box-shadow: inset 0 0 0 1px var(--tm-cyan); }
+
+/* 履歴 */
+.tm-inv-history { max-height: 60vh; overflow-y: auto; display: flex; flex-direction: column; gap: 6px; }
+.tm-inv-logrow {
+  display: grid; grid-template-columns: auto 1fr auto; gap: 4px 10px; align-items: baseline;
+  padding: 8px 10px; border: 1px solid var(--tm-line); border-radius: 4px; background: rgba(9, 30, 40, 0.5);
+}
+.tm-inv-logrow .tm-inv-when { grid-column: 1 / -1; font-family: var(--tm-mono); font-size: 11px; color: var(--tm-muted); }
+.tm-inv-badge {
+  font-family: var(--tm-mono); font-size: 11px; padding: 1px 8px; border-radius: 10px; white-space: nowrap;
+  border: 1px solid var(--tm-line);
+}
+.tm-inv-badge.a-out, .tm-inv-badge.a-use { color: var(--tm-warn); border-color: rgba(255, 207, 63, 0.5); }
+.tm-inv-badge.a-return, .tm-inv-badge.a-init { color: var(--tm-cyan); border-color: var(--tm-line-strong); }
+.tm-inv-badge.a-adjust { color: var(--tm-muted); }
+.tm-inv-logmain { font-size: 13px; color: var(--tm-text); }
+.tm-inv-logbal { font-family: var(--tm-mono); font-size: 12px; color: var(--tm-muted); white-space: nowrap; }
+.tm-inv-lognote { grid-column: 1 / -1; font-size: 12px; color: var(--tm-muted); }
+.tm-req { font-size: 10px; color: var(--tm-danger); font-weight: 400; }

@@ -350,6 +350,131 @@ switch ($action) {
     ));
   }
 
+  /* ============================================================
+     在庫管理（inventory）
+     ============================================================ */
+  case 'inv_list': {
+    $rows = $pdo->query('SELECT id, name, model, qty, note, sort_order, created_at, updated_at FROM inv_items ORDER BY sort_order, created_at')->fetchAll();
+    $items = array();
+    foreach ($rows as $r) {
+      $items[] = array(
+        'id' => $r['id'], 'name' => $r['name'], 'model' => $r['model'],
+        'qty' => (int)$r['qty'], 'note' => $r['note'],
+        'created_at' => (int)$r['created_at'], 'updated_at' => (int)$r['updated_at'],
+      );
+    }
+    ok(array('items' => $items));
+  }
+
+  case 'inv_history': {
+    $d = body_json();
+    $itemId = isset($d['item_id']) && $d['item_id'] !== '' ? $d['item_id']
+            : (isset($_GET['item_id']) ? $_GET['item_id'] : '');
+    if ($itemId !== '') {
+      $q = $pdo->prepare('SELECT id, item_id, action, qty, balance, person, note, created_at FROM inv_logs WHERE item_id = ? ORDER BY created_at DESC, id DESC');
+      $q->execute(array($itemId));
+    } else {
+      $q = $pdo->query('SELECT id, item_id, action, qty, balance, person, note, created_at FROM inv_logs ORDER BY created_at DESC, id DESC');
+    }
+    $logs = array();
+    foreach ($q->fetchAll() as $r) {
+      $logs[] = array(
+        'id' => $r['id'], 'item_id' => $r['item_id'], 'action' => $r['action'],
+        'qty' => (int)$r['qty'], 'balance' => (int)$r['balance'],
+        'person' => $r['person'], 'note' => $r['note'], 'created_at' => (int)$r['created_at'],
+      );
+    }
+    ok(array('logs' => $logs));
+  }
+
+  case 'inv_item_create': {
+    require_token();
+    $d = body_json();
+    $name = trim(isset($d['name']) ? $d['name'] : '');
+    if ($name === '') fail('商品名は必須です');
+    $model = trim(isset($d['model']) ? $d['model'] : '');
+    $note  = trim(isset($d['note']) ? $d['note'] : '');
+    $qty   = isset($d['qty']) ? (int)$d['qty'] : 0;
+    if ($qty < 0) $qty = 0;
+    $person = author_of($d);
+    $id = gen_id();
+    $ts = now_ms();
+    $ord = (int)$pdo->query('SELECT COALESCE(MAX(sort_order), -1) + 1 FROM inv_items')->fetchColumn();
+    $ins = $pdo->prepare('INSERT INTO inv_items (id, name, model, qty, note, sort_order, created_at, updated_at) VALUES (?,?,?,?,?,?,?,?)');
+    $ins->execute(array($id, $name, $model, $qty, $note, $ord, $ts, $ts));
+    if ($qty > 0) {
+      $lg = $pdo->prepare('INSERT INTO inv_logs (id, item_id, action, qty, balance, person, note, created_at) VALUES (?,?,?,?,?,?,?,?)');
+      $lg->execute(array(gen_id(), $id, 'init', $qty, $qty, $person, '初期登録', $ts));
+    }
+    ok(array('id' => $id));
+  }
+
+  case 'inv_item_update': {
+    require_token();
+    $d = body_json();
+    if (empty($d['id'])) fail('id は必須です');
+    $name = trim(isset($d['name']) ? $d['name'] : '');
+    if ($name === '') fail('商品名は必須です');
+    $model = trim(isset($d['model']) ? $d['model'] : '');
+    $note  = trim(isset($d['note']) ? $d['note'] : '');
+    $up = $pdo->prepare('UPDATE inv_items SET name = ?, model = ?, note = ?, updated_at = ? WHERE id = ?');
+    $up->execute(array($name, $model, $note, now_ms(), $d['id']));
+    ok();
+  }
+
+  case 'inv_item_delete': {
+    require_token();
+    $d = body_json();
+    if (empty($d['id'])) fail('id は必須です');
+    $pdo->beginTransaction();
+    $pdo->prepare('DELETE FROM inv_logs WHERE item_id = ?')->execute(array($d['id']));
+    $pdo->prepare('DELETE FROM inv_items WHERE id = ?')->execute(array($d['id']));
+    $pdo->commit();
+    ok();
+  }
+
+  case 'inv_action': {
+    // 持ち出し(out) / 返却(return) / 使用(use) / 調整(adjust)
+    require_token();
+    $d = body_json();
+    if (empty($d['id'])) fail('id は必須です');
+    $action = isset($d['action']) ? $d['action'] : '';
+    $allowed = array('out' => 1, 'return' => 1, 'use' => 1, 'adjust' => 1);
+    if (!isset($allowed[$action])) fail('不明な操作です');
+    $qty = isset($d['qty']) ? (int)$d['qty'] : 0;
+    if ($qty <= 0 && $action !== 'adjust') fail('個数は1以上を入力してください');
+    $person = author_of($d);
+    $note = trim(isset($d['note']) ? $d['note'] : '');
+
+    $drv = defined('DB_DRIVER') ? DB_DRIVER : 'mysql';
+    $lock = ($drv === 'mysql' || $drv === 'pgsql') ? ' FOR UPDATE' : '';
+    $pdo->beginTransaction();
+    $q = $pdo->prepare('SELECT qty FROM inv_items WHERE id = ?' . $lock);
+    $q->execute(array($d['id']));
+    $cur = $q->fetchColumn();
+    if ($cur === false) { $pdo->rollBack(); fail('商品が存在しません', 404); }
+    $cur = (int)$cur;
+
+    if ($action === 'out' || $action === 'use') {
+      if ($qty > $cur) { $pdo->rollBack(); fail('現在個数（' . $cur . '）を超える数は指定できません'); }
+      $newQty = $cur - $qty;
+      $logQty = $qty;
+    } elseif ($action === 'return') {
+      $newQty = $cur + $qty;
+      $logQty = $qty;
+    } else { // adjust: qty を「新しい現在個数」として設定
+      $newQty = $qty < 0 ? 0 : $qty;
+      $logQty = $newQty - $cur; // 差分（±）
+    }
+
+    $up = $pdo->prepare('UPDATE inv_items SET qty = ?, updated_at = ? WHERE id = ?');
+    $up->execute(array($newQty, now_ms(), $d['id']));
+    $lg = $pdo->prepare('INSERT INTO inv_logs (id, item_id, action, qty, balance, person, note, created_at) VALUES (?,?,?,?,?,?,?,?)');
+    $lg->execute(array(gen_id(), $d['id'], $action, $logQty, $newQty, $person, $note, now_ms()));
+    $pdo->commit();
+    ok(array('qty' => $newQty));
+  }
+
   default:
     fail('不明なアクションです: ' . $action, 404);
 }

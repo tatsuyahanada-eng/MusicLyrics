@@ -9,7 +9,7 @@
   <link rel="manifest" href="manifest.webmanifest">
   <link rel="icon" href="icon.svg" type="image/svg+xml">
   <link rel="apple-touch-icon" href="icon-192.png">
-  <link rel="stylesheet" href="manual.css?v=25">
+  <link rel="stylesheet" href="manual.css?v=26">
 </head>
 <body class="tm-body">
 
@@ -68,6 +68,30 @@
           <button id="backBtn" class="tm-ghostbtn" type="button">&#9664; 一つ戻る</button>
           <button id="restartBtn" class="tm-ghostbtn" type="button">&#8635; 最初から</button>
         </div>
+      </div>
+    </section>
+
+    <!-- ============ INVENTORY MODE ============ -->
+    <section id="invView" class="tm-view" hidden>
+      <div class="tm-panel">
+        <div class="tm-panel-corner tm-corner-tl"></div>
+        <div class="tm-panel-corner tm-corner-tr"></div>
+        <div class="tm-panel-corner tm-corner-bl"></div>
+        <div class="tm-panel-corner tm-corner-br"></div>
+
+        <div class="tm-panel-head">
+          <span class="tm-panel-head-label">INVENTORY</span>
+          <span class="tm-panel-head-jp">在庫管理</span>
+        </div>
+
+        <div class="tm-inv-toolbar">
+          <button id="invAddBtn" class="tm-btn tm-btn-primary" type="button">&#43; 商品を追加</button>
+          <button id="invReloadBtn" class="tm-btn tm-btn-outline" type="button">&#8635; 最新に更新</button>
+          <button id="invBackBtn" class="tm-btn tm-btn-outline" type="button">&#9664; 大項目へ戻る</button>
+        </div>
+        <p id="invMsg" class="tm-sync-status" aria-live="polite"></p>
+
+        <div id="invTableWrap" class="tm-inv-tablewrap"></div>
       </div>
     </section>
 
@@ -269,6 +293,76 @@
     </form>
   </dialog>
 
+  <!-- ===== Inventory item Dialog（商品の追加・編集） ===== -->
+  <dialog id="invItemDialog" class="tm-dialog">
+    <form id="invItemForm" class="tm-dialog-form">
+      <h2 class="tm-dialog-title" id="invItemTitle">商品を追加</h2>
+      <label class="tm-field">
+        <span class="tm-field-label">商品名 <span class="tm-req">必須</span></span>
+        <input id="invName" class="tm-input" type="text" maxlength="120" autocomplete="off" placeholder="例：電動ドライバー">
+      </label>
+      <label class="tm-field">
+        <span class="tm-field-label">型番</span>
+        <input id="invModel" class="tm-input" type="text" maxlength="120" autocomplete="off" placeholder="例：BD-100">
+      </label>
+      <label class="tm-field" id="invQtyField">
+        <span class="tm-field-label">初期個数</span>
+        <input id="invQty" class="tm-input" type="number" min="0" step="1" inputmode="numeric" value="0">
+      </label>
+      <label class="tm-field">
+        <span class="tm-field-label">メモ（任意）</span>
+        <input id="invItemNote" class="tm-input" type="text" maxlength="200" autocomplete="off" placeholder="保管場所など">
+      </label>
+      <p id="invItemError" class="tm-dialog-err" aria-live="polite"></p>
+      <div class="tm-dialog-actions">
+        <button type="button" id="invItemDelete" class="tm-btn tm-btn-danger-outline" hidden>削除</button>
+        <button type="button" id="invItemCancel" class="tm-btn tm-btn-outline">キャンセル</button>
+        <button type="submit" class="tm-btn tm-btn-primary">保存</button>
+      </div>
+    </form>
+  </dialog>
+
+  <!-- ===== Inventory action Dialog（持ち出し・返却・使用） ===== -->
+  <dialog id="invActionDialog" class="tm-dialog">
+    <form id="invActionForm" class="tm-dialog-form">
+      <h2 class="tm-dialog-title" id="invActionTitle">持ち出し</h2>
+      <p id="invActionItem" class="tm-confirm-msg"></p>
+      <div class="tm-inv-actionbtns" id="invActionKind">
+        <button type="button" class="tm-inv-kind is-active" data-kind="out">− 持ち出し</button>
+        <button type="button" class="tm-inv-kind" data-kind="return">＋ 返却（戻す）</button>
+        <button type="button" class="tm-inv-kind" data-kind="use">− 使用（消費）</button>
+      </div>
+      <label class="tm-field">
+        <span class="tm-field-label">個数 <span class="tm-req">必須</span></span>
+        <input id="invActionQty" class="tm-input" type="number" min="1" step="1" inputmode="numeric" value="1">
+      </label>
+      <label class="tm-field">
+        <span class="tm-field-label">実施者</span>
+        <input id="invActionPerson" class="tm-input" type="text" maxlength="40" autocomplete="off" placeholder="あなたの名前">
+      </label>
+      <label class="tm-field">
+        <span class="tm-field-label">メモ（任意）</span>
+        <input id="invActionNote" class="tm-input" type="text" maxlength="200" autocomplete="off" placeholder="用途・現場名など">
+      </label>
+      <p id="invActionError" class="tm-dialog-err" aria-live="polite"></p>
+      <div class="tm-dialog-actions">
+        <button type="button" id="invActionCancel" class="tm-btn tm-btn-outline">キャンセル</button>
+        <button type="submit" class="tm-btn tm-btn-primary" id="invActionSubmit">実行</button>
+      </div>
+    </form>
+  </dialog>
+
+  <!-- ===== Inventory history Dialog（使用履歴） ===== -->
+  <dialog id="invHistoryDialog" class="tm-dialog">
+    <div class="tm-dialog-form">
+      <h2 class="tm-dialog-title" id="invHistoryTitle">使用履歴</h2>
+      <div id="invHistoryBody" class="tm-inv-history"></div>
+      <div class="tm-dialog-actions">
+        <button type="button" id="invHistoryClose" class="tm-btn tm-btn-primary">閉じる</button>
+      </div>
+    </div>
+  </dialog>
+
   <!-- ===== Admin password Dialog ===== -->
   <dialog id="adminDialog" class="tm-dialog">
     <form id="adminForm" method="dialog" class="tm-dialog-form">
@@ -319,6 +413,6 @@
   </dialog>
 
   <script src="vendor/xlsx.full.min.js"></script>
-  <script src="manual.js?v=26"></script>
+  <script src="manual.js?v=27"></script>
 </body>
 </html>
