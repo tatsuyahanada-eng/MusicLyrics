@@ -768,7 +768,7 @@
         kids.map((c, i) => sortRow(c, i, kids.length)).join('');
     } else if (atRoot) {
       choiceDock.className = 'tm-choicedock tm-cat-grid';
-      choiceDock.innerHTML = invTile + kids.map((c, i) => categoryTile(c, i)).join('');
+      choiceDock.innerHTML = kids.map((c, i) => categoryTile(c, i)).join('') + invTile;
     } else if (kids.length > 0) {
       choiceDock.className = 'tm-choicedock';
       choiceDock.innerHTML = `<div class="tm-choice-label">${depthLabel(navPath.length)}を選択</div>` +
