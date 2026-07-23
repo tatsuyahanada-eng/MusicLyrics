@@ -2044,6 +2044,7 @@
     const isNav = mode === 'nav';
     navReorder = false; // モード切替時は簡易並べ替えを解除
     invOpen = false;    // モード切替時は在庫管理を閉じる
+    invAdmin = false;
     if (invViewEl) invViewEl.hidden = true;
     navView.hidden = !isNav;
     editView.hidden = isNav;
@@ -2077,6 +2078,9 @@
   const INV_ITEMS_KEY = 'treeManual.inv.items.v1';
   const INV_LOGS_KEY = 'treeManual.inv.logs.v1';
   let invItems = [];
+  let invAdmin = false;         // 在庫の管理者編集モード（数量修正・履歴修正・商品編集/削除）
+  let invReturnMode = 'nav';    // 在庫を閉じたときに戻るモード（nav / edit）
+  const invAdminCreds = () => ({ admin: ADMIN_PW }); // 管理者操作の送信用
 
   const invTableWrap = $('#invTableWrap');
   const invMsgEl = $('#invMsg');
@@ -2098,7 +2102,10 @@
     else { invItems = invLoadLocal(); }
   }
 
-  function openInventory() {
+  function openInventory(opts) {
+    opts = opts || {};
+    invReturnMode = !editView.hidden ? 'edit' : 'nav';
+    invAdmin = !!opts.admin;
     invOpen = true;
     navView.hidden = true; if (invViewEl) invViewEl.hidden = false; editView.hidden = true;
     breadcrumbBar.style.display = 'none';
@@ -2109,23 +2116,29 @@
       .catch((e) => { invSetMsg('読み込みに失敗：' + e.message, true); renderInventory(); });
   }
   function closeInventory() {
-    invOpen = false;
-    if (invViewEl) invViewEl.hidden = true;
-    navView.hidden = false;
-    breadcrumbBar.style.display = '';
-    renderNav();
+    invAdmin = false;
+    setMode(invReturnMode === 'edit' ? 'edit' : 'nav'); // invOpen=false・invView非表示・元モードを表示
     syncTrap();
   }
 
   function renderInventory() {
     if (!invTableWrap) return;
+    const adminBar = `<div class="tm-inv-adminbar">
+      ${invAdmin
+        ? '<span class="tm-inv-adminlabel">&#128295; 管理者編集モード（数量・履歴の修正が可能）</span><button class="tm-inv-btn is-plain" data-adm="off" type="button">通常表示に戻す</button>'
+        : '<span class="tm-inv-adminlabel" style="color:var(--tm-muted)">数量や過去履歴の修正には管理者パスワードが必要です</span><button class="tm-inv-btn is-adjust" data-adm="on" type="button">&#128274; 管理者編集</button>'}
+    </div>`;
     if (!invItems.length) {
-      invTableWrap.innerHTML = '<div class="tm-inv-empty">まだ商品が登録されていません。「＋ 商品を追加」から登録してください。</div>';
+      invTableWrap.innerHTML = adminBar + '<div class="tm-inv-empty">まだ商品が登録されていません。「＋ 商品を追加」から登録してください。</div>';
       return;
     }
     const rows = invItems.map((it) => {
       const q = Number(it.qty) || 0;
       const cls = q <= 0 ? 'is-zero' : (q <= 2 ? 'is-low' : 'is-ok');
+      const adminBtns = invAdmin ? `
+          <button class="tm-inv-btn is-adjust" data-act="adjust" data-id="${it.id}" type="button">数量修正</button>
+          <button class="tm-inv-btn is-plain" data-act="edit" data-id="${it.id}" type="button">編集</button>
+          <button class="tm-inv-btn is-danger" data-act="del" data-id="${it.id}" type="button">削除</button>` : '';
       return `<tr>
         <td><div class="tm-inv-name">${esc(it.name)}</div>${it.note ? `<div class="tm-inv-itemnote">${esc(it.note)}</div>` : ''}</td>
         <td><span class="tm-inv-model">${esc(it.model || '—')}</span></td>
@@ -2133,24 +2146,31 @@
         <td><div class="tm-inv-actions">
           <button class="tm-inv-btn is-out" data-act="out" data-id="${it.id}" type="button">− 持ち出し</button>
           <button class="tm-inv-btn is-return" data-act="return" data-id="${it.id}" type="button">＋ 返却</button>
-          <button class="tm-inv-btn is-plain" data-act="history" data-id="${it.id}" type="button">履歴</button>
-          <button class="tm-inv-btn is-plain" data-act="edit" data-id="${it.id}" type="button">編集</button>
+          <button class="tm-inv-btn is-plain" data-act="history" data-id="${it.id}" type="button">履歴</button>${adminBtns}
         </div></td>
       </tr>`;
     }).join('');
-    invTableWrap.innerHTML = `<table class="tm-inv-table">
+    invTableWrap.innerHTML = adminBar + `<table class="tm-inv-table">
       <thead><tr><th>商品名</th><th>型番</th><th>現在個数</th><th>操作</th></tr></thead>
       <tbody>${rows}</tbody></table>`;
+  }
+  async function toggleInvAdmin(on) {
+    if (on) { if (!(await askAdmin())) return; invAdmin = true; }
+    else invAdmin = false;
+    renderInventory();
   }
 
   if (invTableWrap) {
     invTableWrap.addEventListener('click', (e) => {
+      const adm = e.target.closest('[data-adm]');
+      if (adm) { toggleInvAdmin(adm.dataset.adm === 'on'); return; }
       const btn = e.target.closest('[data-act]');
       if (!btn) return;
       const id = btn.dataset.id, act = btn.dataset.act;
       if (act === 'history') openInvHistory(id);
       else if (act === 'edit') openInvItemDialog(id);
-      else openInvActionDialog(id, act);
+      else if (act === 'del') confirmInvDelete(id);
+      else openInvActionDialog(id, act); // out / return / adjust
     });
   }
   $('#invAddBtn').addEventListener('click', () => openInvItemDialog(null));
@@ -2160,6 +2180,12 @@
     catch (e) { invSetMsg('更新に失敗：' + e.message, true); }
   });
   $('#invBackBtn').addEventListener('click', () => closeInventory());
+  // 編集モードから「在庫を修正（管理者）」で在庫を管理者編集モードで開く
+  const invEditBtn = $('#invEditBtn');
+  if (invEditBtn) invEditBtn.addEventListener('click', async () => {
+    if (!(await askAdmin())) return;
+    openInventory({ admin: true });
+  });
 
   /* ---- 在庫: 商品の追加/編集ダイアログ ---- */
   const invItemDialog = $('#invItemDialog');
@@ -2206,45 +2232,61 @@
     finally { btn.disabled = false; }
   });
   $('#invItemCancel').addEventListener('click', () => invItemDialog.close());
-  $('#invItemDelete').addEventListener('click', () => {
-    if (!invEditId) return;
-    const it = invItems.find((x) => x.id === invEditId);
-    askConfirm(`商品「${it ? it.name : ''}」と、その使用履歴を削除しますか？この操作は元に戻せません。`, async () => {
-      try { await invDeleteItem(invEditId); invItemDialog.close(); await invFetch(); renderInventory(); }
-      catch (err) { $('#invItemError').textContent = '削除に失敗：' + err.message; }
+  function confirmInvDelete(id) {
+    const it = invItems.find((x) => x.id === id);
+    if (!it) return;
+    askConfirm(`商品「${it.name}」と、その使用履歴を削除しますか？この操作は元に戻せません。`, async () => {
+      try { await invDeleteItem(id); if (invItemDialog.open) invItemDialog.close(); await invFetch(); renderInventory(); }
+      catch (err) { invSetMsg('削除に失敗：' + err.message, true); }
     }, '削除する');
-  });
+  }
+  $('#invItemDelete').addEventListener('click', () => { if (invEditId) confirmInvDelete(invEditId); });
 
   /* ---- 在庫: 持ち出し/返却/使用ダイアログ ---- */
   const invActionDialog = $('#invActionDialog');
   const invActionForm = $('#invActionForm');
   let invActionId = null, invActionKind = 'out';
-  const INV_KIND_LABEL = { out: '持ち出し', return: '返却（戻す）', use: '使用（消費）' };
+  const INV_KIND_LABEL = { out: '持ち出し', return: '返却（戻す）', use: '使用（消費）', adjust: '数量修正' };
   function setInvKind(kind) {
     invActionKind = kind;
     const box = $('#invActionKind');
     box.querySelectorAll('.tm-inv-kind').forEach((b) => b.classList.toggle('is-active', b.dataset.kind === kind));
     $('#invActionTitle').textContent = INV_KIND_LABEL[kind] || '操作';
     $('#invActionSubmit').textContent = INV_KIND_LABEL[kind] || '実行';
+    const qtyLabel = $('#invActionQtyLabel');
+    if (qtyLabel) qtyLabel.firstChild.textContent = (kind === 'adjust' ? '正しい在庫数（棚卸し） ' : '個数 ');
   }
   function openInvActionDialog(id, kind) {
     const it = invItems.find((x) => x.id === id);
     if (!it) return;
     invActionId = id;
-    $('#invActionItem').textContent = `${it.name}${it.model ? '（' + it.model + '）' : ''} ／ 現在 ${Number(it.qty) || 0} 個`;
-    $('#invActionQty').value = '1';
+    const cur = Number(it.qty) || 0;
+    kind = kind || 'out';
+    $('#invActionItem').textContent = `${it.name}${it.model ? '（' + it.model + '）' : ''} ／ 現在 ${cur} 個`;
+    // 管理者編集モードのときだけ「数量修正」種別を表示
+    const adjBtn = $('#invActionKind').querySelector('[data-kind=adjust]');
+    if (adjBtn) adjBtn.hidden = !invAdmin;
+    $('#invActionQty').value = kind === 'adjust' ? String(cur) : '1';
+    $('#invActionQty').min = kind === 'adjust' ? '0' : '1';
     $('#invActionPerson').value = authorName();
     $('#invActionNote').value = '';
     $('#invActionError').textContent = '';
-    setInvKind(kind || 'out');
+    setInvKind(kind);
     invActionDialog.showModal();
     $('#invActionQty').focus(); $('#invActionQty').select();
   }
-  $('#invActionKind').addEventListener('click', (e) => { const b = e.target.closest('[data-kind]'); if (b) setInvKind(b.dataset.kind); });
+  $('#invActionKind').addEventListener('click', (e) => {
+    const b = e.target.closest('[data-kind]');
+    if (!b) return;
+    setInvKind(b.dataset.kind);
+    if (b.dataset.kind === 'adjust') { const it = invItems.find((x) => x.id === invActionId); $('#invActionQty').value = String(Number(it && it.qty) || 0); $('#invActionQty').min = '0'; }
+    else { $('#invActionQty').min = '1'; }
+  });
   invActionForm.addEventListener('submit', async (e) => {
     e.preventDefault();
-    const qty = parseInt($('#invActionQty').value, 10) || 0;
-    if (qty <= 0) { $('#invActionError').textContent = '個数は1以上を入力してください'; return; }
+    const qty = parseInt($('#invActionQty').value, 10);
+    if (invActionKind !== 'adjust' && (!qty || qty <= 0)) { $('#invActionError').textContent = '個数は1以上を入力してください'; return; }
+    if (invActionKind === 'adjust' && (isNaN(qty) || qty < 0)) { $('#invActionError').textContent = '在庫数は0以上を入力してください'; return; }
     const person = $('#invActionPerson').value.trim();
     const note = $('#invActionNote').value.trim();
     const btn = $('#invActionSubmit');
@@ -2267,30 +2309,102 @@
     const p = (n) => String(n).padStart(2, '0');
     return `${d.getFullYear()}/${p(d.getMonth() + 1)}/${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}`;
   }
+  let invHistoryItemId = null;
+  let invHistoryLogs = [];
   async function openInvHistory(id) {
     const it = invItems.find((x) => x.id === id);
+    invHistoryItemId = id;
     $('#invHistoryTitle').textContent = `使用履歴：${it ? it.name : ''}`;
     const body = $('#invHistoryBody');
     body.innerHTML = '<div class="tm-inv-empty">読み込み中…</div>';
     invHistoryDialog.showModal();
     try {
       const logs = await invFetchHistory(id);
+      invHistoryLogs = logs;
       if (!logs.length) { body.innerHTML = '<div class="tm-inv-empty">履歴はありません。</div>'; return; }
       body.innerHTML = logs.map((l) => {
         const sign = (l.action === 'return' || l.action === 'init') ? '＋'
           : (l.action === 'adjust' ? (Number(l.qty) >= 0 ? '＋' : '−') : '−');
         const qtyAbs = Math.abs(Number(l.qty) || 0);
+        const editRow = invAdmin ? `<span class="tm-inv-logedit">
+          <button type="button" data-logedit="${l.id}">修正</button>
+          <button type="button" data-logdel="${l.id}">削除</button>
+        </span>` : '';
         return `<div class="tm-inv-logrow">
           <span class="tm-inv-when">${invFmtWhen(l.created_at)}</span>
           <span class="tm-inv-badge a-${l.action}">${INV_ACT_LABEL[l.action] || l.action}</span>
           <span class="tm-inv-logmain">${sign}${qtyAbs}個　${esc(l.person || '—')}</span>
           <span class="tm-inv-logbal">残 ${Number(l.balance) || 0}</span>
           ${l.note ? `<span class="tm-inv-lognote">${esc(l.note)}</span>` : ''}
+          ${editRow}
         </div>`;
       }).join('');
     } catch (e) { body.innerHTML = '<div class="tm-inv-empty">履歴の取得に失敗しました。</div>'; }
   }
   $('#invHistoryClose').addEventListener('click', () => invHistoryDialog.close());
+  $('#invHistoryBody').addEventListener('click', (e) => {
+    const ed = e.target.closest('[data-logedit]');
+    if (ed) { openInvLogDialog(ed.dataset.logedit); return; }
+    const dl = e.target.closest('[data-logdel]');
+    if (dl) {
+      askConfirm('この履歴を削除しますか？（在庫数は履歴から再計算されます）', async () => {
+        try { await invLogDelete(dl.dataset.logdel); await refreshHistoryAndTable(); }
+        catch (err) { alert('削除に失敗：' + err.message); }
+      }, '削除する');
+    }
+  });
+  async function refreshHistoryAndTable() {
+    await invFetch(); renderInventory();
+    if (invHistoryItemId) await openInvHistory(invHistoryItemId);
+  }
+
+  /* ---- 在庫: 履歴の修正ダイアログ（管理者） ---- */
+  const invLogDialog = $('#invLogDialog');
+  const invLogForm = $('#invLogForm');
+  let invLogEditId = null;
+  function toLocalInput(ms) {
+    const d = new Date(Number(ms) || 0);
+    if (isNaN(d.getTime())) return '';
+    const p = (n) => String(n).padStart(2, '0');
+    return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}T${p(d.getHours())}:${p(d.getMinutes())}`;
+  }
+  function openInvLogDialog(logId) {
+    const l = invHistoryLogs.find((x) => x.id === logId);
+    if (!l) return;
+    invLogEditId = logId;
+    $('#invLogKind').textContent = `種別：${INV_ACT_LABEL[l.action] || l.action}（持ち出し/使用は減算、返却/初期は加算、調整は差分）`;
+    $('#invLogQty').value = String(Number(l.qty) || 0);
+    $('#invLogPerson').value = l.person || '';
+    $('#invLogWhen').value = toLocalInput(l.created_at);
+    $('#invLogNote').value = l.note || '';
+    $('#invLogError').textContent = '';
+    invLogDialog.showModal();
+  }
+  invLogForm.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const qty = parseInt($('#invLogQty').value, 10);
+    const person = $('#invLogPerson').value.trim();
+    const note = $('#invLogNote').value.trim();
+    const whenVal = $('#invLogWhen').value;
+    const created_at = whenVal ? new Date(whenVal).getTime() : null;
+    const btn = invLogForm.querySelector('button[type=submit]');
+    btn.disabled = true;
+    try {
+      await invLogUpdate(invLogEditId, { qty: isNaN(qty) ? undefined : qty, person, note, created_at });
+      invLogDialog.close();
+      await refreshHistoryAndTable();
+    } catch (err) { $('#invLogError').textContent = '保存に失敗：' + err.message; }
+    finally { btn.disabled = false; }
+  });
+  $('#invLogCancel').addEventListener('click', () => invLogDialog.close());
+  $('#invLogDelete').addEventListener('click', () => {
+    if (!invLogEditId) return;
+    const lid = invLogEditId;
+    askConfirm('この履歴を削除しますか？（在庫数は履歴から再計算されます）', async () => {
+      try { await invLogDelete(lid); invLogDialog.close(); await refreshHistoryAndTable(); }
+      catch (err) { $('#invLogError').textContent = '削除に失敗：' + err.message; }
+    }, '削除する');
+  });
 
   /* ---- 在庫: 操作（サーバー / オフライン） ---- */
   async function invCreateItem({ name, model, note, qty }) {
@@ -2307,7 +2421,7 @@
   }
   async function invUpdateItem(id, { name, model, note }) {
     if (serverMode()) {
-      await apiCall('inv_item_update', { method: 'POST', body: { id, name, model, note } });
+      await apiCall('inv_item_update', { method: 'POST', body: Object.assign({ id, name, model, note }, invAdminCreds()) });
     } else {
       invItems = invLoadLocal();
       const it = invItems.find((x) => x.id === id);
@@ -2316,7 +2430,7 @@
   }
   async function invDeleteItem(id) {
     if (serverMode()) {
-      await apiCall('inv_item_delete', { method: 'POST', body: { id } });
+      await apiCall('inv_item_delete', { method: 'POST', body: Object.assign({ id }, invAdminCreds()) });
     } else {
       invSaveLocal(invLoadLocal().filter((x) => x.id !== id));
       invSaveLogs(invLoadLogs().filter((l) => l.item_id !== id));
@@ -2324,7 +2438,9 @@
   }
   async function invDoAction(id, kind, qty, person, note) {
     if (serverMode()) {
-      await apiCall('inv_action', { method: 'POST', body: { id, action: kind, qty, author: person, note } });
+      const body = { id, action: kind, qty, author: person, note };
+      if (kind === 'adjust') Object.assign(body, invAdminCreds());
+      await apiCall('inv_action', { method: 'POST', body });
     } else {
       invItems = invLoadLocal();
       const it = invItems.find((x) => x.id === id);
@@ -2338,6 +2454,55 @@
       else { newQty = qty < 0 ? 0 : qty; logQty = newQty - cur; }
       it.qty = newQty; it.updated_at = Date.now(); invSaveLocal(invItems);
       invAddLocalLog(id, kind, logQty, newQty, person || authorName(), note);
+    }
+  }
+  // オフライン用：履歴から在庫と残数を再計算
+  function invRecalcLocal(itemId) {
+    const logs = invLoadLogs().filter((l) => l.item_id === itemId)
+      .sort((a, b) => (Number(a.created_at) || 0) - (Number(b.created_at) || 0));
+    let bal = 0;
+    const all = invLoadLogs();
+    logs.forEach((l) => {
+      const n = Number(l.qty) || 0;
+      bal += (l.action === 'out' || l.action === 'use') ? -n : n;
+      const t = all.find((x) => x.id === l.id); if (t) t.balance = bal;
+    });
+    invSaveLogs(all);
+    const items = invLoadLocal();
+    const it = items.find((x) => x.id === itemId);
+    if (it) { it.qty = bal; it.updated_at = Date.now(); invSaveLocal(items); }
+    return bal;
+  }
+  async function invLogUpdate(logId, fields) {
+    if (serverMode()) {
+      const body = Object.assign({ id: logId }, invAdminCreds());
+      if (fields.qty !== undefined) body.qty = fields.qty;
+      if (fields.person !== undefined) body.person = fields.person;
+      if (fields.note !== undefined) body.note = fields.note;
+      if (fields.created_at) body.created_at = fields.created_at;
+      await apiCall('inv_log_update', { method: 'POST', body });
+    } else {
+      const all = invLoadLogs();
+      const l = all.find((x) => x.id === logId);
+      if (!l) throw new Error('履歴が存在しません');
+      if (fields.qty !== undefined) l.qty = fields.qty;
+      if (fields.person !== undefined) l.person = fields.person;
+      if (fields.note !== undefined) l.note = fields.note;
+      if (fields.created_at) l.created_at = fields.created_at;
+      invSaveLogs(all);
+      invRecalcLocal(l.item_id);
+    }
+  }
+  async function invLogDelete(logId) {
+    if (serverMode()) {
+      await apiCall('inv_log_delete', { method: 'POST', body: Object.assign({ id: logId }, invAdminCreds()) });
+    } else {
+      const all = invLoadLogs();
+      const l = all.find((x) => x.id === logId);
+      if (!l) return;
+      const itemId = l.item_id;
+      invSaveLogs(all.filter((x) => x.id !== logId));
+      invRecalcLocal(itemId);
     }
   }
   async function invFetchHistory(id) {

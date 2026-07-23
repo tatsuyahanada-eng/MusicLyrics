@@ -78,6 +78,26 @@ function require_token() {
   $sent = isset($_SERVER['HTTP_X_API_TOKEN']) ? $_SERVER['HTTP_X_API_TOKEN'] : '';
   if (!hash_equals(API_TOKEN, $sent)) fail('編集にはトークンが必要です（合言葉が違います）', 401);
 }
+// 在庫の「修正」系（数量修正・履歴の編集/削除・商品編集/削除）は管理者パスワード必須
+function require_admin($d) {
+  $pw = isset($d['admin']) ? (string)$d['admin'] : '';
+  if (ADMIN_PW === '' || $pw === '' || !hash_equals(ADMIN_PW, $pw)) fail('管理者パスワードが必要です', 403);
+}
+// 履歴から在庫数と各行の残数(balance)を再計算（履歴を修正・削除したとき用）
+function cbc_inv_recalc($pdo, $itemId) {
+  $q = $pdo->prepare('SELECT id, action, qty FROM inv_logs WHERE item_id = ? ORDER BY created_at ASC, id ASC');
+  $q->execute(array($itemId));
+  $bal = 0;
+  $up = $pdo->prepare('UPDATE inv_logs SET balance = ? WHERE id = ?');
+  foreach ($q->fetchAll() as $r) {
+    $n = (int)$r['qty']; $a = $r['action'];
+    if ($a === 'out' || $a === 'use') $bal -= $n;
+    else $bal += $n; // return / init は＋qty、adjust は qty が符号付き差分
+    $up->execute(array($bal, $r['id']));
+  }
+  $pdo->prepare('UPDATE inv_items SET qty = ?, updated_at = ? WHERE id = ?')->execute(array($bal, now_ms(), $itemId));
+  return $bal;
+}
 
 $action = isset($_GET['action']) ? $_GET['action'] : '';
 
@@ -412,6 +432,7 @@ switch ($action) {
   case 'inv_item_update': {
     require_token();
     $d = body_json();
+    require_admin($d);
     if (empty($d['id'])) fail('id は必須です');
     $name = trim(isset($d['name']) ? $d['name'] : '');
     if ($name === '') fail('商品名は必須です');
@@ -425,6 +446,7 @@ switch ($action) {
   case 'inv_item_delete': {
     require_token();
     $d = body_json();
+    require_admin($d);
     if (empty($d['id'])) fail('id は必須です');
     $pdo->beginTransaction();
     $pdo->prepare('DELETE FROM inv_logs WHERE item_id = ?')->execute(array($d['id']));
@@ -441,6 +463,7 @@ switch ($action) {
     $action = isset($d['action']) ? $d['action'] : '';
     $allowed = array('out' => 1, 'return' => 1, 'use' => 1, 'adjust' => 1);
     if (!isset($allowed[$action])) fail('不明な操作です');
+    if ($action === 'adjust') require_admin($d); // 数量の直接修正は管理者のみ
     $qty = isset($d['qty']) ? (int)$d['qty'] : 0;
     if ($qty <= 0 && $action !== 'adjust') fail('個数は1以上を入力してください');
     $person = author_of($d);
@@ -473,6 +496,49 @@ switch ($action) {
     $lg->execute(array(gen_id(), $d['id'], $action, $logQty, $newQty, $person, $note, now_ms()));
     $pdo->commit();
     ok(array('qty' => $newQty));
+  }
+
+  case 'inv_log_update': {
+    // 過去履歴の修正（管理者）。qty/person/note/created_at を更新し、在庫と残数を再計算
+    require_token();
+    $d = body_json();
+    require_admin($d);
+    if (empty($d['id'])) fail('id は必須です');
+    $q = $pdo->prepare('SELECT item_id FROM inv_logs WHERE id = ?');
+    $q->execute(array($d['id']));
+    $itemId = $q->fetchColumn();
+    if ($itemId === false) fail('履歴が存在しません', 404);
+    $sets = array(); $args = array();
+    if (array_key_exists('qty', $d))    { $sets[] = 'qty = ?';        $args[] = (int)$d['qty']; }
+    if (array_key_exists('person', $d)) { $sets[] = 'person = ?';     $args[] = mb_substr(trim((string)$d['person']), 0, 120); }
+    if (array_key_exists('note', $d))   { $sets[] = 'note = ?';       $args[] = mb_substr(trim((string)$d['note']), 0, 255); }
+    if (array_key_exists('created_at', $d) && $d['created_at'] !== '') { $sets[] = 'created_at = ?'; $args[] = (int)$d['created_at']; }
+    if ($sets) {
+      $args[] = $d['id'];
+      $pdo->beginTransaction();
+      $pdo->prepare('UPDATE inv_logs SET ' . implode(', ', $sets) . ' WHERE id = ?')->execute($args);
+      $bal = cbc_inv_recalc($pdo, $itemId);
+      $pdo->commit();
+      ok(array('qty' => $bal));
+    }
+    ok();
+  }
+
+  case 'inv_log_delete': {
+    // 過去履歴の削除（管理者）。在庫と残数を再計算
+    require_token();
+    $d = body_json();
+    require_admin($d);
+    if (empty($d['id'])) fail('id は必須です');
+    $q = $pdo->prepare('SELECT item_id FROM inv_logs WHERE id = ?');
+    $q->execute(array($d['id']));
+    $itemId = $q->fetchColumn();
+    if ($itemId === false) fail('履歴が存在しません', 404);
+    $pdo->beginTransaction();
+    $pdo->prepare('DELETE FROM inv_logs WHERE id = ?')->execute(array($d['id']));
+    $bal = cbc_inv_recalc($pdo, $itemId);
+    $pdo->commit();
+    ok(array('qty' => $bal));
   }
 
   default:

@@ -1277,3 +1277,26 @@ body.tm-dragging .tm-treenode-row { cursor: grabbing; }
 .tm-sr-mark { background: rgba(255, 207, 63, 0.28); color: var(--tm-warn); border-radius: 2px; padding: 0 1px; }
 .tm-sr-tag { font-family: var(--tm-mono); font-size: 10px; padding: 1px 6px; border-radius: 8px; border: 1px solid var(--tm-line); color: var(--tm-muted); margin-left: 6px; }
 .tm-sr-empty { padding: 22px 8px; text-align: center; color: var(--tm-muted); font-size: 13px; }
+
+/* 在庫: 管理者編集モード */
+.tm-inv-adminbar {
+  display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px;
+  padding: 8px 12px; margin-bottom: 10px;
+  background: rgba(255, 90, 110, 0.08); border: 1px solid rgba(255, 90, 110, 0.4); border-radius: 6px;
+}
+.tm-inv-adminbar .tm-inv-adminlabel { font-family: var(--tm-mono); font-size: 12px; color: var(--tm-danger); letter-spacing: .5px; }
+.tm-inv-btn.is-adjust { color: var(--tm-warn); border-color: rgba(255, 207, 63, 0.5); }
+.tm-inv-btn.is-adjust:hover { background: rgba(255, 207, 63, 0.14); }
+.tm-inv-btn.is-danger { color: var(--tm-danger); border-color: rgba(255, 90, 110, 0.5); }
+.tm-inv-btn.is-danger:hover { background: rgba(255, 90, 110, 0.14); }
+.tm-inv-kind-admin.is-active { border-color: var(--tm-warn); background: rgba(255, 207, 63, 0.14); box-shadow: inset 0 0 0 1px var(--tm-warn); color: var(--tm-text); }
+/* 履歴行の修正ボタン */
+.tm-inv-logrow { position: relative; }
+.tm-inv-logedit {
+  grid-column: 1 / -1; display: flex; gap: 6px; margin-top: 4px;
+}
+.tm-inv-logedit button {
+  font-family: var(--tm-mono); font-size: 11px; padding: 3px 9px; border-radius: 4px; cursor: pointer;
+  background: transparent; border: 1px solid var(--tm-line); color: var(--tm-muted);
+}
+.tm-inv-logedit button:hover { color: var(--tm-cyan); border-color: var(--tm-line-strong); }
