@@ -9,7 +9,7 @@
   <link rel="manifest" href="manifest.webmanifest">
   <link rel="icon" href="icon.svg" type="image/svg+xml">
   <link rel="apple-touch-icon" href="icon-192.png">
-  <link rel="stylesheet" href="manual.css?v=26">
+  <link rel="stylesheet" href="manual.css?v=27">
 </head>
 <body class="tm-body">
 
@@ -21,6 +21,9 @@
         <span id="connChip" class="tm-connchip" title="データの共有状態"></span></span>
     </div>
     <nav class="tm-header-nav">
+      <button id="searchBtn" class="tm-navbtn tm-searchbtn" type="button" title="キーワードで検索">
+        <span class="tm-navbtn-ico">&#128269;</span> <span class="tm-searchbtn-label">検索</span>
+      </button>
       <button id="navModeBtn" class="tm-navbtn is-active" data-mode="nav" type="button">
         <span class="tm-navbtn-ico">&#9673;</span> 案内モード
       </button>
@@ -293,6 +296,20 @@
     </form>
   </dialog>
 
+  <!-- ===== Search Dialog（キーワード検索） ===== -->
+  <dialog id="searchDialog" class="tm-dialog tm-search-dialog">
+    <div class="tm-dialog-form tm-search-form">
+      <div class="tm-search-head">
+        <span class="tm-search-ico">&#128269;</span>
+        <input id="searchInput" class="tm-input tm-search-input" type="search" autocomplete="off"
+          placeholder="キーワードを入力（商品名・手順・説明など）" aria-label="検索">
+        <button type="button" id="searchClose" class="tm-btn tm-btn-outline tm-search-closebtn">閉じる</button>
+      </div>
+      <div id="searchMeta" class="tm-search-meta"></div>
+      <div id="searchResults" class="tm-search-results"></div>
+    </div>
+  </dialog>
+
   <!-- ===== Inventory item Dialog（商品の追加・編集） ===== -->
   <dialog id="invItemDialog" class="tm-dialog">
     <form id="invItemForm" class="tm-dialog-form">
@@ -413,6 +430,6 @@
   </dialog>
 
   <script src="vendor/xlsx.full.min.js"></script>
-  <script src="manual.js?v=27"></script>
+  <script src="manual.js?v=28"></script>
 </body>
 </html>

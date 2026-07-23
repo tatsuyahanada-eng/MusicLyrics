@@ -633,6 +633,7 @@
   let navPath = [];
   let navReorder = false; // 案内モードの簡易並べ替えモード
   let invOpen = false;    // 在庫管理ビューを開いているか
+  let searchOpen = false; // 検索ダイアログを開いているか
 
   function currentChildren() {
     if (navPath.length === 0) return tree;
@@ -797,7 +798,7 @@
   let trapped = false;    // センチネルを積んでいるか
   let absorbPop = false;  // 直後の1回の popstate を無視（プログラム的 back 用）
   try { history.replaceState({ cbcBase: 1 }, ''); } catch (_) {}
-  function needTrap() { return navPath.length > 0 || !editView.hidden || navReorder || invOpen; }
+  function needTrap() { return navPath.length > 0 || !editView.hidden || navReorder || invOpen || searchOpen; }
   function syncTrap() {
     if (needTrap()) {
       if (!trapped) { try { history.pushState({ cbc: 1 }, ''); trapped = true; } catch (_) {} }
@@ -2348,6 +2349,147 @@
     logs.sort((a, b) => (Number(b.created_at) || 0) - (Number(a.created_at) || 0));
     return logs;
   }
+
+  /* ============================================================
+     検索（キーワード）— どのページからでも利用可
+     ============================================================ */
+  const searchDialog = $('#searchDialog');
+  const searchInput = $('#searchInput');
+  const searchResultsEl = $('#searchResults');
+  const searchMetaEl = $('#searchMeta');
+  let searchResultData = [];
+
+  // 一致部分を <mark> で強調（エスケープ済み）
+  function highlightHtml(text, q) {
+    const s = String(text);
+    if (!q) return esc(s);
+    const lower = s.toLowerCase(), ql = q.toLowerCase();
+    let out = '', i = 0;
+    for (;;) {
+      const idx = lower.indexOf(ql, i);
+      if (idx < 0) { out += esc(s.slice(i)); break; }
+      out += esc(s.slice(i, idx)) + '<mark class="tm-sr-mark">' + esc(s.slice(idx, idx + ql.length)) + '</mark>';
+      i = idx + ql.length;
+    }
+    return out;
+  }
+  function makeSnippet(plain, q) {
+    const ql = q.toLowerCase();
+    const idx = plain.toLowerCase().indexOf(ql);
+    if (idx < 0) return plain.slice(0, 70);
+    const start = Math.max(0, idx - 26);
+    const end = Math.min(plain.length, idx + q.length + 44);
+    return (start > 0 ? '…' : '') + plain.slice(start, end) + (end < plain.length ? '…' : '');
+  }
+  function searchAll(query) {
+    const q = query.trim();
+    if (!q) return [];
+    const ql = q.toLowerCase();
+    const out = [];
+    const walk = (nodes, pathTitles, pathIds) => {
+      for (const n of nodes) {
+        const title = n.title || '';
+        const inTitle = title.toLowerCase().includes(ql);
+        const bodyPlain = htmlToPlain(n.body || '');
+        const inBody = bodyPlain.toLowerCase().includes(ql);
+        if (inTitle || inBody) {
+          out.push({
+            kind: 'node', id: n.id, title,
+            pathTitles: pathTitles.slice(), idPath: pathIds.concat(n.id),
+            locked: isLocked(n), snippet: inBody ? makeSnippet(bodyPlain, q) : '',
+          });
+        }
+        if (n.children && n.children.length) walk(n.children, pathTitles.concat(title), pathIds.concat(n.id));
+      }
+    };
+    walk(tree, [], []);
+    // 在庫（商品名・型番・メモ）も対象
+    (invItems || []).forEach((it) => {
+      const hay = ((it.name || '') + ' ' + (it.model || '') + ' ' + (it.note || '')).toLowerCase();
+      if (hay.includes(ql)) out.push({ kind: 'inv', title: it.name || '', model: it.model || '', qty: it.qty });
+    });
+    return out;
+  }
+  function renderSearchResults() {
+    const q = searchInput.value;
+    if (!q.trim()) {
+      searchMetaEl.textContent = '';
+      searchResultsEl.innerHTML = '<div class="tm-sr-empty">キーワードを入力すると、一致する項目（と在庫商品）を探します。<br>結果には、その項目がどの階層にあるかも表示されます。</div>';
+      searchResultData = [];
+      return;
+    }
+    const results = searchAll(q);
+    searchResultData = results;
+    searchMetaEl.textContent = `${results.length} 件ヒット`;
+    if (!results.length) {
+      searchResultsEl.innerHTML = '<div class="tm-sr-empty">一致する項目は見つかりませんでした。</div>';
+      return;
+    }
+    searchResultsEl.innerHTML = results.slice(0, 100).map((r, i) => {
+      if (r.kind === 'inv') {
+        return `<button class="tm-sr-item is-inv" data-idx="${i}" type="button">
+          <div class="tm-sr-path"><span class="tm-sr-root">&#128230; 在庫管理</span></div>
+          <div class="tm-sr-title">${highlightHtml(r.title, q)}${r.model ? `<span class="tm-sr-tag">${esc(r.model)}</span>` : ''}<span class="tm-sr-tag">在庫 ${Number(r.qty) || 0}</span></div>
+        </button>`;
+      }
+      const pathHtml = '<span class="tm-sr-root">TOP</span>' +
+        r.pathTitles.map((t) => `<span class="tm-sr-sep">&#8250;</span><span class="tm-sr-seg">${esc(t)}</span>`).join('');
+      return `<button class="tm-sr-item" data-idx="${i}" type="button">
+        <div class="tm-sr-path">${pathHtml}</div>
+        <div class="tm-sr-title">${highlightHtml(r.title, q)}${r.locked ? '<span class="tm-sr-tag">&#128274;</span>' : ''}</div>
+        ${r.snippet ? `<div class="tm-sr-snippet">${highlightHtml(r.snippet, q)}</div>` : ''}
+      </button>`;
+    }).join('');
+  }
+
+  function openSearch() {
+    searchOpen = true;
+    searchInput.value = '';
+    renderSearchResults();
+    searchDialog.showModal();
+    syncTrap();
+    setTimeout(() => searchInput.focus(), 30);
+    // 在庫商品も検索対象にするため、サーバー接続時は最新を取得（ベストエフォート）
+    if (serverMode()) { invFetch().then(() => { if (searchOpen) renderSearchResults(); }).catch(() => {}); }
+  }
+  let searchDebounce = null;
+  searchInput.addEventListener('input', () => {
+    clearTimeout(searchDebounce);
+    searchDebounce = setTimeout(renderSearchResults, 110);
+  });
+  searchResultsEl.addEventListener('click', (e) => {
+    const el = e.target.closest('.tm-sr-item');
+    if (!el) return;
+    const r = searchResultData[parseInt(el.dataset.idx, 10)];
+    if (!r) return;
+    if (r.kind === 'inv') { closeSearchThen(() => openInventory()); return; }
+    gotoNodePath(r.idPath);
+  });
+  function closeSearchThen(after) {
+    searchOpen = false;
+    if (searchDialog.open) searchDialog.close();
+    if (after) after();
+  }
+  async function gotoNodePath(idPath) {
+    // ロックされた祖先はパスワードを確認しながら辿る
+    const newPath = [];
+    for (const id of idPath) {
+      const node = findNode(id);
+      if (!node) break;
+      if (isLocked(node)) { if (!(await ensureUnlocked(node))) break; }
+      newPath.push(id);
+    }
+    searchOpen = false;
+    setMode('nav');
+    navPath = newPath;
+    renderNav();
+    if (searchDialog.open) searchDialog.close();
+    syncTrap();
+  }
+  // ダイアログが閉じられたら（ボタン・Escape・戻る いずれでも）状態を同期
+  searchDialog.addEventListener('close', () => { searchOpen = false; syncTrap(); });
+  $('#searchBtn').addEventListener('click', openSearch);
+  $('#searchClose').addEventListener('click', () => searchDialog.close());
 
   /* ============================================================
      PWA
