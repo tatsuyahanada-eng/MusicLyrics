@@ -634,6 +634,7 @@
   let navReorder = false; // 案内モードの簡易並べ替えモード
   let invOpen = false;    // 在庫管理ビューを開いているか
   let searchOpen = false; // 検索ダイアログを開いているか
+  let updatesOpen = false; // 更新履歴ダイアログを開いているか
 
   function currentChildren() {
     if (navPath.length === 0) return tree;
@@ -798,7 +799,7 @@
   let trapped = false;    // センチネルを積んでいるか
   let absorbPop = false;  // 直後の1回の popstate を無視（プログラム的 back 用）
   try { history.replaceState({ cbcBase: 1 }, ''); } catch (_) {}
-  function needTrap() { return navPath.length > 0 || !editView.hidden || navReorder || invOpen || searchOpen; }
+  function needTrap() { return navPath.length > 0 || !editView.hidden || navReorder || invOpen || searchOpen || updatesOpen; }
   function syncTrap() {
     if (needTrap()) {
       if (!trapped) { try { history.pushState({ cbc: 1 }, ''); trapped = true; } catch (_) {} }
@@ -2644,17 +2645,97 @@
       if (isLocked(node)) { if (!(await ensureUnlocked(node))) break; }
       newPath.push(id);
     }
-    searchOpen = false;
+    searchOpen = false; updatesOpen = false;
     setMode('nav');
     navPath = newPath;
     renderNav();
     if (searchDialog.open) searchDialog.close();
+    if (updatesDialog.open) updatesDialog.close();
     syncTrap();
   }
   // ダイアログが閉じられたら（ボタン・Escape・戻る いずれでも）状態を同期
   searchDialog.addEventListener('close', () => { searchOpen = false; syncTrap(); });
   $('#searchBtn').addEventListener('click', openSearch);
   $('#searchClose').addEventListener('click', () => searchDialog.close());
+
+  /* ============================================================
+     更新履歴（新規登録・更新のバックナンバー）
+     ============================================================ */
+  const updatesDialog = $('#updatesDialog');
+  const updatesResultsEl = $('#updatesResults');
+  const updatesMetaEl = $('#updatesMeta');
+  let updatesData = [];
+  function updFmtWhen(ms) {
+    const d = new Date(Number(ms) || 0);
+    if (isNaN(d.getTime())) return '';
+    const p = (n) => String(n).padStart(2, '0');
+    return `${p(d.getHours())}:${p(d.getMinutes())}`;
+  }
+  function updFmtDay(ms) {
+    const d = new Date(Number(ms) || 0);
+    if (isNaN(d.getTime())) return '日付なし';
+    const p = (n) => String(n).padStart(2, '0');
+    const w = ['日', '月', '火', '水', '木', '金', '土'][d.getDay()];
+    return `${d.getFullYear()}/${p(d.getMonth() + 1)}/${p(d.getDate())}（${w}）`;
+  }
+  function buildRecentUpdates() {
+    const out = [];
+    const walk = (nodes, pathTitles, pathIds) => {
+      for (const n of nodes) {
+        const ua = Number(n.updated_at) || 0, ca = Number(n.created_at) || 0;
+        const when = ua || ca;
+        const isNew = !ca || ua <= ca; // 作成後に更新されていなければ「新規」
+        out.push({
+          id: n.id, title: n.title || '', pathTitles: pathTitles.slice(), idPath: pathIds.concat(n.id),
+          when, isNew, locked: isLocked(n),
+          who: (isNew ? (n.created_by || n.updated_by) : (n.updated_by || n.created_by)) || '',
+        });
+        if (n.children && n.children.length) walk(n.children, pathTitles.concat(n.title || ''), pathIds.concat(n.id));
+      }
+    };
+    walk(tree, [], []);
+    out.sort((a, b) => (b.when || 0) - (a.when || 0));
+    return out;
+  }
+  function renderUpdates() {
+    const list = buildRecentUpdates();
+    updatesData = list;
+    if (!list.length) {
+      updatesMetaEl.textContent = '';
+      updatesResultsEl.innerHTML = '<div class="tm-sr-empty">まだ登録・更新の履歴はありません。</div>';
+      return;
+    }
+    updatesMetaEl.textContent = `直近の登録・更新（新しい順・最大80件）`;
+    const top = list.slice(0, 80);
+    let html = '', lastDay = '';
+    top.forEach((r, i) => {
+      const day = updFmtDay(r.when);
+      if (day !== lastDay) { html += `<div class="tm-upd-day">${day}</div>`; lastDay = day; }
+      const pathHtml = '<span class="tm-sr-root">TOP</span>' +
+        r.pathTitles.map((t) => `<span class="tm-sr-sep">&#8250;</span><span class="tm-sr-seg">${esc(t)}</span>`).join('');
+      html += `<button class="tm-sr-item" data-idx="${i}" type="button">
+        <div class="tm-sr-path">${pathHtml}</div>
+        <div class="tm-sr-title">${esc(r.title)}${r.locked ? ' &#128274;' : ''} <span class="tm-sr-tag ${r.isNew ? 'is-new' : 'is-upd'}">${r.isNew ? '新規' : '更新'}</span></div>
+        <div class="tm-sr-snippet">${r.who ? esc(r.who) + '　' : ''}${updFmtWhen(r.when)}</div>
+      </button>`;
+    });
+    updatesResultsEl.innerHTML = html;
+  }
+  function openUpdates() {
+    updatesOpen = true;
+    renderUpdates();
+    updatesDialog.showModal();
+    syncTrap();
+  }
+  updatesResultsEl.addEventListener('click', (e) => {
+    const el = e.target.closest('.tm-sr-item');
+    if (!el) return;
+    const r = updatesData[parseInt(el.dataset.idx, 10)];
+    if (r) gotoNodePath(r.idPath);
+  });
+  updatesDialog.addEventListener('close', () => { updatesOpen = false; syncTrap(); });
+  $('#updatesBtn').addEventListener('click', openUpdates);
+  $('#updatesClose').addEventListener('click', () => updatesDialog.close());
 
   /* ============================================================
      PWA

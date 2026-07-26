@@ -752,8 +752,9 @@ body.tm-dragging .tm-sortrow { cursor: grabbing; }
 }
 .tm-ghostbtn:hover { color: var(--tm-cyan); border-color: var(--tm-line-strong); }
 
-/* 「一つ戻る／最初から」を蛍光色で目立たせる */
-.tm-navctrls #backBtn {
+/* 「一つ戻る／大項目へ戻る」を蛍光色で目立たせる（戻る系は同じ色に統一） */
+.tm-navctrls #backBtn,
+.tm-navctrls #invBackBtn {
   font-size: 13px;
   font-weight: 700;
   color: #051417;
@@ -761,7 +762,8 @@ body.tm-dragging .tm-sortrow { cursor: grabbing; }
   border-color: var(--tm-cyan);
   box-shadow: 0 0 14px rgba(63, 224, 224, 0.55);
 }
-.tm-navctrls #backBtn:hover { filter: brightness(1.12); box-shadow: 0 0 20px rgba(63, 224, 224, 0.8); }
+.tm-navctrls #backBtn:hover,
+.tm-navctrls #invBackBtn:hover { filter: brightness(1.12); box-shadow: 0 0 20px rgba(63, 224, 224, 0.8); }
 .tm-navctrls #backBtn:disabled {
   color: var(--tm-muted);
   background: transparent;
@@ -1245,7 +1247,6 @@ body.tm-dragging .tm-treenode-row { cursor: grabbing; }
    ============================================================ */
 .tm-searchbtn { color: var(--tm-warn); border-color: rgba(255, 207, 63, 0.45); }
 .tm-searchbtn:hover { background: rgba(255, 207, 63, 0.12); box-shadow: 0 0 12px rgba(255, 207, 63, 0.25); }
-@media (max-width: 520px) { .tm-searchbtn-label { display: none; } }
 
 .tm-search-dialog { width: min(680px, 94vw); max-width: 94vw; }
 .tm-search-form { gap: 12px; }
@@ -1300,3 +1301,18 @@ body.tm-dragging .tm-treenode-row { cursor: grabbing; }
   background: transparent; border: 1px solid var(--tm-line); color: var(--tm-muted);
 }
 .tm-inv-logedit button:hover { color: var(--tm-cyan); border-color: var(--tm-line-strong); }
+
+/* 更新履歴（バックナンバー） */
+.tm-header-nav { flex-wrap: wrap; }
+.tm-updatesbtn { color: var(--tm-cyan); border-color: var(--tm-line-strong); }
+.tm-updatesbtn:hover { background: rgba(63, 224, 224, 0.12); box-shadow: 0 0 12px rgba(63, 224, 224, 0.22); }
+.tm-updates-title { flex: 1; min-width: 0; margin: 0; font-size: 16px; color: var(--tm-cyan); letter-spacing: 1px; }
+.tm-upd-day {
+  position: sticky; top: 0;
+  font-family: var(--tm-mono); font-size: 12px; letter-spacing: 1px;
+  color: var(--tm-warn); background: var(--tm-panel-solid);
+  padding: 6px 4px; margin: 4px 0 2px; border-bottom: 1px dashed var(--tm-line);
+}
+.tm-upd-day:first-child { margin-top: 0; }
+.tm-sr-tag.is-new { color: var(--tm-cyan); border-color: var(--tm-line-strong); }
+.tm-sr-tag.is-upd { color: var(--tm-warn); border-color: rgba(255, 207, 63, 0.5); }
