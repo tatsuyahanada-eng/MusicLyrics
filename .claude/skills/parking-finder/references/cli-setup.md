@@ -6,7 +6,7 @@ parking-finder を「PC(CLI)」と「スマホ(アプリ/ブラウザ)」の両�
 
 ## 大前提:どこで動くか
 
-このスキルは **Claude Code**（リポジトリ内のスキル定義＋カレンダー連携）で動く。
+このスキルは **Claude Code**（リポジトリ内スクリプト実行＋環境変数＋カレンダー連携）で動く。
 **普通の claude.ai チャットでは動かない**（コード実行やリポジトリを持たないため）。
 
 | 実行場所 | PC | スマホ |
@@ -35,7 +35,13 @@ cd MusicLyrics
 # スキルは .claude/skills/parking-finder に入っている
 ```
 
-### 3. Google カレンダーを接続（どちらか）
+### 3. Google Maps API キーを環境変数に設定（永続化）
+```bash
+echo 'export GOOGLE_MAPS_API_KEY="AIza...（自分のキー）"' >> ~/.zshrc   # bash なら ~/.bashrc
+source ~/.zshrc
+```
+
+### 4. Google カレンダーを接続（どちらか）
 - **かんたん:Claude Desktop のコネクタを使う**
   Claude Desktop の 設定 → コネクタ で Google Calendar を接続すると、その MCP がツールとして使える。
 - **CLI で MCP サーバーを追加**（例）
@@ -47,7 +53,7 @@ cd MusicLyrics
   ※ MCP の種類・認証方法は変わりやすいので公式ドキュメントを参照:
   https://developers.google.com/workspace/calendar/api/guides/configure-mcp-server
 
-### 4. 実行
+### 5. 実行
 `MusicLyrics` ディレクトリで `claude` を起動し、チャットに:
 ```
 /parking-finder 7/23 その他業務
@@ -65,14 +71,15 @@ CLI はスマホでは動かないので、スマホからは **Claude アプリ
 3. チャットに `/parking-finder 7/23 その他業務`（または自然文）
 
 前提（web 環境で一度設定すれば全デバイス共通）:
-- **Google カレンダー**をこのチャットで有効化（接続はアカウント共通。まれに接続が切れたら、セッションを開き直す）。外部 API キーの設定は不要。
+- **環境変数 `GOOGLE_MAPS_API_KEY`** を web の Environment 設定に登録 → PC/スマホの web セッション全部に反映
+- **Google カレンダー**をこのチャットで有効化（接続はアカウント共通。まれに接続が切れたら、セッションを開き直す）
 
 ---
 
 ## おすすめの運用
 
 - **基本はスマホ・PC 共通で Claude Code on the web**。理由:
-  - スキルはリポジトリ共有、Google カレンダー接続だけで動く → **PC でもスマホでも同じ 1 コマンド**で動く
+  - スキルはリポジトリ共有、Maps キーは環境変数で一度きり設定 → **PC でもスマホでも同じ 1 コマンド**で動く
   - スマホから唯一動くのも web
 - **PC でガッツリ・高速に**やりたいときだけ **CLI** を追加で使う（安定・速い）。
 
