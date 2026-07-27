@@ -2040,7 +2040,10 @@ body.theme-light .ly-fs-offset .ly-offset-val { color: #be185d; }
         with heavy backdrop-blur then blurs THAT — same recipe as
         the reference image (photo → frosted panel → text). ---- */
 
-/* The frosted pane itself */
+/* The clear glass pane itself — the material fill is nearly gone
+   and the blur is light, so the FX behind reads crisply through
+   the pane; the "it's glass" cue comes from a thick bright rim,
+   a diagonal specular sheen, and a deep floating drop shadow. */
 body.theme-glass #stage::before {
   content: '';
   position: absolute;
@@ -2048,21 +2051,40 @@ body.theme-glass #stage::before {
   z-index: 1;
   pointer-events: none;
   border-radius: 20px;
-  /* Semi-opaque white fill — the pane's own material substance */
-  background: rgba(255, 255, 255, 0.12);
-  /* Heavy blur so the FX behind reads as soft coloured haze — the
-     "cherry-blossoms-through-frost" effect. */
-  backdrop-filter: blur(30px) saturate(180%);
-  -webkit-backdrop-filter: blur(30px) saturate(180%);
-  /* Thin light border — the Big Sur / iOS 15 glass rim */
-  border: 1px solid rgba(255, 255, 255, 0.28);
+  background:
+    /* Diagonal specular sheen — the strongest "this is glass"
+       cue, borrowed from the Adobe-Illustrator reference. */
+    linear-gradient(118deg,
+      transparent 30%,
+      rgba(255, 255, 255, 0.06) 43%,
+      rgba(255, 255, 255, 0.32) 50%,
+      rgba(255, 255, 255, 0.06) 57%,
+      transparent 70%),
+    /* Bright top-left corner reflection */
+    radial-gradient(ellipse 55% 45% at 14% 10%,
+      rgba(255, 255, 255, 0.22) 0%, transparent 65%),
+    /* Barely-there milky base so the pane still has some body */
+    rgba(255, 255, 255, 0.04);
+  /* Light blur — softens the FX just enough to say "glass" while
+     letting rings / bubbles / clouds still read clearly. */
+  backdrop-filter: blur(6px) saturate(140%);
+  -webkit-backdrop-filter: blur(6px) saturate(140%);
+  /* Thick bright rim — the pane reads as a substantial sheet. */
+  border: 1.5px solid rgba(255, 255, 255, 0.55);
   box-shadow:
-    /* Deep soft drop shadow — the pane floats above the FX layer */
-    0 10px 34px rgba(0, 0, 0, 0.42),
-    /* Bright top-edge inner highlight — catches light on the rim */
-    inset 0 1px 0 rgba(255, 255, 255, 0.42),
-    /* Soft dark bottom rim — depth cue */
-    inset 0 -1px 0 rgba(0, 0, 0, 0.20);
+    /* Deep floating drop shadow */
+    0 14px 44px rgba(0, 0, 0, 0.55),
+    0 4px 12px rgba(0, 0, 0, 0.30),
+    /* Very bright top-edge highlight — where light catches the rim */
+    inset 0 2px 0 rgba(255, 255, 255, 0.75),
+    /* Left-edge highlight */
+    inset 2px 0 0 rgba(255, 255, 255, 0.28),
+    /* Dark bottom rim — glass thickness cue */
+    inset 0 -1.5px 0 rgba(0, 0, 0, 0.35),
+    /* Dark right rim — matches the bottom */
+    inset -1.5px 0 0 rgba(0, 0, 0, 0.22),
+    /* Faint inner glow — subtle glass-body cue */
+    inset 0 0 32px rgba(255, 255, 255, 0.08);
 }
 /* Karaoke mode: tighten inset + soften shadow so it doesn't
    duplicate the karaoke-area's own outer shadow. */
@@ -2070,9 +2092,12 @@ body.theme-glass.karaoke-mode #stage::before {
   inset: 10px;
   border-radius: 16px;
   box-shadow:
-    0 6px 24px rgba(0, 0, 0, 0.34),
-    inset 0 1px 0 rgba(255, 255, 255, 0.36),
-    inset 0 -1px 0 rgba(0, 0, 0, 0.18);
+    0 8px 28px rgba(0, 0, 0, 0.42),
+    inset 0 2px 0 rgba(255, 255, 255, 0.65),
+    inset 2px 0 0 rgba(255, 255, 255, 0.22),
+    inset 0 -1.5px 0 rgba(0, 0, 0, 0.30),
+    inset -1.5px 0 0 rgba(0, 0, 0, 0.18),
+    inset 0 0 28px rgba(255, 255, 255, 0.06);
 }
 /* Lyrics-only fullscreen: give the pane more breathing room */
 body.theme-glass.lyrics-fs #stage::before {

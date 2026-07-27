@@ -1,5 +1,5 @@
 /* Music Lyrics — service worker (app-shell cache) */
-const CACHE = 'music-lyrics-v78';
+const CACHE = 'music-lyrics-v79';
 const SHELL = [
   './',
   './lyrics.html',
