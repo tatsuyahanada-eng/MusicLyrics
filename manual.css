@@ -1164,9 +1164,29 @@ body.tm-dragging .tm-treenode-row { cursor: grabbing; }
 /* ---------- Responsive ---------- */
 @media (max-width: 560px) {
   .tm-header { justify-content: center; text-align: center; }
-  .tm-header-nav { width: 100%; justify-content: center; }
+  /* 上部ボタンはなるべく1行に収める（折り返さず均等に並べる） */
+  .tm-header-nav {
+    width: 100%;
+    flex-wrap: nowrap;
+    justify-content: space-between;
+    gap: 6px;
+  }
+  .tm-navbtn {
+    flex: 1 1 0;
+    min-width: 0;
+    padding: 8px 4px;
+    font-size: 12px;
+    letter-spacing: 0;
+    text-align: center;
+    white-space: nowrap;
+  }
+  .tm-navbtn-ico { margin-right: 2px; }
   .tm-msg { max-width: 100%; }
   .tm-choice { padding-left: 36px; }
+}
+@media (max-width: 360px) {
+  .tm-navbtn { font-size: 11px; }
+  .tm-navbtn-ico { display: none; } /* 極小画面ではアイコンを隠して文字を優先 */
 }
 
 /* ============================================================
@@ -1306,6 +1326,19 @@ body.tm-dragging .tm-treenode-row { cursor: grabbing; }
 .tm-header-nav { flex-wrap: wrap; }
 .tm-updatesbtn { color: var(--tm-cyan); border-color: var(--tm-line-strong); }
 .tm-updatesbtn:hover { background: rgba(63, 224, 224, 0.12); box-shadow: 0 0 12px rgba(63, 224, 224, 0.22); }
+/* 直近3日以内に更新があればピンクで強調 */
+.tm-updatesbtn.is-fresh {
+  color: #14060d;
+  background: #ff5ea8;
+  border-color: #ff5ea8;
+  box-shadow: 0 0 14px rgba(255, 94, 168, 0.6);
+  animation: tm-fresh-pulse 1.8s ease-in-out infinite;
+}
+.tm-updatesbtn.is-fresh:hover { background: #ff7ab6; box-shadow: 0 0 20px rgba(255, 94, 168, 0.85); }
+@keyframes tm-fresh-pulse {
+  0%, 100% { box-shadow: 0 0 12px rgba(255, 94, 168, 0.5); }
+  50% { box-shadow: 0 0 20px rgba(255, 94, 168, 0.95); }
+}
 .tm-updates-title { flex: 1; min-width: 0; margin: 0; font-size: 16px; color: var(--tm-cyan); letter-spacing: 1px; }
 .tm-upd-day {
   position: sticky; top: 0;

@@ -693,6 +693,7 @@
   }
 
   function renderNav() {
+    refreshUpdatesBadge();
     // DB未接続（サーバーには繋がるがDBに接続できない）ときは項目を出さずエラー表示
     if (serverAvailable && !dbConnected) {
       breadcrumbBar.innerHTML = `<span class="tm-crumb is-current" data-crumb-home>TOP</span>`;
@@ -722,7 +723,7 @@
       html = `<div class="tm-hero">
         <div class="tm-hero-kicker">MANUAL NAVIGATOR</div>
         <h1 class="tm-hero-title">大項目を選択</h1>
-        <p class="tm-hero-sub">当てはまるカテゴリを選ぶと、順に絞り込んで作業手順まで案内します。</p>
+        <p class="tm-hero-sub">該当のカテゴリを選択してください。</p>
       </div>`;
     } else if (curNode) {
       const leaf = kids.length === 0;
@@ -998,6 +999,7 @@
   }
 
   function renderEdit() {
+    refreshUpdatesBadge();
     if (tree.length === 0) {
       editTree.innerHTML =
         '<div class="tm-emptynote">まだカテゴリがありません。「大項目（カテゴリ）を追加」から始めてください。</div>';
@@ -2726,6 +2728,25 @@
     renderUpdates();
     updatesDialog.showModal();
     syncTrap();
+  }
+  // 直近3日以内に登録・更新があれば履歴ボタンをピンクで強調
+  function anyRecentUpdate() {
+    const cutoff = Date.now() - 3 * 24 * 3600 * 1000;
+    let found = false;
+    const walk = (arr) => {
+      for (const n of arr) {
+        if (found) return;
+        const t = Number(n.updated_at) || Number(n.created_at) || 0;
+        if (t >= cutoff) { found = true; return; }
+        if (n.children && n.children.length) walk(n.children);
+      }
+    };
+    walk(tree);
+    return found;
+  }
+  function refreshUpdatesBadge() {
+    const btn = $('#updatesBtn');
+    if (btn) btn.classList.toggle('is-fresh', anyRecentUpdate());
   }
   updatesResultsEl.addEventListener('click', (e) => {
     const el = e.target.closest('.tm-sr-item');
