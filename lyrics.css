@@ -2033,64 +2033,61 @@ body.theme-light .ly-fs-offset .ly-bar-label,
 body.theme-light .ly-fs-offset .ly-offset-end,
 body.theme-light .ly-fs-offset .ly-offset-val { color: #be185d; }
 
-/* ---- Glass colour theme — a truly clear acrylic panel modelled
-        after transparent-OLED displays (Pixie Dust Persephone,
-        SCREENBOX). Almost no frost; the pane is defined by its
-        bright rim highlights and a diagonal specular reflection
-        streak, so whatever is behind (rings, water, clouds, none)
-        stays clearly visible through it. ---- */
+/* ---- Glass colour theme — proper glassmorphism (すりガラス). A
+        vivid colourful backdrop sits behind a floating frosted
+        pane: heavy backdrop-filter blur (26 px + 180% saturation)
+        + a translucent white fill + a hair-thin light border +
+        a soft deep drop shadow. The pane is inset 14 px so the
+        rounded corners and the shadow really read as a floating
+        sheet of glass rather than a full-bleed wash. ---- */
 body.theme-glass #stage,
 body.theme-glass.lyrics-fs #stage,
 body.theme-glass.karaoke-mode #stage {
   position: relative;
-  /* Slightly lifted neutral backdrop — bright enough that the
-     pane and its rim can be seen while the FX (rings / water /
-     clouds / …) still stay recognisable through the glass. */
+  /* Vivid abstract blobs — these are what you see through the
+     frost, so the glass has real colour behind it. */
   background:
-    radial-gradient(circle at 25% 25%, rgba(96, 122, 168, 0.42) 0%, transparent 55%),
-    radial-gradient(circle at 75% 75%, rgba(60, 80, 130, 0.38) 0%, transparent 55%),
-    linear-gradient(180deg, #26324e 0%, #182238 100%);
+    radial-gradient(circle at 22% 26%, rgba(139, 92, 246, 0.55) 0%, transparent 42%),
+    radial-gradient(circle at 78% 20%, rgba(236, 72, 153, 0.50) 0%, transparent 40%),
+    radial-gradient(circle at 82% 78%, rgba(59, 130, 246, 0.55) 0%, transparent 44%),
+    radial-gradient(circle at 20% 82%, rgba(52, 211, 153, 0.45) 0%, transparent 40%),
+    radial-gradient(circle at 55% 55%, rgba(251, 191, 36, 0.32) 0%, transparent 45%),
+    linear-gradient(180deg, #131b2e 0%, #1e293b 100%);
 }
 
-/* The glass pane itself — minimal backdrop blur, no milky overlay.
-   The identity comes from the bright rim highlights and the sharp
-   diagonal specular reflection strip that runs across the panel. */
+/* The frosted pane — glassmorphism recipe: strong backdrop blur,
+   translucent white fill, thin light border, deep soft shadow. */
 body.theme-glass #stage::before {
   content: '';
   position: absolute;
-  inset: 0;
-  pointer-events: none;
+  inset: 14px;
   z-index: 1;
-  background:
-    /* Sharp diagonal specular reflection — the strongest cue that
-       there IS a glass pane between the viewer and the content. */
-    linear-gradient(118deg,
-      transparent 34%,
-      rgba(255,255,255,0.05) 46%,
-      rgba(255,255,255,0.32) 50%,
-      rgba(255,255,255,0.05) 54%,
-      transparent 66%),
-    /* Subtle bright top-left corner reflection */
-    radial-gradient(ellipse 55% 40% at 12% 8%, rgba(255,255,255,0.18) 0%, transparent 60%),
-    /* A hint of lower-right sheen */
-    radial-gradient(ellipse 45% 35% at 88% 90%, rgba(255,255,255,0.06) 0%, transparent 60%),
-    /* Barely-there white haze so the panel reads as material */
-    linear-gradient(180deg, rgba(255,255,255,0.03), rgba(255,255,255,0.01));
-  /* Just a touch of blur so the FX behind acquire a soft-focus
-     quality without hiding what they are. */
-  backdrop-filter: blur(3px) saturate(1.1);
-  -webkit-backdrop-filter: blur(3px) saturate(1.1);
+  pointer-events: none;
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.10);
+  backdrop-filter: blur(26px) saturate(180%);
+  -webkit-backdrop-filter: blur(26px) saturate(180%);
+  border: 1px solid rgba(255, 255, 255, 0.22);
   box-shadow:
-    /* Sharp bright top rim */
-    inset  0  1px 0 rgba(255,255,255,0.75),
-    /* Left rim */
-    inset  1px 0 0 rgba(255,255,255,0.28),
-    /* Bottom rim shadow */
-    inset  0 -1px 0 rgba(0, 0, 0, 0.28),
-    /* Right rim shadow */
-    inset -1px 0 0 rgba(0, 0, 0, 0.18),
-    /* Outer depth shadow */
-    0 6px 22px rgba(0, 0, 0, 0.28);
+    /* Deep soft outer shadow — the pane appears to hover */
+    0 8px 32px rgba(0, 0, 0, 0.38),
+    /* Subtle top-edge inner highlight (light catches the rim) */
+    inset 0 1px 0 rgba(255, 255, 255, 0.35);
+}
+/* Karaoke mode wraps the stage inside .ly-karaoke-area which has
+   its own background — tighten the pane inset and soften the
+   shadow so the two shadows don't stack at the edge. */
+body.theme-glass.karaoke-mode #stage::before {
+  inset: 10px;
+  border-radius: 14px;
+  box-shadow:
+    0 6px 24px rgba(0, 0, 0, 0.32),
+    inset 0 1px 0 rgba(255, 255, 255, 0.30);
+}
+/* Lyrics-only fullscreen: give the pane a bit more room to breathe */
+body.theme-glass.lyrics-fs #stage::before {
+  inset: 20px;
+  border-radius: 22px;
 }
 
 /* Text on the glass — light and crisp with a soft dark shadow so
