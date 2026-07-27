@@ -728,7 +728,7 @@
         const p = (n) => String(n).padStart(2, '0');
         const when = isNaN(d.getTime()) ? '' : `${p(d.getMonth() + 1)}/${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}`;
         const more = upd.count > 1 ? ` ほか${upd.count - 1}件` : '';
-        notice = `<button class="tm-hero-update" id="heroUpdate" type="button">&#128276; 直近の更新：${esc(l.title)}${l.who ? '（' + esc(l.who) + '）' : ''}${when ? ' ' + when : ''}${more}</button>`;
+        notice = `<button class="tm-hero-update" id="heroUpdate" type="button"><span class="tm-hero-update-ico">&#9679;</span>直近の更新：${esc(l.title)}${l.who ? '（' + esc(l.who) + '）' : ''}${when ? ' ' + when : ''}${more}</button>`;
       }
       html = `<div class="tm-hero">
         <div class="tm-hero-kicker">MANUAL NAVIGATOR</div>

@@ -1340,25 +1340,25 @@ body.tm-dragging .tm-treenode-row { cursor: grabbing; }
   50% { box-shadow: 0 0 20px rgba(255, 94, 168, 0.95); }
 }
 
-/* TOPの「直近の更新」通知（ヒーロー下） */
+/* TOPの「直近の更新」通知（ヒーロー下）— 文頭のみピンク、本文は通常色 */
 .tm-hero-update {
   display: inline-block;
-  margin-top: 10px;
+  margin-top: 8px;
   max-width: 100%;
   font-family: var(--tm-mono);
   font-size: 12px;
   line-height: 1.5;
-  color: #14060d;
-  background: rgba(255, 94, 168, 0.92);
-  border: 1px solid #ff5ea8;
-  border-radius: 14px;
-  padding: 6px 14px;
+  color: var(--tm-muted);
+  background: none;
+  border: none;
+  padding: 0;
   cursor: pointer;
-  box-shadow: 0 0 12px rgba(255, 94, 168, 0.45);
-  transition: filter .15s, box-shadow .15s;
+  text-align: left;
   overflow-wrap: anywhere;
+  transition: color .15s;
 }
-.tm-hero-update:hover { filter: brightness(1.06); box-shadow: 0 0 18px rgba(255, 94, 168, 0.7); }
+.tm-hero-update:hover { color: var(--tm-text); }
+.tm-hero-update-ico { color: #ff5ea8; margin-right: 6px; text-shadow: 0 0 6px rgba(255, 94, 168, 0.7); }
 .tm-updates-title { flex: 1; min-width: 0; margin: 0; font-size: 16px; color: var(--tm-cyan); letter-spacing: 1px; }
 .tm-upd-day {
   position: sticky; top: 0;
