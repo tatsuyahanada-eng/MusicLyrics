@@ -720,10 +720,21 @@
 
     let html = '';
     if (atRoot) {
+      const upd = recentUpdatesInfo();
+      let notice = '';
+      if (upd.count && upd.latest) {
+        const l = upd.latest;
+        const d = new Date(Number(l.when) || 0);
+        const p = (n) => String(n).padStart(2, '0');
+        const when = isNaN(d.getTime()) ? '' : `${p(d.getMonth() + 1)}/${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}`;
+        const more = upd.count > 1 ? ` ほか${upd.count - 1}件` : '';
+        notice = `<button class="tm-hero-update" id="heroUpdate" type="button">&#128276; 直近の更新：${esc(l.title)}${l.who ? '（' + esc(l.who) + '）' : ''}${when ? ' ' + when : ''}${more}</button>`;
+      }
       html = `<div class="tm-hero">
         <div class="tm-hero-kicker">MANUAL NAVIGATOR</div>
         <h1 class="tm-hero-title">大項目を選択</h1>
         <p class="tm-hero-sub">該当のカテゴリを選択してください。</p>
+        ${notice}
       </div>`;
     } else if (curNode) {
       const leaf = kids.length === 0;
@@ -957,6 +968,7 @@
   choiceDock.addEventListener('touchmove', (e) => { if (sortDrag && sortDrag.active) e.preventDefault(); }, { passive: false });
   chatLog.addEventListener('click', (e) => {
     if (e.target.closest('#navRetryBtn')) { retryConnect(); return; }
+    if (e.target.closest('#heroUpdate')) { openUpdates(); return; }
     const eb = e.target.closest('[data-editthis]');
     if (eb) { // 案内モードから直接編集
       const node = findNode(eb.dataset.editthis);
@@ -2747,6 +2759,12 @@
   function refreshUpdatesBadge() {
     const btn = $('#updatesBtn');
     if (btn) btn.classList.toggle('is-fresh', anyRecentUpdate());
+  }
+  // 直近3日以内の更新の概要（件数と最新1件）
+  function recentUpdatesInfo() {
+    const cutoff = Date.now() - 3 * 24 * 3600 * 1000;
+    const recent = buildRecentUpdates().filter((r) => (r.when || 0) >= cutoff);
+    return { count: recent.length, latest: recent[0] || null };
   }
   updatesResultsEl.addEventListener('click', (e) => {
     const el = e.target.closest('.tm-sr-item');
