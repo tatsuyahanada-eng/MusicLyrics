@@ -144,7 +144,8 @@ let elArtist, elTitle, elTitleWrap, elFetchBtn, elSearchHint, elStatus,
     elLyricTimeInfo,
     elNowPlaying, elLyricStack, elScatterLayer, elStageExitBtn, elLyricsFsBtn,
     elLyricBrowser, elLyricBrowserList, elCloseLyricBrowser,
-    elFx, elFxThemeBtn, elColorToggleBtn;
+    elFx, elFxThemeBtn, elColorToggleBtn,
+    elTextColorBtn;
 
 /* Lyric display styles cycle in this order:
    - random  : lines fly in at random vertical/horizontal positions
@@ -168,6 +169,19 @@ const COLOR_THEME_LABELS = {
   glass: '🪟ガラス',
 };
 let colorTheme = 'dark';    /* 'dark' | 'light' | 'glass' */
+
+/* Manual lyric text-colour override — independent of colorTheme.
+   auto = whatever the active colour theme picked; white/black
+   force the lyric text so it stays readable against the glass
+   frost when the FX behind it makes the theme default hard to
+   see. */
+const TEXT_COLORS = ['auto', 'white', 'black'];
+const TEXT_COLOR_LABELS = {
+  auto:  'Aa自動',
+  white: 'Aa白',
+  black: 'Aa黒',
+};
+let textColor = 'auto';    /* 'auto' | 'white' | 'black' */
 
 /* ============================================================
    API key access — a site-wide key set in config.js takes
@@ -218,6 +232,7 @@ function init() {
   elStyleToggleBtn   = document.getElementById('styleToggleBtn');
   elFxThemeBtn       = document.getElementById('fxThemeBtn');
   elColorToggleBtn   = document.getElementById('colorToggleBtn');
+  elTextColorBtn     = document.getElementById('textColorBtn');
   elSongList       = document.getElementById('songList');
   elSongListInfo   = document.getElementById('songListInfo');
   elSongCards      = document.getElementById('songCards');
@@ -356,6 +371,11 @@ function init() {
   colorTheme = COLOR_THEMES.includes(savedColor) ? savedColor : 'dark';
   applyColorTheme();
 
+  /* Restore saved lyric text-colour override (auto / white / black) */
+  const savedTextColor = localStorage.getItem('text_color');
+  textColor = TEXT_COLORS.includes(savedTextColor) ? savedTextColor : 'auto';
+  applyTextColor();
+
   if (elCurrentOrigin) elCurrentOrigin.textContent = location.origin || location.href;
 
   /* A site-wide key in config.js takes over: hide the whole
@@ -444,6 +464,9 @@ function init() {
 
   /* Colour theme toggle (dark <-> light lyrics) */
   elColorToggleBtn.addEventListener('click', toggleColorTheme);
+
+  /* Lyric text-colour override (auto / white / black) */
+  if (elTextColorBtn) elTextColorBtn.addEventListener('click', cycleTextColor);
 
   elPrevPageBtn.addEventListener('click', () => goToPage(songList.page - 1));
   elNextPageBtn.addEventListener('click', () => goToPage(songList.page + 1));
@@ -2650,6 +2673,24 @@ function applyColorTheme() {
   if (elColorToggleBtn) {
     elColorToggleBtn.textContent =
       COLOR_THEME_LABELS[colorTheme] || COLOR_THEME_LABELS.dark;
+  }
+}
+
+/* Lyric text-colour override cycle: auto → white → black → auto */
+function cycleTextColor() {
+  const i = TEXT_COLORS.indexOf(textColor);
+  textColor = TEXT_COLORS[(i + 1) % TEXT_COLORS.length];
+  localStorage.setItem('text_color', textColor);
+  applyTextColor();
+}
+
+function applyTextColor() {
+  document.body.classList.toggle('lyric-text-white', textColor === 'white');
+  document.body.classList.toggle('lyric-text-black', textColor === 'black');
+  if (elTextColorBtn) {
+    elTextColorBtn.textContent =
+      TEXT_COLOR_LABELS[textColor] || TEXT_COLOR_LABELS.auto;
+    elTextColorBtn.classList.toggle('active', textColor !== 'auto');
   }
 }
 

@@ -2033,61 +2033,51 @@ body.theme-light .ly-fs-offset .ly-bar-label,
 body.theme-light .ly-fs-offset .ly-offset-end,
 body.theme-light .ly-fs-offset .ly-offset-val { color: #be185d; }
 
-/* ---- Glass colour theme — proper glassmorphism (すりガラス). A
-        vivid colourful backdrop sits behind a floating frosted
-        pane: heavy backdrop-filter blur (26 px + 180% saturation)
-        + a translucent white fill + a hair-thin light border +
-        a soft deep drop shadow. The pane is inset 14 px so the
-        rounded corners and the shadow really read as a floating
-        sheet of glass rather than a full-bleed wash. ---- */
-body.theme-glass #stage,
-body.theme-glass.lyrics-fs #stage,
-body.theme-glass.karaoke-mode #stage {
-  position: relative;
-  /* Vivid abstract blobs — these are what you see through the
-     frost, so the glass has real colour behind it. */
-  background:
-    radial-gradient(circle at 22% 26%, rgba(139, 92, 246, 0.55) 0%, transparent 42%),
-    radial-gradient(circle at 78% 20%, rgba(236, 72, 153, 0.50) 0%, transparent 40%),
-    radial-gradient(circle at 82% 78%, rgba(59, 130, 246, 0.55) 0%, transparent 44%),
-    radial-gradient(circle at 20% 82%, rgba(52, 211, 153, 0.45) 0%, transparent 40%),
-    radial-gradient(circle at 55% 55%, rgba(251, 191, 36, 0.32) 0%, transparent 45%),
-    linear-gradient(180deg, #131b2e 0%, #1e293b 100%);
-}
+/* ---- Glass colour theme — proper glassmorphism (すりガラス).
+        No forced colour backdrop: #stage keeps its default dark
+        gradient and whatever FX layer is running (rings / water /
+        clouds / none) sits underneath. A floating frosted pane
+        with heavy backdrop-blur then blurs THAT — same recipe as
+        the reference image (photo → frosted panel → text). ---- */
 
-/* The frosted pane — glassmorphism recipe: strong backdrop blur,
-   translucent white fill, thin light border, deep soft shadow. */
+/* The frosted pane itself */
 body.theme-glass #stage::before {
   content: '';
   position: absolute;
   inset: 14px;
   z-index: 1;
   pointer-events: none;
-  border-radius: 18px;
-  background: rgba(255, 255, 255, 0.10);
-  backdrop-filter: blur(26px) saturate(180%);
-  -webkit-backdrop-filter: blur(26px) saturate(180%);
-  border: 1px solid rgba(255, 255, 255, 0.22);
+  border-radius: 20px;
+  /* Semi-opaque white fill — the pane's own material substance */
+  background: rgba(255, 255, 255, 0.12);
+  /* Heavy blur so the FX behind reads as soft coloured haze — the
+     "cherry-blossoms-through-frost" effect. */
+  backdrop-filter: blur(30px) saturate(180%);
+  -webkit-backdrop-filter: blur(30px) saturate(180%);
+  /* Thin light border — the Big Sur / iOS 15 glass rim */
+  border: 1px solid rgba(255, 255, 255, 0.28);
   box-shadow:
-    /* Deep soft outer shadow — the pane appears to hover */
-    0 8px 32px rgba(0, 0, 0, 0.38),
-    /* Subtle top-edge inner highlight (light catches the rim) */
-    inset 0 1px 0 rgba(255, 255, 255, 0.35);
+    /* Deep soft drop shadow — the pane floats above the FX layer */
+    0 10px 34px rgba(0, 0, 0, 0.42),
+    /* Bright top-edge inner highlight — catches light on the rim */
+    inset 0 1px 0 rgba(255, 255, 255, 0.42),
+    /* Soft dark bottom rim — depth cue */
+    inset 0 -1px 0 rgba(0, 0, 0, 0.20);
 }
-/* Karaoke mode wraps the stage inside .ly-karaoke-area which has
-   its own background — tighten the pane inset and soften the
-   shadow so the two shadows don't stack at the edge. */
+/* Karaoke mode: tighten inset + soften shadow so it doesn't
+   duplicate the karaoke-area's own outer shadow. */
 body.theme-glass.karaoke-mode #stage::before {
   inset: 10px;
-  border-radius: 14px;
+  border-radius: 16px;
   box-shadow:
-    0 6px 24px rgba(0, 0, 0, 0.32),
-    inset 0 1px 0 rgba(255, 255, 255, 0.30);
+    0 6px 24px rgba(0, 0, 0, 0.34),
+    inset 0 1px 0 rgba(255, 255, 255, 0.36),
+    inset 0 -1px 0 rgba(0, 0, 0, 0.18);
 }
-/* Lyrics-only fullscreen: give the pane a bit more room to breathe */
+/* Lyrics-only fullscreen: give the pane more breathing room */
 body.theme-glass.lyrics-fs #stage::before {
-  inset: 20px;
-  border-radius: 22px;
+  inset: 24px;
+  border-radius: 26px;
 }
 
 /* Text on the glass — light and crisp with a soft dark shadow so
@@ -2733,4 +2723,61 @@ body.lyrics-fs.fs-controls-visible .ly-fs-offset {
   .ly-play-btn { width: 38px; height: 38px; }
   .ly-timer { font-size: 0.82rem; }
   .ly-volume { width: 44px; }
+}
+
+/* ---- Manual lyric text-colour override (Aa自動 / Aa白 / Aa黒).
+        Auto = whatever the active colour theme picked. White/Black
+        force the lyric text against the chosen colour with the
+        matching shadow, useful when the FX behind the glass panel
+        makes the theme default hard to read. Wins over the
+        colour-theme rules via higher specificity. ---- */
+body.lyric-text-white .ly-line,
+body.lyric-text-white .ly-line-past,
+body.lyric-text-white .ly-line-next,
+body.lyric-text-white .ly-line-far-past,
+body.lyric-text-white .ly-line-far-next,
+body.lyric-text-white .ly-line-current,
+body.lyric-text-white .ly-scatter-token,
+body.lyric-text-white .ly-now-playing,
+body.lyric-text-white .ly-stage-msg {
+  color: #ffffff;
+  text-shadow:
+    0 1px 3px rgba(0, 0, 0, 0.55),
+    0 3px 12px rgba(0, 0, 0, 0.40);
+}
+body.lyric-text-white .ly-line-far-past,
+body.lyric-text-white .ly-line-far-next { opacity: 0.35; }
+body.lyric-text-white .ly-line-past,
+body.lyric-text-white .ly-line-next     { opacity: 0.60; }
+body.lyric-text-white .ly-line-current {
+  text-shadow:
+    0 1px 3px rgba(0, 0, 0, 0.55),
+    0 3px 12px rgba(0, 0, 0, 0.40),
+    0 0 24px rgba(255, 255, 255, 0.22);
+}
+
+body.lyric-text-black .ly-line,
+body.lyric-text-black .ly-line-past,
+body.lyric-text-black .ly-line-next,
+body.lyric-text-black .ly-line-far-past,
+body.lyric-text-black .ly-line-far-next,
+body.lyric-text-black .ly-line-current,
+body.lyric-text-black .ly-scatter-token,
+body.lyric-text-black .ly-now-playing,
+body.lyric-text-black .ly-stage-msg {
+  color: #0f172a;
+  text-shadow:
+    0 1px 2px rgba(255, 255, 255, 0.75),
+    0 2px 8px rgba(255, 255, 255, 0.55);
+}
+body.lyric-text-black .ly-line-far-past,
+body.lyric-text-black .ly-line-far-next { opacity: 0.40; }
+body.lyric-text-black .ly-line-past,
+body.lyric-text-black .ly-line-next     { opacity: 0.65; }
+body.lyric-text-black .ly-line-current {
+  color: #000000;
+  text-shadow:
+    0 1px 2px rgba(255, 255, 255, 0.80),
+    0 2px 10px rgba(255, 255, 255, 0.55),
+    0 0 22px rgba(255, 255, 255, 0.30);
 }
