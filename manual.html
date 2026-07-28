@@ -9,7 +9,7 @@
   <link rel="manifest" href="manifest.webmanifest">
   <link rel="icon" href="icon.svg" type="image/svg+xml">
   <link rel="apple-touch-icon" href="icon-192.png">
-  <link rel="stylesheet" href="manual.css?v=34">
+  <link rel="stylesheet" href="manual.css?v=35">
 </head>
 <body class="tm-body">
 
@@ -303,6 +303,30 @@
     </form>
   </dialog>
 
+  <!-- ===== Image name Dialog（画像の名称・削除） ===== -->
+  <dialog id="imgNameDialog" class="tm-dialog">
+    <form id="imgNameForm" class="tm-dialog-form">
+      <h2 class="tm-dialog-title">画像の名称</h2>
+      <div class="tm-imgname-prevwrap"><img id="imgNamePreview" class="tm-imgname-preview" alt=""></div>
+      <label class="tm-field">
+        <span class="tm-field-label">名称（キャプション・任意）</span>
+        <input id="imgNameInput" class="tm-input" type="text" maxlength="120" autocomplete="off" placeholder="例：分電盤の位置">
+      </label>
+      <div class="tm-dialog-actions">
+        <button type="button" id="imgNameDelete" class="tm-btn tm-btn-danger-outline">画像を削除</button>
+        <button type="button" id="imgNameCancel" class="tm-btn tm-btn-outline">キャンセル</button>
+        <button type="submit" class="tm-btn tm-btn-primary">保存</button>
+      </div>
+    </form>
+  </dialog>
+
+  <!-- ===== Lightbox（画像の拡大表示） ===== -->
+  <dialog id="lightbox" class="tm-lightbox">
+    <button type="button" id="lbClose" class="tm-lb-close" aria-label="閉じる">&#10005;</button>
+    <img id="lbImg" class="tm-lb-img" alt="">
+    <div id="lbCap" class="tm-lb-cap"></div>
+  </dialog>
+
   <!-- ===== Search Dialog（キーワード検索） ===== -->
   <dialog id="searchDialog" class="tm-dialog tm-search-dialog">
     <div class="tm-dialog-form tm-search-form">
@@ -481,6 +505,6 @@
   </dialog>
 
   <script src="vendor/xlsx.full.min.js"></script>
-  <script src="manual.js?v=34"></script>
+  <script src="manual.js?v=35"></script>
 </body>
 </html>

@@ -454,7 +454,7 @@
     b: {}, strong: {}, i: {}, em: {}, u: {},
     span: { attrs: ['style'] }, font: { attrs: ['color', 'size'] },
     br: { void: true }, div: { attrs: ['style'] }, p: { attrs: ['style'] },
-    a: { attrs: ['href', 'style', 'class'] }, img: { attrs: ['src', 'style', 'class'], void: true },
+    a: { attrs: ['href', 'style', 'class'] }, img: { attrs: ['src', 'style', 'class', 'alt', 'title'], void: true },
   };
   function sanitizeClass(v) {
     const allow = { 'tm-filechip': 1, 'tm-body-img': 1 };
@@ -762,6 +762,7 @@
       html += `</div>`;
     }
     chatLog.innerHTML = html;
+    enhanceContentImages();
     chatLog.scrollTop = 0;
 
     const canReorder = kids.length > 1;
@@ -966,7 +967,28 @@
   choiceDock.addEventListener('pointerup', sortFinishDrag);
   choiceDock.addEventListener('pointercancel', sortCancelDrag);
   choiceDock.addEventListener('touchmove', (e) => { if (sortDrag && sortDrag.active) e.preventDefault(); }, { passive: false });
+  // 本文の画像：名称をキャプション表示し、タップで拡大（ライトボックス）
+  function enhanceContentImages() {
+    chatLog.querySelectorAll('.tm-content-body img').forEach((img) => {
+      if (img.dataset.enh) return;
+      img.dataset.enh = '1';
+      img.classList.add('tm-zoomable');
+      const cap = (img.getAttribute('alt') || '').trim();
+      if (cap) {
+        const fig = document.createElement('figure');
+        fig.className = 'tm-figure';
+        img.replaceWith(fig);
+        fig.appendChild(img);
+        const fc = document.createElement('figcaption');
+        fc.className = 'tm-figcaption';
+        fc.textContent = cap;
+        fig.appendChild(fc);
+      }
+    });
+  }
   chatLog.addEventListener('click', (e) => {
+    const zi = e.target.closest('.tm-content-body img.tm-zoomable');
+    if (zi) { openLightbox(zi.getAttribute('src'), zi.getAttribute('alt')); return; }
     if (e.target.closest('#navRetryBtn')) { retryConnect(); return; }
     if (e.target.closest('#heroUpdate')) { openUpdates(); return; }
     const eb = e.target.closest('[data-editthis]');
@@ -980,6 +1002,28 @@
     await detectServer();
     if (serverMode()) { try { await reloadFromServer(); } catch (e) {} }
     renderNav();
+  }
+
+  /* ---------- 画像の拡大表示（ライトボックス） ---------- */
+  const lightbox = $('#lightbox');
+  function openLightbox(src, caption) {
+    if (!lightbox || !src) return;
+    const img = $('#lbImg'), cap = $('#lbCap');
+    img.src = src;
+    img.alt = caption || '';
+    const c = (caption || '').trim();
+    cap.textContent = c;
+    cap.hidden = !c;
+    lightbox.showModal();
+    syncTrap();
+  }
+  if (lightbox) {
+    lightbox.addEventListener('close', () => syncTrap());
+    // 画像以外（背景・閉じるボタン）をクリックで閉じる
+    lightbox.addEventListener('click', (e) => {
+      if (!e.target.closest('#lbImg')) lightbox.close();
+    });
+    $('#lbClose').addEventListener('click', () => lightbox.close());
   }
   navAddDock.addEventListener('click', (e) => {
     if (e.target.closest('[data-sorttoggle]')) { navReorder = !navReorder; renderNav(); syncTrap(); return; }
@@ -1410,8 +1454,12 @@
         if (!data || typeof data !== 'object') throw new Error('サーバー応答が不正です');
         if (!res.ok || data.ok === false) throw new Error(data.error || ('HTTP ' + res.status));
         if (data.is_image) {
-          appendEditorHtml(`<img src="${esc(data.url)}"><br>`);
+          appendEditorHtml(`<img src="${esc(data.url)}" alt=""><br>`);
           nodeError('画像を本文の下に追加しました');
+          // 挿入した画像の名称をすぐ入力できるようにする
+          const imgs = nodeBodyEditor.querySelectorAll('img');
+          const last = imgs[imgs.length - 1];
+          if (last) openImgNameDialog(last);
         } else {
           const nm = data.name || 'ファイル';
           appendEditorHtml(`<a class="tm-filechip" href="${esc(data.url)}">${fileIcon(nm)} ${esc(nm)}</a> `);
@@ -1457,22 +1505,51 @@
       e.preventDefault();
       insertEditorHtml(plainToHtml(text));
     });
-    // 編集画面で画像・添付ファイルをタップすると削除できる
+    // 編集画面：画像タップで「名称の入力・削除」、添付ファイルはタップで削除
     nodeBodyEditor.addEventListener('click', (e) => {
-      const el = e.target.closest('img, a.tm-filechip');
-      if (!el) return;
+      const img = e.target.closest('img');
+      if (img) { e.preventDefault(); openImgNameDialog(img); return; }
+      const chip = e.target.closest('a.tm-filechip');
+      if (!chip) return;
       e.preventDefault();
-      const isImg = el.tagName === 'IMG';
-      askConfirm(isImg ? 'この画像を削除しますか？' : 'この添付ファイルを削除しますか？', () => {
-        const next = el.nextSibling;
-        el.remove();
-        // 直後の改行や空白（挿入時に付けたもの）も取り除く
-        if (next && next.nodeType === 1 && next.tagName === 'BR') next.remove();
-        else if (next && next.nodeType === 3 && !next.nodeValue.trim()) next.remove();
-        nodeBodyEditor.focus();
-      }, '削除');
+      askConfirm('この添付ファイルを削除しますか？', () => { removeEditorEl(chip); }, '削除');
     });
   }
+  function removeEditorEl(el) {
+    const next = el.nextSibling;
+    el.remove();
+    if (next && next.nodeType === 1 && next.tagName === 'BR') next.remove();
+    else if (next && next.nodeType === 3 && !next.nodeValue.trim()) next.remove();
+    nodeBodyEditor.focus();
+  }
+
+  /* ---------- 画像の名称ダイアログ（キャプション＋削除） ---------- */
+  const imgNameDialog = $('#imgNameDialog');
+  const imgNameForm = $('#imgNameForm');
+  let imgNameTarget = null;
+  function openImgNameDialog(img) {
+    imgNameTarget = img;
+    const prev = $('#imgNamePreview');
+    if (prev) prev.src = img.getAttribute('src') || '';
+    $('#imgNameInput').value = img.getAttribute('alt') || '';
+    imgNameDialog.showModal();
+    setTimeout(() => $('#imgNameInput').focus(), 30);
+  }
+  imgNameForm.addEventListener('submit', (e) => {
+    e.preventDefault();
+    if (imgNameTarget) {
+      const v = $('#imgNameInput').value.trim();
+      if (v) { imgNameTarget.setAttribute('alt', v); imgNameTarget.setAttribute('title', v); }
+      else { imgNameTarget.setAttribute('alt', ''); imgNameTarget.removeAttribute('title'); }
+    }
+    imgNameDialog.close();
+  });
+  $('#imgNameCancel').addEventListener('click', () => imgNameDialog.close());
+  $('#imgNameDelete').addEventListener('click', () => {
+    if (!imgNameTarget) { imgNameDialog.close(); return; }
+    const img = imgNameTarget;
+    askConfirm('この画像を削除しますか？', () => { removeEditorEl(img); imgNameDialog.close(); }, '削除');
+  });
 
   /* ---------- confirm dialog ---------- */
   const confirmDialog = $('#confirmDialog');
