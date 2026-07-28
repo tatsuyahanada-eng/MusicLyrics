@@ -357,15 +357,18 @@
       persist();
     }
   }
-  async function opUpdate(id, title, body, author, lockOpt) {
+  async function opUpdate(id, title, body, author, lockOpt, updatedAt) {
     const who = author != null ? author : authorName();
+    const ua = (typeof updatedAt === 'number' && updatedAt > 0) ? updatedAt : null;
     if (serverMode()) {
-      await apiCall('node_update', { method: 'POST', body: Object.assign({ id, title, body, author: who }, lockFields(lockOpt)) });
+      const body2 = Object.assign({ id, title, body, author: who }, lockFields(lockOpt));
+      if (ua) body2.updated_at = ua;
+      await apiCall('node_update', { method: 'POST', body: body2 });
       await reloadFromServer();
     } else {
       const n = findNode(id);
       if (n) {
-        n.title = title; n.body = body; n.updated_by = who || n.updated_by; n.updated_at = Date.now();
+        n.title = title; n.body = body; n.updated_by = who || n.updated_by; n.updated_at = ua || Date.now();
         if (lockOpt) {
           if (!lockOpt.enabled) { n.lock = ''; n.locked = false; unlockPw.delete(id); unlockedIds.delete(id); }
           else if (lockOpt.pw) { n.lock = lockOpt.pw; n.locked = true; unlockPw.set(id, lockOpt.pw); unlockedIds.add(id); }
@@ -1294,6 +1297,24 @@
       if (on && nodeLockPw) nodeLockPw.focus();
     });
   }
+  const nodeDateField = $('#nodeDateField');
+  const nodeDateChk = $('#nodeDateChk');
+  const nodeDateInput = $('#nodeDateInput');
+  const nodeDateHint = $('#nodeDateHint');
+  // ms → datetime-local の値（YYYY-MM-DDTHH:MM）
+  function msToLocalInput(ms) {
+    const d = new Date(Number(ms) || Date.now());
+    if (isNaN(d.getTime())) return '';
+    const p = (n) => String(n).padStart(2, '0');
+    return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}T${p(d.getHours())}:${p(d.getMinutes())}`;
+  }
+  if (nodeDateChk) {
+    nodeDateChk.addEventListener('change', () => {
+      const on = nodeDateChk.checked;
+      if (nodeDateInput) nodeDateInput.hidden = !on;
+      if (nodeDateHint) nodeDateHint.hidden = !on;
+    });
+  }
 
   // エディタのHTMLをサニタイズし、空なら '' を返す
   function normalizeBody(html) {
@@ -1347,6 +1368,12 @@
         if (nodeLockPw) { nodeLockPw.value = ''; nodeLockPw.hidden = !node.locked; nodeLockPw.placeholder = node.locked ? '変更する場合のみ入力' : 'パスワードを設定'; }
         if (nodeLockHint) { nodeLockHint.hidden = !node.locked; nodeLockHint.textContent = node.locked ? '空欄のままなら現在のパスワードを維持します。管理者パスワードでも上書きできます。' : ''; }
       }
+      if (nodeDateField) {
+        nodeDateField.hidden = false; // 更新日時の指定は編集時のみ
+        if (nodeDateChk) nodeDateChk.checked = false;
+        if (nodeDateInput) { nodeDateInput.hidden = true; nodeDateInput.value = msToLocalInput(node.updated_at); }
+        if (nodeDateHint) nodeDateHint.hidden = true;
+      }
     } else {
       dialogTarget = { mode: 'add', parentId: parentId || null };
       nodeDialogTitle.textContent = parentId ? '子項目を追加' : '大項目（カテゴリ）を追加';
@@ -1357,6 +1384,7 @@
         if (nodeLockPw) { nodeLockPw.value = ''; nodeLockPw.hidden = true; nodeLockPw.placeholder = 'パスワードを設定'; }
         if (nodeLockHint) { nodeLockHint.hidden = true; nodeLockHint.textContent = ''; }
       }
+      if (nodeDateField) nodeDateField.hidden = true; // 追加時は非表示
     }
     if (nodeAuthorInput) nodeAuthorInput.value = authorName(); // 既定は記入者名。項目ごとに変更可
     if (nodeMetaEl) nodeMetaEl.textContent = metaStr;
@@ -1381,12 +1409,18 @@
     const lockOpt = nodeLockChk
       ? { enabled: nodeLockChk.checked, pw: nodeLockPw ? nodeLockPw.value : '' }
       : null;
+    // 更新日時の手動指定（チェックが入っていて有効な日時のときのみ）
+    let updatedAt = null;
+    if (nodeDateChk && nodeDateChk.checked && nodeDateInput && nodeDateInput.value) {
+      const t = new Date(nodeDateInput.value).getTime();
+      if (!isNaN(t)) updatedAt = t;
+    }
     const submitBtn = nodeForm.querySelector('button[type=submit]');
     submitBtn.disabled = true;
     nodeError('');
     try {
       if (dialogTarget.mode === 'edit') {
-        await opUpdate(dialogTarget.id, title, body, author, lockOpt);
+        await opUpdate(dialogTarget.id, title, body, author, lockOpt, updatedAt);
       } else {
         if (dialogTarget.parentId) { openNodes.add(dialogTarget.parentId); persistOpen(); }
         await opCreate(dialogTarget.parentId, title, body, author, lockOpt);

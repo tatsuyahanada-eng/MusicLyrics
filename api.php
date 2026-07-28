@@ -162,12 +162,14 @@ switch ($action) {
     $curHash = $curq->fetchColumn();
     if ($curHash === false) $curHash = null;
     list($lset, $lhash) = lock_hash_from($d, $curHash);
+    // 更新日時：明示指定があればその値、なければ現在時刻（履歴の並び順を手動調整するため）
+    $ua = (isset($d['updated_at']) && (int)$d['updated_at'] > 0) ? (int)$d['updated_at'] : now_ms();
     if ($lset) {
       $up = $pdo->prepare('UPDATE nodes SET title = ?, body = ?, updated_by = COALESCE(?, updated_by), lock_hash = ?, updated_at = ? WHERE id = ?');
-      $up->execute(array($title, isset($d['body']) ? $d['body'] : '', $who, $lhash, now_ms(), $d['id']));
+      $up->execute(array($title, isset($d['body']) ? $d['body'] : '', $who, $lhash, $ua, $d['id']));
     } else {
       $up = $pdo->prepare('UPDATE nodes SET title = ?, body = ?, updated_by = COALESCE(?, updated_by), updated_at = ? WHERE id = ?');
-      $up->execute(array($title, isset($d['body']) ? $d['body'] : '', $who, now_ms(), $d['id']));
+      $up->execute(array($title, isset($d['body']) ? $d['body'] : '', $who, $ua, $d['id']));
     }
     ok();
   }

@@ -1397,7 +1397,7 @@ body.tm-dragging .tm-treenode-row { cursor: grabbing; }
 .tm-imgname-prevwrap { text-align: center; margin-bottom: 6px; }
 .tm-imgname-preview { max-width: 100%; max-height: 34vh; border-radius: 6px; border: 1px solid var(--tm-line); }
 
-/* ライトボックス */
+/* ライトボックス（開いているときだけ表示。閉じている間は中身も出さない） */
 .tm-lightbox {
   border: none;
   background: transparent;
@@ -1408,8 +1408,9 @@ body.tm-dragging .tm-treenode-row { cursor: grabbing; }
   padding: 0;
   overflow: hidden;
 }
+.tm-lightbox:not([open]) { display: none; }
 .tm-lightbox::backdrop { background: rgba(3, 8, 12, 0.92); }
-.tm-lightbox {
+.tm-lightbox[open] {
   display: flex;
   flex-direction: column;
   align-items: center;

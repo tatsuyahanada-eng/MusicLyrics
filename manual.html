@@ -9,7 +9,7 @@
   <link rel="manifest" href="manifest.webmanifest">
   <link rel="icon" href="icon.svg" type="image/svg+xml">
   <link rel="apple-touch-icon" href="icon-192.png">
-  <link rel="stylesheet" href="manual.css?v=35">
+  <link rel="stylesheet" href="manual.css?v=36">
 </head>
 <body class="tm-body">
 
@@ -219,6 +219,15 @@
         <input id="nodeAuthorInput" class="tm-input" type="text" maxlength="40"
           autocomplete="off" placeholder="あなたの名前">
       </label>
+
+      <div class="tm-field" id="nodeDateField" hidden>
+        <label class="tm-lock-toggle">
+          <input type="checkbox" id="nodeDateChk">
+          <span>&#128340; 更新日時を指定する（履歴の並び順を調整・元に戻す）</span>
+        </label>
+        <input id="nodeDateInput" class="tm-input" type="datetime-local" hidden>
+        <span class="tm-field-hint" id="nodeDateHint" hidden>チェックを付けて日時を選ぶと、その日時で保存します（誤って上位に来た履歴を元に戻せます）。</span>
+      </div>
 
       <div class="tm-field">
         <label class="tm-lock-toggle">
@@ -505,6 +514,6 @@
   </dialog>
 
   <script src="vendor/xlsx.full.min.js"></script>
-  <script src="manual.js?v=35"></script>
+  <script src="manual.js?v=36"></script>
 </body>
 </html>
