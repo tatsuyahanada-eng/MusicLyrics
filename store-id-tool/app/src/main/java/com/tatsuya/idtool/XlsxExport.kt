@@ -92,10 +92,14 @@ object XlsxExport {
         var xml = String(parts[SHEET_PART]!!, Charsets.UTF_8)
 
         // ── ヘッダー情報 ──
-        xml = setCell(xml, "C2", idInfo.storeNumber)                  // 店番
+        // 店番（C2）は一旦ブランク（テンプレの空セルのまま）
         xml = setCell(xml, "C3", data["店舗名"].orEmpty())            // 店舗名
         xml = setCell(xml, "J1", formatDate(data["日付"].orEmpty()))  // 日付
         xml = setCell(xml, "L4", data["作業員"].orEmpty())            // 作業員
+        // 備考欄（F1:H4）に現行／変更後のシステムIDを明記
+        val bikou = "備考\n現行システムID：${data["現行システムID"].orEmpty()}\n" +
+            "変更後システムID：${data["変更後システムID"].orEmpty()}"
+        xml = setCell(xml, "F1", bikou)
 
         // 場所ラベル（場所名＋距離メモ）
         fun locLabel(loc: Int): String {

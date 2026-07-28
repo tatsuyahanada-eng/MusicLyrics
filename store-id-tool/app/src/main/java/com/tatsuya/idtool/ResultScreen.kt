@@ -107,6 +107,7 @@ fun ResultScreen(modifier: Modifier = Modifier) {
         Spacer(Modifier.height(8.dp))
 
         // ── ヘッダー ──
+        TextField2("現行システムID", data, set)
         TextField2("変更後システムID", data, set)
         TextField2("店舗名", data, set)
 
