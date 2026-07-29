@@ -1048,9 +1048,16 @@ function updateShuffleUI() {
   if (elRandomPlayBtn) {
     const isChart = shuffleActive && shuffleKind === 'chart';
     elRandomPlayBtn.classList.toggle('active', isChart);
-    elRandomPlayBtn.textContent = isChart
-      ? '⏹ 停止'
-      : '🎲 おまかせ再生';
+    if (isChart) {
+      elRandomPlayBtn.textContent = '⏹ おまかせ停止';
+    } else if (songList.songs.length) {
+      const artistName = songList.songs[0]?.artist || '';
+      elRandomPlayBtn.textContent = artistName
+        ? `🎲 ${artistName} からおまかせ再生`
+        : '🎲 このアーティストからおまかせ再生';
+    } else {
+      elRandomPlayBtn.textContent = '🎲 おまかせ再生（人気ランキング）';
+    }
   }
   if (elNextSongBtn) {
     elNextSongBtn.textContent = shuffleActive ? '🎲 次の曲 ▶▶' : '次の曲 ▶▶';
@@ -1239,27 +1246,40 @@ async function handleRandomPlay() {
   }
 
   stopShufflePlay();
-  setStatus('🎲 人気ランキングを取得しています...', 'loading');
-  hideSongList();
   hideYtResults();
   elRandomPlayBtn.disabled = true;
 
-  try {
-    if (!topChartCache || !topChartCache.length) {
-      try {
-        topChartCache = await fetchTopChartSongs();
-      } catch (e) {
-        /* Network/CORS issue — fall back to the curated list */
-        console.warn('Chart fetch failed, using fallback list:', e);
-        topChartCache = FALLBACK_CHART.slice();
-      }
-    }
-    if (!topChartCache.length) topChartCache = FALLBACK_CHART.slice();
+  /* Prefer the current artist's iTunes list — it maps to what
+     the user perceives as "this artist's greatest hits" and it's
+     what they see on screen. Fall back to the JP iTunes top
+     chart only if no artist has been searched yet. */
+  const artistPool = songList.songs.length ? songList.songs.slice() : null;
 
-    startShufflePlay(
-      topChartCache, 'chart',
-      `🎲 人気曲${topChartCache.length}曲からおまかせ再生中`
-    );
+  try {
+    if (artistPool) {
+      const artistName = songList.songs[0]?.artist || '';
+      startShufflePlay(
+        artistPool, 'chart',
+        `🎲 ${escapeHTML(artistName)} の${artistPool.length}曲からおまかせ再生中`
+      );
+    } else {
+      setStatus('🎲 人気ランキングを取得しています...', 'loading');
+      hideSongList();
+      if (!topChartCache || !topChartCache.length) {
+        try {
+          topChartCache = await fetchTopChartSongs();
+        } catch (e) {
+          /* Network/CORS issue — fall back to the curated list */
+          console.warn('Chart fetch failed, using fallback list:', e);
+          topChartCache = FALLBACK_CHART.slice();
+        }
+      }
+      if (!topChartCache.length) topChartCache = FALLBACK_CHART.slice();
+      startShufflePlay(
+        topChartCache, 'chart',
+        `🎲 人気曲${topChartCache.length}曲からおまかせ再生中`
+      );
+    }
   } catch (err) {
     setStatus(`おまかせ再生に失敗: ${err.message}`, 'error');
   } finally {
@@ -1514,7 +1534,20 @@ function rankMusicOnly(items, artist, title) {
   }));
   scored.sort((a, b) => b.s - a.s);
   const mvOnly = scored.filter(x => x.isMv).slice(0, 10);
-  return mvOnly.map(x => x.it);
+  if (mvOnly.length > 0) return mvOnly.map(x => x.it);
+
+  /* Strict MV filter dropped everything. That's fine for random /
+     おまかせ playback because the next song will retry, but it
+     leaves single-song taps with silence — the top candidate
+     from the artist's iTunes list often isn't a real MV (album
+     versions, deep cuts, live editions) and the user tapped it
+     *specifically* to hear it. Fall back to the highest-scoring
+     candidates that still clearly match artist + title so a tap
+     always produces sound. Threshold s >= 6 keeps unrelated
+     videos out (exact title +10, partial title +6, partial artist
+     ±2–6). */
+  const fallback = scored.filter(x => x.s >= 6).slice(0, 10);
+  return fallback.map(x => x.it);
 }
 
 function scoreMusicCandidate(item, artist, title) {
@@ -1639,6 +1672,9 @@ async function handleArtistSearch(artist) {
     songList.page  = 0;
     setStatus('', '');
     showSongList();
+    /* Refresh the top おまかせ button label — it now offers to
+       shuffle THIS artist instead of the JP top chart. */
+    updateShuffleUI();
   } catch (err) {
     setStatus(err.message || '検索に失敗しました。', 'error');
   } finally {
