@@ -739,7 +739,6 @@
         <h1 class="tm-hero-title">大項目を選択</h1>
         <p class="tm-hero-sub">該当のカテゴリを選択してください。</p>
         ${notice}
-        <div class="tm-hero-links"><button class="tm-hero-help" id="heroHelp" type="button">&#128214; このアプリの使い方（マニュアル）</button></div>
       </div>`;
     } else if (curNode) {
       const leaf = kids.length === 0;
@@ -996,7 +995,6 @@
     if (zi) { openLightbox(zi.getAttribute('src'), zi.getAttribute('alt')); return; }
     if (e.target.closest('#navRetryBtn')) { retryConnect(); return; }
     if (e.target.closest('#heroUpdate')) { openUpdates(); return; }
-    if (e.target.closest('#heroHelp')) { openHelp(); return; }
     const eb = e.target.closest('[data-editthis]');
     if (eb) { // 案内モードから直接編集
       const node = findNode(eb.dataset.editthis);
@@ -2903,6 +2901,8 @@
   if (helpDialog) {
     helpDialog.addEventListener('close', () => { helpOpen = false; syncTrap(); });
     $('#helpClose').addEventListener('click', () => helpDialog.close());
+    const footerHelp = $('#footerHelp');
+    if (footerHelp) footerHelp.addEventListener('click', openHelp);
   }
 
   /* ============================================================
