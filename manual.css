@@ -1448,3 +1448,51 @@ body.tm-dragging .tm-treenode-row { cursor: grabbing; }
   z-index: 2;
 }
 .tm-lb-close:hover { color: var(--tm-cyan); border-color: var(--tm-cyan); }
+
+/* ============================================================
+   使い方（ヘルプ）
+   ============================================================ */
+.tm-hero-links { margin-top: 12px; }
+.tm-hero-help {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-family: var(--tm-mono);
+  font-size: 12.5px;
+  color: var(--tm-cyan);
+  background: rgba(63, 224, 224, 0.08);
+  border: 1px solid var(--tm-line-strong);
+  border-radius: 16px;
+  padding: 6px 14px;
+  cursor: pointer;
+  transition: background .15s, box-shadow .15s;
+}
+.tm-hero-help:hover { background: rgba(63, 224, 224, 0.18); box-shadow: 0 0 12px rgba(63, 224, 224, 0.3); }
+
+.tm-help-body {
+  max-height: 68vh;
+  overflow-y: auto;
+  padding-right: 4px;
+  line-height: 1.75;
+  color: var(--tm-text);
+  font-size: 14px;
+}
+.tm-help-lead { color: var(--tm-text); margin-bottom: 8px; }
+.tm-help-body h3 {
+  font-size: 14px;
+  color: var(--tm-cyan);
+  letter-spacing: 1px;
+  margin: 16px 0 6px;
+  padding-bottom: 4px;
+  border-bottom: 1px dashed var(--tm-line);
+}
+.tm-help-body ul { margin: 0 0 4px; padding-left: 20px; list-style: disc; }
+.tm-help-body li { margin: 4px 0; }
+.tm-help-body b { color: var(--tm-text); font-weight: 700; }
+.tm-help-note {
+  margin-top: 16px;
+  padding-top: 10px;
+  border-top: 1px solid var(--tm-line);
+  font-size: 12px;
+  color: var(--tm-muted);
+}

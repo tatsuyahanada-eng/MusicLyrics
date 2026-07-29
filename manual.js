@@ -638,6 +638,7 @@
   let invOpen = false;    // 在庫管理ビューを開いているか
   let searchOpen = false; // 検索ダイアログを開いているか
   let updatesOpen = false; // 更新履歴ダイアログを開いているか
+  let helpOpen = false;    // 使い方ダイアログを開いているか
 
   function currentChildren() {
     if (navPath.length === 0) return tree;
@@ -738,6 +739,7 @@
         <h1 class="tm-hero-title">大項目を選択</h1>
         <p class="tm-hero-sub">該当のカテゴリを選択してください。</p>
         ${notice}
+        <div class="tm-hero-links"><button class="tm-hero-help" id="heroHelp" type="button">&#128214; このアプリの使い方（マニュアル）</button></div>
       </div>`;
     } else if (curNode) {
       const leaf = kids.length === 0;
@@ -815,7 +817,7 @@
   let trapped = false;    // センチネルを積んでいるか
   let absorbPop = false;  // 直後の1回の popstate を無視（プログラム的 back 用）
   try { history.replaceState({ cbcBase: 1 }, ''); } catch (_) {}
-  function needTrap() { return navPath.length > 0 || !editView.hidden || navReorder || invOpen || searchOpen || updatesOpen; }
+  function needTrap() { return navPath.length > 0 || !editView.hidden || navReorder || invOpen || searchOpen || updatesOpen || helpOpen; }
   function syncTrap() {
     if (needTrap()) {
       if (!trapped) { try { history.pushState({ cbc: 1 }, ''); trapped = true; } catch (_) {} }
@@ -994,6 +996,7 @@
     if (zi) { openLightbox(zi.getAttribute('src'), zi.getAttribute('alt')); return; }
     if (e.target.closest('#navRetryBtn')) { retryConnect(); return; }
     if (e.target.closest('#heroUpdate')) { openUpdates(); return; }
+    if (e.target.closest('#heroHelp')) { openHelp(); return; }
     const eb = e.target.closest('[data-editthis]');
     if (eb) { // 案内モードから直接編集
       const node = findNode(eb.dataset.editthis);
@@ -2886,6 +2889,21 @@
   updatesDialog.addEventListener('close', () => { updatesOpen = false; syncTrap(); });
   $('#updatesBtn').addEventListener('click', openUpdates);
   $('#updatesClose').addEventListener('click', () => updatesDialog.close());
+
+  /* ---------- 使い方（ヘルプ）ダイアログ ---------- */
+  const helpDialog = $('#helpDialog');
+  function openHelp() {
+    if (!helpDialog) return;
+    helpOpen = true;
+    helpDialog.showModal();
+    const body = helpDialog.querySelector('.tm-help-body');
+    if (body) body.scrollTop = 0;
+    syncTrap();
+  }
+  if (helpDialog) {
+    helpDialog.addEventListener('close', () => { helpOpen = false; syncTrap(); });
+    $('#helpClose').addEventListener('click', () => helpDialog.close());
+  }
 
   /* ============================================================
      PWA

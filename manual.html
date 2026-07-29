@@ -9,7 +9,7 @@
   <link rel="manifest" href="manifest.webmanifest">
   <link rel="icon" href="icon.svg" type="image/svg+xml">
   <link rel="apple-touch-icon" href="icon-192.png">
-  <link rel="stylesheet" href="manual.css?v=36">
+  <link rel="stylesheet" href="manual.css?v=37">
 </head>
 <body class="tm-body">
 
@@ -312,6 +312,70 @@
     </form>
   </dialog>
 
+  <!-- ===== Help Dialog（このアプリの使い方） ===== -->
+  <dialog id="helpDialog" class="tm-dialog tm-search-dialog">
+    <div class="tm-dialog-form tm-search-form">
+      <div class="tm-search-head">
+        <span class="tm-search-ico">&#128214;</span>
+        <h2 class="tm-updates-title">このアプリの使い方</h2>
+        <button type="button" id="helpClose" class="tm-btn tm-btn-outline tm-search-closebtn">閉じる</button>
+      </div>
+      <div class="tm-help-body">
+        <p class="tm-help-lead">「Case By Case」は、当てはまるカテゴリを順に選んで、目的の作業手順にたどり着くツリー型マニュアルです。</p>
+
+        <h3>基本の使い方（通常モード）</h3>
+        <ul>
+          <li><b>大項目 → 中項目 → 小項目</b> と選んでいくと、最終的な作業内容が表示されます。</li>
+          <li>上部の <b>パンくず（TOP › … ）</b> をタップすると、その階層まで戻れます。</li>
+          <li>下部の <b>「一つ戻る」</b> で1つ前へ、<b>「最初から」</b> でTOPへ戻ります（スマホの戻るでも1つ前に戻れます）。</li>
+        </ul>
+
+        <h3>上部のボタン</h3>
+        <ul>
+          <li><b>&#128269; 検索</b>：キーワードで項目（タイトル・本文）と在庫商品を横断検索。結果にはどの階層にあるかも表示され、タップでその項目へ移動します。</li>
+          <li><b>&#128340; 履歴</b>：新規登録・更新のバックナンバー（新しい順）。直近3日以内に更新があるとピンクで点滅し、TOPにも「直近の更新」が表示されます。</li>
+          <li><b>&#9673; 通常</b>：閲覧（案内）モード。<b>&#9881; 修正</b>：編集モード。</li>
+        </ul>
+
+        <h3>修正（編集）モード</h3>
+        <ul>
+          <li>大項目・中項目・小項目の <b>追加 / 編集 / 削除</b> ができます。</li>
+          <li>並び順は <b>長押し（またはハンドルをドラッグ）</b> で変更。案内モードでも「並べ替え」で調整できます。</li>
+          <li>各項目に <b>登録者名</b> が記録されます。<b>更新日時</b> も指定でき、誤って履歴の上位に来た項目を元の日時に戻せます。</li>
+          <li>説明欄は <b>太字・色・大きさ</b> の装飾に対応。Excelでの一括登録／出力もできます。</li>
+        </ul>
+
+        <h3>画像・ファイルの添付</h3>
+        <ul>
+          <li>説明欄の <b>「画像を追加」「ファイルを添付」</b> から追加（画像は貼り付けも可）。画像は本文の下、ファイルは文末にアイコン付きで表示されます。</li>
+          <li>画像には <b>名称（キャプション）</b> を付けられます。本文の画像を <b>タップすると拡大表示</b> されます。</li>
+          <li>PDF・Word・Excel等の添付は、リンク（&#128206; チップ）をタップして開けます。</li>
+        </ul>
+
+        <h3>閲覧ロック（パスワード保護）</h3>
+        <ul>
+          <li>項目に <b>&#128274; 閲覧パスワード</b> をかけると、その項目と配下は正しいパスワードがないと見られません。</li>
+          <li>管理者パスワードはどの項目でも閲覧できます（管理者が設定した値）。</li>
+        </ul>
+
+        <h3>在庫管理</h3>
+        <ul>
+          <li>大項目一覧の一番下 <b>「&#128230; 在庫管理」</b> から、商品名・型番・現在個数を管理できます。</li>
+          <li><b>持ち出し / 返却 / 使用</b> を記録し、<b>履歴</b>（いつ・何個・誰が）を確認できます。</li>
+          <li>数量の直接修正や過去履歴の訂正は <b>管理者パスワード</b> が必要です（修正モードの「在庫を修正」から）。</li>
+        </ul>
+
+        <h3>データの共有</h3>
+        <ul>
+          <li>上部チップが <b>「● 共有中」</b> のときは、全端末で同じ内容が共有されます。</li>
+          <li>「● この端末のみ」の場合はサーバーに接続できていません（管理者に確認してください）。</li>
+        </ul>
+
+        <p class="tm-help-note">設置・データベース設定など管理者向けの詳しい説明は、配布フォルダの <b>README-manual.md</b> をご覧ください。</p>
+      </div>
+    </div>
+  </dialog>
+
   <!-- ===== Image name Dialog（画像の名称・削除） ===== -->
   <dialog id="imgNameDialog" class="tm-dialog">
     <form id="imgNameForm" class="tm-dialog-form">
@@ -514,6 +578,6 @@
   </dialog>
 
   <script src="vendor/xlsx.full.min.js"></script>
-  <script src="manual.js?v=36"></script>
+  <script src="manual.js?v=37"></script>
 </body>
 </html>
