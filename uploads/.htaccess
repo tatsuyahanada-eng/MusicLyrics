@@ -1,4 +1,4 @@
-# uploads は画像配信のみ。PHP等スクリプトの実行を禁止（Apache / ロリポップ）。
+# uploads は静的ファイル配信のみ。PHP等スクリプトの実行を禁止（Apache / ロリポップ）。
 <IfModule mod_php.c>
   php_flag engine off
 </IfModule>
@@ -18,9 +18,13 @@
     Deny from all
   </IfModule>
 </FilesMatch>
-# 画像は許可
-<FilesMatch "\.(jpg|jpeg|png|gif|webp)$">
+# 画像・PDF・Office・テキスト等の閲覧を許可（ページからPDF等を開けるように）
+<FilesMatch "\.(jpg|jpeg|png|gif|webp|svg|pdf|txt|csv|zip|doc|docx|xls|xlsx|ppt|pptx)$">
   <IfModule mod_authz_core.c>
     Require all granted
+  </IfModule>
+  <IfModule !mod_authz_core.c>
+    Order allow,deny
+    Allow from all
   </IfModule>
 </FilesMatch>
