@@ -11,10 +11,11 @@ import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
-import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -30,6 +31,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Button
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExposedDropdownMenuBox
@@ -238,6 +240,8 @@ fun IdContent() {
     var storeName by remember { mutableStateOf(saved.storeName) }
     var storeNumber by remember { mutableStateOf(saved.storeNumber) }
     var expanded by remember { mutableStateOf(false) }
+    // 長押しで「現行／変更後 どちらのシステムIDにコピーするか」を選ぶ対象行
+    var pickRow by remember { mutableStateOf<IdRow?>(null) }
 
     val rows = buildRows(brand, storeNumber)
     val valid = isValidStoreNumber(storeNumber)
@@ -318,13 +322,17 @@ fun IdContent() {
                 IdTableHeader()
                 HorizontalDivider(color = MaterialTheme.colorScheme.outline)
                 rows.forEachIndexed { index, row ->
-                    TableRow(row = row, onClick = {
-                        if (row.fullId.isNotEmpty()) {
-                            val v = "ch${row.ch} ${row.fullId}"
-                            copyToClipboard(context, v)
-                            saveSelectedSystemId(context, v) // 結果タブの変更後システムIDへ反映
-                        }
-                    })
+                    TableRow(
+                        row = row,
+                        onClick = {
+                            if (row.fullId.isNotEmpty()) {
+                                val v = "ch${row.ch} ${row.fullId}"
+                                copyToClipboard(context, v)
+                                saveSelectedSystemId(context, v) // 結果タブの変更後システムIDへ反映
+                            }
+                        },
+                        onLongClick = { if (row.fullId.isNotEmpty()) pickRow = row }
+                    )
                     if (index < rows.size - 1) {
                         HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.4f))
                     }
@@ -333,12 +341,52 @@ fun IdContent() {
 
             Spacer(Modifier.height(6.dp))
             Text(
-                "行をタップでch番号＋10桁IDをコピー",
+                "行をタップでch番号＋10桁IDをコピー／長押しで「現行・変更後」どちらに反映するか選べます",
                 fontSize = 11.sp,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.padding(bottom = 16.dp)
             )
         }
+
+    // 長押しメニュー：タップした行の10桁IDを「現行／変更後」どちらのシステムIDに反映するか選ぶ
+    pickRow?.let { r ->
+        val v = "ch${r.ch} ${r.fullId}"
+        AlertDialog(
+            onDismissRequest = { pickRow = null },
+            title = { Text("コピー先を選択") },
+            text = {
+                Column {
+                    Text("ch${r.ch}　${r.fullId}", fontWeight = FontWeight.Bold)
+                    Spacer(Modifier.height(4.dp))
+                    Text("この10桁IDを、結果報告のどちらの欄に反映しますか？",
+                        fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Spacer(Modifier.height(14.dp))
+                    Button(
+                        onClick = {
+                            copyToClipboard(context, v)
+                            saveResultField(context, "現行システムID", v)
+                            Toast.makeText(context, "現行システムIDにコピーしました", Toast.LENGTH_SHORT).show()
+                            pickRow = null
+                        },
+                        modifier = Modifier.fillMaxWidth()
+                    ) { Text("現行のシステムIDにコピー") }
+                    Spacer(Modifier.height(8.dp))
+                    Button(
+                        onClick = {
+                            copyToClipboard(context, v)
+                            saveSelectedSystemId(context, v)
+                            saveResultField(context, "変更後システムID", v)
+                            Toast.makeText(context, "変更後システムIDにコピーしました", Toast.LENGTH_SHORT).show()
+                            pickRow = null
+                        },
+                        modifier = Modifier.fillMaxWidth()
+                    ) { Text("変更後のシステムIDにコピー") }
+                }
+            },
+            confirmButton = {},
+            dismissButton = { TextButton(onClick = { pickRow = null }) { Text("キャンセル") } }
+        )
+    }
 }
 
 private val LEFT_W = 58.dp
@@ -387,8 +435,9 @@ private fun IdTableHeader() {
     }
 }
 
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
-private fun TableRow(row: IdRow, onClick: () -> Unit) {
+private fun TableRow(row: IdRow, onClick: () -> Unit, onLongClick: () -> Unit) {
     val kikakuB = row.chCode.take(1)     // G（規格b）: "0"→a側, "1"→b側
     val aActive = kikakuB == "0"
     val hasStore = row.store.isNotEmpty()
@@ -397,7 +446,11 @@ private fun TableRow(row: IdRow, onClick: () -> Unit) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .clickable(enabled = row.fullId.isNotEmpty(), onClick = onClick)
+            .combinedClickable(
+                enabled = row.fullId.isNotEmpty(),
+                onClick = onClick,
+                onLongClick = onLongClick
+            )
             .padding(vertical = 2.dp, horizontal = 4.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {

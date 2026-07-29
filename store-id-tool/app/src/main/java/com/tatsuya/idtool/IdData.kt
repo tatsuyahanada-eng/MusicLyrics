@@ -107,6 +107,23 @@ fun saveSelectedSystemId(context: Context, value: String) {
 fun loadSelectedSystemId(context: Context): String =
     context.getSharedPreferences(ID_PREFS, Context.MODE_PRIVATE).getString("selectedSystemId", "") ?: ""
 
+/**
+ * 結果タブの保存データ（result_prefs）に、単一フィールドを直接書き込む。
+ * ID計算タブの長押しメニューから「現行システムID／変更後システムID」を反映するために使う。
+ * （結果タブは切り替え時に再読込されるため、次に開いたときに反映される）
+ */
+fun saveResultField(context: Context, field: String, value: String) {
+    val prefs = context.getSharedPreferences("result_prefs", Context.MODE_PRIVATE)
+    val s = prefs.getString("data", "") ?: ""
+    val map = LinkedHashMap<String, String>()
+    if (s.isNotBlank()) s.split("\n").forEach { line ->
+        val idx = line.indexOf('=')
+        if (idx > 0) map[line.substring(0, idx)] = line.substring(idx + 1)
+    }
+    map[field] = value.replace("\n", " ")
+    prefs.edit().putString("data", map.entries.joinToString("\n") { "${it.key}=${it.value}" }).apply()
+}
+
 /** 全タブの記録（ID情報・距離・結果・作図）を消去して初期状態に戻す。 */
 fun clearAllData(context: Context) {
     listOf("id_prefs", "distance_prefs", "result_prefs", "draw_prefs").forEach { name ->
