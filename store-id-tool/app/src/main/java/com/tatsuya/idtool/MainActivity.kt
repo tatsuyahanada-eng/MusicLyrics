@@ -42,6 +42,7 @@ import androidx.compose.material3.MenuAnchorType
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -354,6 +355,12 @@ fun IdContent() {
                     ),
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                     isError = storeNumber.isNotEmpty() && !valid,
+                    // 入力欄だけ白背景にして、黄色いボックスから浮き立たせる
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedContainerColor = Color.White,
+                        unfocusedContainerColor = Color.White,
+                        errorContainerColor = Color.White
+                    ),
                     supportingText = {
                         if (storeNumber.isNotEmpty() && !valid) {
                             Text("あと ${5 - storeNumber.length} 桁（5桁の数字を入力）", color = MaterialTheme.colorScheme.error)
