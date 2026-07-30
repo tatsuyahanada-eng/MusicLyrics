@@ -61,10 +61,12 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 
@@ -296,20 +298,72 @@ fun IdContent() {
                     .padding(top = 10.dp)
             )
 
-            OutlinedTextField(
-                value = storeNumber,
-                onValueChange = { input -> storeNumber = input.filter { it.isDigit() }.take(5) },
-                label = { Text("共通番号（5桁）") },
-                singleLine = true,
-                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                isError = storeNumber.isNotEmpty() && !valid,
-                supportingText = if (storeNumber.isNotEmpty() && !valid) {
-                    { Text("5桁の数字を入力してください（残り ${5 - storeNumber.length} 桁）") }
-                } else null,
+            // ── 共通番号（5桁）入力：目立たせて、チェックデジットを入力しないことを明示 ──
+            Column(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(top = 4.dp)
-            )
+                    .padding(top = 8.dp)
+                    .background(Color(0xFFFFF8E1), RoundedCornerShape(10.dp))
+                    .border(2.dp, Color(0xFFFFB300), RoundedCornerShape(10.dp))
+                    .padding(horizontal = 14.dp, vertical = 12.dp)
+            ) {
+                Text(
+                    "ここに『共通番号（5桁）』を入力",
+                    fontWeight = FontWeight.Bold, fontSize = 16.sp, color = Color(0xFFE65100)
+                )
+                Spacer(Modifier.height(3.dp))
+                Text(
+                    "システムID（10桁）の一番うしろ1桁は「チェックデジット」です。入力するのは、その手前の 5桁 だけ！",
+                    fontSize = 13.sp, color = Color(0xFF5D4037)
+                )
+                Spacer(Modifier.height(8.dp))
+                // 例示：太字の5桁が入力対象、末尾のCDは打ち消し線
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text("例）", fontSize = 12.sp, color = Color(0xFF5D4037))
+                    Text("5106", fontSize = 18.sp, fontFamily = FontFamily.Monospace, color = Color(0xFFBCAAA4))
+                    Text(
+                        "67200",
+                        fontSize = 24.sp, fontWeight = FontWeight.Bold, fontFamily = FontFamily.Monospace,
+                        color = Color(0xFFE65100)
+                    )
+                    Text(
+                        "7",
+                        fontSize = 18.sp, fontFamily = FontFamily.Monospace, color = Color(0xFFBCAAA4),
+                        textDecoration = TextDecoration.LineThrough
+                    )
+                    Spacer(Modifier.width(8.dp))
+                    Text("→ 入力は ", fontSize = 12.sp, color = Color(0xFF5D4037))
+                    Text("67200", fontSize = 14.sp, fontWeight = FontWeight.Bold,
+                        fontFamily = FontFamily.Monospace, color = Color(0xFFE65100))
+                }
+                Text(
+                    "↑ 太字の5桁だけ入力（末尾のチェックデジット 1桁 は入力しない）",
+                    fontSize = 11.sp, color = Color(0xFFE65100), fontWeight = FontWeight.Bold,
+                    modifier = Modifier.padding(top = 2.dp)
+                )
+                Spacer(Modifier.height(8.dp))
+                OutlinedTextField(
+                    value = storeNumber,
+                    onValueChange = { input -> storeNumber = input.filter { it.isDigit() }.take(5) },
+                    label = { Text("共通番号（5桁）") },
+                    placeholder = { Text("例）67200", fontFamily = FontFamily.Monospace) },
+                    singleLine = true,
+                    textStyle = TextStyle(
+                        fontSize = 26.sp, fontWeight = FontWeight.Bold,
+                        letterSpacing = 8.sp, fontFamily = FontFamily.Monospace
+                    ),
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                    isError = storeNumber.isNotEmpty() && !valid,
+                    supportingText = {
+                        if (storeNumber.isNotEmpty() && !valid) {
+                            Text("あと ${5 - storeNumber.length} 桁（5桁の数字を入力）", color = MaterialTheme.colorScheme.error)
+                        } else {
+                            Text("末尾のチェックデジットは入れず、その手前の5桁を入力します")
+                        }
+                    },
+                    modifier = Modifier.fillMaxWidth()
+                )
+            }
 
             Spacer(Modifier.height(10.dp))
 
