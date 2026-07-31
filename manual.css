@@ -1496,3 +1496,32 @@ body.tm-dragging .tm-treenode-row { cursor: grabbing; }
   font-size: 12px;
   color: var(--tm-muted);
 }
+
+/* ============================================================
+   ログインゲート（Basic認証未通過時に全画面で中身を隠す）
+   ============================================================ */
+.tm-authgate {
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  background:
+    radial-gradient(1000px 500px at 50% -10%, rgba(63, 224, 224, 0.10), transparent 60%),
+    linear-gradient(180deg, #0a1826, #071019);
+}
+.tm-authgate-box {
+  max-width: 420px;
+  width: 100%;
+  text-align: center;
+  background: var(--tm-panel);
+  border: 1px solid var(--tm-line-strong);
+  border-radius: 10px;
+  padding: 28px 24px;
+  box-shadow: 0 0 40px rgba(63, 224, 224, 0.12);
+}
+.tm-authgate-ico { font-size: 40px; margin-bottom: 6px; }
+.tm-authgate-title { color: var(--tm-cyan); letter-spacing: 1px; margin-bottom: 10px; }
+.tm-authgate-msg { color: var(--tm-text); font-size: 14px; line-height: 1.8; margin-bottom: 18px; }

@@ -698,6 +698,13 @@
 
   function renderNav() {
     refreshUpdatesBadge();
+    if (authRequired) { // ログイン未通過：中身を出さない
+      breadcrumbBar.innerHTML = `<span class="tm-crumb is-current" data-crumb-home>TOP</span>`;
+      chatLog.innerHTML = ''; choiceDock.innerHTML = ''; navAddDock.innerHTML = '';
+      backBtn.disabled = true; remainHint.textContent = '';
+      updateAuthGate();
+      return;
+    }
     // DB未接続（サーバーには繋がるがDBに接続できない）ときは項目を出さずエラー表示
     if (serverAvailable && !dbConnected) {
       breadcrumbBar.innerHTML = `<span class="tm-crumb is-current" data-crumb-home>TOP</span>`;
@@ -1998,6 +2005,7 @@
   let dbConnected = false;       // DB が使える → サーバーが正データ
   let hasToken = false;          // サーバー側でトークン必須か
   let dbError = null;
+  let authRequired = false;      // Basic認証等でログインが必要（401）→ 中身を出さない
 
   apiTokenInput.value = localStorage.getItem(TOKEN_KEY) || '';
   apiTokenInput.addEventListener('change', async () => {
@@ -2104,8 +2112,21 @@
   });
 
   async function detectServer() {
+    authRequired = false;
     try {
-      const cfg = await apiCall('config');
+      // config は認証不要のはずなので、401 はサーバー側のログイン(Basic認証)未通過を意味する
+      const headers = {};
+      const tok = apiToken();
+      if (tok) headers['X-Api-Token'] = tok;
+      const res = await fetch(`${API}?action=config`, { headers, cache: 'no-store' });
+      if (res.status === 401 || res.status === 403) {
+        authRequired = true;
+        serverAvailable = false; dbConnected = false; hasToken = false; dbError = null;
+        updateAuthGate();
+        setServerStatus();
+        return;
+      }
+      const cfg = await res.json();
       serverAvailable = true;
       dbConnected = !!cfg.dbConnected;
       hasToken = !!cfg.hasToken;
@@ -2113,8 +2134,24 @@
     } catch (e) {
       serverAvailable = false; dbConnected = false; hasToken = false; dbError = null;
     }
+    updateAuthGate();
     setServerStatus();
   }
+  // ログインが必要なとき、全画面のゲートで中身を隠す
+  function updateAuthGate() {
+    const gate = $('#authGate');
+    if (gate) gate.hidden = !authRequired;
+    // 認証必須のときは案内・編集・在庫・各ダイアログを閉じて中身を出さない
+    if (authRequired) {
+      document.querySelectorAll('dialog[open]').forEach((d) => { try { d.close(); } catch (_) {} });
+      if (chatLog) chatLog.innerHTML = '';
+      if (choiceDock) choiceDock.innerHTML = '';
+      if (navAddDock) navAddDock.innerHTML = '';
+      if (typeof editTree !== 'undefined' && editTree) editTree.innerHTML = '';
+    }
+  }
+
+  { const arb = $('#authReloadBtn'); if (arb) arb.addEventListener('click', () => { try { location.reload(); } catch (_) {} }); }
 
   $('#reloadBtn').addEventListener('click', async () => {
     if (!serverMode()) { syncMsg('サーバー未接続です', true); return; }

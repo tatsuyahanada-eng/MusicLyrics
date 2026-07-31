@@ -1,9 +1,9 @@
 /* Case By Case — service worker (offline cache, app-shell) */
-const CACHE = 'case-by-case-v44';
+const CACHE = 'case-by-case-v45';
 const ASSETS = [
   'manual.html',
-  'manual.css?v=38',
-  'manual.js?v=38',
+  'manual.css?v=39',
+  'manual.js?v=39',
   'manifest.webmanifest',
   'icon.svg',
   'vendor/xlsx.full.min.js',
@@ -23,7 +23,6 @@ self.addEventListener('activate', (event) => {
   );
 });
 
-// Cache-first for our own GET assets, network fallback.
 self.addEventListener('fetch', (event) => {
   const req = event.request;
   if (req.method !== 'GET') return;
@@ -32,6 +31,17 @@ self.addEventListener('fetch', (event) => {
   // API（動的データ）はキャッシュせず常にネットワークへ
   if (url.pathname.endsWith('api.php') || url.pathname.includes('/api')) return;
 
+  // ページ遷移（HTML）は必ずネットワーク優先。これによりサーバーのログイン(Basic認証)や
+  // 401 がキャッシュで迂回されず、未ログイン時にキャッシュのアプリが表示されない。
+  // ネットワークに全く繋がらない（オフライン）ときだけキャッシュを使う。
+  if (req.mode === 'navigate') {
+    event.respondWith(
+      fetch(req).catch(() => caches.match('manual.html'))
+    );
+    return;
+  }
+
+  // それ以外のアセットは cache-first（ネットワークが無ければキャッシュ）
   event.respondWith(
     caches.match(req).then((cached) => {
       if (cached) return cached;
