@@ -700,23 +700,78 @@ private fun renderToCanvas(
     }
 }
 
+// 見取り図の上部に付ける見出し（店舗名・日付）情報を取得する。
+private fun drawingHeaderInfo(context: Context): Pair<String, String> {
+    val storeName = loadIdInfo(context).storeName
+    val raw = context.getSharedPreferences("result_prefs", Context.MODE_PRIVATE).getString("data", "") ?: ""
+    var date = ""
+    raw.split("\n").forEach { line ->
+        val i = line.indexOf('=')
+        if (i > 0 && line.substring(0, i) == "日付") date = line.substring(i + 1)
+    }
+    if (date.isBlank()) date = SimpleDateFormat("yyyy/MM/dd", Locale.JAPAN).format(Date())
+    return storeName to date
+}
+
+// 上部の見出し帯（タイトル・店舗名・日付）を描く。
+private fun drawHeader(c: android.graphics.Canvas, w: Int, headerH: Int, storeName: String, date: String) {
+    val title = Paint().apply {
+        color = android.graphics.Color.BLACK; textSize = 42f; isAntiAlias = true; typeface = Typeface.DEFAULT_BOLD
+    }
+    c.drawText("見取り図", 28f, 54f, title)
+    val info = Paint().apply {
+        color = android.graphics.Color.rgb(0x33, 0x33, 0x33); textSize = 32f; isAntiAlias = true
+    }
+    c.drawText("店舗名：${storeName.ifBlank { "（未入力）" }}", 28f, 98f, info)
+    val dateP = Paint().apply {
+        color = android.graphics.Color.rgb(0x33, 0x33, 0x33); textSize = 32f; isAntiAlias = true
+        textAlign = Paint.Align.RIGHT
+    }
+    c.drawText("日付：$date", w - 28f, 54f, dateP)
+    c.drawLine(0f, headerH - 1f, w.toFloat(), headerH - 1f, Paint().apply {
+        color = android.graphics.Color.rgb(0x99, 0x99, 0x99); strokeWidth = 2f
+    })
+}
+
+// 見出し帯＋見取り図本体を1ページに合成して描く。
+private fun renderPage(
+    c: android.graphics.Canvas, w: Int, totalH: Int, headerH: Int,
+    marks: List<MarkT>, texts: List<TextT>, strokes: List<StrokeT>, bg: Bitmap?,
+    storeName: String, date: String
+) {
+    c.drawColor(android.graphics.Color.WHITE)
+    // 見取り図本体は見出しの下の領域に描く（クリップして見出し帯を侵食しないようにする）
+    c.save()
+    c.clipRect(0f, headerH.toFloat(), w.toFloat(), totalH.toFloat())
+    c.translate(0f, headerH.toFloat())
+    renderToCanvas(c, w, totalH - headerH, marks, texts, strokes, bg)
+    c.restore()
+    drawHeader(c, w, headerH, storeName, date)
+}
+
+private fun drawingFileName(storeName: String, ext: String): String {
+    val store = storeName.ifBlank { "" }.replace(Regex("[\\\\/:*?\"<>|\\n\\r]"), "_").trim()
+    return if (store.isEmpty()) "見取り図_${stamp()}.$ext" else "見取り図_${store}_${stamp()}.$ext"
+}
+
 private fun exportImage(
     context: Context, marks: List<MarkT>, texts: List<TextT>, strokes: List<StrokeT>, bg: Bitmap?, pdf: Boolean
 ) {
     try {
-        val w = 1080; val h = 1440
+        val w = 1080; val headerH = 120; val h = 1440 + headerH
+        val (storeName, date) = drawingHeaderInfo(context)
         val file: File
         if (pdf) {
             val doc = android.graphics.pdf.PdfDocument()
             val page = doc.startPage(android.graphics.pdf.PdfDocument.PageInfo.Builder(w, h, 1).create())
-            renderToCanvas(page.canvas, w, h, marks, texts, strokes, bg)
+            renderPage(page.canvas, w, h, headerH, marks, texts, strokes, bg, storeName, date)
             doc.finishPage(page)
-            file = File(context.cacheDir, "見取り図_${stamp()}.pdf")
+            file = File(context.cacheDir, drawingFileName(storeName, "pdf"))
             file.outputStream().use { doc.writeTo(it) }; doc.close()
         } else {
             val bmp = Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888)
-            renderToCanvas(android.graphics.Canvas(bmp), w, h, marks, texts, strokes, bg)
-            file = File(context.cacheDir, "見取り図_${stamp()}.png")
+            renderPage(android.graphics.Canvas(bmp), w, h, headerH, marks, texts, strokes, bg, storeName, date)
+            file = File(context.cacheDir, drawingFileName(storeName, "png"))
             file.outputStream().use { bmp.compress(Bitmap.CompressFormat.PNG, 100, it) }
         }
         val uri = FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", file)
@@ -749,19 +804,20 @@ fun renderSavedDrawing(context: Context, pdf: Boolean): File? {
     val bg = loadBitmapFile(drawBgFile(context))
     if (marks.isEmpty() && texts.isEmpty() && strokes.isEmpty() && bg == null) return null
     return try {
-        val w = 1080; val h = 1440
+        val w = 1080; val headerH = 120; val h = 1440 + headerH
+        val (storeName, date) = drawingHeaderInfo(context)
         if (pdf) {
             val doc = android.graphics.pdf.PdfDocument()
             val page = doc.startPage(android.graphics.pdf.PdfDocument.PageInfo.Builder(w, h, 1).create())
-            renderToCanvas(page.canvas, w, h, marks, texts, strokes, bg)
+            renderPage(page.canvas, w, h, headerH, marks, texts, strokes, bg, storeName, date)
             doc.finishPage(page)
-            val file = File(context.cacheDir, "見取り図_${stamp()}.pdf")
+            val file = File(context.cacheDir, drawingFileName(storeName, "pdf"))
             file.outputStream().use { doc.writeTo(it) }; doc.close()
             file
         } else {
             val bmp = Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888)
-            renderToCanvas(android.graphics.Canvas(bmp), w, h, marks, texts, strokes, bg)
-            val file = File(context.cacheDir, "見取り図_${stamp()}.png")
+            renderPage(android.graphics.Canvas(bmp), w, h, headerH, marks, texts, strokes, bg, storeName, date)
+            val file = File(context.cacheDir, drawingFileName(storeName, "png"))
             file.outputStream().use { bmp.compress(Bitmap.CompressFormat.PNG, 100, it) }
             file
         }
