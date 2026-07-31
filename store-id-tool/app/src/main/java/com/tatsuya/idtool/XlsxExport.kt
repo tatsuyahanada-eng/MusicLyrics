@@ -58,6 +58,28 @@ object XlsxExport {
         }
     }
 
+    /**
+     * 備考欄（F1）を、ラベルは通常サイズ・ID行は少し大きめの太字にして書き込む。
+     * セル内で文字サイズを変えるため、リッチテキスト（複数run）で出力する。
+     * F1:H4 は3列×4行の広い結合セルなので、14pt でもはみ出さない。
+     */
+    private fun setCellBikou(xml: String, ref: String, curId: String, newId: String): String {
+        fun run(text: String, sz: Int, bold: Boolean): String {
+            val b = if (bold) "<b/>" else ""
+            return "<r><rPr>$b<sz val=\"$sz\"/><color theme=\"1\"/><rFont val=\"ＭＳ Ｐゴシック\"/>" +
+                "<family val=\"3\"/><charset val=\"128\"/></rPr>" +
+                "<t xml:space=\"preserve\">${esc(text)}</t></r>"
+        }
+        val runs = run("備考\n", 11, false) +
+            run("現行システムID：$curId\n変更後システムID：$newId", 14, true)
+        val pat = Regex("<c r=\"$ref\"([^>]*?)(?:/>|>.*?</c>)", RegexOption.DOT_MATCHES_ALL)
+        return pat.replace(xml) { m ->
+            val s = Regex("s=\"(\\d+)\"").find(m.groupValues[1])?.groupValues?.get(1)
+            val sAttr = if (s != null) " s=\"$s\"" else ""
+            "<c r=\"$ref\"$sAttr t=\"inlineStr\"><is>$runs</is></c>"
+        }
+    }
+
     /** 場所5以降の追加行を、テンプレ最終行（行12）と同じ様式で組み立てる。 */
     private fun buildExtraRow(r: Int, loc: Int, locLabel: String, data: Map<String, String>): String {
         fun rc(col: String, ch: Int, style: String): String =
@@ -96,10 +118,8 @@ object XlsxExport {
         xml = setCell(xml, "C3", data["店舗名"].orEmpty())            // 店舗名
         xml = setCell(xml, "J1", formatDate(data["日付"].orEmpty()))  // 日付
         xml = setCell(xml, "L4", data["作業員"].orEmpty())            // 作業員
-        // 備考欄（F1:H4）に現行／変更後のシステムIDを明記
-        val bikou = "備考\n現行システムID：${data["現行システムID"].orEmpty()}\n" +
-            "変更後システムID：${data["変更後システムID"].orEmpty()}"
-        xml = setCell(xml, "F1", bikou)
+        // 備考欄（F1:H4）に現行／変更後のシステムIDを明記（ID行は少し大きめ・太字）
+        xml = setCellBikou(xml, "F1", data["現行システムID"].orEmpty(), data["変更後システムID"].orEmpty())
 
         // 場所ラベル（場所名＋距離メモ）
         fun locLabel(loc: Int): String {

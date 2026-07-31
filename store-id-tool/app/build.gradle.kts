@@ -12,8 +12,8 @@ android {
         applicationId = "com.tatsuya.idtool"
         minSdk = 26
         targetSdk = 35
-        versionCode = 11
-        versionName = "2.0"
+        versionCode = 12
+        versionName = "2.1"
     }
 
     // 固定の署名鍵。毎回同じ署名になるため、アンインストールせずに上書き更新できる。
