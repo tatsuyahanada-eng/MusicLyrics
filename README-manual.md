@@ -67,6 +67,134 @@ FTPソフトで、`uploads/` フォルダのパーミッションを **705（必
 編集モード →「サーバー連携」で **DB接続済み（共有中）** と表示されれば成功です。
 `API_TOKEN` を設定した場合は、編集する人が「編集トークン」に同じ合言葉を入力します。
 
+## サーバー移行（別のレンタルサーバーへの引っ越し）手順
+
+別のレンタルサーバーへ本アプリを譲渡・引っ越しする場合の手順です。
+**新しいサーバーには MySQL のテーブルが存在しないため、テーブルの新規作成が必要になります。**
+テーブルは初回アクセス時に `db.php` が自動作成しますが、権限の都合で自動作成できない環境もあるため、
+下記に **手動で作成する CREATE TABLE 文** も用意しています。
+
+### 1. 移行先サーバーに必要な環境
+
+| 項目 | 要件 |
+|---|---|
+| PHP | **7.4 以上**（8.x 推奨） |
+| データベース | **MySQL 5.7 以上 / 8.x**（PostgreSQL も可。SQLite も可） |
+| PHP拡張 | `pdo`, `pdo_mysql`（MySQL利用時）, `mbstring`, `fileinfo`, `json` |
+| Webサーバー | Apache（`.htaccess` が有効なこと）。Nginx等の場合は `uploads/` でのPHP実行禁止と `data/` の直接アクセス禁止を各自設定 |
+| 通信 | **HTTPS**（PWA・カメラ/貼り付け等のため必須） |
+| 書き込み権限 | `uploads/` フォルダに書き込み可（705 / 707 など） |
+
+### 2. 引っ越し先へ運ぶファイル
+
+FTP等で **アプリ一式** を新サーバーの公開フォルダへアップロードします。
+
+- `manual.html` / `manual.css` / `manual.js`
+- `manifest.webmanifest` / `sw.js` / `icon*.svg` / `icon*.png`
+- `api.php` / `db.php`
+- `config.sample.php`（`config.php` は移行先で新しく作成します）
+- `uploads/`（**中の画像・添付ファイルごと** 移すと、既存本文の画像が引き続き表示されます）
+- `vendor/`（Excel入出力用ライブラリ）
+
+> `config.php` には旧サーバーのDBパスワード等が入っているため、**そのままは持ち込まず**、
+> 移行先で新しいDB情報を入れて作り直してください（次項）。
+
+### 3. 移行先の config.php を作成
+
+移行先で `config.sample.php` を **`config.php`** にコピーし、**新しいサーバーのDB情報**を記入します。
+
+```php
+define('DB_DRIVER', 'mysql');
+define('DB_HOST', '新サーバーのDBホスト');
+define('DB_NAME', '新しいデータベース名');
+define('DB_USER', '新しいユーザー名');
+define('DB_PASS', '新しいパスワード');   // 移行先で設定した値
+define('API_TOKEN', '好きな合言葉');      // 公開URLでは必ず設定
+```
+
+### 4. MySQL のテーブルを新規作成
+
+移行先のMySQLには **テーブルが存在しません**。次のいずれかで作成します。
+
+**方法A（かんたん・推奨）: 自動作成**
+`config.php` を正しく設定した状態で `manual.html` を一度開くと、`db.php` が
+`nodes` / `inv_items` / `inv_logs` の各テーブルを自動で作成します。特別な操作は不要です。
+
+**方法B: 手動でSQLを実行**
+phpMyAdmin 等で下記SQLを実行して、テーブルを作成しておくこともできます
+（レンタルサーバーの権限で自動作成に失敗する場合や、事前に用意したい場合に使用）。
+
+```sql
+-- ツリー（案内モード）の各項目
+CREATE TABLE IF NOT EXISTS nodes (
+  id         VARCHAR(40)  NOT NULL PRIMARY KEY,
+  parent_id  VARCHAR(40)  NULL,
+  sort_order INT          NOT NULL DEFAULT 0,
+  title      VARCHAR(255) NOT NULL,
+  body       MEDIUMTEXT   NULL,
+  created_by VARCHAR(120) NULL,
+  updated_by VARCHAR(120) NULL,
+  lock_hash  VARCHAR(255) NULL,
+  updated_at BIGINT       NOT NULL DEFAULT 0,
+  created_at BIGINT       NOT NULL DEFAULT 0,
+  INDEX idx_parent (parent_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- 在庫管理：品目
+CREATE TABLE IF NOT EXISTS inv_items (
+  id         VARCHAR(40)  NOT NULL PRIMARY KEY,
+  name       VARCHAR(255) NOT NULL,
+  model      VARCHAR(255) NULL,
+  qty        INT          NOT NULL DEFAULT 0,
+  note       VARCHAR(255) NULL,
+  sort_order INT          NOT NULL DEFAULT 0,
+  created_at BIGINT       NOT NULL DEFAULT 0,
+  updated_at BIGINT       NOT NULL DEFAULT 0
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- 在庫管理：入出庫の履歴
+CREATE TABLE IF NOT EXISTS inv_logs (
+  id         VARCHAR(40)  NOT NULL PRIMARY KEY,
+  item_id    VARCHAR(40)  NOT NULL,
+  action     VARCHAR(20)  NOT NULL,
+  qty        INT          NOT NULL DEFAULT 0,
+  balance    INT          NOT NULL DEFAULT 0,
+  person     VARCHAR(120) NULL,
+  note       VARCHAR(255) NULL,
+  created_at BIGINT       NOT NULL DEFAULT 0,
+  INDEX idx_inv_item (item_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+```
+
+### 5. 既存データの移行（引き継ぐ場合）
+
+旧サーバーの内容（項目・在庫）を引き継ぐ場合は、旧サーバーで各テーブルを
+エクスポートし、移行先でインポートします。
+
+**旧サーバーで書き出し（例: mysqldump）**
+```bash
+mysqldump -h 旧DBホスト -u 旧ユーザー -p 旧DB名 nodes inv_items inv_logs > casebycase.sql
+```
+（phpMyAdmin の「エクスポート」で `nodes` `inv_items` `inv_logs` を選んでも構いません）
+
+**移行先で読み込み**
+```bash
+mysql -h 新DBホスト -u 新ユーザー -p 新DB名 < casebycase.sql
+```
+（phpMyAdmin の「インポート」でも可）
+
+> **画像・添付ファイル**は DB ではなく `uploads/` フォルダにあります。
+> 本文に貼った画像を引き継ぐには、**`uploads/` フォルダの中身も一緒にコピー**してください。
+
+### 6. 動作確認
+
+移行先の `https://新しいドメイン/…/manual.html` を開き、
+編集モード →「サーバー連携」で **DB接続済み（共有中）** と表示されれば成功です。
+既存データを移した場合は、項目や在庫が表示されることを確認してください。
+
+> **ヒント**: PWAのキャッシュが残っていると旧内容が表示されることがあります。
+> スマホ/PCで一度ページを再読み込み（またはアプリを開き直し）してください。
+
 ## 使い方（画面）
 
 - **案内モード**: 大項目 → 分岐 → 最終作業項目まで選択で進む。
