@@ -1,5 +1,7 @@
 MusicLyrics/
 *.zip
+# アップデート配布用のステージング（生成物）はコミットしない
+case-by-case-update/
 
 # 秘密情報・生成データはコミットしない
 config.php
