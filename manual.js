@@ -2088,10 +2088,16 @@
     // ヘッダーの共有状態チップ（常時表示・端末間の食い違い診断用）
     const chip = $('#connChip');
     if (chip) {
-      chip.classList.remove('is-shared', 'is-nodb', 'is-local');
+      chip.classList.remove('is-shared', 'is-nodb', 'is-local', 'is-busy');
       if (serverAvailable && dbConnected) { chip.textContent = '● 共有中'; chip.classList.add('is-shared'); }
       else if (serverAvailable && !dbConnected) { chip.textContent = '● DB未接続'; chip.classList.add('is-nodb'); }
       else { chip.textContent = '● この端末のみ'; chip.classList.add('is-local'); }
+      // 共有中でないときは、タップでサーバー接続（必要ならログイン）できるようにする
+      const canConnect = !(serverAvailable && dbConnected);
+      chip.classList.toggle('is-clickable', canConnect);
+      chip.title = canConnect
+        ? 'タップでサーバーに接続し、最新の情報を取得します'
+        : 'データの共有状態（全端末で共有中）';
     }
     // DB接続エラーの内容を画面に表示（原因特定用）
     const eb = $('#dbErrorBar');
@@ -2167,6 +2173,32 @@
   }
 
   { const arb = $('#authReloadBtn'); if (arb) arb.addEventListener('click', () => { try { location.reload(); } catch (_) {} }); }
+
+  // ヘッダーの接続チップ：未接続（この端末のみ）のときタップでサーバーへ接続し直す。
+  // まず再接続を試み、それでも繋がらなければログイン画面を出すため再読み込みを促す。
+  { const chip = $('#connChip'); if (chip) chip.addEventListener('click', async () => {
+    if (serverMode()) return; // 共有中のときは何もしない
+    chip.classList.add('is-busy');
+    chip.textContent = '● 接続中…';
+    try { await detectServer(); } catch (_) {}
+    if (authRequired) { return; } // ログインゲートが表示される
+    if (serverMode()) {
+      try { syncMsg('サーバーに接続中…'); await reloadFromServer(); } catch (_) {}
+      if (!editView.hidden) renderEdit(); else navRestart();
+      syncMsg('サーバーに接続しました。最新の情報を表示しています');
+      return;
+    }
+    setServerStatus(); // チップ表示を元に戻す
+    if (serverAvailable && !dbConnected) {
+      syncMsg('サーバーには繋がりましたが、データベースに接続できません（管理者に確認してください）', true);
+      return;
+    }
+    askConfirm(
+      'サーバーに接続できませんでした。ログイン画面を表示して接続をやり直しますか？（ログイン後、最新の情報が表示されます）',
+      () => { try { location.reload(); } catch (_) {} },
+      'ログインして接続'
+    );
+  }); }
 
   $('#reloadBtn').addEventListener('click', async () => {
     if (!serverMode()) { syncMsg('サーバー未接続です', true); return; }

@@ -94,6 +94,25 @@
 .tm-connchip.is-shared { color: #041018; background: var(--tm-cyan); border-color: var(--tm-cyan); }
 .tm-connchip.is-nodb { color: var(--tm-warn); border-color: rgba(255, 207, 63, 0.5); }
 .tm-connchip.is-local { color: var(--tm-muted); }
+/* 未接続チップはタップでサーバー接続（ログイン）できることを示す */
+.tm-connchip.is-clickable {
+  cursor: pointer;
+  color: var(--tm-cyan);
+  border-color: rgba(88, 240, 255, 0.55);
+  box-shadow: 0 0 0 1px rgba(88, 240, 255, 0.15);
+}
+.tm-connchip.is-clickable::after {
+  content: " ↻ 接続";
+  font-size: 9px;
+  opacity: 0.85;
+}
+.tm-connchip.is-clickable:hover {
+  color: #041018;
+  background: var(--tm-cyan);
+  border-color: var(--tm-cyan);
+}
+.tm-connchip.is-busy { opacity: 0.6; cursor: progress; }
+.tm-connchip.is-busy::after { content: ""; }
 
 /* DB接続エラー通知バー */
 .tm-dberror {
