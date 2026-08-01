@@ -510,6 +510,14 @@
     const norm = String(text == null ? '' : text).replace(/\r\n/g, '\n').replace(/\r/g, '\n');
     return norm.split('\n').map((l) => linkifyText(l) || '').join('<br>');
   }
+  // 貼り付けHTMLを安全化（文字サイズ・色・太字などは保持、画像は除外＝画像は「画像を追加」から）
+  function sanitizePastedHtml(html) {
+    const clean = sanitizeHtml(html);
+    const tmp = document.createElement('div');
+    tmp.innerHTML = clean;
+    tmp.querySelectorAll('img').forEach((im) => im.remove());
+    return tmp.innerHTML;
+  }
   function sanitizeInto(node, out, insideLink) {
     node.childNodes.forEach((child) => {
       if (child.nodeType === 3) { out.push(insideLink ? esc(child.nodeValue) : linkifyText(child.nodeValue)); return; }
@@ -1529,7 +1537,7 @@
     nodeBodyEditor.addEventListener('paste', (e) => {
       const cd = e.clipboardData;
       const items = cd && cd.items;
-      // 画像の貼り付けはアップロード
+      // 画像（スクリーンショット等）の貼り付けはアップロード
       if (items) {
         for (const it of items) {
           if (it.type && it.type.indexOf('image/') === 0) {
@@ -1541,7 +1549,14 @@
         }
       }
       if (!cd) return;
-      // メモ等からの貼り付けは改行を確実に反映し、URLはリンク化する
+      // リッチテキスト（文字サイズ・色・太字など）があればそれを保持して貼り付け
+      const html = cd.getData('text/html');
+      if (html && html.trim()) {
+        e.preventDefault();
+        insertEditorHtml(sanitizePastedHtml(html));
+        return;
+      }
+      // プレーンテキストのみの場合は改行を保ちつつURLをリンク化
       const text = cd.getData('text/plain');
       if (text == null || text === '') return; // ファイル等はブラウザ既定に任せる
       e.preventDefault();
