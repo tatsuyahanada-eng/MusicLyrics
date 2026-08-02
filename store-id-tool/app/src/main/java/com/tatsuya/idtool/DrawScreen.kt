@@ -369,6 +369,7 @@ fun DrawScreen(modifier: Modifier = Modifier) {
                                             marks.add(MarkT(center.x, center.y, selType, selNum, "", "FREE",
                                                 customHW = max(hw, 12f), customHH = max(hh, 12f)))
                                             persist()
+                                            nameIdx = marks.size - 1; nameInput = ""
                                         }
                                     }
                                     freeCenter = null
