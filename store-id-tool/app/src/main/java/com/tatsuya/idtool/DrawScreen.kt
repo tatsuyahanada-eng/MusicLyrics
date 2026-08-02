@@ -18,8 +18,11 @@ import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.foundation.gestures.waitForUpOrCancellation
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -68,8 +71,11 @@ import java.io.File
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
+import kotlinx.coroutines.withTimeoutOrNull
+import kotlin.math.abs
 import kotlin.math.atan2
 import kotlin.math.cos
+import kotlin.math.max
 import kotlin.math.sin
 
 private enum class DTool { MARK, PEN, TEXT, DISTANCE, MOVE, DELETE }
@@ -111,18 +117,23 @@ private fun numTextColorInt(n: Int): Int = when (n) {
 
 // 図形の半幅・半高（px）
 private fun shapeHalf(type: String, size: String): Pair<Float, Float> {
-    val s = when (size) { "S" -> 0; "L" -> 2; else -> 1 }
+    val s = when (size) { "S" -> 0; "L" -> 2; "XL" -> 3; else -> 1 }
     return when (type) {
-        "横長方形" -> listOf(Pair(50f, 28f), Pair(84f, 46f), Pair(130f, 68f))[s]
-        "縦長方形" -> listOf(Pair(28f, 50f), Pair(46f, 84f), Pair(68f, 130f))[s]
-        else -> listOf(Pair(28f, 28f), Pair(46f, 46f), Pair(72f, 72f))[s] // 正方形・丸
+        "横長方形" -> listOf(Pair(50f, 28f), Pair(84f, 46f), Pair(130f, 68f), Pair(180f, 94f))[s]
+        "縦長方形" -> listOf(Pair(28f, 50f), Pair(46f, 84f), Pair(68f, 130f), Pair(94f, 180f))[s]
+        else -> listOf(Pair(28f, 28f), Pair(46f, 46f), Pair(72f, 72f), Pair(100f, 100f))[s] // 正方形・丸
     }
 }
 
 private data class MarkT(
     val x: Float, val y: Float, val type: String, val num: Int,
-    val label: String = "", val size: String = "M"
+    val label: String = "", val size: String = "M",
+    val customHW: Float = 0f, val customHH: Float = 0f
 )
+private fun markHalf(m: MarkT): Pair<Float, Float> =
+    if (m.size == "FREE" && m.customHW > 0f) Pair(m.customHW, m.customHH)
+    else shapeHalf(m.type, m.size)
+
 private data class TextT(val x: Float, val y: Float, val s: String, val sizeF: Float, val colorL: Long, val boxed: Boolean)
 private data class StrokeT(val pts: List<Offset>, val mode: PenMode, val colorL: Long)
 
@@ -155,6 +166,10 @@ fun DrawScreen(modifier: Modifier = Modifier) {
     // 移動モードで選択中の対象（タップで選択し、離してもハイライトを維持）
     var selKind by remember { mutableStateOf<String?>(null) }
     var selIdx by remember { mutableIntStateOf(-1) }
+
+    // フリーサイズ：長押しドラッグ中のプレビュー用状態
+    var freeCenter by remember { mutableStateOf<Offset?>(null) }
+    var freeDragCur by remember { mutableStateOf(Offset.Zero) }
 
     var textPoint by remember { mutableStateOf<Offset?>(null) }
     var textInput by remember { mutableStateOf("") }
@@ -239,6 +254,7 @@ fun DrawScreen(modifier: Modifier = Modifier) {
                         FilterChip(selSize == "S", { selSize = "S" }, label = { Text("小") })
                         FilterChip(selSize == "M", { selSize = "M" }, label = { Text("中") })
                         FilterChip(selSize == "L", { selSize = "L" }, label = { Text("大") })
+                        FilterChip(selSize == "XL", { selSize = "XL" }, label = { Text("特大") })
                     }
                 } else {
                     Row(modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
@@ -254,7 +270,7 @@ fun DrawScreen(modifier: Modifier = Modifier) {
                         (1..10).forEach { n -> FilterChip(selNum == n, { selNum = n }, label = { Text("$n") }) }
                     }
                 }
-                Text("長押しでアイテム名を登録できます", fontSize = 11.sp)
+                Text(if (isShape(selType)) "タップで配置 / 長押しドラッグでフリーサイズ" else "長押しでアイテム名を登録できます", fontSize = 11.sp)
             }
             DTool.PEN -> {
                 Row(modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
@@ -321,6 +337,57 @@ fun DrawScreen(modifier: Modifier = Modifier) {
                             },
                             onDragEnd = { if (moveKind != null) persist(); moveKind = null; moveIdx = -1 }
                         )
+                        DTool.MARK -> if (isShape(selType)) {
+                            // 図形：タップ＝プリセットサイズで配置 / 長押しドラッグ＝フリーサイズ
+                            val longPressMs = viewConfiguration.longPressTimeoutMillis
+                            awaitEachGesture {
+                                val down = awaitFirstDown()
+                                val downPos = down.position
+                                val result = withTimeoutOrNull(longPressMs) { waitForUpOrCancellation() }
+                                if (result != null) {
+                                    // 短いタップ → プリセットサイズで配置
+                                    val p = norm(downPos, size.width, size.height)
+                                    pushUndo()
+                                    marks.add(MarkT(p.x, p.y, selType, selNum, "", selSize)); persist()
+                                } else {
+                                    // 長押し成立 → ドラッグでフリーサイズ
+                                    val center = norm(downPos, size.width, size.height)
+                                    freeCenter = center; freeDragCur = center
+                                    var moved = false
+                                    do {
+                                        val event = awaitPointerEvent()
+                                        val pos = event.changes.firstOrNull()?.position ?: break
+                                        freeDragCur = norm(pos, size.width, size.height)
+                                        moved = true
+                                        event.changes.forEach { it.consume() }
+                                    } while (event.changes.any { it.pressed })
+                                    if (moved) {
+                                        val hw = abs(freeDragCur.x - center.x) * size.width
+                                        val hh = abs(freeDragCur.y - center.y) * size.height
+                                        if (hw > 10f || hh > 10f) {
+                                            pushUndo()
+                                            marks.add(MarkT(center.x, center.y, selType, selNum, "", "FREE",
+                                                customHW = max(hw, 12f), customHH = max(hh, 12f)))
+                                            persist()
+                                        }
+                                    }
+                                    freeCenter = null
+                                }
+                            }
+                        } else {
+                            detectTapGestures(
+                                onLongPress = { off ->
+                                    val p = norm(off, size.width, size.height)
+                                    val mi = nearestMark(p, marks)
+                                    if (mi >= 0) { nameIdx = mi; nameInput = marks[mi].label }
+                                },
+                                onTap = { off ->
+                                    val p = norm(off, size.width, size.height)
+                                    pushUndo()
+                                    marks.add(MarkT(p.x, p.y, selType, selNum, "", selSize)); persist()
+                                }
+                            )
+                        }
                         else -> detectTapGestures(
                             onLongPress = { off ->
                                 val p = norm(off, size.width, size.height)
@@ -330,10 +397,6 @@ fun DrawScreen(modifier: Modifier = Modifier) {
                             onTap = { off ->
                                 val p = norm(off, size.width, size.height)
                                 when (tool) {
-                                    DTool.MARK -> {
-                                        pushUndo()
-                                        marks.add(MarkT(p.x, p.y, selType, selNum, "", selSize)); persist()
-                                    }
                                     DTool.TEXT -> { textPoint = p; textInput = "" }
                                     DTool.DISTANCE -> { distPoint = p }
                                     DTool.DELETE -> {
@@ -381,6 +444,22 @@ fun DrawScreen(modifier: Modifier = Modifier) {
                     hc?.let {
                         drawCircle(Color(0x332196F3), radius = 54f, center = it)
                         drawCircle(Color(0xFF2196F3), radius = 54f, center = it, style = Stroke(4f))
+                    }
+                }
+                // フリーサイズ：長押しドラッグ中のプレビュー（点線枠）
+                freeCenter?.let { center ->
+                    val cx = center.x * w; val cy = center.y * h
+                    val hw = abs(freeDragCur.x - center.x) * w
+                    val hh = abs(freeDragCur.y - center.y) * h
+                    val previewColor = Color(0xFF2196F3)
+                    val dash = PathEffect.dashPathEffect(floatArrayOf(12f, 8f))
+                    if (selType == "丸") {
+                        val r = max(hw, hh)
+                        drawCircle(previewColor, radius = r, center = Offset(cx, cy),
+                            style = Stroke(3f, pathEffect = dash))
+                    } else {
+                        drawRect(previewColor, topLeft = Offset(cx - hw, cy - hh),
+                            size = Size(hw * 2, hh * 2), style = Stroke(3f, pathEffect = dash))
                     }
                 }
             }
@@ -557,7 +636,7 @@ private fun DrawScope.drawMark(m: MarkT, w: Float, h: Float) {
     val cx = m.x * w; val cy = m.y * h
     val nc = drawContext.canvas.nativeCanvas
     if (isShape(m.type)) {
-        val (hw, hh) = shapeHalf(m.type, m.size)
+        val (hw, hh) = markHalf(m)
         if (m.type == "丸") {
             drawCircle(Color.White, radius = hw, center = Offset(cx, cy))
             drawCircle(Color(0xFF333333), radius = hw, center = Offset(cx, cy), style = Stroke(3f))
@@ -648,7 +727,7 @@ private fun renderToCanvas(
     marks.forEach { m ->
         val cx = m.x * w; val cy = m.y * h
         if (isShape(m.type)) {
-            val (hw, hh) = shapeHalf(m.type, m.size)
+            val (hw, hh) = markHalf(m)
             if (m.type == "丸") {
                 c.drawCircle(cx, cy, hw, Paint().apply { color = android.graphics.Color.WHITE; isAntiAlias = true })
                 c.drawCircle(cx, cy, hw, Paint().apply {
@@ -829,7 +908,7 @@ private const val DRAW_PREFS = "draw_prefs"
 
 private fun saveDraw(context: Context, marks: List<MarkT>, texts: List<TextT>, strokes: List<StrokeT>) {
     val sb = StringBuilder()
-    marks.forEach { sb.append("M|${it.x}|${it.y}|${it.type}|${it.num}|${it.size}|${it.label.replace("\n", " ").replace("|", "/")}\n") }
+    marks.forEach { sb.append("M|${it.x}|${it.y}|${it.type}|${it.num}|${it.size}|${it.label.replace("\n", " ").replace("|", "/")}|${it.customHW}|${it.customHH}\n") }
     texts.forEach { sb.append("T|${it.x}|${it.y}|${it.sizeF}|${it.colorL}|${if (it.boxed) 1 else 0}|${it.s.replace("\n", "~~").replace("|", "/")}\n") }
     strokes.forEach { st -> sb.append("S|${st.mode.name}|${st.colorL}|").append(st.pts.joinToString(";") { "${it.x},${it.y}" }).append("\n") }
     context.getSharedPreferences(DRAW_PREFS, Context.MODE_PRIVATE).edit().putString("data", sb.toString()).apply()
@@ -846,7 +925,9 @@ private fun loadDraw(
         when {
             f[0] == "M" && f.size >= 5 -> marks.add(MarkT(
                 f[1].toFloat(), f[2].toFloat(), f[3], f[4].toInt(),
-                if (f.size >= 7) f[6] else "", if (f.size >= 6) f[5] else "M"
+                if (f.size >= 7) f[6] else "", if (f.size >= 6) f[5] else "M",
+                if (f.size >= 8) f[7].toFloatOrNull() ?: 0f else 0f,
+                if (f.size >= 9) f[8].toFloatOrNull() ?: 0f else 0f
             ))
             f[0] == "T" && f.size >= 7 -> texts.add(TextT(
                 f[1].toFloat(), f[2].toFloat(), f[6].replace("~~", "\n"), f[3].toFloat(), f[4].toLong(), f[5] == "1"
