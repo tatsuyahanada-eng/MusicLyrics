@@ -1544,3 +1544,11 @@ body.tm-dragging .tm-treenode-row { cursor: grabbing; }
 .tm-authgate-ico { font-size: 40px; margin-bottom: 6px; }
 .tm-authgate-title { color: var(--tm-cyan); letter-spacing: 1px; margin-bottom: 10px; }
 .tm-authgate-msg { color: var(--tm-text); font-size: 14px; line-height: 1.8; margin-bottom: 18px; }
+.tm-authgate-actions { display: flex; flex-direction: column; gap: 10px; align-items: stretch; }
+.tm-authgate-detail {
+  margin-top: 14px;
+  font-family: var(--tm-mono);
+  font-size: 11px;
+  color: var(--tm-muted);
+  word-break: break-word;
+}

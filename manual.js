@@ -706,28 +706,13 @@
 
   function renderNav() {
     refreshUpdatesBadge();
-    if (authRequired) { // ログイン未通過：中身を出さない
+    // サーバーに正しく接続できていないとき（未ログイン/接続不可/DB未接続）は
+    // 全画面ゲートで中身を隠し、ローカルの古いデータは一切表示しない。
+    if (gateReason()) {
       breadcrumbBar.innerHTML = `<span class="tm-crumb is-current" data-crumb-home>TOP</span>`;
       chatLog.innerHTML = ''; choiceDock.innerHTML = ''; navAddDock.innerHTML = '';
       backBtn.disabled = true; remainHint.textContent = '';
       updateAuthGate();
-      return;
-    }
-    // DB未接続（サーバーには繋がるがDBに接続できない）ときは項目を出さずエラー表示
-    if (serverAvailable && !dbConnected) {
-      breadcrumbBar.innerHTML = `<span class="tm-crumb is-current" data-crumb-home>TOP</span>`;
-      chatLog.innerHTML = `<div class="tm-naverror">
-        <div class="tm-naverror-title">&#9888; データベースに接続できません</div>
-        <p class="tm-naverror-msg">サーバーのデータベースに接続できないため、内容を表示できません。<br>
-          管理者は <b>config.php</b> の設定（ホスト・DB名・ユーザー・パスワード）とPHPのバージョンをご確認ください。</p>
-        ${dbError ? `<div class="tm-naverror-detail">詳細: ${esc(dbError)}</div>` : ''}
-        <button class="tm-btn tm-btn-outline" id="navRetryBtn" type="button">&#8635; 再接続を試す</button>
-      </div>`;
-      choiceDock.className = 'tm-choicedock';
-      choiceDock.innerHTML = '';
-      navAddDock.innerHTML = '';
-      backBtn.disabled = true;
-      remainHint.textContent = '';
       return;
     }
 
@@ -1075,6 +1060,8 @@
 
   function renderEdit() {
     refreshUpdatesBadge();
+    // サーバー未接続時は編集画面も出さない（ローカルの古いデータを見せない）
+    if (gateReason()) { editTree.innerHTML = ''; updateAuthGate(); return; }
     if (tree.length === 0) {
       editTree.innerHTML =
         '<div class="tm-emptynote">まだカテゴリがありません。「大項目（カテゴリ）を追加」から始めてください。</div>';
@@ -2158,21 +2145,81 @@
     updateAuthGate();
     setServerStatus();
   }
-  // ログインが必要なとき、全画面のゲートで中身を隠す
+  // サーバー（ログイン＋DB）に正しく接続できているときだけ中身を表示する。
+  // それ以外（未ログイン / 接続不可 / DB未接続）は全画面ゲートで中身を隠し、
+  // この端末に残ったローカルの古いデータは一切表示しない。
+  // 戻り値: null=接続OK / 'auth'=未ログイン / 'offline'=サーバー接続不可 / 'nodb'=DB未接続
+  function gateReason() {
+    if (authRequired) return 'auth';
+    if (!serverAvailable) return 'offline';
+    if (!dbConnected) return 'nodb';
+    return null;
+  }
+  // 接続確認中（起動直後・再接続中）にゲートを「接続中」表示にして中身を隠す
+  function showConnecting() {
+    const gate = $('#authGate'); if (!gate) return;
+    gate.hidden = false;
+    const ico = $('#authGateIco'), title = $('#authGateTitle'), msg = $('#authGateMsg');
+    const detail = $('#authGateDetail'), reload = $('#authReloadBtn'), retry = $('#authRetryBtn');
+    if (ico) ico.innerHTML = '&#128246;';
+    if (title) title.textContent = 'サーバーに接続しています…';
+    if (msg) msg.innerHTML = '最新の共有データを読み込んでいます。しばらくお待ちください。';
+    if (detail) { detail.hidden = true; detail.textContent = ''; }
+    if (reload) reload.hidden = true;
+    if (retry) retry.hidden = true;
+    clearGatedContent();
+  }
+  function clearGatedContent() {
+    document.querySelectorAll('dialog[open]').forEach((d) => { try { d.close(); } catch (_) {} });
+    if (chatLog) chatLog.innerHTML = '';
+    if (choiceDock) choiceDock.innerHTML = '';
+    if (navAddDock) navAddDock.innerHTML = '';
+    if (typeof editTree !== 'undefined' && editTree) editTree.innerHTML = '';
+  }
   function updateAuthGate() {
     const gate = $('#authGate');
-    if (gate) gate.hidden = !authRequired;
-    // 認証必須のときは案内・編集・在庫・各ダイアログを閉じて中身を出さない
-    if (authRequired) {
-      document.querySelectorAll('dialog[open]').forEach((d) => { try { d.close(); } catch (_) {} });
-      if (chatLog) chatLog.innerHTML = '';
-      if (choiceDock) choiceDock.innerHTML = '';
-      if (navAddDock) navAddDock.innerHTML = '';
-      if (typeof editTree !== 'undefined' && editTree) editTree.innerHTML = '';
+    const reason = gateReason();
+    const active = !!reason;
+    if (gate) {
+      gate.hidden = !active;
+      if (active) {
+        const ico = $('#authGateIco'), title = $('#authGateTitle'), msg = $('#authGateMsg');
+        const detail = $('#authGateDetail'), reload = $('#authReloadBtn'), retry = $('#authRetryBtn');
+        if (reason === 'auth') {
+          if (ico) ico.innerHTML = '&#128274;';
+          if (title) title.textContent = 'ログインが必要です';
+          if (msg) msg.innerHTML = 'このマニュアルを見るには、ID・パスワードでのログインが必要です。<br>'
+            + '下のボタンで再読み込みし、表示されるログイン画面で入力してください。';
+        } else if (reason === 'nodb') {
+          if (ico) ico.innerHTML = '&#9888;';
+          if (title) title.textContent = 'データベースに接続できません';
+          if (msg) msg.innerHTML = 'サーバーのデータベースに接続できないため、内容を表示できません。<br>'
+            + '管理者は <b>config.php</b> の設定とPHPのバージョンをご確認ください。';
+        } else { // offline / unreachable
+          if (ico) ico.innerHTML = '&#128246;';
+          if (title) title.textContent = 'サーバーに接続してください';
+          if (msg) msg.innerHTML = 'サーバー（共有データ）に接続できないため、内容を表示できません。<br>'
+            + 'この端末に保存された内容は表示しません。ネットワークを確認し、ログインし直してください。';
+        }
+        if (reload) reload.hidden = false;
+        if (retry) retry.hidden = false;
+        if (detail) {
+          if (dbError && reason !== 'auth') { detail.hidden = false; detail.textContent = '詳細: ' + dbError; }
+          else { detail.hidden = true; detail.textContent = ''; }
+        }
+      }
     }
+    if (active) clearGatedContent();
   }
 
   { const arb = $('#authReloadBtn'); if (arb) arb.addEventListener('click', () => { try { location.reload(); } catch (_) {} }); }
+  { const rb = $('#authRetryBtn'); if (rb) rb.addEventListener('click', async () => {
+    rb.disabled = true; const t = rb.textContent; rb.textContent = '接続中…';
+    showConnecting();
+    try { await detectServer(); } catch (_) {}
+    if (serverMode()) { try { await reloadFromServer(); } catch (_) {} setMode('nav'); }
+    rb.disabled = false; rb.textContent = t;
+  }); }
 
   // ヘッダーの接続チップ：未接続（この端末のみ）のときタップでサーバーへ接続し直す。
   // まず再接続を試み、それでも繋がらなければログイン画面を出すため再読み込みを促す。
@@ -3068,10 +3115,12 @@
 
   /* ---------- boot ---------- */
   (async () => {
+    // 接続が確認できるまではゲートを表示して中身（ローカルの古いデータ）を出さない
+    showConnecting();
     setServerStatus();
     await detectServer();
     if (serverMode()) {
-      try { await reloadFromServer(); } catch (e) { /* fallback: localStorage */ }
+      try { await reloadFromServer(); } catch (e) { /* サーバー接続済みなら再取得のみ */ }
     }
     setMode('nav');
   })();

@@ -9,7 +9,7 @@
   <link rel="manifest" href="manifest.webmanifest">
   <link rel="icon" href="icon.svg" type="image/svg+xml">
   <link rel="apple-touch-icon" href="icon-192.png">
-  <link rel="stylesheet" href="manual.css?v=40">
+  <link rel="stylesheet" href="manual.css?v=41">
 </head>
 <body class="tm-body">
 
@@ -47,11 +47,15 @@
   <!-- ===== Auth gate（ログインが必要なとき全画面で中身を隠す） ===== -->
   <div id="authGate" class="tm-authgate" hidden>
     <div class="tm-authgate-box">
-      <div class="tm-authgate-ico">&#128274;</div>
-      <h2 class="tm-authgate-title">ログインが必要です</h2>
-      <p class="tm-authgate-msg">このマニュアルを見るには、ID・パスワードでのログインが必要です。<br>
+      <div id="authGateIco" class="tm-authgate-ico">&#128274;</div>
+      <h2 id="authGateTitle" class="tm-authgate-title">ログインが必要です</h2>
+      <p id="authGateMsg" class="tm-authgate-msg">このマニュアルを見るには、ID・パスワードでのログインが必要です。<br>
         下のボタンで再読み込みし、表示されるログイン画面で入力してください。</p>
-      <button id="authReloadBtn" class="tm-btn tm-btn-primary" type="button">&#8635; 再読み込みしてログイン</button>
+      <div class="tm-authgate-actions">
+        <button id="authReloadBtn" class="tm-btn tm-btn-primary" type="button">&#8635; 再読み込みしてログイン</button>
+        <button id="authRetryBtn" class="tm-btn tm-btn-outline" type="button">再接続を試す</button>
+      </div>
+      <p id="authGateDetail" class="tm-authgate-detail" hidden></p>
     </div>
   </div>
 
@@ -591,6 +595,6 @@
   </dialog>
 
   <script src="vendor/xlsx.full.min.js"></script>
-  <script src="manual.js?v=41"></script>
+  <script src="manual.js?v=42"></script>
 </body>
 </html>
