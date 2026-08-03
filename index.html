@@ -796,41 +796,58 @@
       const km = parseFloat(document.getElementById('totalKm').value) || 0;
       const val = id => document.getElementById(id).value.trim();
 
-      add('B1', 's', `${caseSelect.value}_車両移動経費請求書`);
+      const _c = caseSelect.value;
+      const _title = _c === 'JCOM' ? 'J-COM案件_車両移動経費請求書' : `${_c}_車両移動経費請求書`;
+      add('B1', 's', _title);
       add('B2', 's', '稼働日'); txt('C2', val('workDate'));
       add('B3', 's', '管理番号'); txt('C3', val('mngNo'));
       add('N3', 'n', price);
       add('B5', 's', 'スタッフID'); txt('C5', val('staffId'));
       add('B7', 's', '基点住所'); txt('C7', val('baseAddr'));
 
+      // テンプレート準拠：B9-B15 の7行分は必ずラベルを出力（訪問先1〜7）
       const visits = [...document.querySelectorAll('.visit-addr')];
-      visits.forEach((el, i) => { add('B' + (9 + i), 's', '訪問先' + (i + 1)); txt('C' + (9 + i), el.value.trim()); });
+      for (let i = 0; i < 7; i++) {
+        add('B' + (9 + i), 's', '訪問先' + (i + 1));
+        if (visits[i]) txt('C' + (9 + i), visits[i].value.trim());
+      }
 
       // ルート（有料道路）
       add('B17', 's', 'ルート'); add('C17', 's', '有料道路'); add('D17', 's', '区間'); add('G17', 's', '費用');
       const tollRows = [...document.querySelectorAll('#tollTable tbody tr')];
+      // テンプレート準拠：ルート表は B18-B25 の8行分（ラベルと「円」）を必ず出力
+      const ALL_TOLL_LEGS = ['基点→1','1→2','2→3','3→4','4→5','5→6','6→7','7→8'];
       let tollSum = 0;
-      tollRows.forEach((tr, i) => {
+      ALL_TOLL_LEGS.forEach((leg, i) => {
         const r = 18 + i;
-        const ins = tr.querySelectorAll('input');
-        add('B' + r, 's', TOLL_LEGS[i]);
-        txt('C' + r, ins[0].value.trim());
-        txt('D' + r, ins[1].value.trim());
-        if (ins[2].value !== '') { const n = parseFloat(ins[2].value) || 0; add('G' + r, 'n', n); tollSum += n; }
+        add('B' + r, 's', leg);
+        add('H' + r, 's', '円');
+        const tr = tollRows[i];
+        if (tr) {
+          const ins = tr.querySelectorAll('input');
+          txt('C' + r, ins[0].value.trim());
+          txt('D' + r, ins[1].value.trim());
+          if (ins[2].value !== '') { const n = parseFloat(ins[2].value) || 0; add('G' + r, 'n', n); tollSum += n; }
+        }
       });
 
       // 駐車場
       add('B27', 's', '訪問先'); add('C27', 's', '駐車場'); add('D27', 's', 'パーキング名'); add('G27', 's', '費用');
       const parkRows = [...document.querySelectorAll('#parkTable tbody tr')];
       let parkSum = 0;
-      parkRows.forEach((tr, i) => {
+      // テンプレート準拠：駐車場表は B28-B34 の7行分（訪問先番号と「円」）を必ず出力
+      for (let i = 0; i < 7; i++) {
         const r = 28 + i;
-        const ins = tr.querySelectorAll('input');
         add('B' + r, 'n', i + 1);
-        txt('C' + r, ins[0].value.trim());
-        txt('D' + r, ins[1].value.trim());
-        if (ins[2].value !== '') { const n = parseFloat(ins[2].value) || 0; add('G' + r, 'n', n); parkSum += n; }
-      });
+        add('H' + r, 's', '円');
+        const tr = parkRows[i];
+        if (tr) {
+          const ins = tr.querySelectorAll('input');
+          txt('C' + r, ins[0].value.trim());
+          txt('D' + r, ins[1].value.trim());
+          if (ins[2].value !== '') { const n = parseFloat(ins[2].value) || 0; add('G' + r, 'n', n); parkSum += n; }
+        }
+      }
 
       add('B36', 's', '総移動距離');
       if (val('totalKm') !== '') add('C36', 'n', km);
@@ -951,7 +968,11 @@
       const date = document.getElementById('workDate').value || '';
       const a = document.createElement('a');
       a.href = URL.createObjectURL(blob);
-      a.download = `車両移動経費請求書_${caseSelect.value}${date ? '_' + date : ''}.xlsx`;
+      const _cd = caseSelect.value;
+      const _fname = _cd === 'JCOM'
+        ? `J-COM案件_車両移動経費請求書${date ? '_' + date : ''}.xlsx`
+        : `車両移動経費請求書_${_cd}${date ? '_' + date : ''}.xlsx`;
+      a.download = _fname;
       document.body.appendChild(a); a.click(); a.remove();
       URL.revokeObjectURL(a.href);
     });
