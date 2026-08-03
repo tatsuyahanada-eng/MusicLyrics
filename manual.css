@@ -824,6 +824,8 @@ body.tm-dragging .tm-sortrow { cursor: grabbing; }
   background: none; border: none; color: var(--tm-cyan);
   cursor: pointer; font-size: 12px; text-decoration: underline;
 }
+.tm-footer-logout { color: var(--tm-muted); }
+.tm-footer-logout:hover { color: var(--tm-warn); }
 
 /* ---------- Edit mode ---------- */
 .tm-edit-toolbar {

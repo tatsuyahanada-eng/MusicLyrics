@@ -2009,6 +2009,69 @@
   let dbError = null;
   let authRequired = false;      // Basic認証等でログインが必要（401）→ 中身を出さない
 
+  /* ---------- ログアウト / 自動ログアウト（無操作タイマー） ---------- */
+  const LOGOUT_KEY = 'treeManual.loggedOut.v1';
+  // 無操作で自動ログアウトするまでの時間（既定30分）。?idlemin=... で上書き可（テスト/運用調整用）
+  let IDLE_LIMIT = 30 * 60 * 1000;
+  try {
+    const qs = new URLSearchParams(location.search);
+    if (qs.has('idlemin')) IDLE_LIMIT = Math.max(0.05, parseFloat(qs.get('idlemin')) || 30) * 60 * 1000;
+    else if (qs.has('idlems')) IDLE_LIMIT = Math.max(3000, parseInt(qs.get('idlems'), 10) || IDLE_LIMIT);
+    else {
+      const m = parseFloat(localStorage.getItem('treeManual.idleMin.v1'));
+      if (m > 0) IDLE_LIMIT = m * 60 * 1000;
+    }
+  } catch (_) {}
+  let loggedOut = false;         // アプリ側でログアウト状態（サーバーに繋がっても中身を出さない）
+  let logoutReason = '';         // 'manual' | 'timeout'
+  try {
+    const raw = localStorage.getItem(LOGOUT_KEY);
+    if (raw) { const o = JSON.parse(raw); loggedOut = !!o.out; logoutReason = o.reason || 'manual'; }
+  } catch (_) {}
+  let idleTimer = null;
+  function resetIdleTimer() {
+    if (idleTimer) { clearTimeout(idleTimer); idleTimer = null; }
+    if (loggedOut) return;             // 既にログアウト済みなら計測しない
+    if (!serverMode()) return;          // 接続できていない間は計測しない（ゲート表示中）
+    if (!(IDLE_LIMIT > 0)) return;
+    idleTimer = setTimeout(() => { doLogout('timeout'); }, IDLE_LIMIT);
+  }
+  ['pointerdown', 'keydown', 'touchstart', 'wheel', 'mousemove'].forEach((ev) => {
+    document.addEventListener(ev, () => { if (!loggedOut) resetIdleTimer(); }, { passive: true });
+  });
+  document.addEventListener('visibilitychange', () => { if (!document.hidden && !loggedOut) resetIdleTimer(); });
+
+  // ブラウザにキャッシュされた Basic認証の資格情報をできる限り消す（再ログインでパスワードを求めるため）
+  function clearBasicAuth() {
+    try {
+      return fetch(`${API}?action=config&_logout=${Date.now()}`, {
+        headers: { 'Authorization': 'Basic ' + btoa('logout:' + Date.now()) },
+        cache: 'no-store',
+      }).catch(() => {});
+    } catch (_) { return Promise.resolve(); }
+  }
+
+  async function doLogout(reason = 'manual') {
+    loggedOut = true;
+    logoutReason = reason;
+    try { localStorage.setItem(LOGOUT_KEY, JSON.stringify({ out: true, reason, at: Date.now() })); } catch (_) {}
+    if (idleTimer) { clearTimeout(idleTimer); idleTimer = null; }
+    // 編集トークンも破棄（再ログイン時に入れ直し）
+    try { localStorage.removeItem(TOKEN_KEY); } catch (_) {}
+    if (apiTokenInput) apiTokenInput.value = '';
+    updateAuthGate();          // 「ログアウトしました」ゲートを表示し中身を隠す
+    clearGatedContent();
+    await clearBasicAuth();     // ベストエフォートで資格情報を破棄
+    setServerStatus();
+  }
+
+  function doLogin() {
+    // ログアウト状態を解除し、ページを再読み込み → 必要ならログイン画面（Basic認証）が表示される
+    loggedOut = false; logoutReason = '';
+    try { localStorage.removeItem(LOGOUT_KEY); } catch (_) {}
+    try { location.reload(); } catch (_) {}
+  }
+
   apiTokenInput.value = localStorage.getItem(TOKEN_KEY) || '';
   apiTokenInput.addEventListener('change', async () => {
     localStorage.setItem(TOKEN_KEY, apiTokenInput.value.trim());
@@ -2144,12 +2207,14 @@
     }
     updateAuthGate();
     setServerStatus();
+    resetIdleTimer();   // 接続できていれば自動ログアウトの計測を開始/更新
   }
   // サーバー（ログイン＋DB）に正しく接続できているときだけ中身を表示する。
   // それ以外（未ログイン / 接続不可 / DB未接続）は全画面ゲートで中身を隠し、
   // この端末に残ったローカルの古いデータは一切表示しない。
   // 戻り値: null=接続OK / 'auth'=未ログイン / 'offline'=サーバー接続不可 / 'nodb'=DB未接続
   function gateReason() {
+    if (loggedOut) return 'loggedout';
     if (authRequired) return 'auth';
     if (!serverAvailable) return 'offline';
     if (!dbConnected) return 'nodb';
@@ -2157,6 +2222,7 @@
   }
   // 接続確認中（起動直後・再接続中）にゲートを「接続中」表示にして中身を隠す
   function showConnecting() {
+    if (loggedOut) { updateAuthGate(); return; }  // ログアウト中は「ログアウトしました」を優先
     const gate = $('#authGate'); if (!gate) return;
     gate.hidden = false;
     const ico = $('#authGateIco'), title = $('#authGateTitle'), msg = $('#authGateMsg');
@@ -2185,26 +2251,39 @@
       if (active) {
         const ico = $('#authGateIco'), title = $('#authGateTitle'), msg = $('#authGateMsg');
         const detail = $('#authGateDetail'), reload = $('#authReloadBtn'), retry = $('#authRetryBtn');
-        if (reason === 'auth') {
+        let showRetry = true;
+        if (reason === 'loggedout') {
+          if (ico) ico.innerHTML = '&#128274;';
+          if (title) title.textContent = 'ログアウトしました';
+          if (msg) msg.innerHTML = (logoutReason === 'timeout'
+            ? '一定時間操作がなかったため、自動的にログアウトしました。<br>'
+            : 'ログアウトしました。<br>')
+            + '続けるには、もう一度ログインしてください。';
+          if (reload) reload.innerHTML = '&#128274; ログイン';
+          showRetry = false;  // 再ログインは必ず再読み込み経由（パスワードを求めるため）
+        } else if (reason === 'auth') {
           if (ico) ico.innerHTML = '&#128274;';
           if (title) title.textContent = 'ログインが必要です';
           if (msg) msg.innerHTML = 'このマニュアルを見るには、ID・パスワードでのログインが必要です。<br>'
             + '下のボタンで再読み込みし、表示されるログイン画面で入力してください。';
+          if (reload) reload.innerHTML = '&#8635; 再読み込みしてログイン';
         } else if (reason === 'nodb') {
           if (ico) ico.innerHTML = '&#9888;';
           if (title) title.textContent = 'データベースに接続できません';
           if (msg) msg.innerHTML = 'サーバーのデータベースに接続できないため、内容を表示できません。<br>'
             + '管理者は <b>config.php</b> の設定とPHPのバージョンをご確認ください。';
+          if (reload) reload.innerHTML = '&#8635; 再読み込みしてログイン';
         } else { // offline / unreachable
           if (ico) ico.innerHTML = '&#128246;';
           if (title) title.textContent = 'サーバーに接続してください';
           if (msg) msg.innerHTML = 'サーバー（共有データ）に接続できないため、内容を表示できません。<br>'
             + 'この端末に保存された内容は表示しません。ネットワークを確認し、ログインし直してください。';
+          if (reload) reload.innerHTML = '&#8635; 再読み込みしてログイン';
         }
         if (reload) reload.hidden = false;
-        if (retry) retry.hidden = false;
+        if (retry) retry.hidden = !showRetry;
         if (detail) {
-          if (dbError && reason !== 'auth') { detail.hidden = false; detail.textContent = '詳細: ' + dbError; }
+          if (dbError && reason !== 'auth' && reason !== 'loggedout') { detail.hidden = false; detail.textContent = '詳細: ' + dbError; }
           else { detail.hidden = true; detail.textContent = ''; }
         }
       }
@@ -2212,7 +2291,14 @@
     if (active) clearGatedContent();
   }
 
-  { const arb = $('#authReloadBtn'); if (arb) arb.addEventListener('click', () => { try { location.reload(); } catch (_) {} }); }
+  { const arb = $('#authReloadBtn'); if (arb) arb.addEventListener('click', () => {
+    if (loggedOut) { doLogin(); return; }  // ログアウト状態を解除してから再読み込み
+    try { location.reload(); } catch (_) {}
+  }); }
+  { const lo = $('#footerLogout'); if (lo) lo.addEventListener('click', () => {
+    askConfirm('ログアウトします。再び見るにはログインが必要です。よろしいですか？',
+      () => { doLogout('manual'); }, 'ログアウト');
+  }); }
   { const rb = $('#authRetryBtn'); if (rb) rb.addEventListener('click', async () => {
     rb.disabled = true; const t = rb.textContent; rb.textContent = '接続中…';
     showConnecting();
@@ -3119,9 +3205,10 @@
     showConnecting();
     setServerStatus();
     await detectServer();
-    if (serverMode()) {
+    if (serverMode() && !loggedOut) {
       try { await reloadFromServer(); } catch (e) { /* サーバー接続済みなら再取得のみ */ }
     }
     setMode('nav');
+    resetIdleTimer();
   })();
 })();

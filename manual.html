@@ -9,7 +9,7 @@
   <link rel="manifest" href="manifest.webmanifest">
   <link rel="icon" href="icon.svg" type="image/svg+xml">
   <link rel="apple-touch-icon" href="icon-192.png">
-  <link rel="stylesheet" href="manual.css?v=41">
+  <link rel="stylesheet" href="manual.css?v=42">
 </head>
 <body class="tm-body">
 
@@ -198,6 +198,7 @@
   <footer class="tm-footer">
     <span>&copy; Case By Case</span>
     <button id="footerHelp" class="tm-linkbtn tm-footer-help" type="button">&#128214; このアプリの使い方（マニュアル）</button>
+    <button id="footerLogout" class="tm-linkbtn tm-footer-logout" type="button">&#128274; ログアウト</button>
     <span id="installHint" class="tm-install" hidden>
       <button id="installBtn" class="tm-linkbtn" type="button">&#8681; アプリとしてインストール</button>
     </span>
@@ -384,8 +385,15 @@
         <h3>データの共有</h3>
         <ul>
           <li>上部チップが <b>「● 共有中」</b> のときは、全端末で同じ内容が共有されます。</li>
-          <li>「● この端末のみ」の場合はサーバーに接続できておらず、この端末に保存した内容だけが表示されます（情報が古いことがあります）。</li>
-          <li>「● この端末のみ」のチップを<b>タップ</b>すると、サーバーへ接続し直して最新の情報を取得できます。ログイン画面が出たら、ID・パスワードを入力してください。</li>
+          <li>「● この端末のみ」の場合はサーバーに接続できておらず、内容は表示されません。ログインし直してください。</li>
+          <li>ログインしていないと中身は表示されません。ログイン画面が出たら、ID・パスワードを入力してください。</li>
+        </ul>
+
+        <h3>ログアウト・自動ログアウト</h3>
+        <ul>
+          <li>画面下部の <b>「🔒 ログアウト」</b> でいつでもログアウトできます。</li>
+          <li><b>一定時間（既定30分）操作がない</b>と自動的にログアウトします。操作するたびに時間はリセットされます。</li>
+          <li>再び見るには「ログイン」ボタンから入り直してください（パスワードを入れないと中身は表示されません）。</li>
         </ul>
 
         <p class="tm-help-note">設置・データベース設定など管理者向けの詳しい説明は、配布フォルダの <b>README-manual.md</b> をご覧ください。</p>
@@ -595,6 +603,6 @@
   </dialog>
 
   <script src="vendor/xlsx.full.min.js"></script>
-  <script src="manual.js?v=42"></script>
+  <script src="manual.js?v=43"></script>
 </body>
 </html>
