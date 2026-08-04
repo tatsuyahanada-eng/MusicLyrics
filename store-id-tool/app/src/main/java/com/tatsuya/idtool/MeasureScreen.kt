@@ -54,6 +54,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.google.ar.core.ArCoreApk
 import com.google.ar.core.Camera
 import com.google.ar.core.Config
 import com.google.ar.core.TrackingState
@@ -143,6 +144,13 @@ private fun MeasureBody(type: MeasureType, modifier: Modifier) {
     var useManual by remember { mutableStateOf(false) }
 
     val engine = rememberEngine()
+
+    LaunchedEffect(Unit) {
+        val supported = try {
+            ArCoreApk.getInstance().checkAvailability(context).isSupported
+        } catch (_: Exception) { false }
+        if (!supported) useManual = true
+    }
 
     fun persist() = saveRecords(context, prefsKey, records)
 
@@ -321,27 +329,29 @@ private fun MeasureBody(type: MeasureType, modifier: Modifier) {
                 Button(
                     onClick = {
                         if (!measuring) {
-                            if (tracking) {
-                                pts.clear(); ptsScreen = emptyList()
-                                requestAddPoint = true; measuring = true; liveDist = 0f; liveBig = formatDistance(0f, unit)
-                            } else Toast.makeText(context, "トラッキング後に押してください", Toast.LENGTH_SHORT).show()
+                            pts.clear(); ptsScreen = emptyList()
+                            requestAddPoint = true; measuring = true; liveDist = 0f; liveBig = formatDistance(0f, unit)
                         } else confirm()
                     },
+                    enabled = tracking || measuring,
                     colors = ButtonDefaults.buttonColors(
                         containerColor = if (measuring) Color(0xFFD32F2F) else Teal
                     ),
                     modifier = Modifier.fillMaxWidth()
                 ) {
-                    Text(if (measuring) "終点を確定して記録" else "計測（始点をセット）",
+                    Text(
+                        when {
+                            measuring -> "終点を確定して記録"
+                            tracking -> "計測（始点をセット）"
+                            else -> "トラッキング中…"
+                        },
                         fontWeight = FontWeight.Bold, fontSize = 16.sp)
                 }
             } else {
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     Button(
-                        onClick = {
-                            if (tracking) { requestAddPoint = true; measuring = true }
-                            else Toast.makeText(context, "トラッキング後に押してください", Toast.LENGTH_SHORT).show()
-                        },
+                        onClick = { requestAddPoint = true; measuring = true },
+                        enabled = tracking,
                         modifier = Modifier.weight(1f)
                     ) { Text("角を記録（${pts.size}/3）", fontWeight = FontWeight.Bold) }
                     Button(
