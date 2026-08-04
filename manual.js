@@ -1305,63 +1305,36 @@
   const nodeDateInput = $('#nodeDateInput');
   const nodeDateHint = $('#nodeDateHint');
 
-  /* ---------- 本文に差し込む「その場だけの入力欄」（保存されない） ----------
-     説明の入力中に、カーソル位置へ チェック欄 / 1行入力 / 複数行入力 を差し込む。
-     画面を見ながらその場で記入するためのメモ欄で、保存時に本文には一切含めない
-     （.tm-formfield は保存前に取り除く）。テキスト欄の背景は白（サイトの入力欄風）。 */
+  /* ---------- 本文の下に足す「その場だけの入力欄」（保存されない） ----------
+     説明の下に、ラベル＋白い入力欄（1行/複数行）や チェック欄 を足していく、素朴なフォーム。
+     画面を見ながらその場で記入するためのメモで、保存時に本文には一切含めない
+     （.tm-formfield は保存前に取り除く）。色・サイズの変更は無し。 */
   function formFieldHtml(kind) {
     const del = '<button type="button" class="tm-ff-del" title="この入力欄を削除" contenteditable="false">&#10005;</button>';
     if (kind === 'check') {
       return '<div class="tm-formfield tm-ff-check" contenteditable="false">'
         + '<input type="checkbox" class="tm-ff-cb">'
-        + '<input type="text" class="tm-ff-input" placeholder="チェック項目のメモ">'
+        + '<input type="text" class="tm-ff-label" placeholder="チェック項目（例：確認した）">'
         + del + '</div>';
     }
-    if (kind === 'textarea') {
-      return '<div class="tm-formfield tm-ff-textarea" contenteditable="false">'
-        + '<textarea class="tm-ff-input" rows="4" placeholder="入力してください"></textarea>'
-        + del + '</div>';
-    }
-    return '<div class="tm-formfield tm-ff-text" contenteditable="false">'
-      + '<input type="text" class="tm-ff-input" placeholder="入力してください">'
+    const head = '<div class="tm-ff-head">'
+      + '<input type="text" class="tm-ff-label" placeholder="ラベル（例：お名前）">'
       + del + '</div>';
-  }
-  // 本文の編集領域内（差し込みフィールドの中は除く）のキャレット位置を記憶しておく。
-  // 白い入力欄にフォーカスがある状態で差し込んでも、直前の本文位置に入れられるようにする。
-  let lastEditorRange = null;
-  function inFormField(node) {
-    const host = node && (node.nodeType === 1 ? node : node.parentNode);
-    return !!(host && host.closest && host.closest('.tm-formfield'));
-  }
-  function saveEditorRange() {
-    const sel = window.getSelection();
-    if (sel && sel.rangeCount) {
-      const r = sel.getRangeAt(0);
-      if (nodeBodyEditor.contains(r.commonAncestorContainer) && !inFormField(r.commonAncestorContainer)) {
-        lastEditorRange = r.cloneRange();
-      }
+    if (kind === 'textarea') {
+      return '<div class="tm-formfield" contenteditable="false">' + head
+        + '<textarea class="tm-ff-input" rows="4"></textarea></div>';
     }
+    return '<div class="tm-formfield" contenteditable="false">' + head
+      + '<input type="text" class="tm-ff-input"></div>';
   }
-  nodeBodyEditor.addEventListener('keyup', saveEditorRange);
-  nodeBodyEditor.addEventListener('mouseup', saveEditorRange);
   function insertFormField(kind) {
-    nodeBodyEditor.focus();
-    const sel = window.getSelection();
-    // 現在のキャレットが本文内（フィールド外）ならそこ、なければ記憶した位置、それも無ければ末尾へ
-    let range = null;
-    if (sel && sel.rangeCount) {
-      const cur = sel.getRangeAt(0);
-      if (nodeBodyEditor.contains(cur.commonAncestorContainer) && !inFormField(cur.commonAncestorContainer)) range = cur;
-    }
-    if (!range && lastEditorRange && nodeBodyEditor.contains(lastEditorRange.commonAncestorContainer)) range = lastEditorRange;
-    if (!range) { range = document.createRange(); range.selectNodeContents(nodeBodyEditor); range.collapse(false); }
-    sel.removeAllRanges(); sel.addRange(range);
-    // カーソル位置に差し込み、続けて入力できるよう空行も用意する
-    insertEditorHtml(formFieldHtml(kind) + '<p><br></p>');
-    saveEditorRange();
+    // 本文の一番下に足す
+    appendEditorHtml(formFieldHtml(kind));
+    const fields = nodeBodyEditor.querySelectorAll('.tm-formfield');
+    const last = fields[fields.length - 1];
+    if (last) { const lbl = last.querySelector('.tm-ff-label'); if (lbl) lbl.focus(); }
   }
   { const fb = $('#fieldBar'); if (fb) {
-    // ボタン押下でエディタの選択（カーソル位置）が外れないように
     fb.addEventListener('mousedown', (e) => { if (e.target.closest('button')) e.preventDefault(); });
     fb.addEventListener('click', (e) => {
       const btn = e.target.closest('button[data-field]');
@@ -1376,8 +1349,8 @@
     if (del) { e.preventDefault(); const ff = del.closest('.tm-formfield'); if (ff) ff.remove(); }
   });
   nodeBodyEditor.addEventListener('keydown', (e) => {
-    // 1行入力欄で Enter を押しても項目が保存されないようにする
-    if (e.key === 'Enter' && e.target.matches('input.tm-ff-input')) e.preventDefault();
+    // 1行の入力欄・ラベルで Enter を押しても項目が保存されないようにする（複数行は改行を許可）
+    if (e.key === 'Enter' && e.target.matches('input.tm-ff-input, input.tm-ff-label')) e.preventDefault();
   });
   // 保存用の本文（差し込んだ入力欄 .tm-formfield は取り除く＝保存しない）
   function bodyForSave() {

@@ -1110,34 +1110,31 @@ body.tm-dragging .tm-treenode-row { cursor: grabbing; }
 }
 .tm-fieldbar-label { font-size: 11px; color: var(--tm-muted); margin-right: 2px; }
 
-/* 差し込まれた「その場だけの入力欄」（.tm-formfield）。テキスト欄は白背景でサイトの入力欄風 */
-.tm-formfield {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  margin: 6px 0;
-  padding: 6px 8px;
-  border: 1px dashed rgba(88, 240, 255, 0.4);
-  border-radius: 8px;
-  background: rgba(255, 255, 255, 0.03);
-}
-.tm-ff-textarea { align-items: flex-start; }
-.tm-ff-cb { width: 18px; height: 18px; flex: none; accent-color: var(--tm-cyan); }
-.tm-ff-input {
-  flex: 1;
-  min-width: 0;
-  background: #ffffff;
-  color: #111418;
-  border: 1px solid #b8c2cc;
-  border-radius: 6px;
-  padding: 7px 10px;
-  font-size: 15px;
+/* 差し込まれた「その場だけの入力欄」（.tm-formfield）。ラベル＋白い入力欄の素朴なフォーム */
+.tm-formfield { margin: 10px 0; }
+.tm-ff-head { display: flex; align-items: center; gap: 6px; margin-bottom: 3px; }
+/* ラベル（お名前: などの見出し）。編集できる素朴なテキスト */
+.tm-ff-label {
+  flex: 1; min-width: 0;
+  background: transparent; border: none;
+  color: var(--tm-text); font-size: 13px; padding: 2px 0;
   font-family: inherit;
-  line-height: 1.5;
 }
-.tm-ff-input:focus { outline: 2px solid var(--tm-cyan); outline-offset: 1px; }
-.tm-ff-input::placeholder { color: #98a2ad; }
-textarea.tm-ff-input { resize: vertical; min-height: 84px; }
+.tm-ff-label:focus { outline: none; }
+.tm-ff-label::placeholder { color: var(--tm-muted); }
+/* 白い入力欄（サイトの入力欄イメージ） */
+.tm-ff-input {
+  display: block; width: 280px; max-width: 100%;
+  background: #ffffff; color: #111418;
+  border: 1px solid #b8c2cc; border-radius: 4px;
+  padding: 6px 9px; font-size: 15px; font-family: inherit; line-height: 1.5;
+}
+.tm-ff-input:focus { outline: 2px solid rgba(88, 240, 255, 0.6); outline-offset: 0; }
+textarea.tm-ff-input { width: 100%; resize: vertical; min-height: 88px; }
+/* チェック欄（チェックボックス＋ラベル） */
+.tm-ff-check { display: flex; align-items: center; gap: 8px; }
+.tm-ff-cb { width: 18px; height: 18px; flex: none; accent-color: var(--tm-cyan); }
+.tm-ff-check .tm-ff-label { font-size: 15px; }
 .tm-ff-del {
   flex: none;
   background: none; border: none; cursor: pointer;

@@ -9,7 +9,7 @@
   <link rel="manifest" href="manifest.webmanifest">
   <link rel="icon" href="icon.svg" type="image/svg+xml">
   <link rel="apple-touch-icon" href="icon-192.png">
-  <link rel="stylesheet" href="manual.css?v=45">
+  <link rel="stylesheet" href="manual.css?v=46">
 </head>
 <body class="tm-body">
 
@@ -281,7 +281,7 @@
         <div id="nodeBodyEditor" class="tm-input tm-editor" contenteditable="true"
           data-placeholder="手順や案内文を入力してください。"></div>
         <div class="tm-fieldbar" id="fieldBar">
-          <span class="tm-fieldbar-label">&#128221; 入力欄を差し込む（保存されません・この端末だけ）:</span>
+          <span class="tm-fieldbar-label">&#128221; 入力欄を追加（保存されません・この端末だけ）:</span>
           <button type="button" class="tm-btn tm-btn-outline tm-btn-sm" data-field="check">&#9745; チェック欄</button>
           <button type="button" class="tm-btn tm-btn-outline tm-btn-sm" data-field="text">&#9647; 1行入力</button>
           <button type="button" class="tm-btn tm-btn-outline tm-btn-sm" data-field="textarea">&#9636; 複数行入力</button>
@@ -367,7 +367,7 @@
           <li>並び順は <b>長押し（またはハンドルをドラッグ）</b> で変更。案内モードでも「並べ替え」で調整できます。</li>
           <li>各項目に <b>登録者名</b> が記録されます。<b>更新日時</b> も指定でき、誤って履歴の上位に来た項目を元の日時に戻せます。</li>
           <li>説明欄は <b>太字・色・大きさ</b> の装飾に対応。Excelでの一括登録／出力もできます。</li>
-          <li>説明の入力中、本文の下にある <b>「入力欄を差し込む」</b> から <b>チェック欄・1行入力・複数行入力</b> をカーソル位置に差し込めます。画面を見ながらその場で記入するためのメモ欄で、<b>保存されません</b>（この端末だけ・保存時に本文には含まれません）。不要な欄は右の「×」で消せます。</li>
+          <li>説明の下にある <b>「入力欄を追加」</b> から <b>チェック欄・1行入力・複数行入力</b> を本文の下に足せます（ラベル＋白い入力欄）。画面を見ながらその場で記入するためのメモ欄で、<b>保存されません</b>（この端末だけ・保存時に本文には含まれません）。不要な欄は「×」で消せます。</li>
         </ul>
 
         <h3>画像・ファイルの添付</h3>
@@ -611,6 +611,6 @@
   </dialog>
 
   <script src="vendor/xlsx.full.min.js"></script>
-  <script src="manual.js?v=46"></script>
+  <script src="manual.js?v=47"></script>
 </body>
 </html>
