@@ -1305,41 +1305,174 @@
   const nodeDateInput = $('#nodeDateInput');
   const nodeDateHint = $('#nodeDateHint');
 
-  /* ---------- 一時メモ（保存・共有されない、この端末だけの下書き） ---------- */
-  const SCRATCH_KEY = 'treeManual.scratch.v1';
-  const scratchChk = $('#scratchChk');
-  const scratchLine = $('#scratchLine');
-  const scratchArea = $('#scratchArea');
-  function loadScratch() {
-    let o = {};
-    try { o = JSON.parse(localStorage.getItem(SCRATCH_KEY) || '{}') || {}; } catch (_) { o = {}; }
-    if (scratchChk) scratchChk.checked = !!o.chk;
-    if (scratchLine) scratchLine.value = o.line || '';
-    if (scratchArea) scratchArea.value = o.area || '';
+  /* ---------- 一時メモ（保存・共有されない、この端末だけ） ----------
+     チェック欄・テキスト欄（長さ・行数指定）を自由に追加でき、文字色・サイズも変更可。
+     内容はこの端末の localStorage にのみ保存し、項目やサーバーには一切登録しない。
+     編集ダイアログ(#scratchMount)と通常画面(#navScratchMount)の両方に同じ内容で表示する。 */
+  const SCRATCH_KEY = 'treeManual.scratch.v2';
+  const SCRATCH_SIZES = { sm: '13px', md: '15px', lg: '18px', xl: '22px' };
+  const SCRATCH_SIZE_LABEL = { sm: '小', md: '標準', lg: '大', xl: '特大' };
+  const SCRATCH_WIDTHS = { s: '140px', m: '280px', l: '100%' };
+  const SCRATCH_WIDTH_LABEL = { s: '短', m: '中', l: '長' };
+  const SCRATCH_COLORS = ['', '#ff5a6e', '#4aa3ff', '#38d39f', '#ffd54a', '#e86b2c', '#111111'];
+  const scratchUid = () => 's' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+
+  function loadScratchState() {
+    try {
+      const o = JSON.parse(localStorage.getItem(SCRATCH_KEY));
+      if (o && Array.isArray(o.items)) {
+        return {
+          style: { color: (o.style && o.style.color) || '', size: (o.style && o.style.size) || 'md' },
+          neu: { width: (o.neu && o.neu.width) || 'm', rows: (o.neu && o.neu.rows) || 1 },
+          items: o.items,
+        };
+      }
+    } catch (_) {}
+    // 旧バージョン(v1)の簡易メモがあれば引き継ぐ
+    const st = { style: { color: '', size: 'md' }, neu: { width: 'm', rows: 1 }, items: [] };
+    try {
+      const old = JSON.parse(localStorage.getItem('treeManual.scratch.v1') || 'null');
+      if (old) {
+        if (old.line) st.items.push({ type: 'check', id: scratchUid(), label: old.line, checked: !!old.chk });
+        if (old.area) st.items.push({ type: 'text', id: scratchUid(), value: old.area, width: 'l', rows: 5 });
+      }
+    } catch (_) {}
+    return st;
   }
-  function saveScratch() {
-    const o = {
-      chk: scratchChk ? !!scratchChk.checked : false,
-      line: scratchLine ? scratchLine.value : '',
-      area: scratchArea ? scratchArea.value : '',
-    };
-    try { localStorage.setItem(SCRATCH_KEY, JSON.stringify(o)); } catch (_) {}
+  let scratchState = loadScratchState();
+  function saveScratchState() { try { localStorage.setItem(SCRATCH_KEY, JSON.stringify(scratchState)); } catch (_) {} }
+  function scratchTextStyle() {
+    const s = scratchState.style || {};
+    return { color: s.color || '', fontSize: SCRATCH_SIZES[s.size] || SCRATCH_SIZES.md };
   }
-  [scratchChk, scratchLine, scratchArea].forEach((el) => {
-    if (el) el.addEventListener('input', saveScratch);
-    if (el) el.addEventListener('change', saveScratch);
-  });
-  // 1行メモで Enter を押しても項目が保存されない（フォーム送信を止める）ようにする
-  if (scratchLine) scratchLine.addEventListener('keydown', (e) => {
-    if (e.key === 'Enter') e.preventDefault();
-  });
-  { const sc = $('#scratchClear'); if (sc) sc.addEventListener('click', () => {
-    if (scratchChk) scratchChk.checked = false;
-    if (scratchLine) scratchLine.value = '';
-    if (scratchArea) scratchArea.value = '';
-    saveScratch();
-    if (scratchLine) scratchLine.focus();
-  }); }
+  function renderAllScratch() {
+    ['#scratchMount', '#navScratchMount'].forEach((sel) => { const m = $(sel); if (m) renderScratchInto(m); });
+  }
+  function renderScratchInto(mount) {
+    mount.innerHTML = '';
+    const ts = scratchTextStyle();
+
+    // 追加ツールバー
+    const bar = document.createElement('div');
+    bar.className = 'tm-scratch-bar';
+    const addChk = document.createElement('button');
+    addChk.type = 'button'; addChk.className = 'tm-btn tm-btn-outline tm-btn-sm';
+    addChk.textContent = '＋ チェック欄';
+    addChk.addEventListener('click', () => {
+      scratchState.items.push({ type: 'check', id: scratchUid(), label: '', checked: false });
+      saveScratchState(); renderAllScratch();
+    });
+    bar.appendChild(addChk);
+
+    const grp = document.createElement('span');
+    grp.className = 'tm-scratch-newtext';
+    const wSel = document.createElement('select');
+    wSel.className = 'tm-scratch-select'; wSel.title = 'テキスト欄の幅（長さ）';
+    Object.keys(SCRATCH_WIDTHS).forEach((k) => {
+      const op = document.createElement('option'); op.value = k; op.textContent = '幅:' + SCRATCH_WIDTH_LABEL[k];
+      if (scratchState.neu.width === k) op.selected = true; wSel.appendChild(op);
+    });
+    wSel.addEventListener('change', () => { scratchState.neu.width = wSel.value; saveScratchState(); });
+    const rNum = document.createElement('input');
+    rNum.type = 'number'; rNum.min = '1'; rNum.max = '20'; rNum.className = 'tm-scratch-rows'; rNum.title = '行数';
+    rNum.value = String(scratchState.neu.rows || 1);
+    rNum.addEventListener('change', () => {
+      let n = parseInt(rNum.value, 10) || 1; n = Math.min(20, Math.max(1, n));
+      rNum.value = String(n); scratchState.neu.rows = n; saveScratchState();
+    });
+    const rLbl = document.createElement('span'); rLbl.className = 'tm-scratch-lbl'; rLbl.textContent = '行';
+    const addTxt = document.createElement('button');
+    addTxt.type = 'button'; addTxt.className = 'tm-btn tm-btn-outline tm-btn-sm'; addTxt.textContent = '＋ テキスト欄';
+    addTxt.addEventListener('click', () => {
+      let n = parseInt(rNum.value, 10) || 1; n = Math.min(20, Math.max(1, n));
+      scratchState.items.push({ type: 'text', id: scratchUid(), value: '', width: wSel.value, rows: n });
+      saveScratchState(); renderAllScratch();
+    });
+    grp.appendChild(wSel); grp.appendChild(rNum); grp.appendChild(rLbl); grp.appendChild(addTxt);
+    bar.appendChild(grp);
+    mount.appendChild(bar);
+
+    // 文字色・サイズ・全消去
+    const sbar = document.createElement('div');
+    sbar.className = 'tm-scratch-stylebar';
+    const clbl = document.createElement('span'); clbl.className = 'tm-scratch-lbl'; clbl.textContent = '文字色';
+    sbar.appendChild(clbl);
+    SCRATCH_COLORS.forEach((c) => {
+      const sw = document.createElement('button');
+      sw.type = 'button';
+      sw.className = 'tm-scratch-color' + ((scratchState.style.color || '') === c ? ' is-on' : '');
+      if (c === '') { sw.classList.add('tm-scratch-color-auto'); sw.title = '標準色'; sw.textContent = 'A'; }
+      else { sw.style.background = c; sw.title = c; }
+      sw.addEventListener('click', () => { scratchState.style.color = c; saveScratchState(); renderAllScratch(); });
+      sbar.appendChild(sw);
+    });
+    const zlbl = document.createElement('span'); zlbl.className = 'tm-scratch-lbl'; zlbl.textContent = 'サイズ';
+    sbar.appendChild(zlbl);
+    const zSel = document.createElement('select'); zSel.className = 'tm-scratch-select';
+    Object.keys(SCRATCH_SIZES).forEach((k) => {
+      const op = document.createElement('option'); op.value = k; op.textContent = SCRATCH_SIZE_LABEL[k];
+      if (scratchState.style.size === k) op.selected = true; zSel.appendChild(op);
+    });
+    zSel.addEventListener('change', () => { scratchState.style.size = zSel.value; saveScratchState(); renderAllScratch(); });
+    sbar.appendChild(zSel);
+    const clr = document.createElement('button');
+    clr.type = 'button'; clr.className = 'tm-linkbtn tm-scratch-clear'; clr.textContent = 'すべて消す';
+    clr.addEventListener('click', () => { if (scratchState.items.length) { scratchState.items = []; saveScratchState(); renderAllScratch(); } });
+    sbar.appendChild(clr);
+    mount.appendChild(sbar);
+
+    // 入力欄リスト
+    const list = document.createElement('div');
+    list.className = 'tm-scratch-list';
+    if (!scratchState.items.length) {
+      const empty = document.createElement('p');
+      empty.className = 'tm-scratch-empty';
+      empty.textContent = '「＋ チェック欄」「＋ テキスト欄」で入力欄を追加できます（保存されません）。';
+      list.appendChild(empty);
+    }
+    scratchState.items.forEach((it) => list.appendChild(renderScratchItem(it, ts)));
+    mount.appendChild(list);
+  }
+  function renderScratchItem(it, ts) {
+    const row = document.createElement('div');
+    row.className = 'tm-scratch-item';
+    if (it.type === 'check') {
+      const cb = document.createElement('input');
+      cb.type = 'checkbox'; cb.className = 'tm-scratch-cb'; cb.checked = !!it.checked;
+      cb.addEventListener('change', () => { it.checked = cb.checked; saveScratchState(); });
+      const lab = document.createElement('input');
+      lab.type = 'text'; lab.className = 'tm-input tm-scratch-fieldtext';
+      lab.placeholder = 'チェック項目のメモ'; lab.value = it.label || '';
+      lab.style.color = ts.color; lab.style.fontSize = ts.fontSize; lab.style.width = SCRATCH_WIDTHS.m;
+      lab.addEventListener('input', () => { it.label = lab.value; saveScratchState(); });
+      lab.addEventListener('keydown', (e) => { if (e.key === 'Enter') e.preventDefault(); });
+      row.appendChild(cb); row.appendChild(lab);
+    } else {
+      const w = SCRATCH_WIDTHS[it.width] || SCRATCH_WIDTHS.m;
+      let field;
+      if ((it.rows || 1) <= 1) {
+        field = document.createElement('input'); field.type = 'text';
+        field.addEventListener('keydown', (e) => { if (e.key === 'Enter') e.preventDefault(); });
+      } else {
+        field = document.createElement('textarea'); field.rows = it.rows;
+      }
+      field.className = 'tm-input tm-scratch-fieldtext'; field.placeholder = 'メモ'; field.value = it.value || '';
+      field.style.color = ts.color; field.style.fontSize = ts.fontSize; field.style.width = w;
+      field.addEventListener('input', () => { it.value = field.value; saveScratchState(); });
+      row.appendChild(field);
+    }
+    const del = document.createElement('button');
+    del.type = 'button'; del.className = 'tm-scratch-del'; del.title = 'この欄を削除'; del.innerHTML = '&#10005;';
+    del.addEventListener('click', () => {
+      const i = scratchState.items.indexOf(it);
+      if (i >= 0) { scratchState.items.splice(i, 1); saveScratchState(); renderAllScratch(); }
+    });
+    row.appendChild(del);
+    return row;
+  }
+  // 通常画面のメモパネルを開いたときは最新状態で描き直す
+  { const nsp = $('#navScratchPanel'); if (nsp) nsp.addEventListener('toggle', () => { if (nsp.open) renderAllScratch(); }); }
+  renderAllScratch();
   // ms → datetime-local の値（YYYY-MM-DDTHH:MM）
   function msToLocalInput(ms) {
     const d = new Date(Number(ms) || Date.now());
@@ -1432,7 +1565,7 @@
     [nodeImgBtn, nodeFileBtn].forEach((b) => {
       if (b) { b.disabled = false; b.title = canAttach ? '' : '添付はサーバー(DB)接続時のみ'; }
     });
-    loadScratch(); // 一時メモ（保存されない下書き）を復元
+    renderAllScratch(); // 一時メモ（保存されない下書き）を最新状態で表示
     nodeDialog.showModal();
     nodeTitleInput.focus();
   }
