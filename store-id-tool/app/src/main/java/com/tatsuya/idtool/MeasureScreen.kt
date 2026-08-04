@@ -5,6 +5,7 @@ import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.opengl.Matrix
+import android.os.Build
 import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -29,13 +30,16 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateListOf
@@ -142,6 +146,7 @@ private fun MeasureBody(type: MeasureType, modifier: Modifier) {
     var viewH by remember { mutableStateOf(0f) }
 
     var useManual by remember { mutableStateOf(false) }
+    var useBle by remember { mutableStateOf(false) }
 
     val engine = rememberEngine()
 
@@ -182,6 +187,22 @@ private fun MeasureBody(type: MeasureType, modifier: Modifier) {
         remeasureIndex = -1; memo = ""; resetMeasure()
     }
 
+    if (useBle) {
+        BleMeasureBody(type, records, unit, memo, showList, remeasureIndex, editIdx, editName, editValue,
+            onMemoChange = { memo = it },
+            onShowListChange = { showList = it },
+            onRemeasureChange = { remeasureIndex = it },
+            onEditIdxChange = { editIdx = it },
+            onEditNameChange = { editName = it },
+            onEditValueChange = { editValue = it },
+            onUnitChange = { unit = it },
+            onPersist = { persist() },
+            onSwitchToManual = { useBle = false; useManual = true },
+            modifier = modifier
+        )
+        return
+    }
+
     if (useManual) {
         ManualMeasureBody(type, records, unit, memo, showList, remeasureIndex, editIdx, editName, editValue,
             onMemoChange = { memo = it },
@@ -192,6 +213,7 @@ private fun MeasureBody(type: MeasureType, modifier: Modifier) {
             onEditValueChange = { editValue = it },
             onUnitChange = { unit = it },
             onPersist = { persist() },
+            onSwitchToBle = { useManual = false; useBle = true },
             modifier = modifier
         )
         return
@@ -281,12 +303,21 @@ private fun MeasureBody(type: MeasureType, modifier: Modifier) {
 
             if (!tracking) {
                 Spacer(Modifier.height(4.dp))
-                OutlinedButton(
-                    onClick = { useManual = true },
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    Text("手動入力に切替", color = Color(0xFFE65100),
-                        fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
+                    OutlinedButton(
+                        onClick = { useManual = true },
+                        modifier = Modifier.weight(1f)
+                    ) {
+                        Text("手動入力", color = Color(0xFFE65100),
+                            fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                    }
+                    OutlinedButton(
+                        onClick = { useBle = true },
+                        modifier = Modifier.weight(1f)
+                    ) {
+                        Text("Bluetooth距離計", color = Color(0xFF1565C0),
+                            fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                    }
                 }
             }
 
@@ -425,6 +456,7 @@ private fun ManualMeasureBody(
     onEditValueChange: (String) -> Unit,
     onUnitChange: (DistUnit) -> Unit,
     onPersist: () -> Unit,
+    onSwitchToBle: () -> Unit,
     modifier: Modifier
 ) {
     val context = LocalContext.current
@@ -445,12 +477,19 @@ private fun ManualMeasureBody(
             modifier = Modifier.fillMaxWidth().background(Color(0xFFFFF3E0), RoundedCornerShape(8.dp)).padding(12.dp)
         ) {
             Text(
-                "このデバイスはAR非対応です。手動で数値を入力できます。",
+                "このデバイスはAR非対応です。手動入力またはBluetooth距離計を使えます。",
                 color = Color(0xFFE65100), fontWeight = FontWeight.Bold, fontSize = 13.sp
             )
         }
 
-        Spacer(Modifier.height(12.dp))
+        Spacer(Modifier.height(4.dp))
+
+        OutlinedButton(onClick = onSwitchToBle, modifier = Modifier.fillMaxWidth()) {
+            Text("Bluetooth距離計に接続", color = Color(0xFF1565C0),
+                fontWeight = FontWeight.Bold, fontSize = 13.sp)
+        }
+
+        Spacer(Modifier.height(8.dp))
 
         Row(
             modifier = Modifier.fillMaxWidth(),
@@ -555,6 +594,335 @@ private fun ManualMeasureBody(
                         Toast.makeText(context, "辺A・辺Bを正しく入力してください", Toast.LENGTH_SHORT).show()
                     }
                 },
+                colors = ButtonDefaults.buttonColors(containerColor = Teal),
+                modifier = Modifier.fillMaxWidth()
+            ) { Text("面積を記録", fontWeight = FontWeight.Bold, fontSize = 16.sp) }
+        }
+
+        Spacer(Modifier.height(12.dp))
+
+        RecordListUI(records, currentUnit, currentShowList, currentRemeasure, currentMemo, currentEditIdx,
+            onShowListChange = { currentShowList = it; onShowListChange(it) },
+            onRemeasureChange = { currentRemeasure = it; onRemeasureChange(it)
+                if (it >= 0 && it in records.indices) { currentMemo = records[it].memo; onMemoChange(records[it].memo) }
+            },
+            onMemoUpdate = { idx ->
+                val cur = records[idx]
+                records[idx] = cur.copy(memo = currentMemo.ifBlank { cur.memo })
+                onPersist()
+                Toast.makeText(context, "メモ更新", Toast.LENGTH_SHORT).show()
+            },
+            onEditStart = { i ->
+                currentEditIdx = i; onEditIdxChange(i)
+                currentEditName = records[i].memo; onEditNameChange(records[i].memo)
+                val v = valueForEdit(records[i].value, currentUnit)
+                currentEditValue = v; onEditValueChange(v)
+            },
+            onDelete = { i ->
+                records.removeAt(i)
+                if (currentRemeasure == i) { currentRemeasure = -1; onRemeasureChange(-1) }
+                onPersist()
+            },
+            onCopy = { copyText(context, buildReport(records, currentUnit)) },
+            onShare = { shareText(context, buildReport(records, currentUnit)) },
+            onClearAll = { records.clear(); currentRemeasure = -1; onRemeasureChange(-1); onPersist() }
+        )
+    }
+
+    EditRecordDialog(currentEditIdx, currentEditName, currentEditValue, currentUnit, records,
+        onEditNameChange = { currentEditName = it; onEditNameChange(it) },
+        onEditValueChange = { currentEditValue = it; onEditValueChange(it) },
+        onDismiss = { currentEditIdx = -1; onEditIdxChange(-1) },
+        onSave = { idx, name, meters ->
+            records[idx] = records[idx].copy(memo = name, value = meters)
+            onPersist()
+            Toast.makeText(context, "記録を修正しました", Toast.LENGTH_SHORT).show()
+            currentEditIdx = -1; onEditIdxChange(-1)
+        }
+    )
+}
+
+@Composable
+private fun BleMeasureBody(
+    type: MeasureType,
+    records: MutableList<Record>,
+    unit: DistUnit,
+    memo: String,
+    showList: Boolean,
+    remeasureIndex: Int,
+    editIdx: Int,
+    editName: String,
+    editValue: String,
+    onMemoChange: (String) -> Unit,
+    onShowListChange: (Boolean) -> Unit,
+    onRemeasureChange: (Int) -> Unit,
+    onEditIdxChange: (Int) -> Unit,
+    onEditNameChange: (String) -> Unit,
+    onEditValueChange: (String) -> Unit,
+    onUnitChange: (DistUnit) -> Unit,
+    onPersist: () -> Unit,
+    onSwitchToManual: () -> Unit,
+    modifier: Modifier
+) {
+    val context = LocalContext.current
+    val bleMeter = remember { BleDistanceMeter(context) }
+    val bleState by bleMeter.state.collectAsState()
+    val bleDevices by bleMeter.devices.collectAsState()
+    val lastValue by bleMeter.lastValue.collectAsState()
+    val connectedName by bleMeter.connectedName.collectAsState()
+
+    DisposableEffect(Unit) { onDispose { bleMeter.disconnect() } }
+
+    var blePermGranted by remember { mutableStateOf(false) }
+    val blePerms = if (Build.VERSION.SDK_INT >= 31)
+        arrayOf(Manifest.permission.BLUETOOTH_SCAN, Manifest.permission.BLUETOOTH_CONNECT)
+    else
+        arrayOf(Manifest.permission.BLUETOOTH, Manifest.permission.ACCESS_FINE_LOCATION)
+    val permLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestMultiplePermissions()
+    ) { results -> blePermGranted = results.values.all { it } }
+
+    LaunchedEffect(Unit) {
+        blePermGranted = blePerms.all {
+            context.checkSelfPermission(it) == PackageManager.PERMISSION_GRANTED
+        }
+        if (!blePermGranted) permLauncher.launch(blePerms)
+    }
+
+    var currentMemo by remember(memo) { mutableStateOf(memo) }
+    var currentUnit by remember(unit) { mutableStateOf(unit) }
+    var currentShowList by remember(showList) { mutableStateOf(showList) }
+    var currentRemeasure by remember(remeasureIndex) { mutableStateOf(remeasureIndex) }
+    var currentEditIdx by remember(editIdx) { mutableStateOf(editIdx) }
+    var currentEditName by remember(editName) { mutableStateOf(editName) }
+    var currentEditValue by remember(editValue) { mutableStateOf(editValue) }
+
+    var capturedA by remember { mutableStateOf("") }
+    var capturedB by remember { mutableStateOf("") }
+
+    fun recordDistance(distMeters: Float) {
+        val name = currentMemo.ifBlank {
+            if (currentRemeasure in records.indices) records[currentRemeasure].memo
+            else "計測${records.size + 1}"
+        }
+        val rec = Record(MeasureType.DISTANCE, name, distMeters, "")
+        if (currentRemeasure in records.indices) records[currentRemeasure] = rec
+        else records.add(0, rec)
+        onPersist()
+        Toast.makeText(context, "記録: ${rec.display(currentUnit)}", Toast.LENGTH_SHORT).show()
+        currentMemo = ""; onMemoChange("")
+        currentRemeasure = -1; onRemeasureChange(-1)
+    }
+
+    fun recordArea(a: Float, b: Float) {
+        val name = currentMemo.ifBlank {
+            if (currentRemeasure in records.indices) records[currentRemeasure].memo
+            else "計測${records.size + 1}"
+        }
+        val rec = Record(MeasureType.AREA, name, a * b, "%.2f×%.2f".format(a, b))
+        if (currentRemeasure in records.indices) records[currentRemeasure] = rec
+        else records.add(0, rec)
+        onPersist()
+        Toast.makeText(context, "記録: ${rec.display(currentUnit)}", Toast.LENGTH_SHORT).show()
+        capturedA = ""; capturedB = ""
+        currentMemo = ""; onMemoChange("")
+        currentRemeasure = -1; onRemeasureChange(-1)
+    }
+
+    Column(modifier = modifier.fillMaxSize().imePadding().padding(16.dp)) {
+        Box(
+            modifier = Modifier.fillMaxWidth()
+                .background(Color(0xFFE3F2FD), RoundedCornerShape(8.dp)).padding(12.dp)
+        ) {
+            Column {
+                Text("Bluetooth距離計モード", color = Color(0xFF1565C0),
+                    fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                when (bleState) {
+                    BleDistanceMeter.State.IDLE ->
+                        Text("距離計をスキャンして接続してください", fontSize = 12.sp, color = Color(0xFF555555))
+                    BleDistanceMeter.State.SCANNING ->
+                        Text("スキャン中…", fontSize = 12.sp, color = Color(0xFF1565C0))
+                    BleDistanceMeter.State.CONNECTING ->
+                        Text("${connectedName} に接続中…", fontSize = 12.sp, color = Color(0xFF1565C0))
+                    BleDistanceMeter.State.CONNECTED ->
+                        Text("接続済み: $connectedName", fontSize = 12.sp, color = Color(0xFF2E7D32))
+                    BleDistanceMeter.State.ERROR ->
+                        Text("エラー: Bluetoothを確認してください", fontSize = 12.sp, color = Color(0xFFD32F2F))
+                }
+            }
+        }
+
+        Spacer(Modifier.height(8.dp))
+
+        when (bleState) {
+            BleDistanceMeter.State.IDLE, BleDistanceMeter.State.ERROR -> {
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
+                    Button(
+                        onClick = {
+                            if (!blePermGranted) { permLauncher.launch(blePerms); return@Button }
+                            bleMeter.startScan()
+                        },
+                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF1565C0)),
+                        modifier = Modifier.weight(1f)
+                    ) { Text("スキャン開始", fontWeight = FontWeight.Bold) }
+                    OutlinedButton(onClick = onSwitchToManual, modifier = Modifier.weight(1f)) {
+                        Text("手動入力に戻る", fontSize = 12.sp)
+                    }
+                }
+            }
+            BleDistanceMeter.State.SCANNING -> {
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
+                    Button(
+                        onClick = { bleMeter.stopScan() },
+                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF757575)),
+                        modifier = Modifier.weight(1f)
+                    ) { Text("スキャン停止") }
+                    OutlinedButton(onClick = onSwitchToManual, modifier = Modifier.weight(1f)) {
+                        Text("手動入力に戻る", fontSize = 12.sp)
+                    }
+                }
+                Spacer(Modifier.height(4.dp))
+                if (bleDevices.isEmpty()) {
+                    Row(verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        modifier = Modifier.padding(8.dp)) {
+                        CircularProgressIndicator(modifier = Modifier.height(20.dp), strokeWidth = 2.dp)
+                        Text("デバイスを検索中…", fontSize = 13.sp, color = Color(0xFF555555))
+                    }
+                } else {
+                    Text("検出されたデバイス:", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = PanelText)
+                    bleDevices.forEach { dev ->
+                        Box(
+                            modifier = Modifier.fillMaxWidth().padding(vertical = 2.dp)
+                                .background(Panel, RoundedCornerShape(6.dp))
+                                .clickable { bleMeter.connect(dev) }
+                                .padding(10.dp)
+                        ) {
+                            Text("${dev.name}  (${dev.address})", fontSize = 13.sp, color = PanelText)
+                        }
+                    }
+                }
+            }
+            BleDistanceMeter.State.CONNECTING -> {
+                Row(verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    modifier = Modifier.padding(8.dp)) {
+                    CircularProgressIndicator(modifier = Modifier.height(20.dp), strokeWidth = 2.dp)
+                    Text("接続中…", fontSize = 13.sp, color = Color(0xFF1565C0))
+                }
+            }
+            BleDistanceMeter.State.CONNECTED -> {
+                OutlinedButton(onClick = { bleMeter.disconnect() }, modifier = Modifier.fillMaxWidth()) {
+                    Text("切断する", color = Color(0xFFD32F2F), fontSize = 12.sp)
+                }
+
+                Spacer(Modifier.height(8.dp))
+
+                Box(
+                    modifier = Modifier.fillMaxWidth()
+                        .background(Color(0xFFF1F8E9), RoundedCornerShape(8.dp)).padding(16.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    if (lastValue != null) {
+                        Text(
+                            formatDistance(lastValue!!, currentUnit),
+                            color = TealDark, fontWeight = FontWeight.Bold,
+                            fontFamily = FontFamily.Monospace, fontSize = 36.sp
+                        )
+                    } else {
+                        Text("距離計で計測してください", fontSize = 14.sp, color = Color(0xFF555555))
+                    }
+                }
+            }
+        }
+
+        Spacer(Modifier.height(8.dp))
+
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(4.dp, Alignment.End)
+        ) {
+            Text("単位", color = PanelText, fontWeight = FontWeight.Bold, fontSize = 11.sp)
+            DistUnit.entries.forEach { u ->
+                val sel = currentUnit == u
+                Box(
+                    modifier = Modifier
+                        .background(if (sel) Teal else Panel, RoundedCornerShape(6.dp))
+                        .clickable { currentUnit = u; onUnitChange(u); saveDistUnit(context, u) }
+                        .padding(horizontal = 10.dp, vertical = 3.dp)
+                ) {
+                    Text(u.label, color = if (sel) Color.White else PanelText, fontSize = 12.sp,
+                        fontWeight = if (sel) FontWeight.Bold else FontWeight.Normal)
+                }
+            }
+        }
+
+        Spacer(Modifier.height(8.dp))
+
+        OutlinedTextField(
+            value = currentMemo,
+            onValueChange = { currentMemo = it; onMemoChange(it) },
+            placeholder = { Text("メモ（例：入口→レジ / 会議室）") },
+            singleLine = true,
+            modifier = Modifier.fillMaxWidth()
+        )
+
+        Spacer(Modifier.height(8.dp))
+
+        if (type == MeasureType.DISTANCE) {
+            Button(
+                onClick = {
+                    if (lastValue != null) recordDistance(lastValue!!)
+                    else Toast.makeText(context, "距離計で計測してください", Toast.LENGTH_SHORT).show()
+                },
+                enabled = bleState == BleDistanceMeter.State.CONNECTED && lastValue != null,
+                colors = ButtonDefaults.buttonColors(containerColor = Teal),
+                modifier = Modifier.fillMaxWidth()
+            ) { Text("この距離を記録", fontWeight = FontWeight.Bold, fontSize = 16.sp) }
+        } else {
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
+                OutlinedTextField(
+                    value = capturedA,
+                    onValueChange = { capturedA = it.filter { c -> c.isDigit() || c == '.' } },
+                    placeholder = { Text("辺A") },
+                    singleLine = true,
+                    readOnly = true,
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                    modifier = Modifier.weight(1f)
+                )
+                Button(
+                    onClick = { if (lastValue != null) capturedA = "%.3f".format(lastValue!!) },
+                    enabled = lastValue != null,
+                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF1565C0)),
+                ) { Text("取得") }
+            }
+            Spacer(Modifier.height(4.dp))
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
+                OutlinedTextField(
+                    value = capturedB,
+                    onValueChange = { capturedB = it.filter { c -> c.isDigit() || c == '.' } },
+                    placeholder = { Text("辺B") },
+                    singleLine = true,
+                    readOnly = true,
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                    modifier = Modifier.weight(1f)
+                )
+                Button(
+                    onClick = { if (lastValue != null) capturedB = "%.3f".format(lastValue!!) },
+                    enabled = lastValue != null,
+                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF1565C0)),
+                ) { Text("取得") }
+            }
+            Spacer(Modifier.height(8.dp))
+            Button(
+                onClick = {
+                    val a = capturedA.toFloatOrNull()
+                    val b = capturedB.toFloatOrNull()
+                    if (a != null && b != null) recordArea(a, b)
+                    else Toast.makeText(context, "辺Aと辺Bを取得してください", Toast.LENGTH_SHORT).show()
+                },
+                enabled = capturedA.isNotEmpty() && capturedB.isNotEmpty(),
                 colors = ButtonDefaults.buttonColors(containerColor = Teal),
                 modifier = Modifier.fillMaxWidth()
             ) { Text("面積を記録", fontWeight = FontWeight.Bold, fontSize = 16.sp) }
