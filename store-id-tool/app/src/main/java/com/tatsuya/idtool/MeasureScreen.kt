@@ -142,11 +142,8 @@ private fun MeasureBody(type: MeasureType, modifier: Modifier) {
     var viewW by remember { mutableStateOf(0f) }
     var viewH by remember { mutableStateOf(0f) }
 
-    // ARCore の利用可否 — false: 手動入力、true: AR、null: 判定中
-    // useManual: ユーザーが手動入力を選んだ場合 true
     var arAvailable by remember { mutableStateOf<Boolean?>(null) }
     var useManual by remember { mutableStateOf(false) }
-    var arError by remember { mutableStateOf(false) }
 
     LaunchedEffect(Unit) {
         arAvailable = try {
@@ -213,8 +210,8 @@ private fun MeasureBody(type: MeasureType, modifier: Modifier) {
         return
     }
 
-    // AR非対応 or ユーザーが手動入力を選択 or ARエラー → 手動入力フォールバック
-    if (arAvailable == false || useManual || arError) {
+    // AR非対応 or ユーザーが手動入力を選択 → 手動入力フォールバック
+    if (arAvailable == false || useManual) {
         ManualMeasureBody(type, records, unit, memo, showList, remeasureIndex, editIdx, editName, editValue,
             onMemoChange = { memo = it },
             onShowListChange = { showList = it },
@@ -229,7 +226,6 @@ private fun MeasureBody(type: MeasureType, modifier: Modifier) {
         return
     }
 
-    // ARCore 対応 → AR 計測画面（エラー時は手動入力へ自動遷移）
     val engine = rememberEngine()
 
     Box(
@@ -245,8 +241,6 @@ private fun MeasureBody(type: MeasureType, modifier: Modifier) {
                 config.lightEstimationMode = Config.LightEstimationMode.DISABLED
                 config.depthMode = Config.DepthMode.DISABLED
             },
-            onSessionCreated = { _ -> },
-            onSessionFailed = { _ -> arError = true },
             onSessionUpdated = { _, frame ->
                 val cam = frame.camera
                 if (cam.trackingState == TrackingState.TRACKING) {
