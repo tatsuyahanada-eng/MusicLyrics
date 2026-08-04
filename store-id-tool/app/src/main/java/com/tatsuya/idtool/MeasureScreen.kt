@@ -54,12 +54,14 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.google.ar.core.ArCoreApk
 import com.google.ar.core.Camera
 import com.google.ar.core.Config
 import com.google.ar.core.TrackingState
 import io.github.sceneview.ar.ARScene
 import io.github.sceneview.rememberEngine
 import kotlin.math.sqrt
+import kotlinx.coroutines.delay
 
 enum class MeasureType { DISTANCE, AREA }
 
@@ -125,7 +127,6 @@ private fun MeasureBody(type: MeasureType, modifier: Modifier) {
     var memo by remember { mutableStateOf("") }
     var showList by remember { mutableStateOf(false) }
     var unit by remember { mutableStateOf(loadDistUnit(context)) }
-    // 記録の修正ダイアログ（名称＋距離の数値を後から変更）
     var editIdx by remember { mutableIntStateOf(-1) }
     var editName by remember { mutableStateOf("") }
     var editValue by remember { mutableStateOf("") }
@@ -141,7 +142,21 @@ private fun MeasureBody(type: MeasureType, modifier: Modifier) {
     var viewW by remember { mutableStateOf(0f) }
     var viewH by remember { mutableStateOf(0f) }
 
-    val engine = rememberEngine()
+    // ARCore の利用可否を非同期で判定
+    var arAvailable by remember { mutableStateOf<Boolean?>(null) }
+    LaunchedEffect(Unit) {
+        arAvailable = try {
+            val availability = ArCoreApk.getInstance().checkAvailability(context)
+            when {
+                availability.isSupported -> true
+                availability == ArCoreApk.Availability.UNKNOWN_CHECKING -> {
+                    delay(500)
+                    ArCoreApk.getInstance().checkAvailability(context).isSupported
+                }
+                else -> false
+            }
+        } catch (_: Exception) { false }
+    }
 
     fun persist() = saveRecords(context, prefsKey, records)
 
@@ -172,6 +187,37 @@ private fun MeasureBody(type: MeasureType, modifier: Modifier) {
         }
         remeasureIndex = -1; memo = ""; resetMeasure()
     }
+
+    // ARCore 判定中
+    if (arAvailable == null) {
+        Column(
+            modifier = modifier.fillMaxSize().padding(24.dp),
+            verticalArrangement = Arrangement.Center,
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            Text("AR機能を確認中…", color = MaterialTheme.colorScheme.onBackground, fontSize = 16.sp)
+        }
+        return
+    }
+
+    // ARCore 非対応 → 手動入力フォールバック
+    if (arAvailable == false) {
+        ManualMeasureBody(type, records, unit, memo, showList, remeasureIndex, editIdx, editName, editValue,
+            onMemoChange = { memo = it },
+            onShowListChange = { showList = it },
+            onRemeasureChange = { remeasureIndex = it },
+            onEditIdxChange = { editIdx = it },
+            onEditNameChange = { editName = it },
+            onEditValueChange = { editValue = it },
+            onUnitChange = { unit = it },
+            onPersist = { persist() },
+            modifier = modifier
+        )
+        return
+    }
+
+    // ARCore 対応 → AR 計測画面
+    val engine = rememberEngine()
 
     Box(
         modifier = modifier.fillMaxSize()
@@ -213,7 +259,6 @@ private fun MeasureBody(type: MeasureType, modifier: Modifier) {
             }
         )
 
-        // AR上の線・点・中央レチクル
         Canvas(modifier = Modifier.fillMaxSize()) {
             val center = Offset(size.width / 2f, size.height / 2f)
             drawCircle(color = Color.White, radius = 15f, center = center, style = Stroke(width = 4f))
@@ -242,7 +287,6 @@ private fun MeasureBody(type: MeasureType, modifier: Modifier) {
             }
         }
 
-        // 操作オーバーレイ
         Column(modifier = Modifier.fillMaxSize().imePadding().padding(12.dp)) {
             Box(
                 modifier = Modifier.fillMaxWidth().background(Panel, RoundedCornerShape(8.dp)).padding(8.dp)
@@ -259,7 +303,6 @@ private fun MeasureBody(type: MeasureType, modifier: Modifier) {
 
             Spacer(Modifier.weight(1f))
 
-            // 距離の表示単位（既定=m、cmにも切替可能）— 右寄せの小さなトグル
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 verticalAlignment = Alignment.CenterVertically,
@@ -335,91 +378,337 @@ private fun MeasureBody(type: MeasureType, modifier: Modifier) {
 
             Spacer(Modifier.height(6.dp))
 
-            if (records.isNotEmpty()) {
-                // 記録は折りたたみ（増えても画面を圧迫しない）
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    verticalAlignment = Alignment.CenterVertically
+            RecordListUI(records, unit, showList, remeasureIndex, memo, editIdx,
+                onShowListChange = { showList = it },
+                onRemeasureChange = { remeasureIndex = it; if (it >= 0 && it in records.indices) memo = records[it].memo },
+                onMemoUpdate = { idx ->
+                    val cur = records[idx]
+                    records[idx] = cur.copy(memo = memo.ifBlank { cur.memo })
+                    persist()
+                    Toast.makeText(context, "メモ更新", Toast.LENGTH_SHORT).show()
+                },
+                onEditStart = { i ->
+                    editIdx = i; editName = records[i].memo; editValue = valueForEdit(records[i].value, unit)
+                },
+                onDelete = { i ->
+                    records.removeAt(i)
+                    if (remeasureIndex == i) remeasureIndex = -1
+                    persist()
+                },
+                onCopy = { copyText(context, buildReport(records, unit)) },
+                onShare = { shareText(context, buildReport(records, unit)) },
+                onClearAll = { records.clear(); remeasureIndex = -1; persist() }
+            )
+        }
+    }
+
+    EditRecordDialog(editIdx, editName, editValue, unit, records,
+        onEditNameChange = { editName = it },
+        onEditValueChange = { editValue = it },
+        onDismiss = { editIdx = -1 },
+        onSave = { idx, name, meters ->
+            records[idx] = records[idx].copy(memo = name, value = meters)
+            persist()
+            Toast.makeText(context, "記録を修正しました", Toast.LENGTH_SHORT).show()
+            editIdx = -1
+        }
+    )
+}
+
+@Composable
+private fun ManualMeasureBody(
+    type: MeasureType,
+    records: MutableList<Record>,
+    unit: DistUnit,
+    memo: String,
+    showList: Boolean,
+    remeasureIndex: Int,
+    editIdx: Int,
+    editName: String,
+    editValue: String,
+    onMemoChange: (String) -> Unit,
+    onShowListChange: (Boolean) -> Unit,
+    onRemeasureChange: (Int) -> Unit,
+    onEditIdxChange: (Int) -> Unit,
+    onEditNameChange: (String) -> Unit,
+    onEditValueChange: (String) -> Unit,
+    onUnitChange: (DistUnit) -> Unit,
+    onPersist: () -> Unit,
+    modifier: Modifier
+) {
+    val context = LocalContext.current
+    var manualValue by remember { mutableStateOf("") }
+    var manualValueB by remember { mutableStateOf("") }
+    var currentMemo by remember(memo) { mutableStateOf(memo) }
+    var currentUnit by remember(unit) { mutableStateOf(unit) }
+    var currentShowList by remember(showList) { mutableStateOf(showList) }
+    var currentRemeasure by remember(remeasureIndex) { mutableStateOf(remeasureIndex) }
+    var currentEditIdx by remember(editIdx) { mutableStateOf(editIdx) }
+    var currentEditName by remember(editName) { mutableStateOf(editName) }
+    var currentEditValue by remember(editValue) { mutableStateOf(editValue) }
+
+    Column(
+        modifier = modifier.fillMaxSize().imePadding().padding(16.dp)
+    ) {
+        Box(
+            modifier = Modifier.fillMaxWidth().background(Color(0xFFFFF3E0), RoundedCornerShape(8.dp)).padding(12.dp)
+        ) {
+            Text(
+                "このデバイスはAR非対応です。手動で数値を入力できます。",
+                color = Color(0xFFE65100), fontWeight = FontWeight.Bold, fontSize = 13.sp
+            )
+        }
+
+        Spacer(Modifier.height(12.dp))
+
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(4.dp, Alignment.End)
+        ) {
+            Text("単位", color = PanelText, fontWeight = FontWeight.Bold, fontSize = 11.sp)
+            DistUnit.entries.forEach { u ->
+                val sel = currentUnit == u
+                Box(
+                    modifier = Modifier
+                        .background(if (sel) Teal else Panel, RoundedCornerShape(6.dp))
+                        .clickable { currentUnit = u; onUnitChange(u); saveDistUnit(context, u) }
+                        .padding(horizontal = 10.dp, vertical = 3.dp)
                 ) {
-                    TextButton(onClick = { showList = !showList }) {
-                        Text("記録一覧 (${records.size}) ${if (showList) "▲" else "▼"}",
-                            color = TealDark, fontWeight = FontWeight.Bold)
-                    }
-                    Spacer(Modifier.weight(1f))
-                    if (remeasureIndex in records.indices) {
-                        TextButton(onClick = {
-                            val cur = records[remeasureIndex]
-                            records[remeasureIndex] = cur.copy(memo = memo.ifBlank { cur.memo })
-                            persist()
-                            Toast.makeText(context, "メモ更新", Toast.LENGTH_SHORT).show()
-                        }) { Text("メモ更新", color = TealDark) }
-                    }
+                    Text(u.label, color = if (sel) Color.White else PanelText, fontSize = 12.sp,
+                        fontWeight = if (sel) FontWeight.Bold else FontWeight.Normal)
                 }
             }
+        }
 
-            if (records.isNotEmpty() && showList) {
-                LazyColumn(
-                    modifier = Modifier.fillMaxWidth().heightIn(max = 200.dp)
-                        .background(Panel, RoundedCornerShape(8.dp)).padding(6.dp)
-                ) {
-                    itemsIndexed(records) { i, item ->
-                        val isTarget = remeasureIndex == i
-                        Row(
-                            modifier = Modifier.fillMaxWidth()
-                                .background(
-                                    if (isTarget) Color(0x3326A69A) else Color.Transparent,
-                                    RoundedCornerShape(6.dp)
-                                )
-                                .clickable {
-                                    remeasureIndex = if (isTarget) -1 else i
-                                    if (!isTarget) memo = item.memo
-                                }
-                                .padding(horizontal = 4.dp, vertical = 3.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Text("${i + 1}. ${item.memo}", color = PanelText, fontSize = 13.sp,
-                                modifier = Modifier.weight(1f))
-                            Text(item.display(unit), color = TealDark, fontFamily = FontFamily.Monospace,
-                                fontWeight = FontWeight.Bold, fontSize = 13.sp)
-                            TextButton(onClick = {
-                                editIdx = i
-                                editName = item.memo
-                                editValue = valueForEdit(item.value, unit)
-                            }) {
-                                Text("修正", color = TealDark, fontSize = 12.sp)
-                            }
-                            TextButton(onClick = {
-                                records.removeAt(i)
-                                if (remeasureIndex == i) remeasureIndex = -1
-                                persist()
-                            }) { Text("×", color = Color(0xFFC62828)) }
+        Spacer(Modifier.height(8.dp))
+
+        OutlinedTextField(
+            value = currentMemo,
+            onValueChange = { currentMemo = it; onMemoChange(it) },
+            placeholder = { Text("メモ（例：入口→レジ / 会議室）") },
+            singleLine = true,
+            modifier = Modifier.fillMaxWidth()
+        )
+
+        Spacer(Modifier.height(8.dp))
+
+        if (type == MeasureType.DISTANCE) {
+            OutlinedTextField(
+                value = manualValue,
+                onValueChange = { manualValue = it.filter { c -> c.isDigit() || c == '.' } },
+                placeholder = { Text("距離（${currentUnit.label}）") },
+                singleLine = true,
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                modifier = Modifier.fillMaxWidth()
+            )
+            Spacer(Modifier.height(8.dp))
+            Button(
+                onClick = {
+                    val meters = parseToMeters(manualValue, currentUnit)
+                    if (meters != null) {
+                        val name = currentMemo.ifBlank {
+                            if (currentRemeasure in records.indices) records[currentRemeasure].memo
+                            else "計測${records.size + 1}"
                         }
+                        val rec = Record(MeasureType.DISTANCE, name, meters, "")
+                        if (currentRemeasure in records.indices) records[currentRemeasure] = rec
+                        else records.add(0, rec)
+                        onPersist()
+                        Toast.makeText(context, "記録: ${rec.display(currentUnit)}", Toast.LENGTH_SHORT).show()
+                        manualValue = ""; currentMemo = ""; onMemoChange("")
+                        currentRemeasure = -1; onRemeasureChange(-1)
+                    } else {
+                        Toast.makeText(context, "数値を正しく入力してください", Toast.LENGTH_SHORT).show()
                     }
-                }
-                Spacer(Modifier.height(6.dp))
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    OutlinedButton(onClick = { copyText(context, buildReport(records, unit)) },
-                        modifier = Modifier.weight(1f)) { Text("コピー") }
-                    OutlinedButton(onClick = { shareText(context, buildReport(records, unit)) },
-                        modifier = Modifier.weight(1f)) { Text("共有") }
-                    OutlinedButton(onClick = { records.clear(); remeasureIndex = -1; persist() },
-                        modifier = Modifier.weight(1f)) { Text("全消去") }
+                },
+                colors = ButtonDefaults.buttonColors(containerColor = Teal),
+                modifier = Modifier.fillMaxWidth()
+            ) { Text("記録", fontWeight = FontWeight.Bold, fontSize = 16.sp) }
+        } else {
+            OutlinedTextField(
+                value = manualValue,
+                onValueChange = { manualValue = it.filter { c -> c.isDigit() || c == '.' } },
+                placeholder = { Text("辺A（${currentUnit.label}）") },
+                singleLine = true,
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                modifier = Modifier.fillMaxWidth()
+            )
+            Spacer(Modifier.height(4.dp))
+            OutlinedTextField(
+                value = manualValueB,
+                onValueChange = { manualValueB = it.filter { c -> c.isDigit() || c == '.' } },
+                placeholder = { Text("辺B（${currentUnit.label}）") },
+                singleLine = true,
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                modifier = Modifier.fillMaxWidth()
+            )
+            Spacer(Modifier.height(8.dp))
+            Button(
+                onClick = {
+                    val a = parseToMeters(manualValue, currentUnit)
+                    val b = parseToMeters(manualValueB, currentUnit)
+                    if (a != null && b != null) {
+                        val name = currentMemo.ifBlank {
+                            if (currentRemeasure in records.indices) records[currentRemeasure].memo
+                            else "計測${records.size + 1}"
+                        }
+                        val rec = Record(MeasureType.AREA, name, a * b, "%.2f×%.2f".format(a, b))
+                        if (currentRemeasure in records.indices) records[currentRemeasure] = rec
+                        else records.add(0, rec)
+                        onPersist()
+                        Toast.makeText(context, "記録: ${rec.display(currentUnit)}", Toast.LENGTH_SHORT).show()
+                        manualValue = ""; manualValueB = ""; currentMemo = ""; onMemoChange("")
+                        currentRemeasure = -1; onRemeasureChange(-1)
+                    } else {
+                        Toast.makeText(context, "辺A・辺Bを正しく入力してください", Toast.LENGTH_SHORT).show()
+                    }
+                },
+                colors = ButtonDefaults.buttonColors(containerColor = Teal),
+                modifier = Modifier.fillMaxWidth()
+            ) { Text("面積を記録", fontWeight = FontWeight.Bold, fontSize = 16.sp) }
+        }
+
+        Spacer(Modifier.height(12.dp))
+
+        RecordListUI(records, currentUnit, currentShowList, currentRemeasure, currentMemo, currentEditIdx,
+            onShowListChange = { currentShowList = it; onShowListChange(it) },
+            onRemeasureChange = { currentRemeasure = it; onRemeasureChange(it)
+                if (it >= 0 && it in records.indices) { currentMemo = records[it].memo; onMemoChange(records[it].memo) }
+            },
+            onMemoUpdate = { idx ->
+                val cur = records[idx]
+                records[idx] = cur.copy(memo = currentMemo.ifBlank { cur.memo })
+                onPersist()
+                Toast.makeText(context, "メモ更新", Toast.LENGTH_SHORT).show()
+            },
+            onEditStart = { i ->
+                currentEditIdx = i; onEditIdxChange(i)
+                currentEditName = records[i].memo; onEditNameChange(records[i].memo)
+                val v = valueForEdit(records[i].value, currentUnit)
+                currentEditValue = v; onEditValueChange(v)
+            },
+            onDelete = { i ->
+                records.removeAt(i)
+                if (currentRemeasure == i) { currentRemeasure = -1; onRemeasureChange(-1) }
+                onPersist()
+            },
+            onCopy = { copyText(context, buildReport(records, currentUnit)) },
+            onShare = { shareText(context, buildReport(records, currentUnit)) },
+            onClearAll = { records.clear(); currentRemeasure = -1; onRemeasureChange(-1); onPersist() }
+        )
+    }
+
+    EditRecordDialog(currentEditIdx, currentEditName, currentEditValue, currentUnit, records,
+        onEditNameChange = { currentEditName = it; onEditNameChange(it) },
+        onEditValueChange = { currentEditValue = it; onEditValueChange(it) },
+        onDismiss = { currentEditIdx = -1; onEditIdxChange(-1) },
+        onSave = { idx, name, meters ->
+            records[idx] = records[idx].copy(memo = name, value = meters)
+            onPersist()
+            Toast.makeText(context, "記録を修正しました", Toast.LENGTH_SHORT).show()
+            currentEditIdx = -1; onEditIdxChange(-1)
+        }
+    )
+}
+
+@Composable
+private fun RecordListUI(
+    records: List<Record>,
+    unit: DistUnit,
+    showList: Boolean,
+    remeasureIndex: Int,
+    memo: String,
+    editIdx: Int,
+    onShowListChange: (Boolean) -> Unit,
+    onRemeasureChange: (Int) -> Unit,
+    onMemoUpdate: (Int) -> Unit,
+    onEditStart: (Int) -> Unit,
+    onDelete: (Int) -> Unit,
+    onCopy: () -> Unit,
+    onShare: () -> Unit,
+    onClearAll: () -> Unit
+) {
+    if (records.isNotEmpty()) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            TextButton(onClick = { onShowListChange(!showList) }) {
+                Text("記録一覧 (${records.size}) ${if (showList) "▲" else "▼"}",
+                    color = TealDark, fontWeight = FontWeight.Bold)
+            }
+            Spacer(Modifier.weight(1f))
+            if (remeasureIndex in records.indices) {
+                TextButton(onClick = { onMemoUpdate(remeasureIndex) }) {
+                    Text("メモ更新", color = TealDark)
                 }
             }
         }
     }
 
-    // 計測済みの記録を修正するダイアログ（名称＋距離の数値の両方を変更できる）
+    if (records.isNotEmpty() && showList) {
+        LazyColumn(
+            modifier = Modifier.fillMaxWidth().heightIn(max = 200.dp)
+                .background(Panel, RoundedCornerShape(8.dp)).padding(6.dp)
+        ) {
+            itemsIndexed(records) { i, item ->
+                val isTarget = remeasureIndex == i
+                Row(
+                    modifier = Modifier.fillMaxWidth()
+                        .background(
+                            if (isTarget) Color(0x3326A69A) else Color.Transparent,
+                            RoundedCornerShape(6.dp)
+                        )
+                        .clickable { onRemeasureChange(if (isTarget) -1 else i) }
+                        .padding(horizontal = 4.dp, vertical = 3.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text("${i + 1}. ${item.memo}", color = PanelText, fontSize = 13.sp,
+                        modifier = Modifier.weight(1f))
+                    Text(item.display(unit), color = TealDark, fontFamily = FontFamily.Monospace,
+                        fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                    TextButton(onClick = { onEditStart(i) }) {
+                        Text("修正", color = TealDark, fontSize = 12.sp)
+                    }
+                    TextButton(onClick = { onDelete(i) }) {
+                        Text("×", color = Color(0xFFC62828))
+                    }
+                }
+            }
+        }
+        Spacer(Modifier.height(6.dp))
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            OutlinedButton(onClick = onCopy, modifier = Modifier.weight(1f)) { Text("コピー") }
+            OutlinedButton(onClick = onShare, modifier = Modifier.weight(1f)) { Text("共有") }
+            OutlinedButton(onClick = onClearAll, modifier = Modifier.weight(1f)) { Text("全消去") }
+        }
+    }
+}
+
+@Composable
+private fun EditRecordDialog(
+    editIdx: Int,
+    editName: String,
+    editValue: String,
+    unit: DistUnit,
+    records: List<Record>,
+    onEditNameChange: (String) -> Unit,
+    onEditValueChange: (String) -> Unit,
+    onDismiss: () -> Unit,
+    onSave: (Int, String, Float) -> Unit
+) {
+    val context = LocalContext.current
     if (editIdx in records.indices) {
         AlertDialog(
-            onDismissRequest = { editIdx = -1 },
+            onDismissRequest = onDismiss,
             title = { Text("記録の修正") },
             text = {
                 Column {
                     Text("名称", fontSize = 12.sp, color = PanelText)
                     OutlinedTextField(
                         value = editName,
-                        onValueChange = { editName = it },
+                        onValueChange = onEditNameChange,
                         singleLine = true,
                         placeholder = { Text("名称（例：入口→レジ）") },
                         modifier = Modifier.fillMaxWidth()
@@ -429,8 +718,7 @@ private fun MeasureBody(type: MeasureType, modifier: Modifier) {
                     OutlinedTextField(
                         value = editValue,
                         onValueChange = { input ->
-                            // 数字と小数点のみ許可
-                            editValue = input.filter { it.isDigit() || it == '.' }
+                            onEditValueChange(input.filter { it.isDigit() || it == '.' })
                         },
                         singleLine = true,
                         placeholder = { Text(if (unit == DistUnit.CM) "例：235" else "例：2.35") },
@@ -443,19 +731,15 @@ private fun MeasureBody(type: MeasureType, modifier: Modifier) {
             },
             confirmButton = {
                 TextButton(onClick = {
-                    val idx = editIdx
                     val meters = parseToMeters(editValue, unit)
-                    if (idx in records.indices && editName.isNotBlank() && meters != null) {
-                        records[idx] = records[idx].copy(memo = editName, value = meters)
-                        persist()
-                        Toast.makeText(context, "記録を修正しました", Toast.LENGTH_SHORT).show()
-                        editIdx = -1
+                    if (editIdx in records.indices && editName.isNotBlank() && meters != null) {
+                        onSave(editIdx, editName, meters)
                     } else {
                         Toast.makeText(context, "名称と距離（数字）を正しく入力してください", Toast.LENGTH_SHORT).show()
                     }
                 }) { Text("保存") }
             },
-            dismissButton = { TextButton(onClick = { editIdx = -1 }) { Text("取消") } }
+            dismissButton = { TextButton(onClick = onDismiss) { Text("取消") } }
         )
     }
 }
