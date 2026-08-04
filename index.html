@@ -10,7 +10,6 @@
     integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin="" defer></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js" defer></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js" defer></script>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js" defer></script>
   <style>
     :root {
       --bg: #eaf2fb;
@@ -436,9 +435,13 @@
 
     <!-- 領収書（リテイルオンサイト時のみ表示） -->
     <section class="panel receipt-panel" id="receiptPanel" style="display:none;">
-      <h2>領収書ファイル（画像 / PDF・複数アップロード可）</h2>
-      <input id="receiptFiles" type="file" accept="image/*,application/pdf,.pdf" multiple>
-      <p class="hint">画像（JPEG/PNG等）とPDFの両方に対応。PDF出力時、明細の後ろに領収書ページとして添付されます（PDFは全ページを展開）。</p>
+      <h2>領収書画像（複数アップロード可）</h2>
+      <input id="receiptFiles" type="file" accept="image/*" multiple>
+      <p class="hint">画像（JPEG/PNG等）に対応。PDF出力時、明細の後ろに領収書ページとして添付されます。</p>
+      <p class="gmap-note" style="margin-top:10px">
+        ⚠️ <b>高速代がPDFの場合は、そのファイルも一緒に提出してください。</b><br>
+        本ツールでは領収書は画像のみ取り込みます。PDFの高速料金明細は、生成したPDFと合わせて別途送付してください。
+      </p>
       <div id="receiptPreview" class="receipt-preview"></div>
     </section>
 
@@ -504,60 +507,25 @@
       document.getElementById('baseAddr').value = '東京都台東区台東2-1-1';
     });
 
-    // 領収書ファイル（画像 / PDF・複数）
+    // 領収書ファイル（画像のみ・複数）
     let receiptData = [];
-    function _isPdfFile(f) {
-      return f.type === 'application/pdf' || /\.pdf$/i.test(f.name);
-    }
-    async function _renderPdfPage(pdfDoc, pageNum, scale) {
-      const page = await pdfDoc.getPage(pageNum);
-      const viewport = page.getViewport({ scale });
-      const canvas = document.createElement('canvas');
-      canvas.width = viewport.width;
-      canvas.height = viewport.height;
-      await page.render({ canvasContext: canvas.getContext('2d'), viewport }).promise;
-      return canvas;
-    }
     document.getElementById('receiptFiles').addEventListener('change', async (e) => {
       const previewEl = document.getElementById('receiptPreview');
-      // PDF.jsのworker設定（初回のみ）
-      if (window.pdfjsLib && !window.pdfjsLib.GlobalWorkerOptions.workerSrc) {
-        window.pdfjsLib.GlobalWorkerOptions.workerSrc =
-          'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
-      }
       for (const f of e.target.files) {
-        const item = { name: f.name, type: f.type };
-        let thumbUrl = '';
-        try {
-          if (_isPdfFile(f)) {
-            const buf = await f.arrayBuffer();
-            item.kind = 'pdf';
-            item.pdfBytes = new Uint8Array(buf);
-            if (!window.pdfjsLib) throw new Error('PDF.js未ロード');
-            const doc = await window.pdfjsLib.getDocument({ data: item.pdfBytes.slice() }).promise;
-            item.pdfDoc = doc;
-            item.numPages = doc.numPages;
-            const thumb = await _renderPdfPage(doc, 1, 0.5);
-            thumbUrl = thumb.toDataURL('image/jpeg', 0.85);
-          } else {
-            const dataUrl = await new Promise(res => {
-              const r = new FileReader();
-              r.onload = () => res(r.result);
-              r.readAsDataURL(f);
-            });
-            item.kind = 'image';
-            item.dataUrl = dataUrl;
-            thumbUrl = dataUrl;
-          }
-        } catch (err) {
-          alert(`${f.name} の読み込みに失敗しました: ${err.message}`);
+        if (!/^image\//.test(f.type)) {
+          alert(`${f.name} は画像ファイルではないため取り込みませんでした（対応形式: JPEG/PNG等）`);
           continue;
         }
+        const dataUrl = await new Promise(res => {
+          const r = new FileReader();
+          r.onload = () => res(r.result);
+          r.readAsDataURL(f);
+        });
+        const item = { name: f.name, dataUrl, type: f.type };
         receiptData.push(item);
         const div = document.createElement('div');
         div.className = 'receipt-item';
-        const badge = item.kind === 'pdf' ? `<span style="font-size:9px;background:#d6435f;color:#fff;padding:1px 5px;border-radius:3px;margin-right:4px">PDF ${item.numPages}p</span>` : '';
-        div.innerHTML = `<img src="${thumbUrl}" alt=""><div class="name">${badge}${xmlEsc(f.name)}</div><button type="button" class="rem">✕ 削除</button>`;
+        div.innerHTML = `<img src="${dataUrl}" alt=""><div class="name">${xmlEsc(f.name)}</div><button type="button" class="rem">✕ 削除</button>`;
         div.querySelector('.rem').addEventListener('click', () => {
           const idx = receiptData.indexOf(item);
           if (idx >= 0) receiptData.splice(idx, 1);
@@ -1316,29 +1284,16 @@
             y += pageHPx;
           }
         }
-        // 領収書ページ（画像はそのまま、PDFは全ページを展開）
-        const fitOnA4 = (nw, nh) => {
-          let iw = A4W - MX * 2, ih = (nh * iw) / nw;
-          if (ih > A4H - MY * 2 - 8) { ih = A4H - MY * 2 - 8; iw = (nw * ih) / nh; }
-          return { iw, ih };
-        };
+        // 領収書ページ（画像を1枚1ページで追加）
         for (const r of receiptData) {
-          if (r.kind === 'pdf') {
-            for (let p = 1; p <= r.numPages; p++) {
-              const c = await _renderPdfPage(r.pdfDoc, p, 2);
-              pdf.addPage();
-              const { iw, ih } = fitOnA4(c.width, c.height);
-              pdf.addImage(c.toDataURL('image/jpeg', 0.92), 'JPEG', (A4W - iw) / 2, MY + 4, iw, ih);
-            }
-          } else {
-            const img = new Image();
-            img.src = r.dataUrl;
-            await new Promise(res => { img.onload = res; img.onerror = res; });
-            pdf.addPage();
-            const { iw, ih } = fitOnA4(img.width, img.height);
-            const fmt = r.type && r.type.indexOf('png') >= 0 ? 'PNG' : 'JPEG';
-            pdf.addImage(r.dataUrl, fmt, (A4W - iw) / 2, MY + 4, iw, ih);
-          }
+          const img = new Image();
+          img.src = r.dataUrl;
+          await new Promise(res => { img.onload = res; img.onerror = res; });
+          pdf.addPage();
+          let iw = A4W - MX * 2, ih = (img.height * iw) / img.width;
+          if (ih > A4H - MY * 2 - 8) { ih = A4H - MY * 2 - 8; iw = (img.width * ih) / img.height; }
+          const fmt = r.type && r.type.indexOf('png') >= 0 ? 'PNG' : 'JPEG';
+          pdf.addImage(r.dataUrl, fmt, (A4W - iw) / 2, MY + 4, iw, ih);
         }
       } finally {
         document.body.removeChild(container);
