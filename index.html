@@ -8,6 +8,8 @@
     integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="">
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
     integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin="" defer></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js" defer></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js" defer></script>
   <style>
     :root {
       --bg: #eaf2fb;
@@ -138,6 +140,44 @@
       white-space: nowrap;
     }
     .leg-total-card .ref-badge { margin-left: 0; margin-top: 4px; display: inline-block; }
+
+    /* 「会社から出発」クイックリンク */
+    .quick-link {
+      margin-left: 10px; font-size: 11px; padding: 2px 9px;
+      background: var(--accent); color: #fff; border-radius: 12px;
+      text-decoration: none; font-weight: 700; letter-spacing: .02em;
+      vertical-align: middle;
+    }
+    .quick-link:hover { background: var(--accent-d); }
+
+    /* 領収書アップロード */
+    .receipt-panel input[type="file"] {
+      padding: 8px; background: var(--panel-2);
+      border: 1px dashed var(--input-border); border-radius: 6px;
+      width: 100%; box-sizing: border-box;
+    }
+    .receipt-preview {
+      margin-top: 12px; display: flex; flex-wrap: wrap; gap: 10px;
+    }
+    .receipt-item {
+      border: 1px solid var(--input-border); border-radius: 6px;
+      padding: 6px; width: 130px; background: #fff;
+      display: flex; flex-direction: column; align-items: center;
+    }
+    .receipt-item img {
+      max-width: 100%; max-height: 90px; object-fit: contain;
+      display: block; margin-bottom: 4px;
+    }
+    .receipt-item .name {
+      font-size: 10px; color: var(--muted); word-break: break-all;
+      text-align: center; line-height: 1.3;
+    }
+    .receipt-item .rem {
+      background: none; border: none; color: var(--danger);
+      font-size: 11px; cursor: pointer; padding: 2px 6px;
+      margin-top: 2px;
+    }
+    .receipt-item .rem:hover { text-decoration: underline; }
 
     /* Googleマップ確認の注意メモ */
     .gmap-note {
@@ -328,16 +368,18 @@
           <label for="workDate">稼働日</label>
           <input id="workDate" type="date">
         </div>
-        <div>
+        <div id="mngRow">
           <label for="mngNo">管理番号</label>
           <input id="mngNo" type="text" placeholder="省略可">
         </div>
-        <div>
+        <div id="staffRow">
           <label for="staffId">スタッフID</label>
           <input id="staffId" type="text" placeholder="省略可">
         </div>
         <div class="full">
-          <label for="baseAddr">基点住所</label>
+          <label for="baseAddr">基点住所
+            <a href="#" id="companyLink" class="quick-link" style="display:none;">🏢 会社から出発</a>
+          </label>
           <input id="baseAddr" type="text">
         </div>
       </div>
@@ -391,6 +433,14 @@
       </div>
     </section>
 
+    <!-- 領収書（リテイルオンサイト時のみ表示） -->
+    <section class="panel receipt-panel" id="receiptPanel" style="display:none;">
+      <h2>領収書画像（複数アップロード可）</h2>
+      <input id="receiptFiles" type="file" accept="image/*" multiple>
+      <p class="hint">PDF出力時に、明細の後ろに領収書ページとして添付されます。</p>
+      <div id="receiptPreview" class="receipt-preview"></div>
+    </section>
+
     <!-- 総移動距離 -->
     <section class="panel">
       <h2>総移動距離 <span class="ref-badge">直線での移動距離：参考値</span></h2>
@@ -428,11 +478,54 @@
     const caseSelect = document.getElementById('caseSelect');
     const caseTag = document.getElementById('caseTag');
     const unitPriceEl = document.getElementById('unitPrice');
+    function updateCaseFields() {
+      const c = caseSelect.value;
+      const isRetail = c === 'リテイルオンサイト';
+      document.getElementById('mngRow').style.display = isRetail ? 'none' : '';
+      document.getElementById('staffRow').style.display = isRetail ? 'none' : '';
+      document.getElementById('companyLink').style.display = isRetail ? '' : 'none';
+      document.getElementById('receiptPanel').style.display = isRetail ? '' : 'none';
+      const btn = document.getElementById('exportXlsx');
+      btn.textContent = isRetail ? 'PDFダウンロード（.pdf）' : 'Excelエクスポート（.xlsx）';
+    }
     caseSelect.addEventListener('change', () => {
       const c = caseSelect.value;
       unitPriceEl.value = CASE_PRICES[c];
       caseTag.textContent = c;
+      updateCaseFields();
       recalc();
+    });
+    updateCaseFields();
+
+    // 「会社から出発」クイック入力
+    document.getElementById('companyLink').addEventListener('click', (e) => {
+      e.preventDefault();
+      document.getElementById('baseAddr').value = '東京都台東区台東2-1-1';
+    });
+
+    // 領収書ファイル（複数）
+    let receiptData = [];
+    document.getElementById('receiptFiles').addEventListener('change', async (e) => {
+      const previewEl = document.getElementById('receiptPreview');
+      for (const f of e.target.files) {
+        const dataUrl = await new Promise(res => {
+          const r = new FileReader();
+          r.onload = () => res(r.result);
+          r.readAsDataURL(f);
+        });
+        const item = { name: f.name, dataUrl, type: f.type };
+        receiptData.push(item);
+        const div = document.createElement('div');
+        div.className = 'receipt-item';
+        div.innerHTML = `<img src="${dataUrl}" alt=""><div class="name">${xmlEsc ? xmlEsc(f.name) : f.name}</div><button type="button" class="rem">✕ 削除</button>`;
+        div.querySelector('.rem').addEventListener('click', () => {
+          const idx = receiptData.indexOf(item);
+          if (idx >= 0) receiptData.splice(idx, 1);
+          div.remove();
+        });
+        previewEl.appendChild(div);
+      }
+      e.target.value = '';
     });
 
     // 訪問先入力（動的追加・ドラッグで並べ替え）
@@ -1088,10 +1181,128 @@
       return zipStore(fileList);
     }
 
-    document.getElementById('exportXlsx').addEventListener('click', () => {
+    /* ---------- リテイルオンサイト用：PDF出力（html2canvas + jsPDF） ---------- */
+    function buildRetailInvoiceHtml() {
+      const workDate = document.getElementById('workDate').value || '';
+      const baseAddr = document.getElementById('baseAddr').value.trim();
+      const price = parseFloat(document.getElementById('unitPrice').value) || 0;
+      const km = parseFloat(document.getElementById('totalKm').value) || 0;
+      const visits = [...document.querySelectorAll('.visit-addr')].map(el => el.value.trim());
+      const tollRows = [...document.querySelectorAll('#tollTable tbody tr')];
+      const parkRows = [...document.querySelectorAll('#parkTable tbody tr')];
+      let tollSum = 0, parkSum = 0;
+      const tollHtml = tollRows.map((tr, i) => {
+        const ins = tr.querySelectorAll('input');
+        const cost = parseFloat(ins[2].value) || 0;
+        if (cost) tollSum += cost;
+        return `<tr><td>${xmlEsc(TOLL_LEGS[i])}</td><td>${xmlEsc(ins[0].value)}</td><td>${xmlEsc(ins[1].value)}</td><td style="text-align:right">${cost ? cost.toLocaleString() + ' 円' : ''}</td></tr>`;
+      }).join('');
+      const parkHtml = parkRows.map((tr, i) => {
+        const ins = tr.querySelectorAll('input');
+        const cost = parseFloat(ins[2].value) || 0;
+        if (cost) parkSum += cost;
+        return `<tr><td>訪問先${i + 1}</td><td>${xmlEsc(ins[0].value)}</td><td>${xmlEsc(ins[1].value)}</td><td style="text-align:right">${cost ? cost.toLocaleString() + ' 円' : ''}</td></tr>`;
+      }).join('');
+      const gas = Math.round(price * km);
+      const total = gas + tollSum + parkSum;
+      const visitsHtml = visits.map((v, i) => `<tr><th style="border:1px solid #999;background:#eef5fd;padding:5px 8px;text-align:left;width:110px">訪問先${i + 1}</th><td style="border:1px solid #999;padding:5px 8px">${xmlEsc(v)}</td></tr>`).join('');
+      return `
+        <h1 style="text-align:center;font-size:18px;border-bottom:2px solid #2f7be0;padding-bottom:6px;margin:0 0 14px 0;color:#1f3a5f">リテイルオンサイト 車両移動経費請求書</h1>
+        <table style="width:100%;font-size:12px;border-collapse:collapse;margin-bottom:12px">
+          <tr><th style="border:1px solid #999;background:#eef5fd;padding:5px 8px;text-align:left;width:110px">稼働日</th><td style="border:1px solid #999;padding:5px 8px">${xmlEsc(workDate)}</td></tr>
+          <tr><th style="border:1px solid #999;background:#eef5fd;padding:5px 8px;text-align:left">基点住所</th><td style="border:1px solid #999;padding:5px 8px">${xmlEsc(baseAddr)}</td></tr>
+          ${visitsHtml}
+        </table>
+        <h3 style="font-size:13px;color:#1f63c0;margin:14px 0 4px">ルート（有料道路）</h3>
+        <table style="width:100%;font-size:11px;border-collapse:collapse">
+          <thead><tr>
+            <th style="border:1px solid #999;background:#eef5fd;padding:4px 6px;width:70px">ルート</th>
+            <th style="border:1px solid #999;background:#eef5fd;padding:4px 6px">有料道路</th>
+            <th style="border:1px solid #999;background:#eef5fd;padding:4px 6px">区間</th>
+            <th style="border:1px solid #999;background:#eef5fd;padding:4px 6px;width:90px">費用</th>
+          </tr></thead>
+          <tbody>${tollHtml}</tbody>
+        </table>
+        <h3 style="font-size:13px;color:#1f63c0;margin:14px 0 4px">駐車場</h3>
+        <table style="width:100%;font-size:11px;border-collapse:collapse">
+          <thead><tr>
+            <th style="border:1px solid #999;background:#eef5fd;padding:4px 6px;width:70px">訪問先</th>
+            <th style="border:1px solid #999;background:#eef5fd;padding:4px 6px">駐車場</th>
+            <th style="border:1px solid #999;background:#eef5fd;padding:4px 6px">パーキング名</th>
+            <th style="border:1px solid #999;background:#eef5fd;padding:4px 6px;width:90px">費用</th>
+          </tr></thead>
+          <tbody>${parkHtml}</tbody>
+        </table>
+        <div style="margin-top:18px;padding:12px 16px;background:#eef5fd;border:1px solid #2f7be0;border-radius:6px">
+          <div style="font-size:12px;display:flex;justify-content:space-between;margin:3px 0"><span>ガソリン代（${price.toLocaleString()} 円/km × ${km.toFixed(1)} km）</span><span>${gas.toLocaleString()} 円</span></div>
+          <div style="font-size:12px;display:flex;justify-content:space-between;margin:3px 0"><span>有料道路</span><span>${tollSum.toLocaleString()} 円</span></div>
+          <div style="font-size:12px;display:flex;justify-content:space-between;margin:3px 0"><span>駐車場</span><span>${parkSum.toLocaleString()} 円</span></div>
+          <div style="font-size:14px;font-weight:700;display:flex;justify-content:space-between;padding-top:8px;margin-top:6px;border-top:1px solid #2f7be0"><span>請求総額</span><span style="color:#1a8f5f;font-size:20px">${total.toLocaleString()} 円</span></div>
+        </div>
+      `;
+    }
+
+    async function exportRetailPdf() {
+      if (typeof window.jspdf === 'undefined' || typeof window.html2canvas === 'undefined') {
+        alert('PDF生成ライブラリ(jsPDF/html2canvas)の読み込みに失敗しました。ネット接続を確認してください。');
+        return;
+      }
+      const { jsPDF } = window.jspdf;
+      const pdf = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
+      const A4W = 210, A4H = 297, MX = 10, MY = 10;
+
+      const container = document.createElement('div');
+      container.style.cssText = 'position:fixed;top:-10000px;left:0;width:800px;background:#fff;color:#000;padding:24px;box-sizing:border-box;font-family:"Hiragino Kaku Gothic ProN","Yu Gothic",Meiryo,sans-serif;line-height:1.5';
+      container.innerHTML = buildRetailInvoiceHtml();
+      document.body.appendChild(container);
+      try {
+        const canvas = await window.html2canvas(container, { scale: 2, backgroundColor: '#fff', useCORS: true });
+        const w = A4W - MX * 2;
+        const totalH = (canvas.height * w) / canvas.width;
+        const pxPerMm = canvas.width / w;
+        if (totalH <= A4H - MY * 2) {
+          pdf.addImage(canvas.toDataURL('image/jpeg', 0.92), 'JPEG', MX, MY, w, totalH);
+        } else {
+          const pageHPx = (A4H - MY * 2) * pxPerMm;
+          let y = 0, first = true;
+          while (y < canvas.height) {
+            if (!first) pdf.addPage();
+            first = false;
+            const pc = document.createElement('canvas');
+            pc.width = canvas.width;
+            pc.height = Math.min(pageHPx, canvas.height - y);
+            pc.getContext('2d').drawImage(canvas, 0, y, canvas.width, pc.height, 0, 0, canvas.width, pc.height);
+            pdf.addImage(pc.toDataURL('image/jpeg', 0.92), 'JPEG', MX, MY, w, (pc.height / canvas.width) * w);
+            y += pageHPx;
+          }
+        }
+        // 領収書ページ
+        for (const r of receiptData) {
+          const img = new Image();
+          img.src = r.dataUrl;
+          await new Promise(res => { img.onload = res; img.onerror = res; });
+          pdf.addPage();
+          let iw = A4W - MX * 2, ih = (img.height * iw) / img.width;
+          if (ih > A4H - MY * 2 - 8) { ih = A4H - MY * 2 - 8; iw = (img.width * ih) / img.height; }
+          const fmt = r.type && r.type.indexOf('png') >= 0 ? 'PNG' : 'JPEG';
+          pdf.addImage(r.dataUrl, fmt, (A4W - iw) / 2, MY + 4, iw, ih);
+        }
+      } finally {
+        document.body.removeChild(container);
+      }
+      const date = document.getElementById('workDate').value || '';
+      const yyyymmdd = date.replace(/-/g, '');
+      pdf.save(`リテイルオンサイト_車両移動経費請求書_${yyyymmdd || 'download'}.pdf`);
+    }
+
+    document.getElementById('exportXlsx').addEventListener('click', async () => {
       const _cd = caseSelect.value;
       const date = document.getElementById('workDate').value || '';
       const yyyymmdd = date.replace(/-/g, '');
+      if (_cd === 'リテイルオンサイト') {
+        await exportRetailPdf();
+        return;
+      }
       let blob, fname;
       if (_cd === 'JCOM') {
         blob = buildJcomXlsxBlob();
