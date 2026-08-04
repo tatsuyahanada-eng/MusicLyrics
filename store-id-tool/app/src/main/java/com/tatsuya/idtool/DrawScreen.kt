@@ -18,11 +18,8 @@ import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.gestures.awaitEachGesture
-import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.gestures.detectTapGestures
-import androidx.compose.foundation.gestures.waitForUpOrCancellation
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -71,7 +68,6 @@ import java.io.File
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
-import kotlinx.coroutines.withTimeoutOrNull
 import kotlin.math.abs
 import kotlin.math.atan2
 import kotlin.math.cos
@@ -305,8 +301,8 @@ fun DrawScreen(modifier: Modifier = Modifier) {
                 .background(Color.White, RoundedCornerShape(4.dp))
                 .border(1.dp, Color(0xFFBDBDBD), RoundedCornerShape(4.dp))
                 .pointerInput(tool, penMode, selType, selNum, selColor, selTextSize, selSize) {
-                    when (tool) {
-                        DTool.PEN -> detectDragGestures(
+                    when {
+                        tool == DTool.PEN -> detectDragGestures(
                             onDragStart = { off -> dragStart = norm(off, size.width, size.height); live = listOf(dragStart) },
                             onDrag = { ch, _ ->
                                 val cur = norm(ch.position, size.width, size.height)
@@ -321,14 +317,13 @@ fun DrawScreen(modifier: Modifier = Modifier) {
                                 live = emptyList()
                             }
                         )
-                        DTool.MOVE -> detectDragGestures(
+                        tool == DTool.MOVE -> detectDragGestures(
                             onDragStart = { off ->
                                 val p = norm(off, size.width, size.height)
                                 val n = nearestKind(p, marks, texts, strokes)
                                 moveKind = n?.first; moveIdx = n?.second ?: -1; lastP = p
-                                // つかんだ対象を選択状態にして、離してもハイライトを維持
                                 selKind = n?.first; selIdx = n?.second ?: -1
-                                if (moveKind != null) pushUndo() // 移動前の状態を1手として保存
+                                if (moveKind != null) pushUndo()
                             },
                             onDrag = { ch, _ ->
                                 val np = norm(ch.position, size.width, size.height)
@@ -337,58 +332,32 @@ fun DrawScreen(modifier: Modifier = Modifier) {
                             },
                             onDragEnd = { if (moveKind != null) persist(); moveKind = null; moveIdx = -1 }
                         )
-                        DTool.MARK -> if (isShape(selType)) {
-                            // 図形：タップ＝プリセットサイズで配置 / 長押しドラッグ＝フリーサイズ
-                            val longPressMs = viewConfiguration.longPressTimeoutMillis
-                            awaitEachGesture {
-                                val down = awaitFirstDown()
-                                val downPos = down.position
-                                val result = withTimeoutOrNull(longPressMs) { waitForUpOrCancellation() }
-                                if (result != null) {
-                                    // 短いタップ → プリセットサイズで配置
-                                    val p = norm(downPos, size.width, size.height)
-                                    pushUndo()
-                                    marks.add(MarkT(p.x, p.y, selType, selNum, "", selSize)); persist()
-                                } else {
-                                    // 長押し成立 → ドラッグでフリーサイズ
-                                    val center = norm(downPos, size.width, size.height)
-                                    freeCenter = center; freeDragCur = center
-                                    var moved = false
-                                    do {
-                                        val event = awaitPointerEvent()
-                                        val pos = event.changes.firstOrNull()?.position ?: break
-                                        freeDragCur = norm(pos, size.width, size.height)
-                                        moved = true
-                                        event.changes.forEach { it.consume() }
-                                    } while (event.changes.any { it.pressed })
-                                    if (moved) {
-                                        val hw = abs(freeDragCur.x - center.x) * size.width
-                                        val hh = abs(freeDragCur.y - center.y) * size.height
-                                        if (hw > 10f || hh > 10f) {
-                                            pushUndo()
-                                            marks.add(MarkT(center.x, center.y, selType, selNum, "", "FREE",
-                                                customHW = max(hw, 12f), customHH = max(hh, 12f)))
-                                            persist()
-                                            nameIdx = marks.size - 1; nameInput = ""
-                                        }
+                        // 図形ドラッグ＝フリーサイズ配置
+                        tool == DTool.MARK && isShape(selType) -> detectDragGestures(
+                            onDragStart = { off ->
+                                dragStart = norm(off, size.width, size.height)
+                                freeCenter = dragStart; freeDragCur = dragStart
+                            },
+                            onDrag = { ch, _ ->
+                                if (freeCenter != null) freeDragCur = norm(ch.position, size.width, size.height)
+                            },
+                            onDragEnd = {
+                                val center = freeCenter
+                                if (center != null) {
+                                    val hw = abs(freeDragCur.x - center.x) * size.width
+                                    val hh = abs(freeDragCur.y - center.y) * size.height
+                                    if (hw > 10f || hh > 10f) {
+                                        pushUndo()
+                                        marks.add(MarkT(center.x, center.y, selType, selNum, "", "FREE",
+                                            customHW = max(hw, 12f), customHH = max(hh, 12f)))
+                                        persist()
+                                        nameIdx = marks.size - 1; nameInput = ""
                                     }
-                                    freeCenter = null
                                 }
-                            }
-                        } else {
-                            detectTapGestures(
-                                onLongPress = { off ->
-                                    val p = norm(off, size.width, size.height)
-                                    val mi = nearestMark(p, marks)
-                                    if (mi >= 0) { nameIdx = mi; nameInput = marks[mi].label }
-                                },
-                                onTap = { off ->
-                                    val p = norm(off, size.width, size.height)
-                                    pushUndo()
-                                    marks.add(MarkT(p.x, p.y, selType, selNum, "", selSize)); persist()
-                                }
-                            )
-                        }
+                                freeCenter = null
+                            },
+                            onDragCancel = { freeCenter = null }
+                        )
                         else -> detectTapGestures(
                             onLongPress = { off ->
                                 val p = norm(off, size.width, size.height)
@@ -398,6 +367,10 @@ fun DrawScreen(modifier: Modifier = Modifier) {
                             onTap = { off ->
                                 val p = norm(off, size.width, size.height)
                                 when (tool) {
+                                    DTool.MARK -> {
+                                        pushUndo()
+                                        marks.add(MarkT(p.x, p.y, selType, selNum, "", selSize)); persist()
+                                    }
                                     DTool.TEXT -> { textPoint = p; textInput = "" }
                                     DTool.DISTANCE -> { distPoint = p }
                                     DTool.DELETE -> {
@@ -409,6 +382,16 @@ fun DrawScreen(modifier: Modifier = Modifier) {
                             }
                         )
                     }
+                }
+                // 図形タップ＝プリセットサイズで配置
+                .pointerInput(tool, selType, selNum, selSize) {
+                    if (tool == DTool.MARK && isShape(selType)) detectTapGestures(
+                        onTap = { off ->
+                            val p = norm(off, size.width, size.height)
+                            pushUndo()
+                            marks.add(MarkT(p.x, p.y, selType, selNum, "", selSize)); persist()
+                        }
+                    )
                 }
                 // 移動モード：タップだけで対象を選択（動かさなくてもハイライト表示）
                 .pointerInput(tool) {
