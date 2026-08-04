@@ -1304,6 +1304,42 @@
   const nodeDateChk = $('#nodeDateChk');
   const nodeDateInput = $('#nodeDateInput');
   const nodeDateHint = $('#nodeDateHint');
+
+  /* ---------- 一時メモ（保存・共有されない、この端末だけの下書き） ---------- */
+  const SCRATCH_KEY = 'treeManual.scratch.v1';
+  const scratchChk = $('#scratchChk');
+  const scratchLine = $('#scratchLine');
+  const scratchArea = $('#scratchArea');
+  function loadScratch() {
+    let o = {};
+    try { o = JSON.parse(localStorage.getItem(SCRATCH_KEY) || '{}') || {}; } catch (_) { o = {}; }
+    if (scratchChk) scratchChk.checked = !!o.chk;
+    if (scratchLine) scratchLine.value = o.line || '';
+    if (scratchArea) scratchArea.value = o.area || '';
+  }
+  function saveScratch() {
+    const o = {
+      chk: scratchChk ? !!scratchChk.checked : false,
+      line: scratchLine ? scratchLine.value : '',
+      area: scratchArea ? scratchArea.value : '',
+    };
+    try { localStorage.setItem(SCRATCH_KEY, JSON.stringify(o)); } catch (_) {}
+  }
+  [scratchChk, scratchLine, scratchArea].forEach((el) => {
+    if (el) el.addEventListener('input', saveScratch);
+    if (el) el.addEventListener('change', saveScratch);
+  });
+  // 1行メモで Enter を押しても項目が保存されない（フォーム送信を止める）ようにする
+  if (scratchLine) scratchLine.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') e.preventDefault();
+  });
+  { const sc = $('#scratchClear'); if (sc) sc.addEventListener('click', () => {
+    if (scratchChk) scratchChk.checked = false;
+    if (scratchLine) scratchLine.value = '';
+    if (scratchArea) scratchArea.value = '';
+    saveScratch();
+    if (scratchLine) scratchLine.focus();
+  }); }
   // ms → datetime-local の値（YYYY-MM-DDTHH:MM）
   function msToLocalInput(ms) {
     const d = new Date(Number(ms) || Date.now());
@@ -1396,6 +1432,7 @@
     [nodeImgBtn, nodeFileBtn].forEach((b) => {
       if (b) { b.disabled = false; b.title = canAttach ? '' : '添付はサーバー(DB)接続時のみ'; }
     });
+    loadScratch(); // 一時メモ（保存されない下書き）を復元
     nodeDialog.showModal();
     nodeTitleInput.focus();
   }

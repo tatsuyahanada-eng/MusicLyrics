@@ -1103,6 +1103,19 @@ body.tm-dragging .tm-treenode-row { cursor: grabbing; }
 .tm-dialog-err { min-height: 16px; font-size: 12px; color: var(--tm-cyan); }
 .tm-dialog-err:not(:empty) { color: var(--tm-warn); }
 
+/* 一時メモ（保存されない下書き）: 破線＋くすんだ色で「保存されない」ことを示す */
+.tm-scratch {
+  border: 1px dashed var(--tm-line-strong);
+  border-radius: 8px;
+  padding: 10px 12px;
+  background: rgba(255, 255, 255, 0.02);
+}
+.tm-scratch-check { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
+.tm-scratch-check input[type="checkbox"] { width: 16px; height: 16px; accent-color: var(--tm-cyan); flex: none; }
+.tm-scratch-line { flex: 1; }
+.tm-scratch-area { width: 100%; resize: vertical; min-height: 96px; line-height: 1.6; font-family: inherit; }
+.tm-scratch-actions { margin-top: 6px; text-align: right; }
+
 /* images inside rendered body */
 .tm-body-img {
   display: block;

@@ -9,7 +9,7 @@
   <link rel="manifest" href="manifest.webmanifest">
   <link rel="icon" href="icon.svg" type="image/svg+xml">
   <link rel="apple-touch-icon" href="icon-192.png">
-  <link rel="stylesheet" href="manual.css?v=42">
+  <link rel="stylesheet" href="manual.css?v=43">
 </head>
 <body class="tm-body">
 
@@ -289,6 +289,24 @@
         <span class="tm-dialog-imghint">画像・ファイルは本文の下に追加されます（画像は貼り付けCtrl+Vも可）。追加した画像やファイルをタップすると削除できます。</span>
       </div>
 
+      <!-- 一時メモ：保存も共有もされない、この端末だけの下書き/チェック用 -->
+      <div class="tm-field tm-scratch">
+        <span class="tm-field-label">
+          &#128221; 一時メモ（保存されません・この端末だけ）
+          <span class="tm-field-hint">項目には登録されません。書きかけの下書きやチェック用にどうぞ。</span>
+        </span>
+        <label class="tm-scratch-check">
+          <input type="checkbox" id="scratchChk">
+          <input type="text" id="scratchLine" class="tm-input tm-scratch-line" maxlength="200"
+            autocomplete="off" placeholder="1行メモ（例：あとで画像を追加する）">
+        </label>
+        <textarea id="scratchArea" class="tm-input tm-scratch-area" rows="5"
+          placeholder="5行分の下書きメモ。ここに書いた内容は保存・共有されません。"></textarea>
+        <div class="tm-scratch-actions">
+          <button type="button" id="scratchClear" class="tm-linkbtn">メモを消す</button>
+        </div>
+      </div>
+
       <p id="nodeError" class="tm-dialog-err" aria-live="polite"></p>
 
       <div class="tm-dialog-actions">
@@ -360,6 +378,7 @@
           <li>並び順は <b>長押し（またはハンドルをドラッグ）</b> で変更。案内モードでも「並べ替え」で調整できます。</li>
           <li>各項目に <b>登録者名</b> が記録されます。<b>更新日時</b> も指定でき、誤って履歴の上位に来た項目を元の日時に戻せます。</li>
           <li>説明欄は <b>太字・色・大きさ</b> の装飾に対応。Excelでの一括登録／出力もできます。</li>
+          <li>編集画面の下部に <b>「一時メモ」</b>（チェック・1行・5行）があります。<b>保存も共有もされない</b>、この端末だけの下書き用です。「メモを消す」で消せます。</li>
         </ul>
 
         <h3>画像・ファイルの添付</h3>
@@ -603,6 +622,6 @@
   </dialog>
 
   <script src="vendor/xlsx.full.min.js"></script>
-  <script src="manual.js?v=43"></script>
+  <script src="manual.js?v=44"></script>
 </body>
 </html>
