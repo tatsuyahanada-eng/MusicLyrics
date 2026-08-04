@@ -1305,174 +1305,90 @@
   const nodeDateInput = $('#nodeDateInput');
   const nodeDateHint = $('#nodeDateHint');
 
-  /* ---------- 一時メモ（保存・共有されない、この端末だけ） ----------
-     チェック欄・テキスト欄（長さ・行数指定）を自由に追加でき、文字色・サイズも変更可。
-     内容はこの端末の localStorage にのみ保存し、項目やサーバーには一切登録しない。
-     編集ダイアログ(#scratchMount)と通常画面(#navScratchMount)の両方に同じ内容で表示する。 */
-  const SCRATCH_KEY = 'treeManual.scratch.v2';
-  const SCRATCH_SIZES = { sm: '13px', md: '15px', lg: '18px', xl: '22px' };
-  const SCRATCH_SIZE_LABEL = { sm: '小', md: '標準', lg: '大', xl: '特大' };
-  const SCRATCH_WIDTHS = { s: '140px', m: '280px', l: '100%' };
-  const SCRATCH_WIDTH_LABEL = { s: '短', m: '中', l: '長' };
-  const SCRATCH_COLORS = ['', '#ff5a6e', '#4aa3ff', '#38d39f', '#ffd54a', '#e86b2c', '#111111'];
-  const scratchUid = () => 's' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
-
-  function loadScratchState() {
-    try {
-      const o = JSON.parse(localStorage.getItem(SCRATCH_KEY));
-      if (o && Array.isArray(o.items)) {
-        return {
-          style: { color: (o.style && o.style.color) || '', size: (o.style && o.style.size) || 'md' },
-          neu: { width: (o.neu && o.neu.width) || 'm', rows: (o.neu && o.neu.rows) || 1 },
-          items: o.items,
-        };
-      }
-    } catch (_) {}
-    // 旧バージョン(v1)の簡易メモがあれば引き継ぐ
-    const st = { style: { color: '', size: 'md' }, neu: { width: 'm', rows: 1 }, items: [] };
-    try {
-      const old = JSON.parse(localStorage.getItem('treeManual.scratch.v1') || 'null');
-      if (old) {
-        if (old.line) st.items.push({ type: 'check', id: scratchUid(), label: old.line, checked: !!old.chk });
-        if (old.area) st.items.push({ type: 'text', id: scratchUid(), value: old.area, width: 'l', rows: 5 });
-      }
-    } catch (_) {}
-    return st;
-  }
-  let scratchState = loadScratchState();
-  function saveScratchState() { try { localStorage.setItem(SCRATCH_KEY, JSON.stringify(scratchState)); } catch (_) {} }
-  function scratchTextStyle() {
-    const s = scratchState.style || {};
-    return { color: s.color || '', fontSize: SCRATCH_SIZES[s.size] || SCRATCH_SIZES.md };
-  }
-  function renderAllScratch() {
-    ['#scratchMount', '#navScratchMount'].forEach((sel) => { const m = $(sel); if (m) renderScratchInto(m); });
-  }
-  function renderScratchInto(mount) {
-    mount.innerHTML = '';
-    const ts = scratchTextStyle();
-
-    // 追加ツールバー
-    const bar = document.createElement('div');
-    bar.className = 'tm-scratch-bar';
-    const addChk = document.createElement('button');
-    addChk.type = 'button'; addChk.className = 'tm-btn tm-btn-outline tm-btn-sm';
-    addChk.textContent = '＋ チェック欄';
-    addChk.addEventListener('click', () => {
-      scratchState.items.push({ type: 'check', id: scratchUid(), label: '', checked: false });
-      saveScratchState(); renderAllScratch();
-    });
-    bar.appendChild(addChk);
-
-    const grp = document.createElement('span');
-    grp.className = 'tm-scratch-newtext';
-    const wSel = document.createElement('select');
-    wSel.className = 'tm-scratch-select'; wSel.title = 'テキスト欄の幅（長さ）';
-    Object.keys(SCRATCH_WIDTHS).forEach((k) => {
-      const op = document.createElement('option'); op.value = k; op.textContent = '幅:' + SCRATCH_WIDTH_LABEL[k];
-      if (scratchState.neu.width === k) op.selected = true; wSel.appendChild(op);
-    });
-    wSel.addEventListener('change', () => { scratchState.neu.width = wSel.value; saveScratchState(); });
-    const rNum = document.createElement('input');
-    rNum.type = 'number'; rNum.min = '1'; rNum.max = '20'; rNum.className = 'tm-scratch-rows'; rNum.title = '行数';
-    rNum.value = String(scratchState.neu.rows || 1);
-    rNum.addEventListener('change', () => {
-      let n = parseInt(rNum.value, 10) || 1; n = Math.min(20, Math.max(1, n));
-      rNum.value = String(n); scratchState.neu.rows = n; saveScratchState();
-    });
-    const rLbl = document.createElement('span'); rLbl.className = 'tm-scratch-lbl'; rLbl.textContent = '行';
-    const addTxt = document.createElement('button');
-    addTxt.type = 'button'; addTxt.className = 'tm-btn tm-btn-outline tm-btn-sm'; addTxt.textContent = '＋ テキスト欄';
-    addTxt.addEventListener('click', () => {
-      let n = parseInt(rNum.value, 10) || 1; n = Math.min(20, Math.max(1, n));
-      scratchState.items.push({ type: 'text', id: scratchUid(), value: '', width: wSel.value, rows: n });
-      saveScratchState(); renderAllScratch();
-    });
-    grp.appendChild(wSel); grp.appendChild(rNum); grp.appendChild(rLbl); grp.appendChild(addTxt);
-    bar.appendChild(grp);
-    mount.appendChild(bar);
-
-    // 文字色・サイズ・全消去
-    const sbar = document.createElement('div');
-    sbar.className = 'tm-scratch-stylebar';
-    const clbl = document.createElement('span'); clbl.className = 'tm-scratch-lbl'; clbl.textContent = '文字色';
-    sbar.appendChild(clbl);
-    SCRATCH_COLORS.forEach((c) => {
-      const sw = document.createElement('button');
-      sw.type = 'button';
-      sw.className = 'tm-scratch-color' + ((scratchState.style.color || '') === c ? ' is-on' : '');
-      if (c === '') { sw.classList.add('tm-scratch-color-auto'); sw.title = '標準色'; sw.textContent = 'A'; }
-      else { sw.style.background = c; sw.title = c; }
-      sw.addEventListener('click', () => { scratchState.style.color = c; saveScratchState(); renderAllScratch(); });
-      sbar.appendChild(sw);
-    });
-    const zlbl = document.createElement('span'); zlbl.className = 'tm-scratch-lbl'; zlbl.textContent = 'サイズ';
-    sbar.appendChild(zlbl);
-    const zSel = document.createElement('select'); zSel.className = 'tm-scratch-select';
-    Object.keys(SCRATCH_SIZES).forEach((k) => {
-      const op = document.createElement('option'); op.value = k; op.textContent = SCRATCH_SIZE_LABEL[k];
-      if (scratchState.style.size === k) op.selected = true; zSel.appendChild(op);
-    });
-    zSel.addEventListener('change', () => { scratchState.style.size = zSel.value; saveScratchState(); renderAllScratch(); });
-    sbar.appendChild(zSel);
-    const clr = document.createElement('button');
-    clr.type = 'button'; clr.className = 'tm-linkbtn tm-scratch-clear'; clr.textContent = 'すべて消す';
-    clr.addEventListener('click', () => { if (scratchState.items.length) { scratchState.items = []; saveScratchState(); renderAllScratch(); } });
-    sbar.appendChild(clr);
-    mount.appendChild(sbar);
-
-    // 入力欄リスト
-    const list = document.createElement('div');
-    list.className = 'tm-scratch-list';
-    if (!scratchState.items.length) {
-      const empty = document.createElement('p');
-      empty.className = 'tm-scratch-empty';
-      empty.textContent = '「＋ チェック欄」「＋ テキスト欄」で入力欄を追加できます（保存されません）。';
-      list.appendChild(empty);
+  /* ---------- 本文に差し込む「その場だけの入力欄」（保存されない） ----------
+     説明の入力中に、カーソル位置へ チェック欄 / 1行入力 / 複数行入力 を差し込む。
+     画面を見ながらその場で記入するためのメモ欄で、保存時に本文には一切含めない
+     （.tm-formfield は保存前に取り除く）。テキスト欄の背景は白（サイトの入力欄風）。 */
+  function formFieldHtml(kind) {
+    const del = '<button type="button" class="tm-ff-del" title="この入力欄を削除" contenteditable="false">&#10005;</button>';
+    if (kind === 'check') {
+      return '<div class="tm-formfield tm-ff-check" contenteditable="false">'
+        + '<input type="checkbox" class="tm-ff-cb">'
+        + '<input type="text" class="tm-ff-input" placeholder="チェック項目のメモ">'
+        + del + '</div>';
     }
-    scratchState.items.forEach((it) => list.appendChild(renderScratchItem(it, ts)));
-    mount.appendChild(list);
-  }
-  function renderScratchItem(it, ts) {
-    const row = document.createElement('div');
-    row.className = 'tm-scratch-item';
-    if (it.type === 'check') {
-      const cb = document.createElement('input');
-      cb.type = 'checkbox'; cb.className = 'tm-scratch-cb'; cb.checked = !!it.checked;
-      cb.addEventListener('change', () => { it.checked = cb.checked; saveScratchState(); });
-      const lab = document.createElement('input');
-      lab.type = 'text'; lab.className = 'tm-input tm-scratch-fieldtext';
-      lab.placeholder = 'チェック項目のメモ'; lab.value = it.label || '';
-      lab.style.color = ts.color; lab.style.fontSize = ts.fontSize; lab.style.width = SCRATCH_WIDTHS.m;
-      lab.addEventListener('input', () => { it.label = lab.value; saveScratchState(); });
-      lab.addEventListener('keydown', (e) => { if (e.key === 'Enter') e.preventDefault(); });
-      row.appendChild(cb); row.appendChild(lab);
-    } else {
-      const w = SCRATCH_WIDTHS[it.width] || SCRATCH_WIDTHS.m;
-      let field;
-      if ((it.rows || 1) <= 1) {
-        field = document.createElement('input'); field.type = 'text';
-        field.addEventListener('keydown', (e) => { if (e.key === 'Enter') e.preventDefault(); });
-      } else {
-        field = document.createElement('textarea'); field.rows = it.rows;
-      }
-      field.className = 'tm-input tm-scratch-fieldtext'; field.placeholder = 'メモ'; field.value = it.value || '';
-      field.style.color = ts.color; field.style.fontSize = ts.fontSize; field.style.width = w;
-      field.addEventListener('input', () => { it.value = field.value; saveScratchState(); });
-      row.appendChild(field);
+    if (kind === 'textarea') {
+      return '<div class="tm-formfield tm-ff-textarea" contenteditable="false">'
+        + '<textarea class="tm-ff-input" rows="4" placeholder="入力してください"></textarea>'
+        + del + '</div>';
     }
-    const del = document.createElement('button');
-    del.type = 'button'; del.className = 'tm-scratch-del'; del.title = 'この欄を削除'; del.innerHTML = '&#10005;';
-    del.addEventListener('click', () => {
-      const i = scratchState.items.indexOf(it);
-      if (i >= 0) { scratchState.items.splice(i, 1); saveScratchState(); renderAllScratch(); }
-    });
-    row.appendChild(del);
-    return row;
+    return '<div class="tm-formfield tm-ff-text" contenteditable="false">'
+      + '<input type="text" class="tm-ff-input" placeholder="入力してください">'
+      + del + '</div>';
   }
-  // 通常画面のメモパネルを開いたときは最新状態で描き直す
-  { const nsp = $('#navScratchPanel'); if (nsp) nsp.addEventListener('toggle', () => { if (nsp.open) renderAllScratch(); }); }
-  renderAllScratch();
+  // 本文の編集領域内（差し込みフィールドの中は除く）のキャレット位置を記憶しておく。
+  // 白い入力欄にフォーカスがある状態で差し込んでも、直前の本文位置に入れられるようにする。
+  let lastEditorRange = null;
+  function inFormField(node) {
+    const host = node && (node.nodeType === 1 ? node : node.parentNode);
+    return !!(host && host.closest && host.closest('.tm-formfield'));
+  }
+  function saveEditorRange() {
+    const sel = window.getSelection();
+    if (sel && sel.rangeCount) {
+      const r = sel.getRangeAt(0);
+      if (nodeBodyEditor.contains(r.commonAncestorContainer) && !inFormField(r.commonAncestorContainer)) {
+        lastEditorRange = r.cloneRange();
+      }
+    }
+  }
+  nodeBodyEditor.addEventListener('keyup', saveEditorRange);
+  nodeBodyEditor.addEventListener('mouseup', saveEditorRange);
+  function insertFormField(kind) {
+    nodeBodyEditor.focus();
+    const sel = window.getSelection();
+    // 現在のキャレットが本文内（フィールド外）ならそこ、なければ記憶した位置、それも無ければ末尾へ
+    let range = null;
+    if (sel && sel.rangeCount) {
+      const cur = sel.getRangeAt(0);
+      if (nodeBodyEditor.contains(cur.commonAncestorContainer) && !inFormField(cur.commonAncestorContainer)) range = cur;
+    }
+    if (!range && lastEditorRange && nodeBodyEditor.contains(lastEditorRange.commonAncestorContainer)) range = lastEditorRange;
+    if (!range) { range = document.createRange(); range.selectNodeContents(nodeBodyEditor); range.collapse(false); }
+    sel.removeAllRanges(); sel.addRange(range);
+    // カーソル位置に差し込み、続けて入力できるよう空行も用意する
+    insertEditorHtml(formFieldHtml(kind) + '<p><br></p>');
+    saveEditorRange();
+  }
+  { const fb = $('#fieldBar'); if (fb) {
+    // ボタン押下でエディタの選択（カーソル位置）が外れないように
+    fb.addEventListener('mousedown', (e) => { if (e.target.closest('button')) e.preventDefault(); });
+    fb.addEventListener('click', (e) => {
+      const btn = e.target.closest('button[data-field]');
+      if (!btn) return;
+      e.preventDefault();
+      insertFormField(btn.dataset.field);
+    });
+  } }
+  // 差し込んだ入力欄の操作（削除・Enterでの誤送信防止）は委譲で処理
+  nodeBodyEditor.addEventListener('click', (e) => {
+    const del = e.target.closest('.tm-ff-del');
+    if (del) { e.preventDefault(); const ff = del.closest('.tm-formfield'); if (ff) ff.remove(); }
+  });
+  nodeBodyEditor.addEventListener('keydown', (e) => {
+    // 1行入力欄で Enter を押しても項目が保存されないようにする
+    if (e.key === 'Enter' && e.target.matches('input.tm-ff-input')) e.preventDefault();
+  });
+  // 保存用の本文（差し込んだ入力欄 .tm-formfield は取り除く＝保存しない）
+  function bodyForSave() {
+    const clone = nodeBodyEditor.cloneNode(true);
+    clone.querySelectorAll('.tm-formfield').forEach((el) => el.remove());
+    // 入力欄差し込み時に付く末尾の空段落（<p><br></p> 等）を掃除
+    const isEmpty = (n) => n && n.nodeType === 1 && /^(P|DIV|BR)$/.test(n.tagName)
+      && !n.querySelector('img, a') && n.textContent.trim() === '';
+    while (clone.lastChild && isEmpty(clone.lastChild)) clone.removeChild(clone.lastChild);
+    return normalizeBody(clone.innerHTML);
+  }
   // ms → datetime-local の値（YYYY-MM-DDTHH:MM）
   function msToLocalInput(ms) {
     const d = new Date(Number(ms) || Date.now());
@@ -1565,7 +1481,6 @@
     [nodeImgBtn, nodeFileBtn].forEach((b) => {
       if (b) { b.disabled = false; b.title = canAttach ? '' : '添付はサーバー(DB)接続時のみ'; }
     });
-    renderAllScratch(); // 一時メモ（保存されない下書き）を最新状態で表示
     nodeDialog.showModal();
     nodeTitleInput.focus();
   }
@@ -1574,7 +1489,7 @@
     e.preventDefault();
     const title = nodeTitleInput.value.trim();
     if (!title) return;
-    const body = normalizeBody(nodeBodyEditor.innerHTML);
+    const body = bodyForSave();
     const author = (nodeAuthorInput ? nodeAuthorInput.value : '').trim();
     // 入力した登録者名を既定値としても記憶
     localStorage.setItem(AUTHOR_KEY, author);

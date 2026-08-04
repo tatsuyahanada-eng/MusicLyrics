@@ -9,7 +9,7 @@
   <link rel="manifest" href="manifest.webmanifest">
   <link rel="icon" href="icon.svg" type="image/svg+xml">
   <link rel="apple-touch-icon" href="icon-192.png">
-  <link rel="stylesheet" href="manual.css?v=44">
+  <link rel="stylesheet" href="manual.css?v=45">
 </head>
 <body class="tm-body">
 
@@ -90,11 +90,6 @@
           <button id="restartBtn" class="tm-ghostbtn" type="button">&#8635; 最初から</button>
         </div>
 
-        <!-- 一時メモ（この端末だけ・保存されない）。通常画面からいつでも開ける -->
-        <details id="navScratchPanel" class="tm-scratch-panel">
-          <summary class="tm-scratch-summary">&#128221; 一時メモ（保存されません・この端末だけ）</summary>
-          <div id="navScratchMount" class="tm-scratch-mount"></div>
-        </details>
       </div>
     </section>
 
@@ -285,6 +280,12 @@
         </div>
         <div id="nodeBodyEditor" class="tm-input tm-editor" contenteditable="true"
           data-placeholder="手順や案内文を入力してください。"></div>
+        <div class="tm-fieldbar" id="fieldBar">
+          <span class="tm-fieldbar-label">&#128221; 入力欄を差し込む（保存されません・この端末だけ）:</span>
+          <button type="button" class="tm-btn tm-btn-outline tm-btn-sm" data-field="check">&#9745; チェック欄</button>
+          <button type="button" class="tm-btn tm-btn-outline tm-btn-sm" data-field="text">&#9647; 1行入力</button>
+          <button type="button" class="tm-btn tm-btn-outline tm-btn-sm" data-field="textarea">&#9636; 複数行入力</button>
+        </div>
       </div>
 
       <div class="tm-dialog-imgrow">
@@ -293,15 +294,6 @@
         <input type="file" id="nodeImgFile" accept="image/*" hidden>
         <input type="file" id="nodeFileFile" accept=".pdf,.txt,.csv,.zip,.doc,.docx,.xls,.xlsx,.ppt,.pptx,image/*" hidden>
         <span class="tm-dialog-imghint">画像・ファイルは本文の下に追加されます（画像は貼り付けCtrl+Vも可）。追加した画像やファイルをタップすると削除できます。</span>
-      </div>
-
-      <!-- 一時メモ：保存も共有もされない、この端末だけの下書き/チェック用（チェック欄・テキスト欄を自由に追加） -->
-      <div class="tm-field tm-scratch">
-        <span class="tm-field-label">
-          &#128221; 一時メモ（保存されません・この端末だけ）
-          <span class="tm-field-hint">項目には登録されません。チェック欄やテキスト欄を追加して、下書き・チェック用にどうぞ。</span>
-        </span>
-        <div id="scratchMount" class="tm-scratch-mount"></div>
       </div>
 
       <p id="nodeError" class="tm-dialog-err" aria-live="polite"></p>
@@ -375,7 +367,7 @@
           <li>並び順は <b>長押し（またはハンドルをドラッグ）</b> で変更。案内モードでも「並べ替え」で調整できます。</li>
           <li>各項目に <b>登録者名</b> が記録されます。<b>更新日時</b> も指定でき、誤って履歴の上位に来た項目を元の日時に戻せます。</li>
           <li>説明欄は <b>太字・色・大きさ</b> の装飾に対応。Excelでの一括登録／出力もできます。</li>
-          <li>編集画面の下部と <b>通常画面の「一時メモ」</b> から、<b>チェック欄・テキスト欄（幅・行数を指定）</b>を自由に追加できるメモを使えます。文字色・サイズも変更可。<b>保存も共有もされない</b>、この端末だけの下書き用です（両画面で同じ内容）。</li>
+          <li>説明の入力中、本文の下にある <b>「入力欄を差し込む」</b> から <b>チェック欄・1行入力・複数行入力</b> をカーソル位置に差し込めます。画面を見ながらその場で記入するためのメモ欄で、<b>保存されません</b>（この端末だけ・保存時に本文には含まれません）。不要な欄は右の「×」で消せます。</li>
         </ul>
 
         <h3>画像・ファイルの添付</h3>
@@ -619,6 +611,6 @@
   </dialog>
 
   <script src="vendor/xlsx.full.min.js"></script>
-  <script src="manual.js?v=45"></script>
+  <script src="manual.js?v=46"></script>
 </body>
 </html>
