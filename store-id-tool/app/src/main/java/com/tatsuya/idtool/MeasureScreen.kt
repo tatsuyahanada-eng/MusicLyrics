@@ -54,14 +54,12 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.google.ar.core.ArCoreApk
 import com.google.ar.core.Camera
 import com.google.ar.core.Config
 import com.google.ar.core.TrackingState
 import io.github.sceneview.ar.ARScene
 import io.github.sceneview.rememberEngine
 import kotlin.math.sqrt
-import kotlinx.coroutines.delay
 
 enum class MeasureType { DISTANCE, AREA }
 
@@ -142,31 +140,9 @@ private fun MeasureBody(type: MeasureType, modifier: Modifier) {
     var viewW by remember { mutableStateOf(0f) }
     var viewH by remember { mutableStateOf(0f) }
 
-    var arAvailable by remember { mutableStateOf<Boolean?>(null) }
     var useManual by remember { mutableStateOf(false) }
 
-    LaunchedEffect(Unit) {
-        arAvailable = try {
-            val availability = ArCoreApk.getInstance().checkAvailability(context)
-            when {
-                availability.isSupported -> true
-                availability == ArCoreApk.Availability.UNKNOWN_CHECKING -> {
-                    delay(500)
-                    ArCoreApk.getInstance().checkAvailability(context).isSupported
-                }
-                else -> false
-            }
-        } catch (_: Exception) { false }
-    }
-
-    // カメラが一定時間反応しない場合、手動切替ボタンを目立たせる
-    var showManualSwitch by remember { mutableStateOf(false) }
-    LaunchedEffect(arAvailable) {
-        if (arAvailable == true) {
-            delay(6000)
-            if (!tracking) showManualSwitch = true
-        }
-    }
+    val engine = rememberEngine()
 
     fun persist() = saveRecords(context, prefsKey, records)
 
@@ -198,20 +174,7 @@ private fun MeasureBody(type: MeasureType, modifier: Modifier) {
         remeasureIndex = -1; memo = ""; resetMeasure()
     }
 
-    // ARCore 判定中
-    if (arAvailable == null) {
-        Column(
-            modifier = modifier.fillMaxSize().padding(24.dp),
-            verticalArrangement = Arrangement.Center,
-            horizontalAlignment = Alignment.CenterHorizontally
-        ) {
-            Text("AR機能を確認中…", color = MaterialTheme.colorScheme.onBackground, fontSize = 16.sp)
-        }
-        return
-    }
-
-    // AR非対応 or ユーザーが手動入力を選択 → 手動入力フォールバック
-    if (arAvailable == false || useManual) {
+    if (useManual) {
         ManualMeasureBody(type, records, unit, memo, showList, remeasureIndex, editIdx, editName, editValue,
             onMemoChange = { memo = it },
             onShowListChange = { showList = it },
@@ -225,8 +188,6 @@ private fun MeasureBody(type: MeasureType, modifier: Modifier) {
         )
         return
     }
-
-    val engine = rememberEngine()
 
     Box(
         modifier = modifier.fillMaxSize()
@@ -263,8 +224,8 @@ private fun MeasureBody(type: MeasureType, modifier: Modifier) {
                                 }
                             }
                         }
-                    } else tracking = false
-                }
+                    }
+                } else tracking = false
             }
         )
 
@@ -300,33 +261,24 @@ private fun MeasureBody(type: MeasureType, modifier: Modifier) {
             Box(
                 modifier = Modifier.fillMaxWidth().background(Panel, RoundedCornerShape(8.dp)).padding(8.dp)
             ) {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    val msg = when {
-                        !tracking -> "周囲を映してゆっくり動かしてください…"
-                        remeasureIndex in records.indices -> "再測定: ${records[remeasureIndex].memo}（一覧で解除可）"
-                        type == MeasureType.DISTANCE -> "メモ→計測→移動→終点確定"
-                        else -> "角を3点記録（角1→角2→角3）して面積を確定"
-                    }
-                    Text(msg, color = if (tracking) TealDark else Color(0xFFE65100),
-                        fontWeight = FontWeight.Bold, fontSize = 12.sp, modifier = Modifier.weight(1f))
+                val msg = when {
+                    !tracking -> "周囲を映してゆっくり動かしてください…"
+                    remeasureIndex in records.indices -> "再測定: ${records[remeasureIndex].memo}（一覧で解除可）"
+                    type == MeasureType.DISTANCE -> "メモ→計測→移動→終点確定"
+                    else -> "角を3点記録（角1→角2→角3）して面積を確定"
                 }
+                Text(msg, color = if (tracking) TealDark else Color(0xFFE65100),
+                    fontWeight = FontWeight.Bold, fontSize = 12.sp)
             }
 
-            // カメラが反応しない場合 or 常に「手動入力」ボタンを表示
-            if (showManualSwitch || !tracking) {
+            if (!tracking) {
                 Spacer(Modifier.height(4.dp))
                 OutlinedButton(
                     onClick = { useManual = true },
                     modifier = Modifier.fillMaxWidth()
                 ) {
-                    Text(
-                        if (showManualSwitch) "カメラが反応しません → 手動入力に切替"
-                        else "手動入力に切替",
-                        color = Color(0xFFE65100), fontWeight = FontWeight.Bold, fontSize = 12.sp
-                    )
+                    Text("手動入力に切替", color = Color(0xFFE65100),
+                        fontWeight = FontWeight.Bold, fontSize = 12.sp)
                 }
             }
 
