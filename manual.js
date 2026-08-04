@@ -456,11 +456,18 @@
   const ALLOWED_TAGS = {
     b: {}, strong: {}, i: {}, em: {}, u: {},
     span: { attrs: ['style'] }, font: { attrs: ['color', 'size'] },
-    br: { void: true }, div: { attrs: ['style'] }, p: { attrs: ['style'] },
+    br: { void: true }, div: { attrs: ['style', 'class', 'data-ff'] }, p: { attrs: ['style'] },
     a: { attrs: ['href', 'style', 'class'] }, img: { attrs: ['src', 'style', 'class', 'alt', 'title'], void: true },
+    // 本文に保存する入力欄（記入フォーム）。スクリプトは持てない安全な素の入力要素のみ許可。
+    label: { attrs: ['class'] },
+    input: { attrs: ['type', 'class', 'value', 'checked', 'placeholder', 'maxlength'], void: true },
+    textarea: { attrs: ['class', 'rows', 'placeholder'] },
   };
   function sanitizeClass(v) {
-    const allow = { 'tm-filechip': 1, 'tm-body-img': 1 };
+    const allow = {
+      'tm-filechip': 1, 'tm-body-img': 1,
+      'tm-formfield': 1, 'tm-ff-label': 1, 'tm-ff-input': 1, 'tm-ff-cb': 1,
+    };
     return String(v).split(/\s+/).filter((t) => allow[t]).join(' ');
   }
   function safeLinkUrl(u) {
@@ -539,10 +546,17 @@
         else if (a === 'style') { v = sanitizeStyle(v); if (!v) return; }
         else if (a === 'color') { v = cssColor(v); }
         else if (a === 'size') { if (!/^[1-7]$/.test(v)) return; }
+        else if (a === 'type') { v = String(v).toLowerCase(); if (!/^(text|checkbox)$/.test(v)) return; }
+        else if (a === 'checked') { v = 'checked'; }
+        else if (a === 'rows') { if (!/^\d{1,3}$/.test(v)) return; }
+        else if (a === 'maxlength') { if (!/^\d{1,4}$/.test(v)) return; }
+        else if (a === 'data-ff') { if (!/^(text|textarea|check)$/.test(v)) return; }
         attrs += ` ${a}="${esc(v)}"`;
       });
       if (tag === 'a') attrs += ' target="_blank" rel="noopener"';
       if (spec.void) { out.push(`<${tag}${attrs}>`); return; }
+      // textarea は中身を「そのままの文字」として扱う（タグ化・リンク化しない）
+      if (tag === 'textarea') { out.push(`<textarea${attrs}>${esc(child.textContent)}</textarea>`); return; }
       out.push(`<${tag}${attrs}>`);
       sanitizeInto(child, out, insideLink || tag === 'a');
       out.push(`</${tag}>`);
@@ -1305,31 +1319,58 @@
   const nodeDateInput = $('#nodeDateInput');
   const nodeDateHint = $('#nodeDateHint');
 
-  /* ---------- 本文の下に足す「その場だけの入力欄」（保存されない） ----------
-     説明の下に、ラベル＋白い入力欄（1行/複数行）や チェック欄 を足していく、素朴なフォーム。
-     画面を見ながらその場で記入するためのメモで、保存時に本文には一切含めない
-     （.tm-formfield は保存前に取り除く）。色・サイズの変更は無し。 */
-  function formFieldHtml(kind) {
-    const del = '<button type="button" class="tm-ff-del" title="この入力欄を削除" contenteditable="false">&#10005;</button>';
+  /* ---------- 本文に足す「記入フォーム（入力欄）」 ----------
+     説明中のカーソル位置に ラベル＋白い入力欄（1行/複数行）や チェック欄 を差し込める。
+     入力欄と記入内容は本文の一部として保存され、閲覧画面や再編集時にも表示される。
+     編集中は「編集ウィジェット（ラベル入力＋×削除）」、保存/表示時は「素の入力欄」に変換する。 */
+  const delBtnHtml = '<button type="button" class="tm-ff-del" title="この入力欄を削除" contenteditable="false">&#10005;</button>';
+  function editorFieldHtml(kind) {
     if (kind === 'check') {
-      return '<div class="tm-formfield tm-ff-check" contenteditable="false">'
+      return '<div class="tm-formfield tm-ff-edit" data-ff="check" contenteditable="false">'
         + '<input type="checkbox" class="tm-ff-cb">'
         + '<input type="text" class="tm-ff-label" placeholder="チェック項目（例：確認した）">'
-        + del + '</div>';
+        + delBtnHtml + '</div>';
     }
     const head = '<div class="tm-ff-head">'
-      + '<input type="text" class="tm-ff-label" placeholder="ラベル（例：お名前）">'
-      + del + '</div>';
+      + '<input type="text" class="tm-ff-label" placeholder="ラベル（例：お名前）">' + delBtnHtml + '</div>';
     if (kind === 'textarea') {
-      return '<div class="tm-formfield" contenteditable="false">' + head
+      return '<div class="tm-formfield tm-ff-edit" data-ff="textarea" contenteditable="false">' + head
         + '<textarea class="tm-ff-input" rows="4"></textarea></div>';
     }
-    return '<div class="tm-formfield" contenteditable="false">' + head
+    return '<div class="tm-formfield tm-ff-edit" data-ff="text" contenteditable="false">' + head
       + '<input type="text" class="tm-ff-input"></div>';
   }
+  // 本文内（フィールド外）の直近キャレット位置を覚えておく（白い入力欄にフォーカス中でも本文へ差し込めるように）
+  let lastEditorRange = null;
+  function inFormField(node) {
+    const host = node && (node.nodeType === 1 ? node : node.parentNode);
+    return !!(host && host.closest && host.closest('.tm-formfield'));
+  }
+  function saveEditorRange() {
+    const sel = window.getSelection();
+    if (sel && sel.rangeCount) {
+      const r = sel.getRangeAt(0);
+      if (nodeBodyEditor.contains(r.commonAncestorContainer) && !inFormField(r.commonAncestorContainer)) lastEditorRange = r.cloneRange();
+    }
+  }
+  nodeBodyEditor.addEventListener('keyup', saveEditorRange);
+  nodeBodyEditor.addEventListener('mouseup', saveEditorRange);
   function insertFormField(kind) {
-    // 本文の一番下に足す
-    appendEditorHtml(formFieldHtml(kind));
+    nodeBodyEditor.focus();
+    const sel = window.getSelection();
+    // 現在のキャレットが本文内（フィールド外）ならそこ、無ければ記憶した位置、それも無ければ末尾へ
+    let range = null;
+    if (sel && sel.rangeCount) {
+      const cur = sel.getRangeAt(0);
+      if (nodeBodyEditor.contains(cur.commonAncestorContainer) && !inFormField(cur.commonAncestorContainer)) range = cur;
+    }
+    if (!range && lastEditorRange && nodeBodyEditor.contains(lastEditorRange.commonAncestorContainer)) range = lastEditorRange;
+    if (!range) { range = document.createRange(); range.selectNodeContents(nodeBodyEditor); range.collapse(false); }
+    sel.removeAllRanges(); sel.addRange(range);
+    insertEditorHtml(editorFieldHtml(kind) + '<p><br></p>');
+    // 差し込み直後のキャレット（挿入した欄の直後）を記憶 → 連続追加は上から順に並ぶ
+    saveEditorRange();
+    // 追加した欄のラベルにフォーカス
     const fields = nodeBodyEditor.querySelectorAll('.tm-formfield');
     const last = fields[fields.length - 1];
     if (last) { const lbl = last.querySelector('.tm-ff-label'); if (lbl) lbl.focus(); }
@@ -1343,7 +1384,6 @@
       insertFormField(btn.dataset.field);
     });
   } }
-  // 差し込んだ入力欄の操作（削除・Enterでの誤送信防止）は委譲で処理
   nodeBodyEditor.addEventListener('click', (e) => {
     const del = e.target.closest('.tm-ff-del');
     if (del) { e.preventDefault(); const ff = del.closest('.tm-formfield'); if (ff) ff.remove(); }
@@ -1352,15 +1392,79 @@
     // 1行の入力欄・ラベルで Enter を押しても項目が保存されないようにする（複数行は改行を許可）
     if (e.key === 'Enter' && e.target.matches('input.tm-ff-input, input.tm-ff-label')) e.preventDefault();
   });
-  // 保存用の本文（差し込んだ入力欄 .tm-formfield は取り除く＝保存しない）
+  // 保存/表示用の「素の入力欄」HTML（現在の記入値を value/checked/本文に焼き込む）
+  function fieldCanonicalHtml(ff) {
+    const kind = ff.getAttribute('data-ff') || 'text';
+    const labelEl = ff.querySelector('.tm-ff-label');
+    const label = labelEl ? (labelEl.tagName === 'INPUT' ? labelEl.value : labelEl.textContent) : '';
+    if (kind === 'check') {
+      const cb = ff.querySelector('.tm-ff-cb');
+      const checked = cb && cb.checked ? ' checked' : '';
+      return '<div class="tm-formfield" data-ff="check"><label class="tm-ff-label">'
+        + '<input class="tm-ff-cb" type="checkbox"' + checked + '>' + esc(label) + '</label></div>';
+    }
+    const valEl = ff.querySelector('.tm-ff-input');
+    if (kind === 'textarea') {
+      const rows = (valEl && valEl.rows) ? valEl.rows : 4;
+      const val = valEl ? valEl.value : '';
+      return '<div class="tm-formfield" data-ff="textarea"><label class="tm-ff-label">' + esc(label)
+        + '</label><textarea class="tm-ff-input" rows="' + rows + '">' + esc(val) + '</textarea></div>';
+    }
+    const val = valEl ? valEl.value : '';
+    return '<div class="tm-formfield" data-ff="text"><label class="tm-ff-label">' + esc(label)
+      + '</label><input class="tm-ff-input" type="text" value="' + esc(val) + '"></div>';
+  }
+  // 保存用の本文（編集ウィジェットを「素の入力欄＋現在値」に変換して保存する）
   function bodyForSave() {
-    const clone = nodeBodyEditor.cloneNode(true);
-    clone.querySelectorAll('.tm-formfield').forEach((el) => el.remove());
-    // 入力欄差し込み時に付く末尾の空段落（<p><br></p> 等）を掃除
-    const isEmpty = (n) => n && n.nodeType === 1 && /^(P|DIV|BR)$/.test(n.tagName)
-      && !n.querySelector('img, a') && n.textContent.trim() === '';
-    while (clone.lastChild && isEmpty(clone.lastChild)) clone.removeChild(clone.lastChild);
-    return normalizeBody(clone.innerHTML);
+    const live = nodeBodyEditor;
+    const fields = Array.from(live.querySelectorAll('.tm-formfield'));
+    const canon = fields.map(fieldCanonicalHtml);
+    // 各フィールドを一意トークンのテキストに一時置換 → innerHTML 取得 → 元に戻す
+    const tokens = fields.map((ff, i) => { const t = document.createTextNode('@@CBCFFPH' + i + '@@'); ff.replaceWith(t); return t; });
+    let html = live.innerHTML;
+    tokens.forEach((t, i) => t.replaceWith(fields[i]));
+    html = html.replace(/@@CBCFFPH(\d+)@@/g, (m, i) => canon[Number(i)] || '');
+    // 入力欄差し込み時に付く末尾の空段落を軽く掃除
+    html = html.replace(/(?:<p><br\s*\/?><\/p>|<div><br\s*\/?><\/div>|<br\s*\/?>)+\s*$/i, '');
+    return normalizeBody(html);
+  }
+  // 保存済みの「素の入力欄」を、編集用ウィジェット（ラベル入力＋×削除）に復元する
+  function hydrateEditorFields() {
+    nodeBodyEditor.querySelectorAll('.tm-formfield').forEach((ff) => {
+      if (ff.classList.contains('tm-ff-edit')) return;
+      const kind = ff.getAttribute('data-ff')
+        || (ff.querySelector('.tm-ff-cb') ? 'check' : (ff.querySelector('textarea') ? 'textarea' : 'text'));
+      const labelEl = ff.querySelector('.tm-ff-label');
+      const label = labelEl ? labelEl.textContent.trim() : '';
+      if (kind === 'check') {
+        const cb = ff.querySelector('.tm-ff-cb');
+        const checked = !!(cb && (cb.checked || cb.hasAttribute('checked')));
+        ff.className = 'tm-formfield tm-ff-edit';
+        ff.setAttribute('data-ff', 'check');
+        ff.setAttribute('contenteditable', 'false');
+        ff.innerHTML = '<input type="checkbox" class="tm-ff-cb">'
+          + '<input type="text" class="tm-ff-label" placeholder="チェック項目">' + delBtnHtml;
+        ff.querySelector('.tm-ff-cb').checked = checked;
+        ff.querySelector('.tm-ff-label').value = label;
+      } else {
+        const valEl = ff.querySelector('.tm-ff-input');
+        const isTextarea = kind === 'textarea' || (valEl && valEl.tagName === 'TEXTAREA');
+        const val = valEl ? (valEl.tagName === 'TEXTAREA' ? valEl.textContent : (valEl.getAttribute('value') || '')) : '';
+        const head = '<div class="tm-ff-head"><input type="text" class="tm-ff-label" placeholder="ラベル（例：お名前）">' + delBtnHtml + '</div>';
+        ff.className = 'tm-formfield tm-ff-edit';
+        ff.setAttribute('contenteditable', 'false');
+        if (isTextarea) {
+          ff.setAttribute('data-ff', 'textarea');
+          ff.innerHTML = head + '<textarea class="tm-ff-input" rows="4"></textarea>';
+          ff.querySelector('textarea').value = val;
+        } else {
+          ff.setAttribute('data-ff', 'text');
+          ff.innerHTML = head + '<input type="text" class="tm-ff-input">';
+          ff.querySelector('.tm-ff-input').value = val;
+        }
+        ff.querySelector('.tm-ff-label').value = label;
+      }
+    });
   }
   // ms → datetime-local の値（YYYY-MM-DDTHH:MM）
   function msToLocalInput(ms) {
@@ -1382,7 +1486,7 @@
     const clean = sanitizeHtml(html);
     const tmp = document.createElement('div');
     tmp.innerHTML = clean;
-    if (!tmp.textContent.trim() && !tmp.querySelector('img, a')) return '';
+    if (!tmp.textContent.trim() && !tmp.querySelector('img, a, input, textarea, .tm-formfield')) return '';
     return clean;
   }
   function insertEditorHtml(html) {
@@ -1454,6 +1558,7 @@
     [nodeImgBtn, nodeFileBtn].forEach((b) => {
       if (b) { b.disabled = false; b.title = canAttach ? '' : '添付はサーバー(DB)接続時のみ'; }
     });
+    hydrateEditorFields(); // 保存済みの入力欄を編集用ウィジェットに復元
     nodeDialog.showModal();
     nodeTitleInput.focus();
   }

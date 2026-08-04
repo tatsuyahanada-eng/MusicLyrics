@@ -1103,25 +1103,26 @@ body.tm-dragging .tm-treenode-row { cursor: grabbing; }
 .tm-dialog-err { min-height: 16px; font-size: 12px; color: var(--tm-cyan); }
 .tm-dialog-err:not(:empty) { color: var(--tm-warn); }
 
-/* 本文に差し込む入力欄の追加ボタン列（保存されない） */
+/* 本文にカーソル位置で入力欄を足すボタン列 */
 .tm-fieldbar {
   display: flex; flex-wrap: wrap; align-items: center; gap: 6px;
   margin-top: 6px;
 }
 .tm-fieldbar-label { font-size: 11px; color: var(--tm-muted); margin-right: 2px; }
 
-/* 差し込まれた「その場だけの入力欄」（.tm-formfield）。ラベル＋白い入力欄の素朴なフォーム */
+/* 本文の記入フォーム（.tm-formfield）。ラベル＋白い入力欄の素朴なフォーム。
+   編集中(.tm-ff-edit)・保存/表示（label要素）どちらも見た目を揃える。 */
 .tm-formfield { margin: 10px 0; }
 .tm-ff-head { display: flex; align-items: center; gap: 6px; margin-bottom: 3px; }
-/* ラベル（お名前: などの見出し）。編集できる素朴なテキスト */
+/* ラベル（お名前 などの見出し）。表示時は label 要素、編集時は input */
 .tm-ff-label {
-  flex: 1; min-width: 0;
-  background: transparent; border: none;
+  display: block;
   color: var(--tm-text); font-size: 13px; padding: 2px 0;
-  font-family: inherit;
+  background: transparent; border: none; font-family: inherit;
 }
-.tm-ff-label:focus { outline: none; }
-.tm-ff-label::placeholder { color: var(--tm-muted); }
+.tm-ff-head .tm-ff-label { flex: 1; min-width: 0; }
+input.tm-ff-label:focus { outline: none; }
+input.tm-ff-label::placeholder { color: var(--tm-muted); }
 /* 白い入力欄（サイトの入力欄イメージ） */
 .tm-ff-input {
   display: block; width: 280px; max-width: 100%;
@@ -1131,10 +1132,15 @@ body.tm-dragging .tm-treenode-row { cursor: grabbing; }
 }
 .tm-ff-input:focus { outline: 2px solid rgba(88, 240, 255, 0.6); outline-offset: 0; }
 textarea.tm-ff-input { width: 100%; resize: vertical; min-height: 88px; }
-/* チェック欄（チェックボックス＋ラベル） */
-.tm-ff-check { display: flex; align-items: center; gap: 8px; }
+/* チェック欄の共通レイアウト（チェックボックス＋ラベルを横並び） */
 .tm-ff-cb { width: 18px; height: 18px; flex: none; accent-color: var(--tm-cyan); }
-.tm-ff-check .tm-ff-label { font-size: 15px; }
+/* 表示時のチェック欄: <label> がチェックボックス＋文字を包む */
+.tm-formfield[data-ff="check"] > label.tm-ff-label {
+  display: flex; align-items: center; gap: 8px; font-size: 15px;
+}
+/* 編集時のチェック欄: div 直下に checkbox + ラベル入力 + × */
+.tm-ff-edit[data-ff="check"] { display: flex; align-items: center; gap: 8px; }
+.tm-ff-edit[data-ff="check"] > .tm-ff-label { flex: 1; font-size: 15px; }
 .tm-ff-del {
   flex: none;
   background: none; border: none; cursor: pointer;
