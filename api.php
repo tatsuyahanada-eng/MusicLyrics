@@ -52,11 +52,52 @@ function cbc_html_to_plain($html) {
   return trim($s);
 }
 
-/* Google Gemini 呼び出し（APIキーはサーバー内のみ）。$jsonMode=true でJSON応答を要求。 */
-function cbc_gemini($prompt, $jsonMode = false, $maxTokens = 1024) {
-  if (GEMINI_API_KEY === '') fail('AI機能が未設定です（config.php に GEMINI_API_KEY を設定してください）', 400);
-  $model = GEMINI_MODEL !== '' ? GEMINI_MODEL : 'gemini-1.5-flash';
+/* app_settings（キー/値）の読み書き（ピン留め・AIモデルのキャッシュ等に使用） */
+function cbc_setting_get($pdo, $k, $def = '') {
+  try { $st = $pdo->prepare('SELECT v FROM app_settings WHERE k = ?'); $st->execute(array($k));
+    $v = $st->fetchColumn(); return ($v === false || $v === null) ? $def : $v; }
+  catch (Throwable $e) { return $def; }
+}
+function cbc_setting_set($pdo, $k, $v) {
+  try { $pdo->prepare('DELETE FROM app_settings WHERE k = ?')->execute(array($k));
+    $pdo->prepare('INSERT INTO app_settings (k, v) VALUES (?, ?)')->execute(array($k, $v)); }
+  catch (Throwable $e) { /* 保存失敗は致命ではない */ }
+}
+
+/* 1モデルに対して1回だけ generateContent を呼ぶ。戻り値: array(httpCode, responseBody, networkError) */
+function cbc_gemini_call($model, $bodyJson) {
   $url = 'https://generativelanguage.googleapis.com/v1beta/models/' . rawurlencode($model) . ':generateContent?key=' . urlencode(GEMINI_API_KEY);
+  if (function_exists('curl_init')) {
+    $ch = curl_init($url);
+    curl_setopt_array($ch, array(
+      CURLOPT_POST => true,
+      CURLOPT_HTTPHEADER => array('Content-Type: application/json'),
+      CURLOPT_POSTFIELDS => $bodyJson,
+      CURLOPT_RETURNTRANSFER => true,
+      CURLOPT_TIMEOUT => 30,
+    ));
+    $resp = curl_exec($ch);
+    $code = (int)curl_getinfo($ch, CURLINFO_HTTP_CODE);
+    $err = curl_error($ch);
+    curl_close($ch);
+    if ($resp === false) return array(0, '', $err !== '' ? $err : 'connection error');
+    return array($code, $resp, '');
+  }
+  $ctx = stream_context_create(array('http' => array(
+    'method' => 'POST', 'header' => "Content-Type: application/json\r\n",
+    'content' => $bodyJson, 'timeout' => 30, 'ignore_errors' => true,
+  )));
+  $resp = @file_get_contents($url, false, $ctx);
+  if ($resp === false) return array(0, '', 'サーバーの外部通信設定をご確認ください');
+  $code = 200;
+  if (isset($http_response_header[0]) && preg_match('/\s(\d{3})\s/', $http_response_header[0], $m)) $code = (int)$m[1];
+  return array($code, $resp, '');
+}
+
+/* Google Gemini 呼び出し（APIキーはサーバー内のみ）。$jsonMode=true でJSON応答を要求。
+   モデル名の違い（廃止・改名）を吸収するため、候補モデルを順に試し、成功したモデルを記憶する。 */
+function cbc_gemini($pdo, $prompt, $jsonMode = false, $maxTokens = 1024) {
+  if (GEMINI_API_KEY === '') fail('AI機能が未設定です（config.php に GEMINI_API_KEY を設定してください）', 400);
   $payload = array(
     'contents' => array(array('parts' => array(array('text' => $prompt)))),
     'generationConfig' => array('temperature' => 0.2, 'maxOutputTokens' => (int)$maxTokens),
@@ -64,41 +105,34 @@ function cbc_gemini($prompt, $jsonMode = false, $maxTokens = 1024) {
   if ($jsonMode) $payload['generationConfig']['responseMimeType'] = 'application/json';
   $bodyJson = json_encode($payload, JSON_UNESCAPED_UNICODE);
 
-  $resp = false; $code = 0; $err = '';
-  if (function_exists('curl_init')) {
-    $ch = curl_init($url);
-    curl_setopt_array($ch, array(
-      CURLOPT_POST           => true,
-      CURLOPT_HTTPHEADER     => array('Content-Type: application/json'),
-      CURLOPT_POSTFIELDS     => $bodyJson,
-      CURLOPT_RETURNTRANSFER => true,
-      CURLOPT_TIMEOUT        => 30,
-    ));
-    $resp = curl_exec($ch);
-    $code = (int)curl_getinfo($ch, CURLINFO_HTTP_CODE);
-    $err = curl_error($ch);
-    curl_close($ch);
-    if ($resp === false) fail('AIサーバーに接続できません: ' . $err, 502);
-  } else {
-    $ctx = stream_context_create(array('http' => array(
-      'method' => 'POST', 'header' => "Content-Type: application/json\r\n",
-      'content' => $bodyJson, 'timeout' => 30, 'ignore_errors' => true,
-    )));
-    $resp = @file_get_contents($url, false, $ctx);
-    if ($resp === false) fail('AIサーバーに接続できません（サーバーの外部通信設定をご確認ください）', 502);
-    $code = 200;
-    if (isset($http_response_header[0]) && preg_match('/\s(\d{3})\s/', $http_response_header[0], $m)) $code = (int)$m[1];
+  // 候補モデル: 前回成功したもの → config指定 → 現行の既定候補（重複除去）
+  $candidates = array();
+  foreach (array(cbc_setting_get($pdo, 'gemini_model_ok', ''), GEMINI_MODEL,
+    'gemini-2.0-flash', 'gemini-2.5-flash', 'gemini-flash-latest', 'gemini-1.5-flash') as $m) {
+    $m = trim((string)$m);
+    if ($m !== '' && !in_array($m, $candidates, true)) $candidates[] = $m;
   }
-  $data = json_decode($resp, true);
-  if ($code >= 400 || !is_array($data)) {
-    $msg = (is_array($data) && isset($data['error']['message'])) ? $data['error']['message'] : ('HTTP ' . $code);
-    fail('AI呼び出しに失敗しました: ' . $msg, 502);
+
+  $lastMsg = '';
+  foreach ($candidates as $model) {
+    list($code, $resp, $neterr) = cbc_gemini_call($model, $bodyJson);
+    if ($neterr !== '') fail('AIサーバーに接続できません: ' . $neterr, 502); // 通信自体の失敗は打ち切り
+    $data = json_decode($resp, true);
+    if ($code >= 200 && $code < 300 && is_array($data)) {
+      cbc_setting_set($pdo, 'gemini_model_ok', $model); // 使えたモデルを記憶（次回から直接）
+      $text = '';
+      if (isset($data['candidates'][0]['content']['parts']) && is_array($data['candidates'][0]['content']['parts'])) {
+        foreach ($data['candidates'][0]['content']['parts'] as $p) { if (isset($p['text'])) $text .= $p['text']; }
+      }
+      return $text;
+    }
+    $lastMsg = (is_array($data) && isset($data['error']['message'])) ? $data['error']['message'] : ('HTTP ' . $code);
+    // モデルが無い/未対応のときだけ次の候補へ。それ以外（キー不正・権限・課金等）は即エラー。
+    if (!preg_match('/not found|not supported|unknown|does not exist|unsupported/i', $lastMsg)) {
+      fail('AI呼び出しに失敗しました: ' . $lastMsg, 502);
+    }
   }
-  $text = '';
-  if (isset($data['candidates'][0]['content']['parts']) && is_array($data['candidates'][0]['content']['parts'])) {
-    foreach ($data['candidates'][0]['content']['parts'] as $p) { if (isset($p['text'])) $text .= $p['text']; }
-  }
-  return $text;
+  fail('利用可能なGeminiモデルが見つかりませんでした。config.php の GEMINI_MODEL をご確認ください（例: gemini-2.0-flash）。詳細: ' . $lastMsg, 502);
 }
 function now_ms() { return (int) round(microtime(true) * 1000); }
 function author_of($d) {
@@ -643,7 +677,7 @@ switch ($action) {
     $prompt = "あなたは作業マニュアルの要約アシスタントです。次の項目の内容を日本語で、要点を箇条書き（3〜6個）で簡潔に要約してください。"
       . "手順の順番が重要な場合は順序を保ってください。本文に書かれていない情報は追加しないでください。\n\n"
       . "【タイトル】" . $row['title'] . "\n【本文】\n" . $plain;
-    $summary = cbc_gemini($prompt, false, 800);
+    $summary = cbc_gemini($pdo, $prompt, false, 800);
     ok(array('summary' => trim($summary)));
   }
 
@@ -671,7 +705,7 @@ switch ($action) {
     $prompt = "あなたは作業マニュアルの検索アシスタントです。ユーザーの質問に最も関連する項目を、下の一覧から関連度の高い順に最大5件選び、"
       . "JSON配列だけを出力してください。各要素は {\"id\":\"項目ID\",\"reason\":\"関連する理由（日本語40字以内）\"} の形式。"
       . "該当が無ければ [] を出力。JSON以外は一切出力しないこと。\n\n【質問】" . $query . "\n\n【項目一覧】\n" . implode("\n", $lines);
-    $text = cbc_gemini($prompt, true, 1024);
+    $text = cbc_gemini($pdo, $prompt, true, 1024);
     $arr = json_decode($text, true);
     if (!is_array($arr)) $arr = array();
     $results = array();
