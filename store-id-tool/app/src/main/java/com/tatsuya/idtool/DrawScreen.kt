@@ -488,7 +488,7 @@ fun DrawScreen(modifier: Modifier = Modifier) {
                         TextButton(onClick = {
                             val p = distPoint!!
                             pushUndo()
-                            texts.add(TextT(p.x, p.y, "${r.memo}\n${r.display(distUnit)}", 32f, 0xFF000000L, true)); persist()
+                            texts.add(TextT(p.x, p.y, "${r.memo}\n${r.display(distUnit)}", 22f, 0xFF000000L, true)); persist()
                             distPoint = null
                         }) { Text("${r.memo}: ${r.display(distUnit)}") }
                     }
