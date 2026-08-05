@@ -209,10 +209,13 @@ if ($action === 'config') {
   $connected = false; $err = null;
   try { cbc_pdo(); $connected = true; }
   catch (Throwable $e) { $err = $e->getMessage(); }
+  $aiOn = true; // AI機能の表示ON/OFF（管理者が切替・全端末共有）。既定はON。
+  if ($connected) { try { $aiOn = (cbc_setting_get(cbc_pdo(), 'ai_enabled', '1') !== '0'); } catch (Throwable $e) {} }
   ok(array(
     'dbConnected' => $connected,
     'hasToken'    => (API_TOKEN !== ''),
     'hasGemini'   => (GEMINI_API_KEY !== ''),
+    'aiOn'        => $aiOn,
     'uploads'     => true,
     'driver'      => defined('DB_DRIVER') ? DB_DRIVER : 'mysql',
     'error'       => $connected ? null : $err,
@@ -666,6 +669,15 @@ switch ($action) {
     $pdo->prepare("INSERT INTO app_settings (k, v) VALUES (?, ?)")->execute(array('pins', $json));
     $pdo->commit();
     ok(array('pins' => $json));
+  }
+
+  case 'ai_set_enabled': {
+    // AI機能の表示ON/OFFを切り替え（全端末共有）
+    require_token();
+    $d = body_json();
+    $on = !empty($d['on']);
+    cbc_setting_set($pdo, 'ai_enabled', $on ? '1' : '0');
+    ok(array('aiOn' => $on));
   }
 
   case 'ai_summarize': {

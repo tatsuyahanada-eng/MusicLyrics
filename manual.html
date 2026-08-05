@@ -9,7 +9,7 @@
   <link rel="manifest" href="manifest.webmanifest">
   <link rel="icon" href="icon.svg" type="image/svg+xml">
   <link rel="apple-touch-icon" href="icon-192.png">
-  <link rel="stylesheet" href="manual.css?v=52">
+  <link rel="stylesheet" href="manual.css?v=53">
 </head>
 <body class="tm-body">
 
@@ -151,6 +151,16 @@
           <label class="tm-author-label" for="authorInput">&#9998; 記入者名</label>
           <input id="authorInput" class="tm-input tm-author-input" type="text" maxlength="40"
             autocomplete="off" placeholder="あなたの名前（追加・修正の記録に使われます）">
+        </div>
+
+        <!-- ===== AI機能のON/OFF（全端末共有） ===== -->
+        <div class="tm-ai-setting">
+          <label class="tm-ai-toggle">
+            <input type="checkbox" id="aiToggle">
+            <span class="tm-ai-switch" aria-hidden="true"></span>
+            <span class="tm-ai-toggle-label">&#10024; AI機能（AI要約・AIで探す）を使う</span>
+          </label>
+          <span id="aiToggleHint" class="tm-ai-setting-hint"></span>
         </div>
 
         <!-- ===== Data sync (server DB) ===== -->
@@ -652,6 +662,6 @@
   </dialog>
 
   <script src="vendor/xlsx.full.min.js"></script>
-  <script src="manual.js?v=55"></script>
+  <script src="manual.js?v=56"></script>
 </body>
 </html>

@@ -805,6 +805,31 @@
       if (bodyEl) bodyEl.textContent = 'AI要約に失敗しました：' + e.message;
     }
   }
+  // 修正画面のAI ON/OFFトグルの表示を状態に合わせて更新
+  function updateAiToggleUI() {
+    const chk = $('#aiToggle'), hint = $('#aiToggleHint');
+    if (chk) chk.checked = aiOn;
+    if (hint) {
+      hint.textContent = hasGemini
+        ? 'サーバーにAPIキーが設定済みです。ONにすると各項目でAI要約・AIで探すが使えます。'
+        : 'サーバーにAPIキー（config.php の GEMINI_API_KEY）を設定すると使用可能になります。ONにしても、キー未設定のうちはAIボタンは表示されません。';
+    }
+  }
+  { const chk = $('#aiToggle'); if (chk) chk.addEventListener('change', async () => {
+    const want = chk.checked;
+    aiOn = want;
+    aiEnabled = hasGemini && aiOn;
+    try {
+      await apiCall('ai_set_enabled', { method: 'POST', body: { on: want } });
+      syncMsg(want ? 'AI機能をONにしました' : 'AI機能をOFFにしました（AIボタンを非表示）');
+    } catch (e) {
+      // 失敗したら表示を戻す
+      aiOn = !want; chk.checked = aiOn; aiEnabled = hasGemini && aiOn;
+      syncMsg('AI設定の保存に失敗：' + e.message, true);
+    }
+    updateAiToggleUI();
+  }); }
+
   if (aiSummaryDialog) {
     aiSummaryDialog.addEventListener('close', () => { aiOpen = false; syncTrap(); });
     const cl = $('#aiSummaryClose'); if (cl) cl.addEventListener('click', () => aiSummaryDialog.close());
@@ -2443,7 +2468,9 @@
   let serverAvailable = false;   // api.php に到達できる
   let dbConnected = false;       // DB が使える → サーバーが正データ
   let hasToken = false;          // サーバー側でトークン必須か
-  let aiEnabled = false;         // サーバーに Gemini APIキーが設定済み（AI機能を表示）
+  let hasGemini = false;         // サーバーに Gemini APIキーが設定済みか
+  let aiOn = true;               // 管理者による AI表示ON/OFF（全端末共有・既定ON）
+  let aiEnabled = false;         // 実際にAIボタンを表示するか（hasGemini かつ aiOn）
   let dbError = null;
   let authRequired = false;      // Basic認証等でログインが必要（401）→ 中身を出さない
 
@@ -2639,8 +2666,11 @@
       serverAvailable = true;
       dbConnected = !!cfg.dbConnected;
       hasToken = !!cfg.hasToken;
-      aiEnabled = !!cfg.hasGemini;
+      hasGemini = !!cfg.hasGemini;
+      aiOn = (cfg.aiOn !== false);            // 管理者の表示ON/OFF（既定ON）
+      aiEnabled = hasGemini && aiOn;          // 実際にAIボタンを出すか
       dbError = cfg.error || null;
+      updateAiToggleUI();
     } catch (e) {
       serverAvailable = false; dbConnected = false; hasToken = false; dbError = null;
     }
