@@ -49,6 +49,7 @@ import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.key
 import androidx.compose.runtime.getValue
@@ -58,6 +59,8 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.unit.Density
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
@@ -104,8 +107,13 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
         setContent {
-            MaterialTheme(colorScheme = LightScheme) {
-                AppRoot()
+            val density = LocalDensity.current
+            val isTablet = resources.configuration.smallestScreenWidthDp >= 600
+            val adjusted = if (isTablet) Density(density.density * 0.8f, density.fontScale * 0.8f) else density
+            CompositionLocalProvider(LocalDensity provides adjusted) {
+                MaterialTheme(colorScheme = LightScheme) {
+                    AppRoot()
+                }
             }
         }
     }
