@@ -456,7 +456,7 @@
   const ALLOWED_TAGS = {
     b: {}, strong: {}, i: {}, em: {}, u: {},
     span: { attrs: ['style'] }, font: { attrs: ['color', 'size'] },
-    br: { void: true }, div: { attrs: ['style', 'class', 'data-ff'] }, p: { attrs: ['style'] },
+    br: { void: true }, div: { attrs: ['style', 'class', 'data-ff', 'data-value'] }, p: { attrs: ['style'] },
     a: { attrs: ['href', 'style', 'class'] }, img: { attrs: ['src', 'style', 'class', 'alt', 'title'], void: true },
     // 本文に保存する入力欄（記入フォーム）。スクリプトは持てない安全な素の入力要素のみ許可。
     label: { attrs: ['class'] },
@@ -550,7 +550,8 @@
         else if (a === 'checked') { v = 'checked'; }
         else if (a === 'rows') { if (!/^\d{1,3}$/.test(v)) return; }
         else if (a === 'maxlength') { if (!/^\d{1,4}$/.test(v)) return; }
-        else if (a === 'data-ff') { if (!/^(text|textarea|check)$/.test(v)) return; }
+        else if (a === 'data-ff') { if (!/^(text|textarea|check|time)$/.test(v)) return; }
+        else if (a === 'data-value') { if (!/^\d{2}:\d{2}$/.test(v)) return; }
         attrs += ` ${a}="${esc(v)}"`;
       });
       if (tag === 'a') attrs += ' target="_blank" rel="noopener"';
@@ -834,6 +835,7 @@
     }
     chatLog.innerHTML = html;
     enhanceContentImages();
+    buildTimeSelects(chatLog); // 保存済み時刻フィールドに時・分プルダウンを表示
     chatLog.scrollTop = 0;
 
     const canReorder = kids.length > 1;
@@ -1404,6 +1406,19 @@
      入力欄と記入内容は本文の一部として保存され、閲覧画面や再編集時にも表示される。
      編集中は「編集ウィジェット（ラベル入力＋×削除）」、保存/表示時は「素の入力欄」に変換する。 */
   const delBtnHtml = '<button type="button" class="tm-ff-del" title="この入力欄を削除" contenteditable="false">&#10005;</button>';
+  // 時刻プルダウン（時00-23：分00-59）。マウスだけで 00:00〜23:59 を選べる。value は "HH:MM"。
+  function timeSelectsHtml(value) {
+    const mm = /^(\d{1,2}):(\d{1,2})$/.exec(value || '');
+    const hSel = mm ? Math.min(23, parseInt(mm[1], 10)) : -1;
+    const mSel = mm ? Math.min(59, parseInt(mm[2], 10)) : -1;
+    let h = '<select class="tm-ff-hour tm-ff-timesel" aria-label="時"><option value="">--</option>';
+    for (let i = 0; i < 24; i++) { const s = String(i).padStart(2, '0'); h += '<option value="' + s + '"' + (i === hSel ? ' selected' : '') + '>' + s + '</option>'; }
+    h += '</select>';
+    let m = '<select class="tm-ff-min tm-ff-timesel" aria-label="分"><option value="">--</option>';
+    for (let i = 0; i < 60; i++) { const s = String(i).padStart(2, '0'); m += '<option value="' + s + '"' + (i === mSel ? ' selected' : '') + '>' + s + '</option>'; }
+    m += '</select>';
+    return '<span class="tm-ff-time">' + h + '<span class="tm-ff-timecolon">:</span>' + m + '<span class="tm-ff-timeunit">（時 : 分）</span></span>';
+  }
   function editorFieldHtml(kind) {
     if (kind === 'check') {
       return '<div class="tm-formfield tm-ff-edit" data-ff="check" contenteditable="false">'
@@ -1413,12 +1428,24 @@
     }
     const head = '<div class="tm-ff-head">'
       + '<input type="text" class="tm-ff-label" placeholder="ラベル（例：お名前）">' + delBtnHtml + '</div>';
+    if (kind === 'time') {
+      const th = '<div class="tm-ff-head"><input type="text" class="tm-ff-label" placeholder="ラベル（例：開始時刻）">' + delBtnHtml + '</div>';
+      return '<div class="tm-formfield tm-ff-edit" data-ff="time" contenteditable="false">' + th + timeSelectsHtml('') + '</div>';
+    }
     if (kind === 'textarea') {
       return '<div class="tm-formfield tm-ff-edit" data-ff="textarea" contenteditable="false">' + head
         + '<textarea class="tm-ff-input" rows="4"></textarea></div>';
     }
     return '<div class="tm-formfield tm-ff-edit" data-ff="text" contenteditable="false">' + head
       + '<input type="text" class="tm-ff-input"></div>';
+  }
+  // 保存/表示された時刻フィールド（data-value のみ）に、時・分のプルダウンを組み立てる
+  function buildTimeSelects(root) {
+    if (!root) return;
+    root.querySelectorAll('.tm-formfield[data-ff="time"]').forEach((ff) => {
+      if (ff.querySelector('.tm-ff-time')) return; // 既に構築済み（編集ウィジェット等）
+      ff.insertAdjacentHTML('beforeend', timeSelectsHtml(ff.getAttribute('data-value') || ''));
+    });
   }
   // 本文内（フィールド外）の直近キャレット位置を覚えておく（白い入力欄にフォーカス中でも本文へ差し込めるように）
   let lastEditorRange = null;
@@ -1469,8 +1496,8 @@
     if (del) { e.preventDefault(); const ff = del.closest('.tm-formfield'); if (ff) ff.remove(); }
   });
   nodeBodyEditor.addEventListener('keydown', (e) => {
-    // 1行の入力欄・ラベルで Enter を押しても項目が保存されないようにする（複数行は改行を許可）
-    if (e.key === 'Enter' && e.target.matches('input.tm-ff-input, input.tm-ff-label')) e.preventDefault();
+    // 1行の入力欄・ラベル・時刻プルダウンで Enter を押しても項目が保存されないようにする（複数行は改行を許可）
+    if (e.key === 'Enter' && e.target.matches('input.tm-ff-input, input.tm-ff-label, select.tm-ff-timesel')) e.preventDefault();
   });
   // 保存/表示用の「素の入力欄」HTML（現在の記入値を value/checked/本文に焼き込む）
   function fieldCanonicalHtml(ff) {
@@ -1482,6 +1509,12 @@
       const checked = cb && cb.checked ? ' checked' : '';
       return '<div class="tm-formfield" data-ff="check"><label class="tm-ff-label">'
         + '<input class="tm-ff-cb" type="checkbox"' + checked + '>' + esc(label) + '</label></div>';
+    }
+    if (kind === 'time') {
+      const hs = ff.querySelector('.tm-ff-hour'), ms = ff.querySelector('.tm-ff-min');
+      const hv = hs && hs.value ? hs.value : '', mv = ms && ms.value ? ms.value : '';
+      const dv = (hv && mv) ? ' data-value="' + esc(hv + ':' + mv) + '"' : '';
+      return '<div class="tm-formfield" data-ff="time"' + dv + '><label class="tm-ff-label">' + esc(label) + '</label></div>';
     }
     const valEl = ff.querySelector('.tm-ff-input');
     if (kind === 'textarea') {
@@ -1525,6 +1558,13 @@
         ff.innerHTML = '<input type="checkbox" class="tm-ff-cb">'
           + '<input type="text" class="tm-ff-label" placeholder="チェック項目">' + delBtnHtml;
         ff.querySelector('.tm-ff-cb').checked = checked;
+        ff.querySelector('.tm-ff-label').value = label;
+      } else if (kind === 'time') {
+        const val = ff.getAttribute('data-value') || '';
+        ff.className = 'tm-formfield tm-ff-edit';
+        ff.setAttribute('data-ff', 'time');
+        ff.setAttribute('contenteditable', 'false');
+        ff.innerHTML = '<div class="tm-ff-head"><input type="text" class="tm-ff-label" placeholder="ラベル（例：開始時刻）">' + delBtnHtml + '</div>' + timeSelectsHtml(val);
         ff.querySelector('.tm-ff-label').value = label;
       } else {
         const valEl = ff.querySelector('.tm-ff-input');

@@ -1188,6 +1188,17 @@ textarea.tm-ff-input { width: 100%; resize: vertical; min-height: 88px; }
   color: var(--tm-muted); font-size: 14px; line-height: 1; padding: 2px 4px;
 }
 .tm-ff-del:hover { color: var(--tm-warn); }
+/* 時刻プルダウン（時：分）。マウスだけで 00:00〜23:59 を選べる */
+.tm-ff-time { display: inline-flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.tm-ff-timesel {
+  background: #ffffff; color: #111418;
+  border: 1px solid #b8c2cc; border-radius: 4px;
+  padding: 7px 10px; font-size: 16px; font-family: inherit;
+  cursor: pointer; min-width: 64px;
+}
+.tm-ff-timesel:focus { outline: 2px solid rgba(88, 240, 255, 0.6); }
+.tm-ff-timecolon { color: var(--tm-text); font-weight: 700; font-size: 16px; }
+.tm-ff-timeunit { color: var(--tm-muted); font-size: 11px; }
 
 /* images inside rendered body */
 .tm-body-img {

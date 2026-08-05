@@ -9,7 +9,7 @@
   <link rel="manifest" href="manifest.webmanifest">
   <link rel="icon" href="icon.svg" type="image/svg+xml">
   <link rel="apple-touch-icon" href="icon-192.png">
-  <link rel="stylesheet" href="manual.css?v=48">
+  <link rel="stylesheet" href="manual.css?v=49">
 </head>
 <body class="tm-body">
 
@@ -291,6 +291,7 @@
           <button type="button" class="tm-btn tm-btn-outline tm-btn-sm" data-field="check">&#9745; チェック欄</button>
           <button type="button" class="tm-btn tm-btn-outline tm-btn-sm" data-field="text">&#9647; 1行入力</button>
           <button type="button" class="tm-btn tm-btn-outline tm-btn-sm" data-field="textarea">&#9636; 複数行入力</button>
+          <button type="button" class="tm-btn tm-btn-outline tm-btn-sm" data-field="time">&#128340; 時刻（プルダウン）</button>
         </div>
       </div>
 
@@ -374,7 +375,7 @@
           <li>並び順は <b>長押し（またはハンドルをドラッグ）</b> で変更。案内モードでも「並べ替え」で調整できます。</li>
           <li>各項目に <b>登録者名</b> が記録されます。<b>更新日時</b> も指定でき、誤って履歴の上位に来た項目を元の日時に戻せます。</li>
           <li>説明欄は <b>太字・色・大きさ</b> の装飾に対応。Excelでの一括登録／出力もできます。</li>
-          <li>説明の下にある <b>「記入欄を追加」</b> から <b>チェック欄・1行入力・複数行入力</b> を<b>カーソル位置</b>に挿入できます（ラベル＋白い入力欄）。入力欄と記入内容は<b>本文として保存</b>され、閲覧画面や次に開いたときにも表示されます。不要な欄は編集画面の「×」で消せます。</li>
+          <li>説明の下にある <b>「記入欄を追加」</b> から <b>チェック欄・1行入力・複数行入力・時刻（プルダウン）</b> を<b>カーソル位置</b>に挿入できます。時刻は「時」「分」を<b>マウスだけで 00:00〜23:59</b> から選べます。入力欄と記入内容は<b>本文として保存</b>され、閲覧画面や次に開いたときにも表示されます。不要な欄は編集画面の「×」で消せます。</li>
         </ul>
 
         <h3>画像・ファイルの添付</h3>
@@ -618,6 +619,6 @@
   </dialog>
 
   <script src="vendor/xlsx.full.min.js"></script>
-  <script src="manual.js?v=49"></script>
+  <script src="manual.js?v=50"></script>
 </body>
 </html>
