@@ -9,7 +9,7 @@
   <link rel="manifest" href="manifest.webmanifest">
   <link rel="icon" href="icon.svg" type="image/svg+xml">
   <link rel="apple-touch-icon" href="icon-192.png">
-  <link rel="stylesheet" href="manual.css?v=47">
+  <link rel="stylesheet" href="manual.css?v=48">
 </head>
 <body class="tm-body">
 
@@ -73,6 +73,12 @@
           <span class="tm-panel-head-label">GUIDE MODE</span>
           <span class="tm-panel-head-jp">案内モード</span>
           <span id="remainHint" class="tm-panel-head-remain"></span>
+        </div>
+
+        <!-- controls (top) -->
+        <div class="tm-navctrls tm-navctrls-top">
+          <button id="backBtnTop" class="tm-ghostbtn" type="button">&#9664; 一つ戻る</button>
+          <button id="restartBtnTop" class="tm-ghostbtn" type="button">&#8635; 最初から</button>
         </div>
 
         <!-- chat log -->
@@ -351,7 +357,8 @@
         <ul>
           <li><b>大項目 → 中項目 → 小項目</b> と選んでいくと、最終的な作業内容が表示されます。</li>
           <li>上部の <b>パンくず（TOP › … ）</b> をタップすると、その階層まで戻れます。</li>
-          <li>下部の <b>「一つ戻る」</b> で1つ前へ、<b>「最初から」</b> でTOPへ戻ります（スマホの戻るでも1つ前に戻れます）。</li>
+          <li><b>「一つ戻る」「最初から」</b> は画面の<b>上部と下部</b>の両方にあります。1つ前へ／TOPへ戻れます（スマホの戻るでも1つ前に戻れます）。</li>
+          <li><b>&#9734; ピン留め</b>：項目を開いて右上の「ピン留め」を押すと、その項目を<b>TOP画面のピン留め欄</b>に固定できます。よく使う項目にすぐ移動でき、深い階層の項目もワンタップで開けます（ピン留めはこの端末だけに保存。×で解除）。</li>
         </ul>
 
         <h3>上部のボタン</h3>
@@ -611,6 +618,6 @@
   </dialog>
 
   <script src="vendor/xlsx.full.min.js"></script>
-  <script src="manual.js?v=48"></script>
+  <script src="manual.js?v=49"></script>
 </body>
 </html>

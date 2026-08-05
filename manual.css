@@ -771,8 +771,11 @@ body.tm-dragging .tm-sortrow { cursor: grabbing; }
 }
 .tm-ghostbtn:hover { color: var(--tm-cyan); border-color: var(--tm-line-strong); }
 
-/* 「一つ戻る／大項目へ戻る」を蛍光色で目立たせる（戻る系は同じ色に統一） */
-.tm-navctrls #backBtn,
+/* 上部の「一つ戻る／最初から」バー（下部と同じ操作を上にも） */
+.tm-navctrls-top { margin-top: 0; margin-bottom: 14px; }
+
+/* 「一つ戻る／大項目へ戻る」を蛍光色で目立たせる（戻る系は同じ色に統一。上部ボタンにも適用） */
+.tm-navctrls [id^="backBtn"],
 .tm-navctrls #invBackBtn {
   font-size: 13px;
   font-weight: 700;
@@ -781,9 +784,9 @@ body.tm-dragging .tm-sortrow { cursor: grabbing; }
   border-color: var(--tm-cyan);
   box-shadow: 0 0 14px rgba(63, 224, 224, 0.55);
 }
-.tm-navctrls #backBtn:hover,
+.tm-navctrls [id^="backBtn"]:hover,
 .tm-navctrls #invBackBtn:hover { filter: brightness(1.12); box-shadow: 0 0 20px rgba(63, 224, 224, 0.8); }
-.tm-navctrls #backBtn:disabled {
+.tm-navctrls [id^="backBtn"]:disabled {
   color: var(--tm-muted);
   background: transparent;
   border-color: var(--tm-line);
@@ -791,7 +794,7 @@ body.tm-dragging .tm-sortrow { cursor: grabbing; }
   cursor: not-allowed;
   opacity: .5;
 }
-.tm-navctrls #restartBtn {
+.tm-navctrls [id^="restartBtn"] {
   font-size: 13px;
   font-weight: 700;
   color: #1a1400;
@@ -799,8 +802,46 @@ body.tm-dragging .tm-sortrow { cursor: grabbing; }
   border-color: var(--tm-warn);
   box-shadow: 0 0 14px rgba(255, 207, 63, 0.5);
 }
-.tm-navctrls #restartBtn:hover { filter: brightness(1.12); box-shadow: 0 0 20px rgba(255, 207, 63, 0.75); }
+.tm-navctrls [id^="restartBtn"]:hover { filter: brightness(1.12); box-shadow: 0 0 20px rgba(255, 207, 63, 0.75); }
 .tm-ghostbtn:disabled { opacity: .35; cursor: not-allowed; }
+
+/* ピン留め（TOP画面のよく使う項目） */
+.tm-pins { margin-top: 18px; }
+.tm-pins-label {
+  font-family: var(--tm-mono); font-size: 12px; letter-spacing: 1px;
+  color: var(--tm-warn); margin-bottom: 8px;
+}
+.tm-pins-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 10px; }
+.tm-pin-tile {
+  display: flex; align-items: center; gap: 10px;
+  text-align: left; cursor: pointer;
+  background: rgba(255, 207, 63, 0.06);
+  border: 1px solid rgba(255, 207, 63, 0.35);
+  border-radius: 8px; padding: 10px 12px;
+  transition: border-color .15s, box-shadow .15s, background .15s;
+}
+.tm-pin-tile:hover { border-color: var(--tm-warn); box-shadow: 0 0 16px rgba(255, 207, 63, 0.28); background: rgba(255, 207, 63, 0.1); }
+.tm-pin-star { color: var(--tm-warn); font-size: 16px; flex: none; }
+.tm-pin-body { display: flex; flex-direction: column; gap: 2px; min-width: 0; flex: 1; }
+.tm-pin-name { color: var(--tm-text); font-weight: 700; font-size: 14px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tm-pin-path { color: var(--tm-muted); font-size: 11px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tm-pin-remove {
+  flex: none; color: var(--tm-muted); cursor: pointer;
+  font-size: 13px; padding: 2px 6px; border-radius: 4px; line-height: 1;
+}
+.tm-pin-remove:hover { color: #051417; background: var(--tm-warn); }
+
+/* 現在項目の操作（ピン留め＋編集） */
+.tm-current-actions { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; justify-content: flex-end; }
+.tm-pinbtn {
+  font-size: 12px; font-family: var(--tm-mono); letter-spacing: .5px;
+  color: var(--tm-muted); background: transparent;
+  border: 1px solid var(--tm-line); border-radius: 4px;
+  padding: 6px 10px; cursor: pointer; white-space: nowrap;
+  transition: color .15s, border-color .15s, background .15s;
+}
+.tm-pinbtn:hover { color: var(--tm-warn); border-color: rgba(255, 207, 63, 0.5); }
+.tm-pinbtn.is-on { color: #1a1400; background: var(--tm-warn); border-color: var(--tm-warn); font-weight: 700; }
 
 /* ---------- Buttons ---------- */
 .tm-btn {

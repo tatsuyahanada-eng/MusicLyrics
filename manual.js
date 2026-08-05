@@ -652,7 +652,24 @@
   const breadcrumbBar = $('#breadcrumbBar');
   const backBtn = $('#backBtn');
   const restartBtn = $('#restartBtn');
+  const backBtnTop = $('#backBtnTop');
+  const restartBtnTop = $('#restartBtnTop');
   const remainHint = $('#remainHint');
+
+  /* ---------- ピン留め（よく使う項目をTOPに固定・この端末だけ） ---------- */
+  const PIN_KEY = 'treeManual.pins.v1';
+  let pins = loadPins();
+  function loadPins() {
+    try { const a = JSON.parse(localStorage.getItem(PIN_KEY) || '[]'); return Array.isArray(a) ? a.filter((x) => typeof x === 'string') : []; }
+    catch (_) { return []; }
+  }
+  function savePins() { try { localStorage.setItem(PIN_KEY, JSON.stringify(pins)); } catch (_) {} }
+  function isPinned(id) { return pins.indexOf(id) >= 0; }
+  function togglePin(id) {
+    const i = pins.indexOf(id);
+    if (i >= 0) pins.splice(i, 1); else pins.push(id);
+    savePins();
+  }
 
   // navPath: array of node ids representing current descent (empty = root)
   let navPath = [];
@@ -694,6 +711,37 @@
     </button>`;
   }
 
+  // ピン留めした項目のパス表示（TOP › 親 › 子 …、末尾の自分は除く）
+  function pinPathLabel(id) {
+    const path = findPath(id);
+    if (!path) return '';
+    const names = path.slice(0, -1).map((n) => esc(n.title));
+    return ['TOP', ...names].join(' › ');
+  }
+  // TOP画面のピン留めセクション（この端末のみ。存在しない項目は自動的に除外）
+  function pinsSectionHtml() {
+    const valid = pins.filter((id) => findNode(id));
+    if (valid.length !== pins.length) { pins = valid; savePins(); } // 消えた項目は掃除
+    if (!valid.length) return '';
+    const tiles = valid.map((id) => {
+      const node = findNode(id);
+      const locked = isLocked(node);
+      const path = pinPathLabel(id);
+      return `<div class="tm-pin-tile" data-pingoto="${id}" role="button" tabindex="0">
+        <span class="tm-pin-star">&#9733;</span>
+        <span class="tm-pin-body">
+          <span class="tm-pin-name">${locked ? '🔒 ' : ''}${esc(node.title)}</span>
+          <span class="tm-pin-path">${path}</span>
+        </span>
+        <span class="tm-pin-remove" data-unpin="${id}" role="button" tabindex="0" title="ピン留めを外す">&#10005;</span>
+      </div>`;
+    }).join('');
+    return `<div class="tm-pins">
+      <div class="tm-pins-label">&#9733; ピン留め（この端末）</div>
+      <div class="tm-pins-grid">${tiles}</div>
+    </div>`;
+  }
+
   function choiceRow(c) {
     const count = (c.children || []).length;
     const flag = mediaFlag(c.body);
@@ -725,7 +773,8 @@
     if (gateReason()) {
       breadcrumbBar.innerHTML = `<span class="tm-crumb is-current" data-crumb-home>TOP</span>`;
       chatLog.innerHTML = ''; choiceDock.innerHTML = ''; navAddDock.innerHTML = '';
-      backBtn.disabled = true; remainHint.textContent = '';
+      backBtn.disabled = true; if (backBtnTop) backBtnTop.disabled = true;
+      remainHint.textContent = '';
       updateAuthGate();
       return;
     }
@@ -754,6 +803,7 @@
         <p class="tm-hero-sub">該当のカテゴリを選択してください。</p>
         ${notice}
       </div>`;
+      html += pinsSectionHtml();
     } else if (curNode) {
       const leaf = kids.length === 0;
       const stamp = editStampHtml(curNode);
@@ -763,7 +813,10 @@
             <div class="tm-current-kicker">現在地 · ${depthLabel(navPath.length - 1)}</div>
             <h2 class="tm-current-title">${esc(curNode.title)}</h2>
           </div>
-          <button class="tm-editthis" data-editthis="${curNode.id}" type="button">&#9998; この項目を編集</button>
+          <div class="tm-current-actions">
+            <button class="tm-pinbtn ${isPinned(curNode.id) ? 'is-on' : ''}" data-pintoggle="${curNode.id}" type="button" title="TOP画面にピン留め">${isPinned(curNode.id) ? '&#9733; ピン留め中' : '&#9734; ピン留め'}</button>
+            <button class="tm-editthis" data-editthis="${curNode.id}" type="button">&#9998; この項目を編集</button>
+          </div>
         </div>`;
       if (curNode.body && curNode.body.trim()) {
         html += `<div class="tm-content-card ${leaf ? 'is-final' : ''}">
@@ -819,6 +872,7 @@
     navAddDock.innerHTML = addHtml;
 
     backBtn.disabled = atRoot;
+    if (backBtnTop) backBtnTop.disabled = atRoot;
     remainHint.textContent = '';
   }
 
@@ -861,6 +915,20 @@
     navReorder = false;
     const idx = navPath.indexOf(id);
     if (idx >= 0) navPath = navPath.slice(0, idx + 1);
+    renderNav();
+    syncTrap();
+  }
+  // 任意の項目（深い階層でも）へ、ルートからのフルパスで移動（ピン留めから使用）
+  async function navGotoId(id) {
+    const path = findPath(id); // ルート→対象 のノード配列
+    if (!path) { syncMsg('項目が見つかりません（削除された可能性があります）', true); return; }
+    navReorder = false;
+    const newPath = [];
+    for (const n of path) {
+      if (isLocked(n)) { if (!(await ensureUnlocked(n))) return; }
+      newPath.push(n.id);
+    }
+    navPath = newPath;
     renderNav();
     syncTrap();
   }
@@ -1009,6 +1077,15 @@
     if (zi) { openLightbox(zi.getAttribute('src'), zi.getAttribute('alt')); return; }
     if (e.target.closest('#navRetryBtn')) { retryConnect(); return; }
     if (e.target.closest('#heroUpdate')) { openUpdates(); return; }
+    // ピン留めを外す（タイル内の×。移動より先に判定）
+    const un = e.target.closest('[data-unpin]');
+    if (un) { e.stopPropagation(); togglePin(un.dataset.unpin); renderNav(); return; }
+    // ピン留めタイルをタップ → その項目へ移動
+    const pg = e.target.closest('[data-pingoto]');
+    if (pg) { navGotoId(pg.dataset.pingoto); return; }
+    // 現在の項目をピン留め／解除
+    const pt = e.target.closest('[data-pintoggle]');
+    if (pt) { togglePin(pt.dataset.pintoggle); renderNav(); return; }
     const eb = e.target.closest('[data-editthis]');
     if (eb) { // 案内モードから直接編集
       const node = findNode(eb.dataset.editthis);
@@ -1055,6 +1132,9 @@
   });
   backBtn.addEventListener('click', () => history.back()); // 端末の戻ると同じ挙動
   restartBtn.addEventListener('click', navRestart);
+  // 上部にも同じ「一つ戻る／最初から」を配置
+  if (backBtnTop) backBtnTop.addEventListener('click', () => history.back());
+  if (restartBtnTop) restartBtnTop.addEventListener('click', navRestart);
 
   /* ============================================================
      EDIT MODE
