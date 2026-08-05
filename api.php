@@ -129,7 +129,13 @@ function cbc_gemini($pdo, $prompt, $jsonMode = false, $maxTokens = 1024) {
     $lastMsg = (is_array($data) && isset($data['error']['message'])) ? $data['error']['message'] : ('HTTP ' . $code);
     // モデルが無い/未対応のときだけ次の候補へ。それ以外（キー不正・権限・課金等）は即エラー。
     if (!preg_match('/not found|not supported|unknown|does not exist|unsupported/i', $lastMsg)) {
-      fail('AI呼び出しに失敗しました: ' . $lastMsg, 502);
+      $hint = '';
+      if (preg_match('/quota|billing|free_tier|limit:\s*0|RESOURCE_EXHAUSTED/i', $lastMsg)) {
+        $hint = "\n【対処】Googleの無料枠が0/上限超過です。Google AI Studio の「課金」でプロジェクトにお支払い情報を設定すると解消します（Flashは低額）。";
+      } elseif (preg_match('/API key not valid|API_KEY_INVALID|PERMISSION_DENIED|permission/i', $lastMsg)) {
+        $hint = "\n【対処】APIキーが正しくないか権限がありません。config.php の GEMINI_API_KEY を再確認してください。";
+      }
+      fail('AI呼び出しに失敗しました: ' . $lastMsg . $hint, ($code === 429 ? 429 : 502));
     }
   }
   fail('利用可能なGeminiモデルが見つかりませんでした。config.php の GEMINI_MODEL をご確認ください（例: gemini-2.0-flash）。詳細: ' . $lastMsg, 502);
