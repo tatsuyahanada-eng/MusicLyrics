@@ -692,13 +692,32 @@
 
   /* ---------- 記入内容の一覧（別ポップアップ・コピー用） ---------- */
   function hasFormFields(body) { return /class="tm-formfield"|data-ff=/.test(String(body || '')); }
+  // 入力欄のラベルが空のときは、欄のすぐ上（直前）にある本文テキストを項目名として使う
+  function precedingLabel(ff) {
+    let node = ff.previousSibling;
+    let steps = 0;
+    while (node && steps < 8) {
+      steps++;
+      if (node.nodeType === 3) { // テキストノード
+        const t = node.nodeValue.replace(/ /g, ' ').trim();
+        if (t) return t.split('\n').pop().trim();
+      } else if (node.nodeType === 1) {
+        if (node.classList && node.classList.contains('tm-formfield')) break; // 別の欄に達したら終了
+        const t = (node.textContent || '').replace(/ /g, ' ').trim();
+        if (t) return t.split('\n').pop().trim();
+      }
+      node = node.previousSibling;
+    }
+    return '';
+  }
   // 現在表示中（案内画面）の記入欄から、今入力されている値を集める（DOMを書き換えない＝入力は保持）
   function collectFieldValues() {
     const out = [];
     chatLog.querySelectorAll('.tm-content-body .tm-formfield').forEach((ff) => {
       const kind = ff.getAttribute('data-ff') || (ff.querySelector('.tm-ff-cb') ? 'check' : (ff.querySelector('textarea') ? 'textarea' : 'text'));
       const labelEl = ff.querySelector('.tm-ff-label');
-      const label = labelEl ? labelEl.textContent.trim() : '';
+      let label = labelEl ? labelEl.textContent.trim() : '';
+      if (!label) label = precedingLabel(ff); // ラベル未入力なら直前の本文を名前に使う
       if (kind === 'check') {
         const cb = ff.querySelector('.tm-ff-cb');
         out.push({ label, kind, checked: !!(cb && cb.checked) });
