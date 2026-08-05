@@ -1,7 +1,6 @@
 package com.tatsuya.idtool
 
 import android.app.DatePickerDialog
-import android.app.TimePickerDialog
 import android.content.Context
 import android.content.Intent
 import android.net.Uri
@@ -19,6 +18,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
@@ -119,16 +119,8 @@ fun ResultScreen(modifier: Modifier = Modifier) {
             }, c.get(Calendar.YEAR), c.get(Calendar.MONTH), c.get(Calendar.DAY_OF_MONTH)).show()
         })
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            PickerField("開始時間", data["開始時間"] ?: "", modifier = Modifier.weight(1f), onClick = {
-                val c = Calendar.getInstance()
-                TimePickerDialog(context, { _, h, mi -> set("開始時間", "%02d:%02d".format(h, mi)) },
-                    c.get(Calendar.HOUR_OF_DAY), c.get(Calendar.MINUTE), true).show()
-            })
-            PickerField("終了時間", data["終了時間"] ?: "", modifier = Modifier.weight(1f), onClick = {
-                val c = Calendar.getInstance()
-                TimePickerDialog(context, { _, h, mi -> set("終了時間", "%02d:%02d".format(h, mi)) },
-                    c.get(Calendar.HOUR_OF_DAY), c.get(Calendar.MINUTE), true).show()
-            })
+            TimeDropdown("開始時間", data["開始時間"] ?: "", modifier = Modifier.weight(1f)) { set("開始時間", it) }
+            TimeDropdown("終了時間", data["終了時間"] ?: "", modifier = Modifier.weight(1f)) { set("終了時間", it) }
         }
         TextField2("作業員", data, set)
         TextField2("備考", data, set, single = false)
@@ -383,6 +375,90 @@ private fun NumField(label: String, value: String, onChange: (String) -> Unit, m
         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
         modifier = modifier
     )
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun TimeDropdown(label: String, value: String, modifier: Modifier = Modifier, onSelect: (String) -> Unit) {
+    val parts = value.split(":")
+    val curH = parts.getOrNull(0)?.toIntOrNull() ?: -1
+    val curM = parts.getOrNull(1)?.toIntOrNull() ?: -1
+
+    var showHour by remember { mutableStateOf(false) }
+    var showMin by remember { mutableStateOf(false) }
+    var selHour by remember(curH) { mutableIntStateOf(curH) }
+    var selMin by remember(curM) { mutableIntStateOf(curM) }
+
+    Column(modifier = modifier.padding(vertical = 4.dp)) {
+        Text(label, fontSize = 12.sp, fontWeight = FontWeight.Bold,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.padding(bottom = 4.dp))
+        Row(horizontalArrangement = Arrangement.spacedBy(4.dp), verticalAlignment = Alignment.CenterVertically) {
+            ExposedDropdownMenuBox(
+                expanded = showHour,
+                onExpandedChange = { showHour = it },
+                modifier = Modifier.weight(1f)
+            ) {
+                OutlinedTextField(
+                    value = if (selHour >= 0) "%02d".format(selHour) else "--",
+                    onValueChange = {},
+                    readOnly = true,
+                    label = { Text("時", fontSize = 10.sp) },
+                    trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = showHour) },
+                    modifier = Modifier.menuAnchor(MenuAnchorType.PrimaryNotEditable).fillMaxWidth()
+                )
+                ExposedDropdownMenu(
+                    expanded = showHour,
+                    onDismissRequest = { showHour = false },
+                    modifier = Modifier.heightIn(max = 240.dp)
+                ) {
+                    (0..23).forEach { h ->
+                        DropdownMenuItem(
+                            text = { Text("%02d".format(h), fontFamily = FontFamily.Monospace) },
+                            onClick = {
+                                selHour = h; showHour = false
+                                val m = if (selMin >= 0) selMin else 0
+                                selMin = m
+                                onSelect("%02d:%02d".format(h, m))
+                            }
+                        )
+                    }
+                }
+            }
+            Text(":", fontWeight = FontWeight.Bold, fontSize = 18.sp, color = MaterialTheme.colorScheme.onSurface)
+            ExposedDropdownMenuBox(
+                expanded = showMin,
+                onExpandedChange = { showMin = it },
+                modifier = Modifier.weight(1f)
+            ) {
+                OutlinedTextField(
+                    value = if (selMin >= 0) "%02d".format(selMin) else "--",
+                    onValueChange = {},
+                    readOnly = true,
+                    label = { Text("分", fontSize = 10.sp) },
+                    trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = showMin) },
+                    modifier = Modifier.menuAnchor(MenuAnchorType.PrimaryNotEditable).fillMaxWidth()
+                )
+                ExposedDropdownMenu(
+                    expanded = showMin,
+                    onDismissRequest = { showMin = false },
+                    modifier = Modifier.heightIn(max = 240.dp)
+                ) {
+                    (0..59).forEach { m ->
+                        DropdownMenuItem(
+                            text = { Text("%02d".format(m), fontFamily = FontFamily.Monospace) },
+                            onClick = {
+                                selMin = m; showMin = false
+                                val h = if (selHour >= 0) selHour else 0
+                                selHour = h
+                                onSelect("%02d:%02d".format(h, m))
+                            }
+                        )
+                    }
+                }
+            }
+        }
+    }
 }
 
 private fun csvEscape(s: String): String =
