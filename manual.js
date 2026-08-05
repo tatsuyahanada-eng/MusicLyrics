@@ -692,21 +692,32 @@
 
   /* ---------- 記入内容の一覧（別ポップアップ・コピー用） ---------- */
   function hasFormFields(body) { return /class="tm-formfield"|data-ff=/.test(String(body || '')); }
-  // 入力欄のラベルが空のときは、欄のすぐ上（直前）にある本文テキストを項目名として使う
+  // 入力欄のラベルが空のときは、欄のすぐ上（直前）にある本文テキストを項目名として使う。
+  // 文書順で1つずつ前のノードへ遡り（入れ子・段落分割・空行をまたいでも拾える）、
+  // 別の記入欄に達したらそこで打ち切る（＝その欄の直前に書かれた名前だけを採用）。
   function precedingLabel(ff) {
-    let node = ff.previousSibling;
+    const root = ff.closest('.tm-content-body');
+    if (!root) return '';
+    const prev = (n) => {
+      if (n === root) return null;
+      if (n.previousSibling) { let p = n.previousSibling; while (p.lastChild) p = p.lastChild; return p; }
+      return n.parentNode;
+    };
+    let n = prev(ff);
     let steps = 0;
-    while (node && steps < 8) {
+    while (n && n !== root && steps < 400) {
       steps++;
-      if (node.nodeType === 3) { // テキストノード
-        const t = node.nodeValue.replace(/ /g, ' ').trim();
-        if (t) return t.split('\n').pop().trim();
-      } else if (node.nodeType === 1) {
-        if (node.classList && node.classList.contains('tm-formfield')) break; // 別の欄に達したら終了
-        const t = (node.textContent || '').replace(/ /g, ' ').trim();
-        if (t) return t.split('\n').pop().trim();
+      if (n.nodeType === 1 && n.classList && n.classList.contains('tm-formfield')) break;
+      if (n.nodeType === 1 && n.closest && n.closest('.tm-formfield')) break;
+      if (n.nodeType === 3) {
+        const par = n.parentNode;
+        const inField = par && par.closest && par.closest('.tm-formfield');
+        if (!inField) {
+          const s = n.nodeValue.replace(/\u00a0/g, ' ').replace(/[\uFF1A:\s]+$/, '').trim();
+          if (s) return s.split('\n').pop().replace(/[\uFF1A:\s]+$/, '').trim();
+        }
       }
-      node = node.previousSibling;
+      n = prev(n);
     }
     return '';
   }
@@ -716,8 +727,9 @@
     chatLog.querySelectorAll('.tm-content-body .tm-formfield').forEach((ff) => {
       const kind = ff.getAttribute('data-ff') || (ff.querySelector('.tm-ff-cb') ? 'check' : (ff.querySelector('textarea') ? 'textarea' : 'text'));
       const labelEl = ff.querySelector('.tm-ff-label');
-      let label = labelEl ? labelEl.textContent.trim() : '';
+      let label = labelEl ? labelEl.textContent.replace(/[\uFF1A:\s]+$/, '').trim() : '';
       if (!label) label = precedingLabel(ff); // ラベル未入力なら直前の本文を名前に使う
+      if (!label) label = '記入欄' + (out.length + 1); // それも無ければ通し番号
       if (kind === 'check') {
         const cb = ff.querySelector('.tm-ff-cb');
         out.push({ label, kind, checked: !!(cb && cb.checked) });
