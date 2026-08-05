@@ -42,3 +42,13 @@ define('ADMIN_PW', 'Welsys1234');
 define('UPLOAD_DIR',       __DIR__ . '/uploads');   // 保存先（書き込み権限が必要）
 define('UPLOAD_URL',       'uploads');              // ブラウザからの相対URL
 define('UPLOAD_MAX_BYTES', 5 * 1024 * 1024);        // 1ファイル上限（5MB）
+
+/* ---------- AI（Google Gemini）連携 ----------
+   「AIで探す」「AI要約」機能で使います。空 '' のときは AI 機能は表示されません。
+   APIキーの取得: Google AI Studio（https://aistudio.google.com/apikey）で無料のキーを発行。
+   ※キーはこのサーバー内だけで使い、ブラウザには渡しません（安全）。
+   ※AIを使うと、その項目の本文がGoogleのAPIへ送信されます（要約・検索のため）。
+   ※サーバー（PHP）から外部へのHTTPS通信（curl等）が必要です。ロリポップは既定で利用可能です。
+*/
+define('GEMINI_API_KEY', '');                 // 例: 'AIza...'（空なら AI 機能オフ）
+define('GEMINI_MODEL',   'gemini-1.5-flash'); // 使うモデル（例: gemini-1.5-flash / gemini-2.0-flash）

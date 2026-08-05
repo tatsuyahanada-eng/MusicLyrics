@@ -868,6 +868,32 @@ body.tm-dragging .tm-sortrow { cursor: grabbing; }
 .tm-list-text { width: 100%; resize: vertical; font-family: var(--tm-mono); font-size: 13px; line-height: 1.6; }
 .tm-list-msg { min-height: 16px; font-size: 12px; color: var(--tm-cyan); margin: 4px 0 0; }
 
+/* ---------- AI（Gemini）機能 ---------- */
+/* AIボタン共通（シアン→紫のグラデで「特別」感） */
+.tm-btn-ai, .tm-aibtn {
+  background: linear-gradient(90deg, #2bd4d4, #9a7bff);
+  color: #06121a; border: none; font-weight: 700;
+  box-shadow: 0 0 14px rgba(122, 108, 255, 0.35);
+}
+.tm-btn-ai:hover, .tm-aibtn:hover { filter: brightness(1.08); box-shadow: 0 0 20px rgba(122, 108, 255, 0.55); }
+.tm-aibtn {
+  font-size: 12px; font-family: var(--tm-mono); letter-spacing: .3px;
+  border-radius: 4px; padding: 6px 10px; cursor: pointer; white-space: nowrap;
+}
+.tm-aisearch-row { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin: 4px 2px 8px; }
+.tm-aisearch-hint { font-size: 11px; color: var(--tm-muted); }
+.tm-sr-aibadge {
+  display: inline-block; margin-right: 6px; padding: 1px 7px; border-radius: 10px;
+  font-size: 10px; font-weight: 700; color: #06121a;
+  background: linear-gradient(90deg, #2bd4d4, #9a7bff);
+}
+.tm-ai-summary {
+  white-space: pre-wrap; line-height: 1.8; font-size: 14px; color: var(--tm-text);
+  background: var(--tm-panel-solid); border: 1px solid var(--tm-line);
+  border-radius: 8px; padding: 12px 14px; min-height: 60px; margin-bottom: 10px;
+}
+.tm-ai-note { font-size: 11px; color: var(--tm-muted); margin: 0 0 6px; }
+
 /* ---------- Buttons ---------- */
 .tm-btn {
   font-family: var(--tm-sans);

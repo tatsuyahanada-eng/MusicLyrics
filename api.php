@@ -19,6 +19,8 @@ if (!defined('ADMIN_PW'))         define('ADMIN_PW', 'Welsys1234');
 if (!defined('UPLOAD_DIR'))       define('UPLOAD_DIR', __DIR__ . '/uploads');
 if (!defined('UPLOAD_URL'))       define('UPLOAD_URL', 'uploads');
 if (!defined('UPLOAD_MAX_BYTES')) define('UPLOAD_MAX_BYTES', 5 * 1024 * 1024);
+if (!defined('GEMINI_API_KEY'))   define('GEMINI_API_KEY', '');
+if (!defined('GEMINI_MODEL'))     define('GEMINI_MODEL', 'gemini-1.5-flash');
 
 /* ---------- helpers ---------- */
 function fail($msg, $code = 400) {
@@ -37,6 +39,67 @@ function body_json() {
   return is_array($d) ? $d : array();
 }
 function gen_id() { return 'n' . bin2hex(random_bytes(9)); }
+
+/* HTML本文をプレーンテキスト化（AIへ渡す用・検索用） */
+function cbc_html_to_plain($html) {
+  $s = (string)$html;
+  $s = preg_replace('/<\s*br\s*\/?>/i', "\n", $s);
+  $s = preg_replace('/<\/(div|p|li|h[1-6]|tr)\s*>/i', "\n", $s);
+  $s = strip_tags($s);
+  $s = html_entity_decode($s, ENT_QUOTES | ENT_HTML5, 'UTF-8');
+  $s = preg_replace("/[ \t]+\n/", "\n", $s);
+  $s = preg_replace("/\n{3,}/", "\n\n", $s);
+  return trim($s);
+}
+
+/* Google Gemini 呼び出し（APIキーはサーバー内のみ）。$jsonMode=true でJSON応答を要求。 */
+function cbc_gemini($prompt, $jsonMode = false, $maxTokens = 1024) {
+  if (GEMINI_API_KEY === '') fail('AI機能が未設定です（config.php に GEMINI_API_KEY を設定してください）', 400);
+  $model = GEMINI_MODEL !== '' ? GEMINI_MODEL : 'gemini-1.5-flash';
+  $url = 'https://generativelanguage.googleapis.com/v1beta/models/' . rawurlencode($model) . ':generateContent?key=' . urlencode(GEMINI_API_KEY);
+  $payload = array(
+    'contents' => array(array('parts' => array(array('text' => $prompt)))),
+    'generationConfig' => array('temperature' => 0.2, 'maxOutputTokens' => (int)$maxTokens),
+  );
+  if ($jsonMode) $payload['generationConfig']['responseMimeType'] = 'application/json';
+  $bodyJson = json_encode($payload, JSON_UNESCAPED_UNICODE);
+
+  $resp = false; $code = 0; $err = '';
+  if (function_exists('curl_init')) {
+    $ch = curl_init($url);
+    curl_setopt_array($ch, array(
+      CURLOPT_POST           => true,
+      CURLOPT_HTTPHEADER     => array('Content-Type: application/json'),
+      CURLOPT_POSTFIELDS     => $bodyJson,
+      CURLOPT_RETURNTRANSFER => true,
+      CURLOPT_TIMEOUT        => 30,
+    ));
+    $resp = curl_exec($ch);
+    $code = (int)curl_getinfo($ch, CURLINFO_HTTP_CODE);
+    $err = curl_error($ch);
+    curl_close($ch);
+    if ($resp === false) fail('AIサーバーに接続できません: ' . $err, 502);
+  } else {
+    $ctx = stream_context_create(array('http' => array(
+      'method' => 'POST', 'header' => "Content-Type: application/json\r\n",
+      'content' => $bodyJson, 'timeout' => 30, 'ignore_errors' => true,
+    )));
+    $resp = @file_get_contents($url, false, $ctx);
+    if ($resp === false) fail('AIサーバーに接続できません（サーバーの外部通信設定をご確認ください）', 502);
+    $code = 200;
+    if (isset($http_response_header[0]) && preg_match('/\s(\d{3})\s/', $http_response_header[0], $m)) $code = (int)$m[1];
+  }
+  $data = json_decode($resp, true);
+  if ($code >= 400 || !is_array($data)) {
+    $msg = (is_array($data) && isset($data['error']['message'])) ? $data['error']['message'] : ('HTTP ' . $code);
+    fail('AI呼び出しに失敗しました: ' . $msg, 502);
+  }
+  $text = '';
+  if (isset($data['candidates'][0]['content']['parts']) && is_array($data['candidates'][0]['content']['parts'])) {
+    foreach ($data['candidates'][0]['content']['parts'] as $p) { if (isset($p['text'])) $text .= $p['text']; }
+  }
+  return $text;
+}
 function now_ms() { return (int) round(microtime(true) * 1000); }
 function author_of($d) {
   $a = isset($d['author']) ? trim((string)$d['author']) : '';
@@ -109,6 +172,7 @@ if ($action === 'config') {
   ok(array(
     'dbConnected' => $connected,
     'hasToken'    => (API_TOKEN !== ''),
+    'hasGemini'   => (GEMINI_API_KEY !== ''),
     'uploads'     => true,
     'driver'      => defined('DB_DRIVER') ? DB_DRIVER : 'mysql',
     'error'       => $connected ? null : $err,
@@ -562,6 +626,61 @@ switch ($action) {
     $pdo->prepare("INSERT INTO app_settings (k, v) VALUES (?, ?)")->execute(array('pins', $json));
     $pdo->commit();
     ok(array('pins' => $json));
+  }
+
+  case 'ai_summarize': {
+    // 指定項目の本文を AI で要約
+    $d = body_json();
+    $id = isset($d['id']) ? $d['id'] : '';
+    if ($id === '') fail('id は必須です');
+    $q = $pdo->prepare('SELECT title, body FROM nodes WHERE id = ?');
+    $q->execute(array($id));
+    $row = $q->fetch();
+    if (!$row) fail('項目が見つかりません', 404);
+    $plain = cbc_html_to_plain($row['body']);
+    if (trim($plain) === '') ok(array('summary' => '（この項目には要約できる本文がありません）'));
+    if (mb_strlen($plain) > 8000) $plain = mb_substr($plain, 0, 8000);
+    $prompt = "あなたは作業マニュアルの要約アシスタントです。次の項目の内容を日本語で、要点を箇条書き（3〜6個）で簡潔に要約してください。"
+      . "手順の順番が重要な場合は順序を保ってください。本文に書かれていない情報は追加しないでください。\n\n"
+      . "【タイトル】" . $row['title'] . "\n【本文】\n" . $plain;
+    $summary = cbc_gemini($prompt, false, 800);
+    ok(array('summary' => trim($summary)));
+  }
+
+  case 'ai_search': {
+    // 自然文の質問に最も関連する項目を AI が選ぶ（意味で探す）
+    $d = body_json();
+    $query = isset($d['q']) ? trim($d['q']) : '';
+    if ($query === '') fail('検索語が必要です');
+    $rows = $pdo->query('SELECT id, parent_id, title, body FROM nodes')->fetchAll();
+    if (!$rows) ok(array('results' => array()));
+    $byId = array();
+    foreach ($rows as $r) $byId[$r['id']] = $r;
+    $lines = array();
+    foreach ($rows as $r) {
+      $path = array(); $cur = $r; $guard = 0;
+      while ($cur && $guard++ < 20) {
+        array_unshift($path, $cur['title']);
+        $pid = $cur['parent_id'];
+        $cur = ($pid !== null && $pid !== '' && isset($byId[$pid])) ? $byId[$pid] : null;
+      }
+      $snippet = mb_substr(cbc_html_to_plain($r['body']), 0, 160);
+      $snippet = str_replace(array("\r", "\n"), ' ', $snippet);
+      $lines[] = '- id:' . $r['id'] . ' | 見出し:' . implode(' > ', $path) . ' | 内容:' . $snippet;
+    }
+    $prompt = "あなたは作業マニュアルの検索アシスタントです。ユーザーの質問に最も関連する項目を、下の一覧から関連度の高い順に最大5件選び、"
+      . "JSON配列だけを出力してください。各要素は {\"id\":\"項目ID\",\"reason\":\"関連する理由（日本語40字以内）\"} の形式。"
+      . "該当が無ければ [] を出力。JSON以外は一切出力しないこと。\n\n【質問】" . $query . "\n\n【項目一覧】\n" . implode("\n", $lines);
+    $text = cbc_gemini($prompt, true, 1024);
+    $arr = json_decode($text, true);
+    if (!is_array($arr)) $arr = array();
+    $results = array();
+    foreach ($arr as $item) {
+      if (!is_array($item) || !isset($item['id']) || !isset($byId[$item['id']])) continue;
+      $results[] = array('id' => (string)$item['id'], 'reason' => isset($item['reason']) ? (string)$item['reason'] : '');
+      if (count($results) >= 5) break;
+    }
+    ok(array('results' => $results));
   }
 
   default:

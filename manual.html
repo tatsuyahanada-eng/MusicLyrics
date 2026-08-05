@@ -9,7 +9,7 @@
   <link rel="manifest" href="manifest.webmanifest">
   <link rel="icon" href="icon.svg" type="image/svg+xml">
   <link rel="apple-touch-icon" href="icon-192.png">
-  <link rel="stylesheet" href="manual.css?v=51">
+  <link rel="stylesheet" href="manual.css?v=52">
 </head>
 <body class="tm-body">
 
@@ -358,7 +358,8 @@
 
         <h3>上部のボタン</h3>
         <ul>
-          <li><b>&#128269; 検索</b>：キーワードで項目（タイトル・本文）と在庫商品を横断検索。結果にはどの階層にあるかも表示され、タップでその項目へ移動します。</li>
+          <li><b>&#128269; 検索</b>：キーワードで項目（タイトル・本文）と在庫商品を横断検索。結果にはどの階層にあるかも表示され、タップでその項目へ移動します。AIキーを設定している場合は <b>「✨ AIで探す」</b> で、質問文からAIが関連項目を探します。</li>
+          <li><b>&#10024; AI要約</b>（設定時のみ）：項目の右上のボタンで、本文をAIが要約します。要約はコピーできます（内容はGoogleのAPIに送信されます）。</li>
           <li><b>&#128340; 履歴</b>：新規登録・更新のバックナンバー（新しい順）。直近3日以内に更新があるとピンクで点滅し、TOPにも「直近の更新」が表示されます。</li>
           <li><b>&#9673; 通常</b>：閲覧（案内）モード。<b>&#9881; 修正</b>：編集モード。</li>
         </ul>
@@ -447,6 +448,21 @@
     </div>
   </dialog>
 
+  <!-- ===== AI要約ポップアップ ===== -->
+  <dialog id="aiSummaryDialog" class="tm-dialog tm-list-dialog">
+    <div class="tm-dialog-form">
+      <h2 class="tm-dialog-title">&#10024; AI要約</h2>
+      <p class="tm-list-hint" id="aiSummaryFor"></p>
+      <div id="aiSummaryBody" class="tm-ai-summary">要約を作成中…</div>
+      <p class="tm-ai-note">※ AIが自動生成した要約です。正確さは元の項目でご確認ください。</p>
+      <p id="aiSummaryMsg" class="tm-list-msg" aria-live="polite"></p>
+      <div class="tm-dialog-actions">
+        <button type="button" id="aiSummaryCopy" class="tm-btn tm-btn-primary">&#128203; コピー</button>
+        <button type="button" id="aiSummaryClose" class="tm-btn tm-btn-outline">閉じる</button>
+      </div>
+    </div>
+  </dialog>
+
   <!-- ===== Lightbox（画像の拡大表示） ===== -->
   <dialog id="lightbox" class="tm-lightbox">
     <button type="button" id="lbClose" class="tm-lb-close" aria-label="閉じる">&#10005;</button>
@@ -462,6 +478,10 @@
         <input id="searchInput" class="tm-input tm-search-input" type="search" autocomplete="off"
           placeholder="キーワードを入力（商品名・手順・説明など）" aria-label="検索">
         <button type="button" id="searchClose" class="tm-btn tm-btn-outline tm-search-closebtn">閉じる</button>
+      </div>
+      <div id="aiSearchRow" class="tm-aisearch-row" hidden>
+        <button type="button" id="aiSearchBtn" class="tm-btn tm-btn-ai tm-btn-sm">&#10024; AIで探す（意味で検索）</button>
+        <span class="tm-aisearch-hint">キーワードが合わなくても、質問文からAIが関連項目を探します。</span>
       </div>
       <div id="searchMeta" class="tm-search-meta"></div>
       <div id="searchResults" class="tm-search-results"></div>
@@ -632,6 +652,6 @@
   </dialog>
 
   <script src="vendor/xlsx.full.min.js"></script>
-  <script src="manual.js?v=54"></script>
+  <script src="manual.js?v=55"></script>
 </body>
 </html>

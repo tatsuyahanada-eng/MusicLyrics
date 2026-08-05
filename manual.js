@@ -782,6 +782,42 @@
     });
   }
 
+  /* ---------- AI要約（Gemini・サーバー経由） ---------- */
+  let aiOpen = false;             // AI要約ダイアログ表示中
+  let lastAiSummaryText = '';
+  const aiSummaryDialog = $('#aiSummaryDialog');
+  async function openAiSummary(id) {
+    if (!aiSummaryDialog) return;
+    const node = findNode(id);
+    const forEl = $('#aiSummaryFor'), bodyEl = $('#aiSummaryBody'), msg = $('#aiSummaryMsg');
+    if (forEl) forEl.textContent = node ? '対象：' + node.title : '';
+    if (bodyEl) bodyEl.textContent = '要約を作成中…';
+    if (msg) msg.textContent = '';
+    lastAiSummaryText = '';
+    aiOpen = true;
+    aiSummaryDialog.showModal();
+    syncTrap();
+    try {
+      const d = await apiCall('ai_summarize', { method: 'POST', body: { id } });
+      lastAiSummaryText = (d.summary || '').trim();
+      if (bodyEl) bodyEl.textContent = lastAiSummaryText || '（要約を取得できませんでした）';
+    } catch (e) {
+      if (bodyEl) bodyEl.textContent = 'AI要約に失敗しました：' + e.message;
+    }
+  }
+  if (aiSummaryDialog) {
+    aiSummaryDialog.addEventListener('close', () => { aiOpen = false; syncTrap(); });
+    const cl = $('#aiSummaryClose'); if (cl) cl.addEventListener('click', () => aiSummaryDialog.close());
+    const cp = $('#aiSummaryCopy'); if (cp) cp.addEventListener('click', async () => {
+      const msg = $('#aiSummaryMsg');
+      if (!lastAiSummaryText) { if (msg) msg.textContent = 'コピーする要約がありません。'; return; }
+      let ok = false;
+      try { await navigator.clipboard.writeText(lastAiSummaryText); ok = true; }
+      catch (_) { ok = false; }
+      if (msg) msg.textContent = ok ? 'コピーしました。' : 'コピーできませんでした。テキストを選択してコピーしてください。';
+    });
+  }
+
   // navPath: array of node ids representing current descent (empty = root)
   let navPath = [];
   let navReorder = false; // 案内モードの簡易並べ替えモード
@@ -926,6 +962,7 @@
             <h2 class="tm-current-title">${esc(curNode.title)}</h2>
           </div>
           <div class="tm-current-actions">
+            ${(aiEnabled && curNode.body && curNode.body.trim()) ? `<button class="tm-aibtn" data-aisummary="${curNode.id}" type="button" title="この項目をAIで要約">&#10024; AI要約</button>` : ''}
             ${hasFormFields(curNode.body) ? `<button class="tm-listbtn" data-listfields type="button" title="記入した内容を一覧で表示・コピー">&#128203; 記入内容を一覧</button>` : ''}
             <button class="tm-pinbtn ${isPinned(curNode.id) ? 'is-on' : ''}" data-pintoggle="${curNode.id}" type="button" title="TOP画面にピン留め">${isPinned(curNode.id) ? '&#9733; ピン留め中' : '&#9734; ピン留め'}</button>
             <button class="tm-editthis" data-editthis="${curNode.id}" type="button">&#9998; この項目を編集</button>
@@ -998,7 +1035,7 @@
   let trapped = false;    // センチネルを積んでいるか
   let absorbPop = false;  // 直後の1回の popstate を無視（プログラム的 back 用）
   try { history.replaceState({ cbcBase: 1 }, ''); } catch (_) {}
-  function needTrap() { return navPath.length > 0 || !editView.hidden || navReorder || invOpen || searchOpen || updatesOpen || helpOpen || listOpen; }
+  function needTrap() { return navPath.length > 0 || !editView.hidden || navReorder || invOpen || searchOpen || updatesOpen || helpOpen || listOpen || aiOpen; }
   function syncTrap() {
     if (needTrap()) {
       if (!trapped) { try { history.pushState({ cbc: 1 }, ''); trapped = true; } catch (_) {} }
@@ -1202,6 +1239,9 @@
     if (pt) { togglePin(pt.dataset.pintoggle); renderNav(); return; }
     // 記入内容の一覧（別ポップアップ）を開く
     if (e.target.closest('[data-listfields]')) { openFieldList(); return; }
+    // AI要約
+    const asb = e.target.closest('[data-aisummary]');
+    if (asb) { openAiSummary(asb.dataset.aisummary); return; }
     const eb = e.target.closest('[data-editthis]');
     if (eb) { // 案内モードから直接編集
       const node = findNode(eb.dataset.editthis);
@@ -2403,6 +2443,7 @@
   let serverAvailable = false;   // api.php に到達できる
   let dbConnected = false;       // DB が使える → サーバーが正データ
   let hasToken = false;          // サーバー側でトークン必須か
+  let aiEnabled = false;         // サーバーに Gemini APIキーが設定済み（AI機能を表示）
   let dbError = null;
   let authRequired = false;      // Basic認証等でログインが必要（401）→ 中身を出さない
 
@@ -2598,6 +2639,7 @@
       serverAvailable = true;
       dbConnected = !!cfg.dbConnected;
       hasToken = !!cfg.hasToken;
+      aiEnabled = !!cfg.hasGemini;
       dbError = cfg.error || null;
     } catch (e) {
       serverAvailable = false; dbConnected = false; hasToken = false; dbError = null;
@@ -3352,12 +3394,47 @@
     searchOpen = true;
     searchInput.value = '';
     renderSearchResults();
+    const aiRow = $('#aiSearchRow'); if (aiRow) aiRow.hidden = !aiEnabled; // AIキー未設定なら非表示
     searchDialog.showModal();
     syncTrap();
     setTimeout(() => searchInput.focus(), 30);
     // 在庫商品も検索対象にするため、サーバー接続時は最新を取得（ベストエフォート）
     if (serverMode()) { invFetch().then(() => { if (searchOpen) renderSearchResults(); }).catch(() => {}); }
   }
+  // AIで探す（意味検索）。質問文から関連項目をAIが選ぶ。
+  async function runAiSearch() {
+    const q = searchInput.value.trim();
+    if (!q) { searchMetaEl.textContent = ''; searchResultsEl.innerHTML = '<div class="tm-sr-empty">質問やキーワードを入力してから「AIで探す」を押してください。</div>'; return; }
+    if (!serverMode()) { searchResultsEl.innerHTML = '<div class="tm-sr-empty">AI検索はサーバー接続時のみ利用できます。</div>'; return; }
+    searchMetaEl.textContent = 'AIが探しています…';
+    searchResultsEl.innerHTML = '<div class="tm-sr-empty">&#10024; AIが関連する項目を探しています…</div>';
+    try {
+      const d = await apiCall('ai_search', { method: 'POST', body: { q } });
+      const results = (d.results || []).map((r) => {
+        const path = findPath(r.id);
+        if (!path) return null;
+        const node = path[path.length - 1];
+        return { kind: 'node', id: r.id, title: node.title, reason: r.reason || '',
+          pathTitles: path.slice(0, -1).map((n) => n.title), idPath: path.map((n) => n.id), locked: isLocked(node) };
+      }).filter(Boolean);
+      searchResultData = results;
+      searchMetaEl.innerHTML = `&#10024; AIの候補 ${results.length} 件`;
+      if (!results.length) { searchResultsEl.innerHTML = '<div class="tm-sr-empty">関連する項目が見つかりませんでした。言い方を変えて再度お試しください。</div>'; return; }
+      searchResultsEl.innerHTML = results.map((r, i) => {
+        const pathHtml = '<span class="tm-sr-root">TOP</span>' +
+          r.pathTitles.map((t) => `<span class="tm-sr-sep">&#8250;</span><span class="tm-sr-seg">${esc(t)}</span>`).join('');
+        return `<button class="tm-sr-item" data-idx="${i}" type="button">
+          <div class="tm-sr-path"><span class="tm-sr-aibadge">&#10024; AI</span>${pathHtml}</div>
+          <div class="tm-sr-title">${esc(r.title)}${r.locked ? '<span class="tm-sr-tag">&#128274;</span>' : ''}</div>
+          ${r.reason ? `<div class="tm-sr-snippet">${esc(r.reason)}</div>` : ''}
+        </button>`;
+      }).join('');
+    } catch (e) {
+      searchMetaEl.textContent = '';
+      searchResultsEl.innerHTML = `<div class="tm-sr-empty">AI検索に失敗しました：${esc(e.message)}</div>`;
+    }
+  }
+  { const aib = $('#aiSearchBtn'); if (aib) aib.addEventListener('click', runAiSearch); }
   let searchDebounce = null;
   searchInput.addEventListener('input', () => {
     clearTimeout(searchDebounce);
