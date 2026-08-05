@@ -807,8 +807,9 @@
   }
   // 修正画面のAI ON/OFFトグルの表示を状態に合わせて更新
   function updateAiToggleUI() {
-    const chk = $('#aiToggle'), hint = $('#aiToggleHint');
+    const chk = $('#aiToggle'), hint = $('#aiToggleHint'), state = $('#aiState');
     if (chk) chk.checked = aiOn;
+    if (state) { state.textContent = aiOn ? 'ON' : 'OFF'; state.classList.toggle('is-on', aiOn); }
     if (hint) {
       hint.textContent = hasGemini
         ? 'サーバーにAPIキーが設定済みです。ONにすると各項目でAI要約・AIで探すが使えます。'

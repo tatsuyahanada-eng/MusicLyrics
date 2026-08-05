@@ -903,17 +903,28 @@ body.tm-dragging .tm-sortrow { cursor: grabbing; }
 }
 .tm-ai-toggle { display: inline-flex; align-items: center; gap: 10px; cursor: pointer; }
 .tm-ai-toggle input { position: absolute; opacity: 0; width: 0; height: 0; }
+/* OFF＝はっきりしたグレー、ON＝はっきりした緑。つまみ位置と色で状態が一目で分かる */
 .tm-ai-switch {
-  position: relative; flex: none; width: 42px; height: 22px;
-  border-radius: 11px; background: var(--tm-line-strong); transition: background .15s;
+  position: relative; flex: none; width: 52px; height: 26px;
+  border-radius: 13px; background: #55606b; border: 1px solid #6b7681;
+  transition: background .15s, border-color .15s;
 }
-.tm-ai-switch::after {
-  content: ''; position: absolute; top: 2px; left: 2px;
-  width: 18px; height: 18px; border-radius: 50%; background: #fff; transition: transform .15s;
+.tm-ai-knob {
+  position: absolute; top: 2px; left: 2px;
+  width: 20px; height: 20px; border-radius: 50%; background: #fff;
+  box-shadow: 0 1px 2px rgba(0,0,0,.4); transition: transform .15s;
 }
-.tm-ai-toggle input:checked + .tm-ai-switch { background: linear-gradient(90deg, #2bd4d4, #9a7bff); }
-.tm-ai-toggle input:checked + .tm-ai-switch::after { transform: translateX(20px); }
+.tm-ai-toggle input:checked + .tm-ai-switch { background: #22c55e; border-color: #22c55e; }
+.tm-ai-toggle input:checked + .tm-ai-switch .tm-ai-knob { transform: translateX(26px); }
 .tm-ai-toggle input:focus-visible + .tm-ai-switch { outline: 2px solid var(--tm-cyan); outline-offset: 2px; }
+/* ON/OFF の文字表示 */
+.tm-ai-state {
+  min-width: 34px; text-align: center;
+  font-family: var(--tm-mono); font-size: 12px; font-weight: 700; letter-spacing: 1px;
+  padding: 2px 8px; border-radius: 6px;
+  color: var(--tm-muted); background: rgba(255,255,255,0.06); border: 1px solid var(--tm-line);
+}
+.tm-ai-state.is-on { color: #06210f; background: #22c55e; border-color: #22c55e; }
 .tm-ai-toggle-label { font-size: 13px; color: var(--tm-text); font-weight: 700; }
 .tm-ai-setting-hint { font-size: 11px; color: var(--tm-muted); flex-basis: 100%; line-height: 1.6; }
 
