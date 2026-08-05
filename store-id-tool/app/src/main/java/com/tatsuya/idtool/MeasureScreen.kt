@@ -4,19 +4,11 @@ import android.Manifest
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
-import android.hardware.Sensor
-import android.hardware.SensorEvent
-import android.hardware.SensorEventListener
-import android.hardware.SensorManager
 import android.opengl.Matrix
 import android.os.Build
 import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.camera.core.CameraSelector
-import androidx.camera.core.Preview
-import androidx.camera.lifecycle.ProcessCameraProvider
-import androidx.camera.view.PreviewView
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -49,7 +41,6 @@ import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
@@ -67,9 +58,6 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.compose.ui.viewinterop.AndroidView
-import androidx.core.content.ContextCompat
-import androidx.lifecycle.LifecycleOwner
 import com.google.ar.core.ArCoreApk
 import com.google.ar.core.Camera
 import com.google.ar.core.Config
@@ -77,7 +65,6 @@ import com.google.ar.core.TrackingState
 import io.github.sceneview.ar.ARScene
 import io.github.sceneview.rememberEngine
 import kotlin.math.sqrt
-import kotlin.math.tan
 
 enum class MeasureType { DISTANCE, AREA }
 
@@ -160,7 +147,6 @@ private fun MeasureBody(type: MeasureType, modifier: Modifier) {
 
     var useManual by remember { mutableStateOf(false) }
     var useBle by remember { mutableStateOf(false) }
-    var useTilt by remember { mutableStateOf(false) }
 
     val engine = rememberEngine()
 
@@ -201,22 +187,6 @@ private fun MeasureBody(type: MeasureType, modifier: Modifier) {
         remeasureIndex = -1; memo = ""; resetMeasure()
     }
 
-    if (useTilt) {
-        TiltMeasureBody(type, records, unit, memo, showList, remeasureIndex, editIdx, editName, editValue,
-            onMemoChange = { memo = it },
-            onShowListChange = { showList = it },
-            onRemeasureChange = { remeasureIndex = it },
-            onEditIdxChange = { editIdx = it },
-            onEditNameChange = { editName = it },
-            onEditValueChange = { editValue = it },
-            onUnitChange = { unit = it },
-            onPersist = { persist() },
-            onSwitchToManual = { useTilt = false; useManual = true },
-            modifier = modifier
-        )
-        return
-    }
-
     if (useBle) {
         BleMeasureBody(type, records, unit, memo, showList, remeasureIndex, editIdx, editName, editValue,
             onMemoChange = { memo = it },
@@ -244,7 +214,6 @@ private fun MeasureBody(type: MeasureType, modifier: Modifier) {
             onUnitChange = { unit = it },
             onPersist = { persist() },
             onSwitchToBle = { useManual = false; useBle = true },
-            onSwitchToTilt = { useManual = false; useTilt = true },
             modifier = modifier
         )
         return
@@ -337,10 +306,6 @@ private fun MeasureBody(type: MeasureType, modifier: Modifier) {
                 Row(horizontalArrangement = Arrangement.spacedBy(6.dp), modifier = Modifier.fillMaxWidth()) {
                     OutlinedButton(onClick = { useManual = true }, modifier = Modifier.weight(1f)) {
                         Text("手動入力", color = Color(0xFFE65100),
-                            fontWeight = FontWeight.Bold, fontSize = 11.sp)
-                    }
-                    OutlinedButton(onClick = { useTilt = true }, modifier = Modifier.weight(1f)) {
-                        Text("傾斜角", color = Color(0xFF6A1B9A),
                             fontWeight = FontWeight.Bold, fontSize = 11.sp)
                     }
                     OutlinedButton(onClick = { useBle = true }, modifier = Modifier.weight(1f)) {
@@ -486,7 +451,6 @@ private fun ManualMeasureBody(
     onUnitChange: (DistUnit) -> Unit,
     onPersist: () -> Unit,
     onSwitchToBle: () -> Unit,
-    onSwitchToTilt: () -> Unit,
     modifier: Modifier
 ) {
     val context = LocalContext.current
@@ -514,15 +478,9 @@ private fun ManualMeasureBody(
 
         Spacer(Modifier.height(4.dp))
 
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
-            OutlinedButton(onClick = onSwitchToTilt, modifier = Modifier.weight(1f)) {
-                Text("カメラ傾斜角", color = Color(0xFF6A1B9A),
-                    fontWeight = FontWeight.Bold, fontSize = 12.sp)
-            }
-            OutlinedButton(onClick = onSwitchToBle, modifier = Modifier.weight(1f)) {
-                Text("BT距離計", color = Color(0xFF1565C0),
-                    fontWeight = FontWeight.Bold, fontSize = 12.sp)
-            }
+        OutlinedButton(onClick = onSwitchToBle, modifier = Modifier.fillMaxWidth()) {
+            Text("BT距離計に切替", color = Color(0xFF1565C0),
+                fontWeight = FontWeight.Bold, fontSize = 12.sp)
         }
 
         Spacer(Modifier.height(8.dp))
@@ -663,326 +621,6 @@ private fun ManualMeasureBody(
             onShare = { shareText(context, buildReport(records, currentUnit)) },
             onClearAll = { records.clear(); currentRemeasure = -1; onRemeasureChange(-1); onPersist() }
         )
-    }
-
-    EditRecordDialog(currentEditIdx, currentEditName, currentEditValue, currentUnit, records,
-        onEditNameChange = { currentEditName = it; onEditNameChange(it) },
-        onEditValueChange = { currentEditValue = it; onEditValueChange(it) },
-        onDismiss = { currentEditIdx = -1; onEditIdxChange(-1) },
-        onSave = { idx, name, meters ->
-            records[idx] = records[idx].copy(memo = name, value = meters)
-            onPersist()
-            Toast.makeText(context, "記録を修正しました", Toast.LENGTH_SHORT).show()
-            currentEditIdx = -1; onEditIdxChange(-1)
-        }
-    )
-}
-
-@Composable
-private fun TiltMeasureBody(
-    type: MeasureType,
-    records: MutableList<Record>,
-    unit: DistUnit,
-    memo: String,
-    showList: Boolean,
-    remeasureIndex: Int,
-    editIdx: Int,
-    editName: String,
-    editValue: String,
-    onMemoChange: (String) -> Unit,
-    onShowListChange: (Boolean) -> Unit,
-    onRemeasureChange: (Int) -> Unit,
-    onEditIdxChange: (Int) -> Unit,
-    onEditNameChange: (String) -> Unit,
-    onEditValueChange: (String) -> Unit,
-    onUnitChange: (DistUnit) -> Unit,
-    onPersist: () -> Unit,
-    onSwitchToManual: () -> Unit,
-    modifier: Modifier
-) {
-    val context = LocalContext.current
-    val lifecycleOwner = context as LifecycleOwner
-    var cameraHeight by remember { mutableFloatStateOf(loadCameraHeight(context)) }
-    var showHeightDialog by remember { mutableStateOf(cameraHeight <= 0f) }
-    var heightInput by remember { mutableStateOf(if (cameraHeight > 0f) "%.2f".format(cameraHeight) else "1.20") }
-    var pitchDeg by remember { mutableFloatStateOf(0f) }
-    var sensorAvailable by remember { mutableStateOf(true) }
-
-    var currentMemo by remember(memo) { mutableStateOf(memo) }
-    var currentUnit by remember(unit) { mutableStateOf(unit) }
-    var currentShowList by remember(showList) { mutableStateOf(showList) }
-    var currentRemeasure by remember(remeasureIndex) { mutableStateOf(remeasureIndex) }
-    var currentEditIdx by remember(editIdx) { mutableStateOf(editIdx) }
-    var currentEditName by remember(editName) { mutableStateOf(editName) }
-    var currentEditValue by remember(editValue) { mutableStateOf(editValue) }
-    var capturedA by remember { mutableStateOf("") }
-    var capturedB by remember { mutableStateOf("") }
-
-    val angleBelowHorizontal = 90f + pitchDeg
-    val liveDistance = if (angleBelowHorizontal > 5f && cameraHeight > 0f)
-        (cameraHeight / tan(Math.toRadians(angleBelowHorizontal.toDouble()))).toFloat()
-    else null
-
-    DisposableEffect(Unit) {
-        val sm = context.getSystemService(Context.SENSOR_SERVICE) as SensorManager
-        val sensor = sm.getDefaultSensor(Sensor.TYPE_ROTATION_VECTOR)
-            ?: sm.getDefaultSensor(Sensor.TYPE_GAME_ROTATION_VECTOR)
-        if (sensor == null) { sensorAvailable = false; return@DisposableEffect onDispose {} }
-        val rotMatrix = FloatArray(9)
-        val orient = FloatArray(3)
-        val listener = object : SensorEventListener {
-            override fun onSensorChanged(e: SensorEvent) {
-                SensorManager.getRotationMatrixFromVector(rotMatrix, e.values)
-                SensorManager.getOrientation(rotMatrix, orient)
-                pitchDeg = Math.toDegrees(orient[1].toDouble()).toFloat()
-            }
-            override fun onAccuracyChanged(s: Sensor, a: Int) {}
-        }
-        sm.registerListener(listener, sensor, SensorManager.SENSOR_DELAY_UI)
-        onDispose { sm.unregisterListener(listener) }
-    }
-
-    fun recordDist(meters: Float) {
-        val name = currentMemo.ifBlank {
-            if (currentRemeasure in records.indices) records[currentRemeasure].memo
-            else "計測${records.size + 1}"
-        }
-        val rec = Record(MeasureType.DISTANCE, name, meters, "")
-        if (currentRemeasure in records.indices) records[currentRemeasure] = rec
-        else records.add(0, rec)
-        onPersist()
-        Toast.makeText(context, "記録: ${rec.display(currentUnit)}", Toast.LENGTH_SHORT).show()
-        currentMemo = ""; onMemoChange(""); currentRemeasure = -1; onRemeasureChange(-1)
-    }
-
-    fun recordArea(a: Float, b: Float) {
-        val name = currentMemo.ifBlank {
-            if (currentRemeasure in records.indices) records[currentRemeasure].memo
-            else "計測${records.size + 1}"
-        }
-        val rec = Record(MeasureType.AREA, name, a * b, "%.2f×%.2f".format(a, b))
-        if (currentRemeasure in records.indices) records[currentRemeasure] = rec
-        else records.add(0, rec)
-        onPersist()
-        Toast.makeText(context, "記録: ${rec.display(currentUnit)}", Toast.LENGTH_SHORT).show()
-        capturedA = ""; capturedB = ""
-        currentMemo = ""; onMemoChange(""); currentRemeasure = -1; onRemeasureChange(-1)
-    }
-
-    if (showHeightDialog) {
-        AlertDialog(
-            onDismissRequest = { if (cameraHeight > 0f) showHeightDialog = false },
-            title = { Text("カメラの高さ設定") },
-            text = {
-                Column {
-                    Text("端末を持つ高さ（地面からカメラまで）をメートルで入力してください。",
-                        fontSize = 13.sp, color = PanelText)
-                    Spacer(Modifier.height(8.dp))
-                    OutlinedTextField(
-                        value = heightInput,
-                        onValueChange = { heightInput = it.filter { c -> c.isDigit() || c == '.' } },
-                        placeholder = { Text("例: 1.20") },
-                        singleLine = true,
-                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
-                        modifier = Modifier.fillMaxWidth()
-                    )
-                    Text("※ 胸の高さで持つ場合: 約1.0〜1.3m", fontSize = 11.sp, color = Color(0xFF70767C))
-                }
-            },
-            confirmButton = {
-                TextButton(onClick = {
-                    val h = heightInput.toFloatOrNull()
-                    if (h != null && h > 0f && h < 3f) {
-                        cameraHeight = h; saveCameraHeight(context, h); showHeightDialog = false
-                    } else {
-                        Toast.makeText(context, "0.1〜3.0の範囲で入力してください", Toast.LENGTH_SHORT).show()
-                    }
-                }) { Text("設定") }
-            },
-            dismissButton = {
-                if (cameraHeight > 0f) TextButton(onClick = { showHeightDialog = false }) { Text("取消") }
-            }
-        )
-    }
-
-    if (!sensorAvailable) {
-        Column(modifier = modifier.fillMaxSize().padding(16.dp),
-            verticalArrangement = Arrangement.Center, horizontalAlignment = Alignment.CenterHorizontally) {
-            Text("このデバイスには傾斜センサーがありません。", color = Color(0xFFD32F2F),
-                fontWeight = FontWeight.Bold, fontSize = 14.sp)
-            Spacer(Modifier.height(12.dp))
-            Button(onClick = onSwitchToManual) { Text("手動入力に切替") }
-        }
-        return
-    }
-
-    val previewView = remember { PreviewView(context) }
-
-    DisposableEffect(lifecycleOwner) {
-        val future = ProcessCameraProvider.getInstance(context)
-        future.addListener({
-            try {
-                val cp = future.get()
-                val preview = Preview.Builder().build().apply {
-                    setSurfaceProvider(previewView.surfaceProvider)
-                }
-                cp.unbindAll()
-                cp.bindToLifecycle(lifecycleOwner, CameraSelector.DEFAULT_BACK_CAMERA, preview)
-            } catch (_: Exception) {}
-        }, ContextCompat.getMainExecutor(context))
-        onDispose { try { future.get().unbindAll() } catch (_: Exception) {} }
-    }
-
-    Box(modifier = modifier.fillMaxSize()) {
-        AndroidView(factory = { previewView }, modifier = Modifier.fillMaxSize())
-
-        Canvas(modifier = Modifier.fillMaxSize()) {
-            val center = Offset(size.width / 2f, size.height / 2f)
-            drawCircle(color = Color.White, radius = 15f, center = center, style = Stroke(width = 4f))
-            drawCircle(color = Color(0xFF6A1B9A), radius = 5f, center = center)
-            drawLine(Color.White.copy(alpha = 0.5f),
-                Offset(center.x - 30f, center.y), Offset(center.x + 30f, center.y), strokeWidth = 2f)
-            drawLine(Color.White.copy(alpha = 0.5f),
-                Offset(center.x, center.y - 30f), Offset(center.x, center.y + 30f), strokeWidth = 2f)
-        }
-
-        if (liveDistance != null && liveDistance in 0.01f..50f) {
-            Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.TopCenter) {
-                Box(modifier = Modifier.padding(top = 104.dp)
-                    .background(Panel, RoundedCornerShape(10.dp))
-                    .padding(horizontal = 16.dp, vertical = 6.dp)) {
-                    Text(formatDistance(liveDistance, currentUnit), color = Color(0xFF6A1B9A),
-                        fontWeight = FontWeight.Bold, fontFamily = FontFamily.Monospace, fontSize = 34.sp)
-                }
-            }
-        }
-
-        Column(modifier = Modifier.fillMaxSize().imePadding().padding(12.dp)) {
-            Box(modifier = Modifier.fillMaxWidth().background(Panel, RoundedCornerShape(8.dp)).padding(8.dp)) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text("カメラ傾斜角方式", color = Color(0xFF6A1B9A),
-                            fontWeight = FontWeight.Bold, fontSize = 12.sp)
-                        Text("高さ: %.2fm | 角度: %.0f°".format(cameraHeight, angleBelowHorizontal),
-                            fontSize = 11.sp, color = PanelText)
-                    }
-                    TextButton(onClick = {
-                        heightInput = "%.2f".format(cameraHeight); showHeightDialog = true
-                    }) { Text("高さ変更", fontSize = 11.sp, color = Color(0xFF6A1B9A)) }
-                    TextButton(onClick = onSwitchToManual) {
-                        Text("手動入力", fontSize = 11.sp, color = Color(0xFFE65100))
-                    }
-                }
-            }
-
-            if (liveDistance == null || liveDistance !in 0.01f..50f) {
-                Spacer(Modifier.height(4.dp))
-                Box(modifier = Modifier.fillMaxWidth().background(Color(0xFFFFF3E0), RoundedCornerShape(6.dp)).padding(8.dp)) {
-                    Text("床面の計測点に照準を合わせてください（有効: 〜5m）",
-                        color = Color(0xFFE65100), fontSize = 12.sp, fontWeight = FontWeight.Bold)
-                }
-            }
-
-            Spacer(Modifier.weight(1f))
-
-            Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(4.dp, Alignment.End)) {
-                Text("単位", color = PanelText, fontWeight = FontWeight.Bold, fontSize = 11.sp)
-                DistUnit.entries.forEach { u ->
-                    val sel = currentUnit == u
-                    Box(modifier = Modifier.background(if (sel) Teal else Panel, RoundedCornerShape(6.dp))
-                        .clickable { currentUnit = u; onUnitChange(u); saveDistUnit(context, u) }
-                        .padding(horizontal = 10.dp, vertical = 3.dp)) {
-                        Text(u.label, color = if (sel) Color.White else PanelText, fontSize = 12.sp,
-                            fontWeight = if (sel) FontWeight.Bold else FontWeight.Normal)
-                    }
-                }
-            }
-
-            Spacer(Modifier.height(4.dp))
-
-            OutlinedTextField(value = currentMemo,
-                onValueChange = { currentMemo = it; onMemoChange(it) },
-                placeholder = { Text("メモ（例：入口→レジ / 会議室）") },
-                singleLine = true,
-                modifier = Modifier.fillMaxWidth().background(Panel, RoundedCornerShape(8.dp)))
-
-            Spacer(Modifier.height(8.dp))
-
-            if (type == MeasureType.DISTANCE) {
-                Button(
-                    onClick = { if (liveDistance != null) recordDist(liveDistance) },
-                    enabled = liveDistance != null && liveDistance in 0.01f..50f,
-                    colors = ButtonDefaults.buttonColors(containerColor = Teal),
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    Text(if (liveDistance != null && liveDistance in 0.01f..50f)
-                        "この距離を記録（${formatDistance(liveDistance, currentUnit)}）"
-                    else "照準を床面に合わせてください",
-                        fontWeight = FontWeight.Bold, fontSize = 14.sp)
-                }
-            } else {
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
-                    OutlinedTextField(value = capturedA, onValueChange = {},
-                        placeholder = { Text("辺A") }, singleLine = true, readOnly = true,
-                        modifier = Modifier.weight(1f).background(Panel, RoundedCornerShape(8.dp)))
-                    Button(
-                        onClick = { if (liveDistance != null) capturedA = "%.3f".format(liveDistance) },
-                        enabled = liveDistance != null && liveDistance in 0.01f..50f,
-                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF6A1B9A))
-                    ) { Text("取得") }
-                }
-                Spacer(Modifier.height(4.dp))
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
-                    OutlinedTextField(value = capturedB, onValueChange = {},
-                        placeholder = { Text("辺B") }, singleLine = true, readOnly = true,
-                        modifier = Modifier.weight(1f).background(Panel, RoundedCornerShape(8.dp)))
-                    Button(
-                        onClick = { if (liveDistance != null) capturedB = "%.3f".format(liveDistance) },
-                        enabled = liveDistance != null && liveDistance in 0.01f..50f,
-                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF6A1B9A))
-                    ) { Text("取得") }
-                }
-                Spacer(Modifier.height(8.dp))
-                Button(
-                    onClick = {
-                        val a = capturedA.toFloatOrNull(); val b = capturedB.toFloatOrNull()
-                        if (a != null && b != null) recordArea(a, b)
-                    },
-                    enabled = capturedA.isNotEmpty() && capturedB.isNotEmpty(),
-                    colors = ButtonDefaults.buttonColors(containerColor = Teal),
-                    modifier = Modifier.fillMaxWidth()
-                ) { Text("面積を記録", fontWeight = FontWeight.Bold, fontSize = 16.sp) }
-            }
-
-            Spacer(Modifier.height(6.dp))
-
-            RecordListUI(records, currentUnit, currentShowList, currentRemeasure, currentMemo, currentEditIdx,
-                onShowListChange = { currentShowList = it; onShowListChange(it) },
-                onRemeasureChange = { currentRemeasure = it; onRemeasureChange(it)
-                    if (it >= 0 && it in records.indices) { currentMemo = records[it].memo; onMemoChange(records[it].memo) }
-                },
-                onMemoUpdate = { idx ->
-                    val cur = records[idx]
-                    records[idx] = cur.copy(memo = currentMemo.ifBlank { cur.memo })
-                    onPersist(); Toast.makeText(context, "メモ更新", Toast.LENGTH_SHORT).show()
-                },
-                onEditStart = { i ->
-                    currentEditIdx = i; onEditIdxChange(i)
-                    currentEditName = records[i].memo; onEditNameChange(records[i].memo)
-                    val v = valueForEdit(records[i].value, currentUnit)
-                    currentEditValue = v; onEditValueChange(v)
-                },
-                onDelete = { i ->
-                    records.removeAt(i)
-                    if (currentRemeasure == i) { currentRemeasure = -1; onRemeasureChange(-1) }
-                    onPersist()
-                },
-                onCopy = { copyText(context, buildReport(records, currentUnit)) },
-                onShare = { shareText(context, buildReport(records, currentUnit)) },
-                onClearAll = { records.clear(); currentRemeasure = -1; onRemeasureChange(-1); onPersist() }
-            )
-        }
     }
 
     EditRecordDialog(currentEditIdx, currentEditName, currentEditValue, currentUnit, records,
@@ -1547,12 +1185,3 @@ private fun shareText(context: Context, text: String) {
     context.startActivity(Intent.createChooser(intent, "測定結果を保存・共有"))
 }
 
-private fun saveCameraHeight(context: Context, height: Float) {
-    context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit()
-        .putFloat("camera_height", height).apply()
-}
-
-private fun loadCameraHeight(context: Context): Float {
-    return context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
-        .getFloat("camera_height", 0f)
-}

@@ -115,9 +115,9 @@ private fun numTextColorInt(n: Int): Int = when (n) {
 private fun shapeHalf(type: String, size: String): Pair<Float, Float> {
     val s = when (size) { "S" -> 0; "L" -> 2; "XL" -> 3; else -> 1 }
     return when (type) {
-        "横長方形" -> listOf(Pair(50f, 28f), Pair(84f, 46f), Pair(130f, 68f), Pair(180f, 94f))[s]
-        "縦長方形" -> listOf(Pair(28f, 50f), Pair(46f, 84f), Pair(68f, 130f), Pair(94f, 180f))[s]
-        else -> listOf(Pair(28f, 28f), Pair(46f, 46f), Pair(72f, 72f), Pair(100f, 100f))[s] // 正方形・丸
+        "横長方形" -> listOf(Pair(40f, 22f), Pair(67f, 37f), Pair(104f, 54f), Pair(144f, 75f))[s]
+        "縦長方形" -> listOf(Pair(22f, 40f), Pair(37f, 67f), Pair(54f, 104f), Pair(75f, 144f))[s]
+        else -> listOf(Pair(22f, 22f), Pair(37f, 37f), Pair(58f, 58f), Pair(80f, 80f))[s] // 正方形・丸
     }
 }
 
@@ -628,25 +628,25 @@ private fun DrawScope.drawMark(m: MarkT, w: Float, h: Float) {
             drawRect(Color.White, topLeft = Offset(cx - hw, cy - hh), size = Size(hw * 2, hh * 2))
             drawRect(Color(0xFF333333), topLeft = Offset(cx - hw, cy - hh), size = Size(hw * 2, hh * 2), style = Stroke(3f))
         }
-        if (m.label.isNotBlank()) nc.drawText(m.label, cx, cy + 8f, Paint().apply {
-            color = android.graphics.Color.BLACK; textSize = 26f; isAntiAlias = true
+        if (m.label.isNotBlank()) nc.drawText(m.label, cx, cy + 6f, Paint().apply {
+            color = android.graphics.Color.BLACK; textSize = 21f; isAntiAlias = true
             typeface = Typeface.DEFAULT_BOLD; textAlign = Paint.Align.CENTER
         })
     } else {
         val ms = isMainSub(m.num)
-        val halfW = if (ms) 44f else 24f
-        val halfH = 24f
+        val halfW = if (ms) 35f else 19f
+        val halfH = 19f
         drawRect(Color(numBoxColor(m.num, m.type)), topLeft = Offset(cx - halfW, cy - halfH), size = Size(halfW * 2, halfH * 2))
-        nc.drawText(numLabel(m.num), cx, cy + 9f, Paint().apply {
-            color = numTextColorInt(m.num); textSize = if (ms) 22f else 26f; isAntiAlias = true
+        nc.drawText(numLabel(m.num), cx, cy + 7f, Paint().apply {
+            color = numTextColorInt(m.num); textSize = if (ms) 18f else 21f; isAntiAlias = true
             typeface = Typeface.DEFAULT_BOLD; textAlign = Paint.Align.CENTER
         })
-        nc.drawText(m.type, cx, cy + halfH + 24f, Paint().apply {
-            color = android.graphics.Color.BLACK; textSize = 22f; isAntiAlias = true
+        nc.drawText(m.type, cx, cy + halfH + 19f, Paint().apply {
+            color = android.graphics.Color.BLACK; textSize = 18f; isAntiAlias = true
             typeface = Typeface.DEFAULT_BOLD; textAlign = Paint.Align.CENTER
         })
-        if (m.label.isNotBlank()) nc.drawText(m.label, cx, cy + halfH + 48f, Paint().apply {
-            color = android.graphics.Color.rgb(0x33, 0x33, 0x33); textSize = 22f; isAntiAlias = true
+        if (m.label.isNotBlank()) nc.drawText(m.label, cx, cy + halfH + 38f, Paint().apply {
+            color = android.graphics.Color.rgb(0x33, 0x33, 0x33); textSize = 18f; isAntiAlias = true
             textAlign = Paint.Align.CENTER
         })
     }

@@ -65,10 +65,5 @@ dependencies {
     implementation("io.github.sceneview:arsceneview:2.2.1")
     implementation("com.google.ar:core:1.46.0")
 
-    // カメラ傾斜角方式（AR非対応端末向け）
-    implementation("androidx.camera:camera-camera2:1.4.1")
-    implementation("androidx.camera:camera-lifecycle:1.4.1")
-    implementation("androidx.camera:camera-view:1.4.1")
-
     debugImplementation("androidx.compose.ui:ui-tooling")
 }
