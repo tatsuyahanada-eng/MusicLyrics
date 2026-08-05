@@ -690,6 +690,67 @@
     pushPins(); // ローカル保存＋サーバー共有
   }
 
+  /* ---------- 記入内容の一覧（別ポップアップ・コピー用） ---------- */
+  function hasFormFields(body) { return /class="tm-formfield"|data-ff=/.test(String(body || '')); }
+  // 現在表示中（案内画面）の記入欄から、今入力されている値を集める（DOMを書き換えない＝入力は保持）
+  function collectFieldValues() {
+    const out = [];
+    chatLog.querySelectorAll('.tm-content-body .tm-formfield').forEach((ff) => {
+      const kind = ff.getAttribute('data-ff') || (ff.querySelector('.tm-ff-cb') ? 'check' : (ff.querySelector('textarea') ? 'textarea' : 'text'));
+      const labelEl = ff.querySelector('.tm-ff-label');
+      const label = labelEl ? labelEl.textContent.trim() : '';
+      if (kind === 'check') {
+        const cb = ff.querySelector('.tm-ff-cb');
+        out.push({ label, kind, checked: !!(cb && cb.checked) });
+      } else if (kind === 'time') {
+        const h = ff.querySelector('.tm-ff-hour'), m = ff.querySelector('.tm-ff-min');
+        out.push({ label, kind, value: (h && h.value && m && m.value) ? (h.value + ':' + m.value) : '' });
+      } else {
+        const valEl = ff.querySelector('.tm-ff-input');
+        out.push({ label, kind, value: valEl ? valEl.value : '' });
+      }
+    });
+    return out;
+  }
+  const fieldListDialog = $('#fieldListDialog');
+  function openFieldList() {
+    if (!fieldListDialog) return;
+    const items = collectFieldValues();
+    const bodyEl = $('#fieldListBody');
+    if (bodyEl) {
+      bodyEl.innerHTML = items.length ? items.map((it) => {
+        let val;
+        if (it.kind === 'check') val = it.checked ? '<span class="tm-list-check">&#9745; チェック済み</span>' : '<span class="tm-list-empty">□ 未チェック</span>';
+        else val = (it.value && it.value.trim()) ? esc(it.value) : '<span class="tm-list-empty">（未入力）</span>';
+        return `<div class="tm-list-row"><span class="tm-list-label">${esc(it.label || '（ラベルなし）')}</span><span class="tm-list-value">${val}</span></div>`;
+      }).join('') : '<p class="tm-list-empty">この画面には記入欄がありません。</p>';
+    }
+    // コピー用テキスト（ラベル：値）
+    const text = items.map((it) => {
+      let v;
+      if (it.kind === 'check') v = it.checked ? 'チェック済み' : '未チェック';
+      else v = it.value || '';
+      return (it.label || '') + '：' + v;
+    }).join('\n');
+    const ta = $('#fieldListText'); if (ta) ta.value = text;
+    const msg = $('#fieldListMsg'); if (msg) msg.textContent = '';
+    listOpen = true;
+    fieldListDialog.showModal();
+    syncTrap();
+  }
+  if (fieldListDialog) {
+    fieldListDialog.addEventListener('close', () => { listOpen = false; syncTrap(); });
+    const cl = $('#fieldListClose'); if (cl) cl.addEventListener('click', () => fieldListDialog.close());
+    const cp = $('#fieldListCopy'); if (cp) cp.addEventListener('click', async () => {
+      const ta = $('#fieldListText'); const msg = $('#fieldListMsg');
+      if (!ta) return;
+      let ok = false;
+      try { await navigator.clipboard.writeText(ta.value); ok = true; }
+      catch (_) { try { ta.focus(); ta.select(); ok = document.execCommand('copy'); } catch (__) { ok = false; } }
+      if (msg) msg.textContent = ok ? 'コピーしました。' : 'コピーできませんでした。テキストを選択してコピーしてください。';
+    });
+  }
+
   // navPath: array of node ids representing current descent (empty = root)
   let navPath = [];
   let navReorder = false; // 案内モードの簡易並べ替えモード
@@ -697,6 +758,7 @@
   let searchOpen = false; // 検索ダイアログを開いているか
   let updatesOpen = false; // 更新履歴ダイアログを開いているか
   let helpOpen = false;    // 使い方ダイアログを開いているか
+  let listOpen = false;    // 記入内容の一覧ダイアログを開いているか
 
   function currentChildren() {
     if (navPath.length === 0) return tree;
@@ -833,6 +895,7 @@
             <h2 class="tm-current-title">${esc(curNode.title)}</h2>
           </div>
           <div class="tm-current-actions">
+            ${hasFormFields(curNode.body) ? `<button class="tm-listbtn" data-listfields type="button" title="記入した内容を一覧で表示・コピー">&#128203; 記入内容を一覧</button>` : ''}
             <button class="tm-pinbtn ${isPinned(curNode.id) ? 'is-on' : ''}" data-pintoggle="${curNode.id}" type="button" title="TOP画面にピン留め">${isPinned(curNode.id) ? '&#9733; ピン留め中' : '&#9734; ピン留め'}</button>
             <button class="tm-editthis" data-editthis="${curNode.id}" type="button">&#9998; この項目を編集</button>
           </div>
@@ -904,7 +967,7 @@
   let trapped = false;    // センチネルを積んでいるか
   let absorbPop = false;  // 直後の1回の popstate を無視（プログラム的 back 用）
   try { history.replaceState({ cbcBase: 1 }, ''); } catch (_) {}
-  function needTrap() { return navPath.length > 0 || !editView.hidden || navReorder || invOpen || searchOpen || updatesOpen || helpOpen; }
+  function needTrap() { return navPath.length > 0 || !editView.hidden || navReorder || invOpen || searchOpen || updatesOpen || helpOpen || listOpen; }
   function syncTrap() {
     if (needTrap()) {
       if (!trapped) { try { history.pushState({ cbc: 1 }, ''); trapped = true; } catch (_) {} }
@@ -1106,6 +1169,8 @@
     // 現在の項目をピン留め／解除
     const pt = e.target.closest('[data-pintoggle]');
     if (pt) { togglePin(pt.dataset.pintoggle); renderNav(); return; }
+    // 記入内容の一覧（別ポップアップ）を開く
+    if (e.target.closest('[data-listfields]')) { openFieldList(); return; }
     const eb = e.target.closest('[data-editthis]');
     if (eb) { // 案内モードから直接編集
       const node = findNode(eb.dataset.editthis);

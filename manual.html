@@ -9,7 +9,7 @@
   <link rel="manifest" href="manifest.webmanifest">
   <link rel="icon" href="icon.svg" type="image/svg+xml">
   <link rel="apple-touch-icon" href="icon-192.png">
-  <link rel="stylesheet" href="manual.css?v=50">
+  <link rel="stylesheet" href="manual.css?v=51">
 </head>
 <body class="tm-body">
 
@@ -428,6 +428,25 @@
     </form>
   </dialog>
 
+  <!-- ===== 記入内容の一覧（別ポップアップ・入力に影響しない） ===== -->
+  <dialog id="fieldListDialog" class="tm-dialog tm-list-dialog">
+    <div class="tm-dialog-form">
+      <h2 class="tm-dialog-title">&#128203; 記入内容の一覧</h2>
+      <p class="tm-list-hint">この画面で入力した内容の一覧です。「コピー」でまとめてコピーできます。<br>
+        「閉じる」を押すと元の画面に戻り、続きから入力できます（入力内容は消えません）。</p>
+      <div id="fieldListBody" class="tm-list-body"></div>
+      <label class="tm-field">
+        <span class="tm-field-label">コピー用テキスト（全選択してコピーもできます）</span>
+        <textarea id="fieldListText" class="tm-input tm-list-text" rows="8" readonly></textarea>
+      </label>
+      <p id="fieldListMsg" class="tm-list-msg" aria-live="polite"></p>
+      <div class="tm-dialog-actions">
+        <button type="button" id="fieldListCopy" class="tm-btn tm-btn-primary">&#128203; コピー</button>
+        <button type="button" id="fieldListClose" class="tm-btn tm-btn-outline">&#9664; 閉じる（入力に戻る）</button>
+      </div>
+    </div>
+  </dialog>
+
   <!-- ===== Lightbox（画像の拡大表示） ===== -->
   <dialog id="lightbox" class="tm-lightbox">
     <button type="button" id="lbClose" class="tm-lb-close" aria-label="閉じる">&#10005;</button>
@@ -613,6 +632,6 @@
   </dialog>
 
   <script src="vendor/xlsx.full.min.js"></script>
-  <script src="manual.js?v=51"></script>
+  <script src="manual.js?v=52"></script>
 </body>
 </html>

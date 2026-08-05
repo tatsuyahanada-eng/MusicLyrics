@@ -842,6 +842,31 @@ body.tm-dragging .tm-sortrow { cursor: grabbing; }
 }
 .tm-pinbtn:hover { color: var(--tm-warn); border-color: rgba(255, 207, 63, 0.5); }
 .tm-pinbtn.is-on { color: #1a1400; background: var(--tm-warn); border-color: var(--tm-warn); font-weight: 700; }
+/* 記入内容を一覧するボタン */
+.tm-listbtn {
+  font-size: 12px; font-family: var(--tm-mono); letter-spacing: .5px;
+  color: var(--tm-cyan); background: transparent;
+  border: 1px solid var(--tm-line-strong); border-radius: 4px;
+  padding: 6px 10px; cursor: pointer; white-space: nowrap;
+  transition: color .15s, border-color .15s, background .15s;
+}
+.tm-listbtn:hover { color: #051417; background: var(--tm-cyan); border-color: var(--tm-cyan); }
+
+/* 記入内容の一覧ポップアップ */
+.tm-list-dialog { width: min(560px, 94vw); max-width: 94vw; }
+.tm-list-hint { font-size: 12px; color: var(--tm-muted); line-height: 1.7; margin-bottom: 12px; }
+.tm-list-body {
+  display: flex; flex-direction: column; gap: 1px;
+  background: var(--tm-line); border: 1px solid var(--tm-line);
+  border-radius: 8px; overflow: hidden; margin-bottom: 14px;
+}
+.tm-list-row { display: flex; gap: 10px; padding: 9px 12px; background: var(--tm-panel-solid); }
+.tm-list-label { flex: 0 0 38%; color: var(--tm-cyan); font-size: 13px; font-weight: 700; word-break: break-word; }
+.tm-list-value { flex: 1; color: var(--tm-text); font-size: 14px; word-break: break-word; white-space: pre-wrap; }
+.tm-list-empty { color: var(--tm-muted); }
+.tm-list-check { color: var(--tm-cyan); font-weight: 700; }
+.tm-list-text { width: 100%; resize: vertical; font-family: var(--tm-mono); font-size: 13px; line-height: 1.6; }
+.tm-list-msg { min-height: 16px; font-size: 12px; color: var(--tm-cyan); margin: 4px 0 0; }
 
 /* ---------- Buttons ---------- */
 .tm-btn {
@@ -1310,14 +1335,14 @@ textarea.tm-ff-input { width: 100%; resize: vertical; min-height: 88px; }
 /* ============================================================
    在庫管理（Inventory）
    ============================================================ */
-/* 大項目一覧に出す「在庫管理」タイル */
-.tm-cat-tile.tm-inv-tile { border-color: rgba(255, 207, 63, 0.5); background: rgba(40, 34, 10, 0.5); }
+/* 大項目一覧に出す「在庫管理」タイル（ピン留めの黄色と区別するため紫系） */
+.tm-cat-tile.tm-inv-tile { border-color: rgba(167, 139, 250, 0.55); background: rgba(38, 30, 60, 0.5); }
 .tm-cat-tile.tm-inv-tile:hover, .tm-cat-tile.tm-inv-tile:focus-visible {
-  border-color: var(--tm-warn);
-  box-shadow: inset 0 0 0 1px var(--tm-warn), 0 0 26px rgba(255, 207, 63, 0.5);
+  border-color: #a78bfa;
+  box-shadow: inset 0 0 0 1px #a78bfa, 0 0 26px rgba(167, 139, 250, 0.5);
 }
-.tm-cat-tile.tm-inv-tile .tm-cat-no { color: var(--tm-warn); }
-.tm-cat-tile.tm-inv-tile .tm-cat-name { color: var(--tm-warn); }
+.tm-cat-tile.tm-inv-tile .tm-cat-no { color: #b9a2ff; }
+.tm-cat-tile.tm-inv-tile .tm-cat-name { color: #c3b0ff; }
 
 .tm-inv-toolbar { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 10px; }
 .tm-inv-tablewrap { overflow-x: auto; -webkit-overflow-scrolling: touch; }
