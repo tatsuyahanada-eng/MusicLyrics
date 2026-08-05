@@ -543,6 +543,27 @@ switch ($action) {
     ok(array('qty' => $bal));
   }
 
+  case 'pins_get': {
+    // ピン留め（全端末で共有）。読み取りは誰でも可。
+    $st = $pdo->prepare("SELECT v FROM app_settings WHERE k = ?");
+    $st->execute(array('pins'));
+    $v = $st->fetchColumn();
+    ok(array('pins' => ($v === false || $v === null) ? '[]' : $v));
+  }
+
+  case 'pins_set': {
+    require_token();
+    $d = body_json();
+    $arr = (isset($d['pins']) && is_array($d['pins'])) ? array_values(array_filter($d['pins'], 'is_string')) : array();
+    $json = json_encode($arr, JSON_UNESCAPED_UNICODE);
+    // 全ドライバ共通の upsert（DELETE→INSERT）
+    $pdo->beginTransaction();
+    $pdo->prepare("DELETE FROM app_settings WHERE k = ?")->execute(array('pins'));
+    $pdo->prepare("INSERT INTO app_settings (k, v) VALUES (?, ?)")->execute(array('pins', $json));
+    $pdo->commit();
+    ok(array('pins' => $json));
+  }
+
   default:
     fail('不明なアクションです: ' . $action, 404);
 }

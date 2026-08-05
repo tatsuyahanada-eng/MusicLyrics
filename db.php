@@ -77,6 +77,26 @@ function cbc_init_schema($pdo, $driver) {
   }
   cbc_ensure_columns($pdo, $driver);
   cbc_init_inventory($pdo, $driver);
+  cbc_init_settings($pdo, $driver);
+}
+
+/* アプリ共通設定（キー/値）。ピン留め（全端末で共有）などを保存する。 */
+function cbc_init_settings($pdo, $driver) {
+  if ($driver === 'mysql') {
+    $pdo->exec(
+      "CREATE TABLE IF NOT EXISTS app_settings (
+        k VARCHAR(64)  NOT NULL PRIMARY KEY,
+        v MEDIUMTEXT   NULL
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci"
+    );
+  } else { // sqlite / pgsql
+    $pdo->exec(
+      "CREATE TABLE IF NOT EXISTS app_settings (
+        k VARCHAR(64) NOT NULL PRIMARY KEY,
+        v TEXT        NULL
+      )"
+    );
+  }
 }
 
 /* 在庫管理テーブル（初回アクセス時に自動作成）。

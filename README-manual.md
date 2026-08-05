@@ -144,7 +144,7 @@ define('API_TOKEN', '好きな合言葉');      // 公開URLでは必ず設定
 
 **方法A（かんたん・推奨）: 自動作成**
 `config.php` を正しく設定した状態で `manual.html` を一度開くと、`db.php` が
-`nodes` / `inv_items` / `inv_logs` の各テーブルを自動で作成します。特別な操作は不要です。
+`nodes` / `inv_items` / `inv_logs` / `app_settings` の各テーブルを自動で作成します。特別な操作は不要です。
 
 **方法B: 手動でSQLを実行**
 phpMyAdmin 等で下記SQLを実行して、テーブルを作成しておくこともできます
@@ -190,6 +190,12 @@ CREATE TABLE IF NOT EXISTS inv_logs (
   created_at BIGINT       NOT NULL DEFAULT 0,
   INDEX idx_inv_item (item_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- アプリ共通設定（ピン留めを全端末で共有）
+CREATE TABLE IF NOT EXISTS app_settings (
+  k VARCHAR(64) NOT NULL PRIMARY KEY,
+  v MEDIUMTEXT  NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 ```
 
 ### 5. 既存データの移行（引き継ぐ場合）
@@ -199,9 +205,9 @@ CREATE TABLE IF NOT EXISTS inv_logs (
 
 **旧サーバーで書き出し（例: mysqldump）**
 ```bash
-mysqldump -h 旧DBホスト -u 旧ユーザー -p 旧DB名 nodes inv_items inv_logs > casebycase.sql
+mysqldump -h 旧DBホスト -u 旧ユーザー -p 旧DB名 nodes inv_items inv_logs app_settings > casebycase.sql
 ```
-（phpMyAdmin の「エクスポート」で `nodes` `inv_items` `inv_logs` を選んでも構いません）
+（phpMyAdmin の「エクスポート」で `nodes` `inv_items` `inv_logs` `app_settings` を選んでも構いません）
 
 **移行先で読み込み**
 ```bash

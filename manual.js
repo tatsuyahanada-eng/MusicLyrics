@@ -269,6 +269,7 @@
     const data = await apiCall('tree');
     applyRows(data.nodes || []);
     await reapplyUnlocks();
+    await fetchPins(); // 共有ピンも取得（全端末で同じピンを表示）
   }
 
   const serverMode = () => serverAvailable && dbConnected;
@@ -657,19 +658,36 @@
   const restartBtnTop = $('#restartBtnTop');
   const remainHint = $('#remainHint');
 
-  /* ---------- ピン留め（よく使う項目をTOPに固定・この端末だけ） ---------- */
-  const PIN_KEY = 'treeManual.pins.v1';
-  let pins = loadPins();
-  function loadPins() {
+  /* ---------- ピン留め（よく使う項目をTOPに固定・サーバーで全端末共有） ---------- */
+  const PIN_KEY = 'treeManual.pins.v1'; // オフライン表示用のローカルキャッシュ
+  let pins = loadPinsCache();
+  function loadPinsCache() {
     try { const a = JSON.parse(localStorage.getItem(PIN_KEY) || '[]'); return Array.isArray(a) ? a.filter((x) => typeof x === 'string') : []; }
     catch (_) { return []; }
   }
-  function savePins() { try { localStorage.setItem(PIN_KEY, JSON.stringify(pins)); } catch (_) {} }
+  function savePinsCache() { try { localStorage.setItem(PIN_KEY, JSON.stringify(pins)); } catch (_) {} }
   function isPinned(id) { return pins.indexOf(id) >= 0; }
+  // サーバーから共有ピンを取得（全端末で同じピンが見える）
+  async function fetchPins() {
+    if (!serverMode()) return;
+    try {
+      const d = await apiCall('pins_get');
+      let arr = [];
+      try { arr = JSON.parse(d.pins || '[]'); } catch (_) { arr = []; }
+      if (Array.isArray(arr)) { pins = arr.filter((x) => typeof x === 'string'); savePinsCache(); }
+    } catch (_) { /* 取得できなければローカルキャッシュのまま */ }
+  }
+  // サーバーへ共有ピンを保存
+  async function pushPins() {
+    savePinsCache();
+    if (!serverMode()) { syncMsg('サーバー未接続のため、ピンはこの端末のみ保存されました', true); return; }
+    try { await apiCall('pins_set', { method: 'POST', body: { pins } }); }
+    catch (e) { syncMsg('ピンの共有保存に失敗：' + e.message, true); }
+  }
   function togglePin(id) {
     const i = pins.indexOf(id);
     if (i >= 0) pins.splice(i, 1); else pins.push(id);
-    savePins();
+    pushPins(); // ローカル保存＋サーバー共有
   }
 
   // navPath: array of node ids representing current descent (empty = root)
@@ -722,7 +740,7 @@
   // TOP画面のピン留めセクション（この端末のみ。存在しない項目は自動的に除外）
   function pinsSectionHtml() {
     const valid = pins.filter((id) => findNode(id));
-    if (valid.length !== pins.length) { pins = valid; savePins(); } // 消えた項目は掃除
+    if (valid.length !== pins.length) { pins = valid; savePinsCache(); } // 消えた項目は掃除（この端末の表示のみ）
     if (!valid.length) return '';
     const tiles = valid.map((id) => {
       const node = findNode(id);
@@ -738,7 +756,7 @@
       </div>`;
     }).join('');
     return `<div class="tm-pins">
-      <div class="tm-pins-label">&#9733; ピン留め（この端末）</div>
+      <div class="tm-pins-label">&#9733; ピン留め</div>
       <div class="tm-pins-grid">${tiles}</div>
     </div>`;
   }
