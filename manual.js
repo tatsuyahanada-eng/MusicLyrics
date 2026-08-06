@@ -1464,10 +1464,24 @@
       if (info.pos === 'inside') { parentId = info.tid; beforeId = null; openNodes.add(info.tid); persistOpen(); }
       else { parentId = findParentId(info.tid) || ''; beforeId = info.pos === 'before' ? info.tid : nextSiblingId(info.tid); }
     }
-    (async () => {
-      try { await opReparent(draggedId, parentId, beforeId); renderEdit(); flashSaved('移動しました'); }
-      catch (err) { flashSaved('移動に失敗：' + err.message); }
-    })();
+    const doMove = () => {
+      (async () => {
+        try { await opReparent(draggedId, parentId, beforeId); renderEdit(); flashSaved('移動しました'); }
+        catch (err) { flashSaved('移動に失敗：' + err.message); }
+      })();
+    };
+    // 親が変わる＝階層が変わる移動のときだけ、間違い防止の確認を出す。
+    // 同じ階層内の並べ替え（親が同じ）は確認なしでそのまま反映。
+    const curParent = findParentId(draggedId) || '';
+    if (parentId !== curParent) {
+      const childTitle = (findNode(draggedId) || {}).title || 'この項目';
+      const dest = parentId
+        ? `「${(findNode(parentId) || {}).title || ''}」の子項目`
+        : '最上位（大項目）';
+      askConfirm(`「${childTitle}」を ${dest} に移動します。階層が変わりますが、よろしいですか？`, doMove, '移動する');
+    } else {
+      doMove();
+    }
   }
 
   editTree.addEventListener('pointerdown', (e) => {
@@ -2374,11 +2388,11 @@
 
   /* ---------- ログアウト / 自動ログアウト（無操作タイマー） ---------- */
   const LOGOUT_KEY = 'treeManual.loggedOut.v1';
-  // 無操作で自動ログアウトするまでの時間（既定30分）。?idlemin=... で上書き可（テスト/運用調整用）
-  let IDLE_LIMIT = 30 * 60 * 1000;
+  // 無操作で自動ログアウトするまでの時間（既定12時間＝半日）。?idlemin=... で上書き可（テスト/運用調整用）
+  let IDLE_LIMIT = 12 * 60 * 60 * 1000;
   try {
     const qs = new URLSearchParams(location.search);
-    if (qs.has('idlemin')) IDLE_LIMIT = Math.max(0.05, parseFloat(qs.get('idlemin')) || 30) * 60 * 1000;
+    if (qs.has('idlemin')) IDLE_LIMIT = Math.max(0.05, parseFloat(qs.get('idlemin')) || 720) * 60 * 1000;
     else if (qs.has('idlems')) IDLE_LIMIT = Math.max(3000, parseInt(qs.get('idlems'), 10) || IDLE_LIMIT);
     else {
       const m = parseFloat(localStorage.getItem('treeManual.idleMin.v1'));
@@ -2391,18 +2405,40 @@
     const raw = localStorage.getItem(LOGOUT_KEY);
     if (raw) { const o = JSON.parse(raw); loggedOut = !!o.out; logoutReason = o.reason || 'manual'; }
   } catch (_) {}
+  // 最終操作時刻（端末に保存）。setTimeout は端末スリープ等で止まることがあるため、
+  // 「最終操作からの経過時間」でも判定する。これにより半日たてば復帰時に確実にログアウトする。
+  const ACTIVE_KEY = 'treeManual.lastActive.v1';
+  let lastActiveAt = Date.now();
+  try { const t = parseInt(localStorage.getItem(ACTIVE_KEY), 10); if (t > 0) lastActiveAt = t; } catch (_) {}
+  let _lastPersist = 0;
   let idleTimer = null;
+  function idleExpired() { return (IDLE_LIMIT > 0) && (Date.now() - lastActiveAt) >= IDLE_LIMIT; }
   function resetIdleTimer() {
     if (idleTimer) { clearTimeout(idleTimer); idleTimer = null; }
     if (!serverMode()) return;          // 接続できていない間は計測しない
     if (!session) return;               // アプリ内ログイン中のみ計測
     if (!(IDLE_LIMIT > 0)) return;
-    idleTimer = setTimeout(() => { appLogout('timeout'); }, IDLE_LIMIT);
+    const remain = IDLE_LIMIT - (Date.now() - lastActiveAt);
+    if (remain <= 0) { appLogout('timeout'); return; }
+    idleTimer = setTimeout(() => { appLogout('timeout'); }, remain);
   }
+  // 操作があったら最終操作時刻を更新（localStorageへの書き込みは5秒に1回まで）
+  function markActive() {
+    lastActiveAt = Date.now();
+    if (lastActiveAt - _lastPersist > 5000) { _lastPersist = lastActiveAt; try { localStorage.setItem(ACTIVE_KEY, String(lastActiveAt)); } catch (_) {} }
+    resetIdleTimer();
+  }
+  function idleCheck() { if (session && serverMode() && idleExpired()) appLogout('timeout'); }
   ['pointerdown', 'keydown', 'touchstart', 'wheel', 'mousemove'].forEach((ev) => {
-    document.addEventListener(ev, () => { if (session) resetIdleTimer(); }, { passive: true });
+    document.addEventListener(ev, () => { if (session) markActive(); }, { passive: true });
   });
-  document.addEventListener('visibilitychange', () => { if (!document.hidden && session) resetIdleTimer(); });
+  document.addEventListener('visibilitychange', () => {
+    if (document.hidden || !session) return;
+    idleCheck();                    // 復帰時に半日超過していれば即ログアウト
+    if (session) resetIdleTimer();  // まだ有効なら残り時間で計測しなおす（復帰だけでは操作扱いにしない）
+  });
+  // タイマーが端末スリープ等で発火しない場合に備え、定期的にも経過をチェック（サーバー通信なし）
+  setInterval(idleCheck, 60 * 1000);
 
   // ブラウザにキャッシュされた Basic認証の資格情報をできる限り消す（再ログインでパスワードを求めるため）
   function clearBasicAuth() {
@@ -3693,7 +3729,7 @@
     hideAppLogin();
     try { await reloadFromServer(); } catch (e) {}
     setMode('nav');
-    resetIdleTimer();
+    markActive(); // ログイン直後を操作起点にする（ここから半日で自動ログアウト）
   }
   async function appLogout(reason) {
     if (idleTimer) { clearTimeout(idleTimer); idleTimer = null; }
@@ -3865,7 +3901,10 @@
     await detectServer();
     if (serverMode() && !gateReason()) {
       await checkSession();
-      if (session) {
+      if (session && idleExpired()) {
+        // 前回の操作から半日以上たっていれば、復帰時に自動ログアウト
+        await appLogout('timeout');
+      } else if (session) {
         try { await reloadFromServer(); } catch (e) { /* サーバー接続済みなら再取得のみ */ }
         hideAppLogin();
       } else {
