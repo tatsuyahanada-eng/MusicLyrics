@@ -264,12 +264,17 @@ if ($action === 'config') {
   try { cbc_pdo(); $connected = true; }
   catch (Throwable $e) { $err = $e->getMessage(); }
   $aiOn = true; // AI機能の表示ON/OFF（管理者が切替・全端末共有）。既定はON。
-  if ($connected) { try { $aiOn = (cbc_setting_get(cbc_pdo(), 'ai_enabled', '1') !== '0'); } catch (Throwable $e) {} }
+  $invOn = false; // 在庫管理の表示ON/OFF（管理者が切替・全端末共有）。既定はOFF（非表示）。
+  if ($connected) {
+    try { $aiOn = (cbc_setting_get(cbc_pdo(), 'ai_enabled', '1') !== '0'); } catch (Throwable $e) {}
+    try { $invOn = (cbc_setting_get(cbc_pdo(), 'inv_enabled', '0') === '1'); } catch (Throwable $e) {}
+  }
   ok(array(
     'dbConnected' => $connected,
     'hasToken'    => (API_TOKEN !== ''),
     'hasGemini'   => (GEMINI_API_KEY !== ''),
     'aiOn'        => $aiOn,
+    'invOn'       => $invOn,
     'uploads'     => true,
     'driver'      => defined('DB_DRIVER') ? DB_DRIVER : 'mysql',
     'error'       => $connected ? null : $err,
@@ -735,6 +740,15 @@ switch ($action) {
     $on = !empty($d['on']);
     cbc_setting_set($pdo, 'ai_enabled', $on ? '1' : '0');
     ok(array('aiOn' => $on));
+  }
+
+  case 'inv_set_enabled': {
+    // 在庫管理の表示ON/OFFを切り替え（全端末共有・管理者のみ）
+    require_admin_session($pdo);
+    $d = body_json();
+    $on = !empty($d['on']);
+    cbc_setting_set($pdo, 'inv_enabled', $on ? '1' : '0');
+    ok(array('invOn' => $on));
   }
 
   case 'ai_summarize': {

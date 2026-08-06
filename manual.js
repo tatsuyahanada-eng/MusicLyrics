@@ -831,6 +831,25 @@
     updateAiToggleUI();
   }); }
 
+  function updateInvToggleUI() {
+    const chk = $('#invToggle'), state = $('#invState');
+    if (chk) chk.checked = invOn;
+    if (state) { state.textContent = invOn ? 'ON' : 'OFF'; state.classList.toggle('is-on', invOn); }
+  }
+  { const chk = $('#invToggle'); if (chk) chk.addEventListener('change', async () => {
+    const want = chk.checked;
+    invOn = want;
+    try {
+      await apiCall('inv_set_enabled', { method: 'POST', body: { on: want } });
+      syncMsg(want ? '在庫管理を表示にしました' : '在庫管理を非表示にしました');
+      renderNav();
+    } catch (e) {
+      invOn = !want; chk.checked = invOn;
+      syncMsg('在庫管理の表示設定の保存に失敗：' + e.message, true);
+    }
+    updateInvToggleUI();
+  }); }
+
   if (aiSummaryDialog) {
     aiSummaryDialog.addEventListener('close', () => { aiOpen = false; syncTrap(); });
     const cl = $('#aiSummaryClose'); if (cl) cl.addEventListener('click', () => aiSummaryDialog.close());
@@ -1024,12 +1043,12 @@
     const canReorder = kids.length > 1;
     if (navReorder && !canReorder) navReorder = false; // 並べ替え対象が無ければ解除
 
-    // 大項目一覧の先頭に出す「在庫管理」タイル（特別項目）
-    const invTile = `<button class="tm-cat-tile tm-inv-tile" data-inv type="button">
+    // 大項目一覧の先頭に出す「在庫管理」タイル（特別項目）。管理者がONにしたときだけ表示。
+    const invTile = invOn ? `<button class="tm-cat-tile tm-inv-tile" data-inv type="button">
       <span class="tm-cat-no">&#128230;</span>
       <span class="tm-cat-name">在庫管理</span>
       <span class="tm-cat-sub">持ち出し・返却・使用履歴</span>
-    </button>`;
+    </button>` : '';
 
     if (navReorder && kids.length > 0) {
       choiceDock.className = 'tm-choicedock tm-sortmode';
@@ -2483,6 +2502,7 @@
   let hasGemini = false;         // サーバーに Gemini APIキーが設定済みか
   let aiOn = true;               // 管理者による AI表示ON/OFF（全端末共有・既定ON）
   let aiEnabled = false;         // 実際にAIボタンを表示するか（hasGemini かつ aiOn）
+  let invOn = false;             // 管理者による 在庫管理の表示ON/OFF（全端末共有・既定OFF）
   let dbError = null;
   let authRequired = false;      // Basic認証等でログインが必要（401）→ 中身を出さない
 
@@ -2690,8 +2710,10 @@
       hasGemini = !!cfg.hasGemini;
       aiOn = (cfg.aiOn !== false);            // 管理者の表示ON/OFF（既定ON）
       aiEnabled = hasGemini && aiOn;          // 実際にAIボタンを出すか
+      invOn = (cfg.invOn === true);           // 在庫管理の表示ON/OFF（既定OFF）
       dbError = cfg.error || null;
       updateAiToggleUI();
+      updateInvToggleUI();
     } catch (e) {
       serverAvailable = false; dbConnected = false; hasToken = false; dbError = null;
     }
@@ -3402,8 +3424,8 @@
       }
     };
     walk(tree, [], []);
-    // 在庫（商品名・型番・メモ）も対象
-    (invItems || []).forEach((it) => {
+    // 在庫（商品名・型番・メモ）も対象。ただし在庫管理が非表示ならヒットさせない。
+    if (invOn) (invItems || []).forEach((it) => {
       const hay = ((it.name || '') + ' ' + (it.model || '') + ' ' + (it.note || '')).toLowerCase();
       if (hay.includes(ql)) out.push({ kind: 'inv', title: it.name || '', model: it.model || '', qty: it.qty });
     });
@@ -3450,7 +3472,7 @@
     syncTrap();
     setTimeout(() => searchInput.focus(), 30);
     // 在庫商品も検索対象にするため、サーバー接続時は最新を取得（ベストエフォート）
-    if (serverMode()) { invFetch().then(() => { if (searchOpen) renderSearchResults(); }).catch(() => {}); }
+    if (serverMode() && invOn) { invFetch().then(() => { if (searchOpen) renderSearchResults(); }).catch(() => {}); }
   }
   // AIで探す（意味検索）。質問文から関連項目をAIが選ぶ。
   async function runAiSearch() {

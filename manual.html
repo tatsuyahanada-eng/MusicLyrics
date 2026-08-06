@@ -9,7 +9,7 @@
   <link rel="manifest" href="manifest.webmanifest">
   <link rel="icon" href="icon.svg" type="image/svg+xml">
   <link rel="apple-touch-icon" href="icon-192.png">
-  <link rel="stylesheet" href="manual.css?v=55">
+  <link rel="stylesheet" href="manual.css?v=56">
 </head>
 <body class="tm-body">
 
@@ -208,6 +208,17 @@
             <span class="tm-ai-toggle-label">&#10024; AI機能（AI要約・AIで探す）を使う</span>
           </label>
           <span id="aiToggleHint" class="tm-ai-setting-hint"></span>
+        </div>
+
+        <!-- ===== 在庫管理のON/OFF（全端末共有・管理者のみ） ===== -->
+        <div class="tm-ai-setting">
+          <label class="tm-ai-toggle">
+            <input type="checkbox" id="invToggle">
+            <span class="tm-ai-switch" aria-hidden="true"><span class="tm-ai-knob"></span></span>
+            <span id="invState" class="tm-ai-state">OFF</span>
+            <span class="tm-ai-toggle-label">&#128230; 在庫管理を表示する</span>
+          </label>
+          <span id="invToggleHint" class="tm-ai-setting-hint">大項目一覧に「在庫管理」タイルを表示します。OFFにすると全員から非表示になります。</span>
         </div>
 
         <!-- ===== Data sync (server DB) ===== -->
@@ -709,6 +720,6 @@
   </dialog>
 
   <script src="vendor/xlsx.full.min.js"></script>
-  <script src="manual.js?v=58"></script>
+  <script src="manual.js?v=59"></script>
 </body>
 </html>
