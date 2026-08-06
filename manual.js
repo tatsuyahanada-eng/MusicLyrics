@@ -2599,6 +2599,7 @@
 
   async function apiCall(action, callOpts = {}) {
     const { method = 'GET', body = null } = callOpts;
+    let busyRetry = 0; // DB接続数オーバー(1040)など一時的なエラーの自動リトライ回数
     // 401（トークン不足/相違）の間は、合言葉を入力してもらい繰り返しリトライ
     while (true) {
       const opts = { method, headers: {}, cache: 'no-store' };
@@ -2628,7 +2629,16 @@
         }
         throw new Error(err || '編集には合言葉（トークン）が必要です');
       }
-      if (!res.ok || data.ok === false) throw new Error(data.error || data.message || `HTTP ${res.status}`);
+      if (!res.ok || data.ok === false) {
+        const emsg = data.error || data.message || `HTTP ${res.status}`;
+        // 一時的にDBの同時接続が上限（[1040] Too many connections 等）のときは、少し待って自動リトライ
+        if (/too many connections|max_connections|max_user_connections/i.test(emsg) && busyRetry < 3) {
+          busyRetry++;
+          await new Promise((r) => setTimeout(r, 400 * busyRetry));
+          continue;
+        }
+        throw new Error(emsg);
+      }
       return data;
     }
   }
@@ -2696,7 +2706,8 @@
     }
   });
 
-  async function detectServer() {
+  async function detectServer(retry) {
+    retry = retry || 0;
     authRequired = false;
     try {
       // config は認証不要のはずなので、401 はサーバー側のログイン(Basic認証)未通過を意味する
@@ -2722,6 +2733,12 @@
       dbError = cfg.error || null;
       updateAiToggleUI();
       updateInvToggleUI();
+      // DB接続が一時的な「接続数オーバー(1040)」で失敗しているだけなら、
+      // 少し待って数回だけ自動リトライする（アクセス集中時に怖いエラー画面を出さない）。
+      if (!dbConnected && dbError && /too many connections|max_connections|max_user_connections/i.test(dbError) && retry < 3) {
+        await new Promise((r) => setTimeout(r, 500 * (retry + 1)));
+        return detectServer(retry + 1);
+      }
     } catch (e) {
       serverAvailable = false; dbConnected = false; hasToken = false; dbError = null;
     }

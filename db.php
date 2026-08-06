@@ -6,6 +6,41 @@
    ロリポップでは mysql を使用します。
    ============================================================ */
 
+/* スキーマのバージョン。テーブル定義（列の追加など）を変えたら必ず上げる。
+   これが変わると、各サーバーで初回アクセス時に一度だけ初期化/マイグレーションが走る。 */
+if (!defined('CBC_SCHEMA_VERSION')) define('CBC_SCHEMA_VERSION', '2026-08-07-1');
+
+// 接続だけを1回試みる（スキーマ初期化はしない）。
+function cbc_connect_once($driver, $opts) {
+  if ($driver === 'sqlite') {
+    $path = defined('DB_SQLITE_PATH') ? DB_SQLITE_PATH : (__DIR__ . '/data/manual.sqlite');
+    $dir = dirname($path);
+    if (!is_dir($dir)) @mkdir($dir, 0775, true);
+    $pdo = new PDO('sqlite:' . $path, null, null, $opts);
+    $pdo->exec('PRAGMA journal_mode = WAL');
+    $pdo->exec('PRAGMA foreign_keys = ON');
+    return $pdo;
+  } elseif ($driver === 'pgsql') {
+    $dsn = sprintf('pgsql:host=%s;port=%d;dbname=%s',
+      DB_HOST, defined('DB_PORT') ? DB_PORT : 5432, DB_NAME);
+    return new PDO($dsn, DB_USER, DB_PASS, $opts);
+  }
+  // mysql
+  $charset = defined('DB_CHARSET') ? DB_CHARSET : 'utf8mb4';
+  $dsn = sprintf('mysql:host=%s;port=%d;dbname=%s;charset=%s',
+    DB_HOST, defined('DB_PORT') ? DB_PORT : 3306, DB_NAME, $charset);
+  return new PDO($dsn, DB_USER, DB_PASS, $opts);
+}
+
+// 「接続数が一時的に上限」系のエラーか（1040=Too many connections / 1203 なども）。
+function cbc_is_busy_error($e) {
+  $msg = $e->getMessage();
+  if (stripos($msg, 'Too many connections') !== false) return true;
+  if (stripos($msg, 'max_connections') !== false) return true;
+  if (stripos($msg, 'max_user_connections') !== false) return true;
+  return false;
+}
+
 function cbc_pdo() {
   static $pdo = null;
   if ($pdo !== null) return $pdo;
@@ -15,28 +50,50 @@ function cbc_pdo() {
     PDO::ATTR_ERRMODE            => PDO::ERRMODE_EXCEPTION,
     PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
     PDO::ATTR_EMULATE_PREPARES   => false,
+    PDO::ATTR_TIMEOUT            => 5,
   );
 
-  if ($driver === 'sqlite') {
-    $path = defined('DB_SQLITE_PATH') ? DB_SQLITE_PATH : (__DIR__ . '/data/manual.sqlite');
-    $dir = dirname($path);
-    if (!is_dir($dir)) @mkdir($dir, 0775, true);
-    $pdo = new PDO('sqlite:' . $path, null, null, $opts);
-    $pdo->exec('PRAGMA journal_mode = WAL');
-    $pdo->exec('PRAGMA foreign_keys = ON');
-  } elseif ($driver === 'pgsql') {
-    $dsn = sprintf('pgsql:host=%s;port=%d;dbname=%s',
-      DB_HOST, defined('DB_PORT') ? DB_PORT : 5432, DB_NAME);
-    $pdo = new PDO($dsn, DB_USER, DB_PASS, $opts);
-  } else { // mysql
-    $charset = defined('DB_CHARSET') ? DB_CHARSET : 'utf8mb4';
-    $dsn = sprintf('mysql:host=%s;port=%d;dbname=%s;charset=%s',
-      DB_HOST, defined('DB_PORT') ? DB_PORT : 3306, DB_NAME, $charset);
-    $pdo = new PDO($dsn, DB_USER, DB_PASS, $opts);
+  // 同時接続が一時的に上限に達しているとき（[1040] Too many connections）は
+  // 少しだけ待って数回リトライする。瞬間的なアクセス集中を吸収してエラー画面を減らす。
+  $attempt = 0; $max = 4;
+  while (true) {
+    try { $pdo = cbc_connect_once($driver, $opts); break; }
+    catch (PDOException $e) {
+      if ($attempt < $max && cbc_is_busy_error($e)) {
+        $attempt++;
+        usleep(120000 * $attempt); // 120ms, 240ms, 360ms, 480ms
+        continue;
+      }
+      throw $e;
+    }
   }
 
-  cbc_init_schema($pdo, $driver);
+  cbc_maybe_init_schema($pdo, $driver); // 初回（バージョン変化時）だけ初期化。通常は何もしない。
   return $pdo;
+}
+
+// スキーマ初期化済みを記録するマーカーファイルのパス（書き込めない環境では null）。
+function cbc_schema_marker_path() {
+  $dir = __DIR__ . '/data';
+  if (defined('DB_DRIVER') && DB_DRIVER === 'sqlite') {
+    $p = defined('DB_SQLITE_PATH') ? DB_SQLITE_PATH : (__DIR__ . '/data/manual.sqlite');
+    $dir = dirname($p);
+  }
+  if (!is_dir($dir)) @mkdir($dir, 0775, true);
+  return (is_dir($dir) && is_writable($dir)) ? ($dir . '/.schema-version') : null;
+}
+
+// スキーマ初期化を「初回（＝バージョンが変わったとき）だけ」実行する。
+// これにより通常のリクエストでは十数個のDDL/情報スキーマ照会が走らず、
+// 各リクエストが軽くなって接続を握る時間が短くなる（＝同時接続の山を下げる）。
+function cbc_maybe_init_schema($pdo, $driver) {
+  $marker = cbc_schema_marker_path();
+  if ($marker !== null) {
+    $cur = @file_get_contents($marker);
+    if ($cur !== false && trim($cur) === CBC_SCHEMA_VERSION) return; // 既に最新版で初期化済み
+  }
+  cbc_init_schema($pdo, $driver);
+  if ($marker !== null) { @file_put_contents($marker, CBC_SCHEMA_VERSION, LOCK_EX); }
 }
 
 /* テーブルが無ければ作成（初回アクセス時に自動実行）。
