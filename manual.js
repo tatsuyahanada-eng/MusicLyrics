@@ -3863,6 +3863,9 @@
   function topCategories() { return tree.map((n) => ({ id: n.id, title: n.title })); }
   async function openUsers() {
     if (!usersDialog || !(session && session.isAdmin)) return;
+    // 最新のカテゴリ（大項目）を反映するためにツリーを取り直す。
+    // これで、たった今追加した大項目もすぐに割り当てのチェック欄に出る。
+    if (serverMode()) { try { await reloadFromServer(); } catch (e) {} }
     usersEditing = null;
     resetUserForm();
     await refreshUsersList();
