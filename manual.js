@@ -2,7 +2,7 @@
    Case By Case — manual.js  v2
    ツリー型 作業マニュアル（チャットボット風ナビゲーション）
    サーバー(PHP+DB)接続時は「サーバーが唯一の正データ」で複数人共有。
-   未接続時は localStorage で単体動作。CSV入出力・画像添付に対応。
+   未接続時は localStorage で単体動作。Excel入出力・画像添付に対応。
    ============================================================ */
 (() => {
   'use strict';
@@ -141,97 +141,6 @@
       if (deeper) return deeper;
     }
     return null;
-  }
-
-  /* ============================================================
-     CSV  <->  TREE
-     フラットな隣接リスト形式: id, parent_id, sort_order, title, body
-     （将来の MySQL テーブルにそのまま対応）
-     ============================================================ */
-  const CSV_HEADER = ['id', 'parent_id', 'sort_order', 'title', 'body'];
-
-  function csvCell(v) {
-    v = v == null ? '' : String(v);
-    return /[",\r\n]/.test(v) ? '"' + v.replace(/"/g, '""') + '"' : v;
-  }
-  function rowsToCsv(rows) {
-    const lines = [CSV_HEADER.join(',')];
-    for (const r of rows) lines.push(CSV_HEADER.map((h) => csvCell(r[h])).join(','));
-    return lines.join('\r\n') + '\r\n';
-  }
-  // RFC4180-ish parser: handles quotes, commas, and newlines inside fields.
-  function parseCsv(text) {
-    const rows = [];
-    let row = [], field = '', inQ = false;
-    text = String(text).replace(/^﻿/, '');
-    for (let i = 0; i < text.length; i++) {
-      const c = text[i];
-      if (inQ) {
-        if (c === '"') {
-          if (text[i + 1] === '"') { field += '"'; i++; }
-          else inQ = false;
-        } else field += c;
-      } else if (c === '"') {
-        inQ = true;
-      } else if (c === ',') {
-        row.push(field); field = '';
-      } else if (c === '\r') {
-        /* ignore */
-      } else if (c === '\n') {
-        row.push(field); rows.push(row); row = []; field = '';
-      } else field += c;
-    }
-    if (field.length || row.length) { row.push(field); rows.push(row); }
-    return rows;
-  }
-
-  function treeToRows(nodes = tree, parentId = '', out = []) {
-    nodes.forEach((n, idx) => {
-      out.push({ id: n.id, parent_id: parentId, sort_order: idx, title: n.title, body: n.body || '' });
-      treeToRows(n.children || [], n.id, out);
-    });
-    return out;
-  }
-
-  function csvToTree(text) {
-    const grid = parseCsv(text).filter((r) => r.length && r.some((c) => c !== ''));
-    if (grid.length === 0) return [];
-    // header detection
-    let start = 0;
-    const first = grid[0].map((s) => s.trim().toLowerCase());
-    const idx = { id: 0, parent_id: 1, sort_order: 2, title: 3, body: 4 };
-    if (first.includes('title') || first.includes('id')) {
-      CSV_HEADER.forEach((h) => { const p = first.indexOf(h); if (p >= 0) idx[h] = p; });
-      start = 1;
-    }
-    const map = new Map();
-    const orderOf = [];
-    for (let i = start; i < grid.length; i++) {
-      const r = grid[i];
-      const id = (r[idx.id] || '').trim() || uid();
-      map.set(id, {
-        id,
-        title: r[idx.title] != null ? r[idx.title] : '（無題）',
-        body: r[idx.body] != null ? r[idx.body] : '',
-        children: [],
-        _parent: (r[idx.parent_id] || '').trim(),
-        _order: Number(r[idx.sort_order]) || i,
-      });
-      orderOf.push(id);
-    }
-    const roots = [];
-    for (const id of orderOf) {
-      const node = map.get(id);
-      const parent = node._parent && map.get(node._parent);
-      if (parent && parent !== node) parent.children.push(node);
-      else roots.push(node);
-    }
-    const clean = (arr) => {
-      arr.sort((a, b) => a._order - b._order);
-      arr.forEach((n) => { clean(n.children); delete n._order; delete n._parent; });
-    };
-    clean(roots);
-    return roots;
   }
 
   /* ============================================================
@@ -2209,58 +2118,7 @@
     return c;
   }
 
-  /* ---------- CSV export / import / reset ---------- */
-  $('#exportBtn').addEventListener('click', () => {
-    // UTF-8 BOM 付きで Excel でも文字化けしにくくする
-    const csv = '﻿' + rowsToCsv(treeToRows());
-    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    const ymd = new Date().toISOString().slice(0, 10);
-    a.href = url;
-    a.download = `manual-${ymd}.csv`;
-    a.click();
-    URL.revokeObjectURL(url);
-    flashSaved('CSVを出力しました');
-  });
-
-  const importFile = $('#importFile');
-  $('#importBtn').addEventListener('click', () => importFile.click());
-  importFile.addEventListener('change', () => {
-    const file = importFile.files[0];
-    if (!file) return;
-    const reader = new FileReader();
-    reader.onload = () => {
-      try {
-        const clean = sanitize(csvToTree(reader.result));
-        const shared = serverMode() ? '（サーバー上の全員の共有データが置き換わります）' : '';
-        askConfirm(`現在のデータを、読み込んだCSVの内容で置き換えますか？${shared}`, async () => {
-          try {
-            await opReplaceAll(clean);
-            navRestart();
-            renderEdit();
-            flashSaved('CSVを取り込みました');
-          } catch (e) { saveStatus.textContent = '✗ 取込に失敗しました：' + e.message; }
-        }, '置き換える');
-      } catch (err) {
-        saveStatus.textContent = '✗ 読み込みに失敗しました：' + err.message;
-      }
-      importFile.value = '';
-    };
-    reader.readAsText(file);
-  });
-
-  // Ensure imported nodes have the required shape and fresh-safe ids.
-  function sanitize(nodes) {
-    if (!Array.isArray(nodes)) return [];
-    return nodes.map((n) => ({
-      id: typeof n.id === 'string' && n.id ? n.id : uid(),
-      title: String(n.title || '（無題）'),
-      body: typeof n.body === 'string' ? n.body : '',
-      children: sanitize(n.children || []),
-    }));
-  }
-
+  /* ---------- reset ---------- */
   $('#resetBtn').addEventListener('click', async () => {
     if (!(await askAdmin())) return; // 管理者パスワードが必要
     const shared = serverMode() ? ' サーバー上の全員の共有データがサンプルに置き換わります。' : '';

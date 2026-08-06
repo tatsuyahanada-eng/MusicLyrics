@@ -207,9 +207,6 @@
           <button id="xlsxTemplateBtn" class="tm-btn tm-btn-outline" type="button">&#128203; Excelひな型</button>
           <button id="xlsxExportBtn" class="tm-btn tm-btn-outline" type="button">&#8681; Excel出力</button>
           <input id="xlsxFile" type="file" accept=".xlsx,.xls,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" hidden>
-          <button id="exportBtn" class="tm-btn tm-btn-outline" type="button">&#8681; CSV出力</button>
-          <button id="importBtn" class="tm-btn tm-btn-outline" type="button">&#8679; CSV取込</button>
-          <input id="importFile" type="file" accept=".csv,text/csv" hidden>
           <button id="invEditBtn" class="tm-btn tm-btn-outline" type="button">&#128230; 在庫を修正（管理者）</button>
           <button id="usersBtn" class="tm-btn tm-btn-outline" type="button" hidden>&#128101; ユーザー権限</button>
           <button id="resetBtn" class="tm-btn tm-btn-danger-outline" type="button">初期化</button>
@@ -275,9 +272,8 @@
         </div>
 
         <p class="tm-edit-hint">
-          <span class="tm-drag-handle" aria-hidden="true">&#8942;&#8942;</span>
-          項目は<strong>長押し</strong>（またはハンドル<span aria-hidden="true">&#8942;&#8942;</span>をドラッグ）で移動 ―
-          上下で並べ替え、項目の<strong>上に重ねると子項目</strong>（階層変更）になります。
+          <strong><span class="tm-drag-handle" aria-hidden="true">&#8942;&#8942;</span> をドラッグ</strong>（スマホは長押し）で移動。<br>
+          上下＝並べ替え／項目に重ねる＝<strong>子項目にする</strong>（階層変更）。
         </p>
         <p id="saveStatus" class="tm-savestatus" aria-live="polite"></p>
 
@@ -743,6 +739,6 @@
   </dialog>
 
   <script src="vendor/xlsx.full.min.js"></script>
-  <script src="manual.js?v=63"></script>
+  <script src="manual.js?v=64"></script>
 </body>
 </html>
