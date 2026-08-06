@@ -3796,6 +3796,7 @@
     if (editModeBtn) editModeBtn.hidden = !isAdmin;       // 編集は管理者のみ
     const ub = $('#usersBtn'); if (ub) ub.hidden = !isAdmin;
     const lo = $('#footerLogout'); if (lo) lo.hidden = !session;
+    const cp = $('#footerChangePw'); if (cp) cp.hidden = !(session && session.canChangePw);
     // 上部にログイン中の名前を小さく表示
     const sn = $('#sessionName');
     if (sn) {
@@ -3815,7 +3816,7 @@
     if (tok) {
       try {
         const res = await fetch(`${API}?action=me`, { headers: { 'X-User-Token': tok }, cache: 'no-store' });
-        if (res.ok) { const d = await res.json(); if (d && d.ok !== false) session = { username: d.username, name: d.name || d.username, isAdmin: !!d.isAdmin, allowed: d.allowed }; }
+        if (res.ok) { const d = await res.json(); if (d && d.ok !== false) session = { username: d.username, name: d.name || d.username, isAdmin: !!d.isAdmin, allowed: d.allowed, canChangePw: !!d.canChangePw }; }
       } catch (_) { session = null; }
     }
     updateSessionUI();
@@ -3829,7 +3830,7 @@
     let d = null; try { d = await res.json(); } catch (_) {}
     if (!res.ok || !d || d.ok === false) throw new Error((d && d.error) || ('HTTP ' + res.status));
     try { localStorage.setItem(USER_TOKEN_KEY, d.token); } catch (_) {}
-    session = { username: d.username, name: d.name || d.username, isAdmin: !!d.isAdmin, allowed: d.allowed };
+    session = { username: d.username, name: d.name || d.username, isAdmin: !!d.isAdmin, allowed: d.allowed, canChangePw: !!d.canChangePw };
     updateSessionUI();
     hideAppLogin();
     try { await reloadFromServer(); } catch (e) {}
@@ -3960,6 +3961,39 @@
         syncMsg('ユーザーを保存しました');
       } catch (ex) { if (ue) ue.textContent = ex.message || '保存に失敗しました'; }
     });
+  }
+
+  /* ---------- パスワード変更（本人） ---------- */
+  const pwDialog = $('#pwDialog');
+  function openChangePw() {
+    if (!pwDialog || !(session && session.canChangePw)) return;
+    const who = $('#pwWho'); if (who) who.textContent = session.name ? `${session.name}（${session.username}）` : session.username;
+    ['#pwCurrent', '#pwNew', '#pwNew2'].forEach((s) => { const el = $(s); if (el) el.value = ''; });
+    const err = $('#pwError'); if (err) err.textContent = '';
+    pwDialog.showModal();
+    syncTrap();
+    setTimeout(() => { const c = $('#pwCurrent'); if (c) c.focus(); }, 30);
+  }
+  if (pwDialog) {
+    pwDialog.addEventListener('close', () => { syncTrap(); });
+    { const b = $('#footerChangePw'); if (b) b.addEventListener('click', openChangePw); }
+    { const c = $('#pwCancel'); if (c) c.addEventListener('click', () => pwDialog.close()); }
+    { const f = $('#pwForm'); if (f) f.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const err = $('#pwError'); if (err) err.textContent = '';
+      const cur = $('#pwCurrent').value || '';
+      const nw = $('#pwNew').value || '';
+      const nw2 = $('#pwNew2').value || '';
+      if (nw.length < 4) { if (err) err.textContent = '新しいパスワードは4文字以上にしてください'; return; }
+      if (nw !== nw2) { if (err) err.textContent = '新しいパスワード（確認）が一致しません'; return; }
+      const btn = f.querySelector('button[type="submit"]'); if (btn) btn.disabled = true;
+      try {
+        await apiCall('change_password', { method: 'POST', body: { current: cur, new: nw } });
+        if (err) { err.textContent = '✓ パスワードを変更しました'; err.classList.add('is-ok'); }
+        setTimeout(() => { if (err) err.classList.remove('is-ok'); pwDialog.close(); }, 1200);
+      } catch (ex) { if (err) { err.classList.remove('is-ok'); err.textContent = ex.message || '変更に失敗しました'; } }
+      finally { if (btn) btn.disabled = false; }
+    }); }
   }
 
   /* ---------- boot ---------- */

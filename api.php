@@ -234,6 +234,14 @@ function cbc_node_author($pdo, $d) {
   if ($s) { $n = cbc_display_name($pdo, $s['username']); if ($n !== null && $n !== '') return $n; }
   return author_of($d);
 }
+// ユーザー登録（users行）が存在するか。存在すれば本人パスワード変更が可能。
+function cbc_user_exists($pdo, $username) {
+  try {
+    $q = $pdo->prepare('SELECT 1 FROM users WHERE username = ?');
+    $q->execute(array($username));
+    return (bool)$q->fetchColumn();
+  } catch (Throwable $e) { return false; }
+}
 function require_login($pdo) {
   $s = cbc_session($pdo);
   if (!$s) fail('ログインが必要です', 401);
@@ -857,7 +865,8 @@ switch ($action) {
     $pdo->prepare('INSERT INTO sessions (token, username, is_admin, created_at, expires_at) VALUES (?,?,?,?,?)')
       ->execute(array($token, $id, $isAdmin ? 1 : 0, now_ms(), $exp));
     ok(array('token' => $token, 'username' => $id, 'name' => cbc_display_name($pdo, $id),
-      'isAdmin' => $isAdmin, 'allowed' => $isAdmin ? null : $allowed));
+      'isAdmin' => $isAdmin, 'allowed' => $isAdmin ? null : $allowed,
+      'canChangePw' => cbc_user_exists($pdo, $id)));
   }
 
   case 'logout': {
@@ -871,7 +880,8 @@ switch ($action) {
     if (!$s) fail('未ログインです', 401);
     ok(array('username' => $s['username'], 'name' => cbc_display_name($pdo, $s['username']),
       'isAdmin' => $s['is_admin'],
-      'allowed' => $s['is_admin'] ? null : cbc_user_allowed($pdo, $s['username'])));
+      'allowed' => $s['is_admin'] ? null : cbc_user_allowed($pdo, $s['username']),
+      'canChangePw' => cbc_user_exists($pdo, $s['username'])));
   }
 
   case 'users_list': {
@@ -921,6 +931,24 @@ switch ($action) {
     if ($u === '') fail('IDは必須です');
     $pdo->prepare('DELETE FROM users WHERE username = ?')->execute(array($u));
     $pdo->prepare('DELETE FROM sessions WHERE username = ?')->execute(array($u));
+    ok();
+  }
+
+  case 'change_password': {
+    // ログイン中の本人が自分のパスワードを変更する（現在のパスワード確認あり）。
+    $s = require_login($pdo);
+    $d = body_json();
+    $cur = (string)(isset($d['current']) ? $d['current'] : '');
+    $new = (string)(isset($d['new']) ? $d['new'] : '');
+    if (mb_strlen($new) < 4) fail('新しいパスワードは4文字以上にしてください');
+    $q = $pdo->prepare('SELECT pass_hash FROM users WHERE username = ?');
+    $q->execute(array($s['username']));
+    $u = $q->fetch();
+    // 管理者パスワード(ADMIN_PW)でのログインはユーザー登録が無いので、本人変更の対象外。
+    if (!$u) fail('このログインは管理者パスワードによるログインのため、ここでは変更できません（config.php の ADMIN_PW を変更してください）', 400);
+    if (empty($u['pass_hash']) || !password_verify($cur, $u['pass_hash'])) fail('現在のパスワードが違います', 403);
+    $pdo->prepare('UPDATE users SET pass_hash = ?, updated_at = ? WHERE username = ?')
+      ->execute(array(password_hash($new, PASSWORD_DEFAULT), now_ms(), $s['username']));
     ok();
   }
 

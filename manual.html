@@ -9,7 +9,7 @@
   <link rel="manifest" href="manifest.webmanifest">
   <link rel="icon" href="icon.svg" type="image/svg+xml">
   <link rel="apple-touch-icon" href="icon-192.png">
-  <link rel="stylesheet" href="manual.css?v=57">
+  <link rel="stylesheet" href="manual.css?v=58">
 </head>
 <body class="tm-body">
 
@@ -105,6 +105,25 @@
         </div>
       </form>
     </div>
+  </dialog>
+
+  <!-- ===== パスワード変更（本人） ===== -->
+  <dialog id="pwDialog" class="tm-dialog">
+    <form id="pwForm" class="tm-dialog-form" method="dialog">
+      <h2 class="tm-dialog-title">&#128273; パスワードの変更</h2>
+      <p class="tm-dialog-sub">ログイン中のアカウント <b id="pwWho"></b> のパスワードを変更します。</p>
+      <label class="tm-field"><span class="tm-field-label">現在のパスワード</span>
+        <input id="pwCurrent" class="tm-input" type="password" autocomplete="current-password" required></label>
+      <label class="tm-field"><span class="tm-field-label">新しいパスワード（4文字以上）</span>
+        <input id="pwNew" class="tm-input" type="password" autocomplete="new-password" minlength="4" required></label>
+      <label class="tm-field"><span class="tm-field-label">新しいパスワード（確認）</span>
+        <input id="pwNew2" class="tm-input" type="password" autocomplete="new-password" minlength="4" required></label>
+      <p id="pwError" class="tm-dialog-err" aria-live="polite"></p>
+      <div class="tm-dialog-actions">
+        <button type="button" id="pwCancel" class="tm-btn tm-btn-outline">キャンセル</button>
+        <button type="submit" class="tm-btn tm-btn-primary">変更する</button>
+      </div>
+    </form>
   </dialog>
 
   <main class="tm-main">
@@ -270,6 +289,7 @@
   <footer class="tm-footer">
     <span>&copy; Case By Case</span>
     <button id="footerHelp" class="tm-linkbtn tm-footer-help" type="button">&#128214; このアプリの使い方（マニュアル）</button>
+    <button id="footerChangePw" class="tm-linkbtn tm-footer-changepw" type="button" hidden>&#128273; パスワード変更</button>
     <button id="footerLogout" class="tm-linkbtn tm-footer-logout" type="button">&#128274; ログアウト</button>
     <span id="installHint" class="tm-install" hidden>
       <button id="installBtn" class="tm-linkbtn" type="button">&#8681; アプリとしてインストール</button>
@@ -723,6 +743,6 @@
   </dialog>
 
   <script src="vendor/xlsx.full.min.js"></script>
-  <script src="manual.js?v=61"></script>
+  <script src="manual.js?v=62"></script>
 </body>
 </html>

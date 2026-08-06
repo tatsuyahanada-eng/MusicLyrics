@@ -964,6 +964,8 @@ body.tm-dragging .tm-sortrow { cursor: grabbing; }
 }
 .tm-footer-logout { color: var(--tm-muted); }
 .tm-footer-logout:hover { color: var(--tm-warn); }
+.tm-footer-changepw { color: var(--tm-muted); }
+.tm-footer-changepw:hover { color: var(--tm-cyan); }
 
 /* ---------- Edit mode ---------- */
 .tm-edit-toolbar {
@@ -1218,6 +1220,7 @@ body.tm-dragging .tm-treenode-row { cursor: grabbing; }
   letter-spacing: 1px;
   color: var(--tm-cyan);
 }
+.tm-dialog-sub { font-size: 13px; color: var(--tm-muted); margin-top: -6px; }
 .tm-field { display: flex; flex-direction: column; gap: 6px; }
 .tm-field-label { font-size: 13px; color: var(--tm-text); }
 .tm-field-hint { display: block; font-size: 11px; color: var(--tm-muted); margin-top: 2px; font-weight: 400; }
@@ -1240,6 +1243,7 @@ body.tm-dragging .tm-treenode-row { cursor: grabbing; }
 .tm-dialog-imghint { font-size: 11px; color: var(--tm-muted); }
 .tm-dialog-err { min-height: 16px; font-size: 12px; color: var(--tm-cyan); }
 .tm-dialog-err:not(:empty) { color: var(--tm-warn); }
+.tm-dialog-err.is-ok:not(:empty) { color: #22c55e; }
 
 /* 本文にカーソル位置で入力欄を足すボタン列 */
 .tm-fieldbar {
