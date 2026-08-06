@@ -78,6 +78,18 @@
   letter-spacing: 1px;
   color: var(--tm-muted);
 }
+.tm-sessionname {
+  display: inline-block;
+  margin-top: 2px;
+  font-size: 11px;
+  letter-spacing: .5px;
+  color: var(--tm-cyan);
+  white-space: nowrap;
+  max-width: 60vw;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.tm-user-realname { color: var(--tm-muted); font-weight: normal; font-size: 12px; }
 .tm-connchip {
   display: inline-block;
   margin-left: 8px;

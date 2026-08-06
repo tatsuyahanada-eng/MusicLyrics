@@ -108,12 +108,20 @@ FTPソフトで、`uploads/` フォルダのパーミッションを **705（必
 
 ### 管理者による権限設定
 1. 管理者でログイン → 上部「修正」→ ツールバーの **「👥 ユーザー権限」** を開く。
-2. ユーザーを追加：**ID・パスワード**を入力し、**閲覧できる大項目（カテゴリ）にチェック**して保存。
+2. ユーザーを追加：**ID・名前・パスワード**を入力し、**閲覧できる大項目（カテゴリ）にチェック**して保存。
+   - **名前** は、その人が項目を追加・更新したときの**登録者名として自動的に記録**されます（本人が入力する必要はありません）。
    - 例：ユーザーA＝「大項目1」と「大項目3」、ユーザーB＝「大項目2」だけ、のように振り分け。
    - 「管理者にする」にチェックすると、そのIDは全ページ閲覧・編集ができます。
-3. 既存ユーザーは「編集」で権限変更・パスワード再設定、「削除」で削除できます。
+3. 既存ユーザーは「編集」で名前・権限変更・パスワード再設定、「削除」で削除できます。
 
+> ログインすると、画面**上部にログイン中の名前**が小さく表示されます。
 > 権限は **大項目（カテゴリ）単位** です。許可した大項目の中の子項目はすべて閲覧できます。
+
+### 登録者名（自動記録）
+
+- 項目を**新規作成**すると、その人の名前が **作成者（`created_by`）** として記録され、**以降は変わりません**（ずっと残ります）。
+- 項目を**更新**すると、**更新者（`updated_by`）** がそのつど**上書き**されます（最後に更新した人の名前になります）。
+- 名前は**ログイン中のアカウントの名前から自動で入り**、サーバー側でも同じ値に確定するため、手入力での付け替えはできません。
 > 「在庫管理」はカテゴリ単位の権限対象外です。表示・非表示は下記のトグルで管理者が全体に対して切り替えます（初期状態は**非表示**）。
 
 ### 在庫管理の表示ON/OFF（管理者のみ）
@@ -256,14 +264,15 @@ CREATE TABLE IF NOT EXISTS app_settings (
   v MEDIUMTEXT  NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
--- アプリ内ログイン：ユーザー（許可カテゴリを保持）
+-- アプリ内ログイン：ユーザー（許可カテゴリ・登録者名を保持）
 CREATE TABLE IF NOT EXISTS users (
-  username   VARCHAR(64)  NOT NULL PRIMARY KEY,
-  pass_hash  VARCHAR(255) NULL,
-  is_admin   INT          NOT NULL DEFAULT 0,
-  allowed    MEDIUMTEXT   NULL,
-  created_at BIGINT       NOT NULL DEFAULT 0,
-  updated_at BIGINT       NOT NULL DEFAULT 0
+  username     VARCHAR(64)  NOT NULL PRIMARY KEY,
+  display_name VARCHAR(120) NULL,
+  pass_hash    VARCHAR(255) NULL,
+  is_admin     INT          NOT NULL DEFAULT 0,
+  allowed      MEDIUMTEXT   NULL,
+  created_at   BIGINT       NOT NULL DEFAULT 0,
+  updated_at   BIGINT       NOT NULL DEFAULT 0
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- アプリ内ログイン：ログインセッション

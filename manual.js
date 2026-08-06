@@ -19,7 +19,12 @@
       ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 
   const AUTHOR_KEY = 'treeManual.author.v1';
-  function authorName() { return (localStorage.getItem(AUTHOR_KEY) || '').trim(); }
+  // 登録者名：ログイン中はアカウントの名前を自動採用（サーバー側も同じ値で確定する）。
+  // 未ログイン（端末のみ表示）のときだけ、以前入力した名前にフォールバック。
+  function authorName() {
+    if (typeof session !== 'undefined' && session && session.name) return session.name;
+    return (localStorage.getItem(AUTHOR_KEY) || '').trim();
+  }
 
   function fmtTime(ms) {
     ms = Number(ms);
@@ -1878,7 +1883,10 @@
       }
       if (nodeDateField) nodeDateField.hidden = true; // 追加時は非表示
     }
-    if (nodeAuthorInput) nodeAuthorInput.value = authorName(); // 既定は記入者名。項目ごとに変更可
+    if (nodeAuthorInput) {
+      nodeAuthorInput.value = authorName(); // ログイン中はアカウント名を自動入力
+      nodeAuthorInput.readOnly = !!(session && session.name); // 自動なので編集不可
+    }
     if (nodeMetaEl) nodeMetaEl.textContent = metaStr;
     if (nodeErrorEl) nodeErrorEl.textContent = '';
     const canAttach = serverMode();
@@ -3771,6 +3779,17 @@
     if (editModeBtn) editModeBtn.hidden = !isAdmin;       // 編集は管理者のみ
     const ub = $('#usersBtn'); if (ub) ub.hidden = !isAdmin;
     const lo = $('#footerLogout'); if (lo) lo.hidden = !session;
+    // 上部にログイン中の名前を小さく表示
+    const sn = $('#sessionName');
+    if (sn) {
+      if (session && session.name) { sn.textContent = '👤 ' + session.name; sn.hidden = false; }
+      else { sn.textContent = ''; sn.hidden = true; }
+    }
+    // 記入者名の入力欄は、ログイン中はアカウント名で自動入力＆編集不可にする
+    const nm = (session && session.name) ? session.name : '';
+    const ai = (typeof authorInput !== 'undefined') ? authorInput : $('#authorInput');
+    if (ai) { if (session && session.name) { ai.value = nm; ai.readOnly = true; } else { ai.readOnly = false; } }
+    const bar = document.querySelector('.tm-author-bar'); if (bar) bar.hidden = !!(session && session.name);
   }
   // 保存済みトークンでセッション確認（me）
   async function checkSession() {
@@ -3779,7 +3798,7 @@
     if (tok) {
       try {
         const res = await fetch(`${API}?action=me`, { headers: { 'X-User-Token': tok }, cache: 'no-store' });
-        if (res.ok) { const d = await res.json(); if (d && d.ok !== false) session = { username: d.username, isAdmin: !!d.isAdmin, allowed: d.allowed }; }
+        if (res.ok) { const d = await res.json(); if (d && d.ok !== false) session = { username: d.username, name: d.name || d.username, isAdmin: !!d.isAdmin, allowed: d.allowed }; }
       } catch (_) { session = null; }
     }
     updateSessionUI();
@@ -3793,7 +3812,7 @@
     let d = null; try { d = await res.json(); } catch (_) {}
     if (!res.ok || !d || d.ok === false) throw new Error((d && d.error) || ('HTTP ' + res.status));
     try { localStorage.setItem(USER_TOKEN_KEY, d.token); } catch (_) {}
-    session = { username: d.username, isAdmin: !!d.isAdmin, allowed: d.allowed };
+    session = { username: d.username, name: d.name || d.username, isAdmin: !!d.isAdmin, allowed: d.allowed };
     updateSessionUI();
     hideAppLogin();
     try { await reloadFromServer(); } catch (e) {}
@@ -3844,9 +3863,11 @@
       listEl.innerHTML = users.map((u) => {
         const pages = u.isAdmin ? '全ページ（管理者）'
           : (u.allowed.length ? u.allowed.map((id) => esc(catName[id] || '（削除済み）')).join('、') : '（許可なし）');
+        const nmeta = u.name ? ` <span class="tm-user-realname">（${esc(u.name)}）</span>` : '';
+        const abadge = u.isAdmin ? ' <span class="tm-user-adminbadge">管理者</span>' : '';
         return `<div class="tm-user-row">
           <div class="tm-user-info">
-            <span class="tm-user-name">${esc(u.username)}${u.isAdmin ? ' <span class="tm-user-adminbadge">管理者</span>' : ''}</span>
+            <span class="tm-user-name">${esc(u.username)}${nmeta}${abadge}</span>
             <span class="tm-user-pages">閲覧可: ${pages}</span>
           </div>
           <div class="tm-user-ops">
@@ -3869,6 +3890,7 @@
     usersEditing = null;
     const t = $('#userFormTitle'); if (t) t.innerHTML = '&#43; ユーザーを追加';
     const uu = $('#uUsername'); if (uu) { uu.value = ''; uu.disabled = false; }
+    const un = $('#uName'); if (un) un.value = '';
     const up = $('#uPassword'); if (up) { up.value = ''; up.placeholder = 'パスワード（必須）'; }
     const ua = $('#uIsAdmin'); if (ua) ua.checked = false;
     const ue = $('#userFormError'); if (ue) ue.textContent = '';
@@ -3878,6 +3900,7 @@
     usersEditing = u.username;
     const t = $('#userFormTitle'); if (t) t.textContent = '「' + u.username + '」を編集';
     const uu = $('#uUsername'); if (uu) { uu.value = u.username; uu.disabled = true; }
+    const un = $('#uName'); if (un) un.value = u.name || '';
     const up = $('#uPassword'); if (up) { up.value = ''; up.placeholder = '変更する場合のみ入力'; }
     const ua = $('#uIsAdmin'); if (ua) ua.checked = !!u.isAdmin;
     const ue = $('#userFormError'); if (ue) ue.textContent = '';
@@ -3907,10 +3930,11 @@
       e.preventDefault();
       const ue = $('#userFormError'); if (ue) ue.textContent = '';
       const username = ($('#uUsername').value || '').trim();
+      const name = ($('#uName').value || '').trim();
       const pw = $('#uPassword').value || '';
       const isAdmin = $('#uIsAdmin').checked;
       const allowed = [...$('#uAllowed').querySelectorAll('input[type="checkbox"]:checked')].map((c) => c.value);
-      const body = { username, isAdmin, allowed };
+      const body = { username, name, isAdmin, allowed };
       if (pw) body.pw = pw;
       try {
         await apiCall('user_save', { method: 'POST', body });

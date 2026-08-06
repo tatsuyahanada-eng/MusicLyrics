@@ -9,7 +9,7 @@
   <link rel="manifest" href="manifest.webmanifest">
   <link rel="icon" href="icon.svg" type="image/svg+xml">
   <link rel="apple-touch-icon" href="icon-192.png">
-  <link rel="stylesheet" href="manual.css?v=56">
+  <link rel="stylesheet" href="manual.css?v=57">
 </head>
 <body class="tm-body">
 
@@ -19,6 +19,7 @@
       <span class="tm-header-logo">CASE&#8202;BY&#8202;CASE</span>
       <span class="tm-header-sub">"CASE&#215;GUIDE" 作業ナビゲーション・システム
         <span id="connChip" class="tm-connchip" title="データの共有状態"></span></span>
+      <span id="sessionName" class="tm-sessionname" hidden title="ログイン中のユーザー"></span>
     </div>
     <nav class="tm-header-nav">
       <button id="searchBtn" class="tm-navbtn tm-searchbtn" type="button" title="キーワードで検索">
@@ -89,6 +90,8 @@
       <form id="userForm" class="tm-user-form">
         <label class="tm-field"><span class="tm-field-label">ID</span>
           <input id="uUsername" class="tm-input" type="text" maxlength="64" autocomplete="off" required></label>
+        <label class="tm-field"><span class="tm-field-label">名前（登録者名として記録されます）</span>
+          <input id="uName" class="tm-input" type="text" maxlength="120" autocomplete="off" placeholder="例：山田 太郎"></label>
         <label class="tm-field"><span class="tm-field-label">パスワード（新規は必須／変更時のみ入力）</span>
           <input id="uPassword" class="tm-input" type="text" autocomplete="new-password" placeholder="パスワード"></label>
         <label class="tm-lock-toggle"><input type="checkbox" id="uIsAdmin">
@@ -301,8 +304,8 @@
       </label>
 
       <label class="tm-field">
-        <span class="tm-field-label">登録者名（この項目を入力・修正した人）</span>
-        <input id="nodeAuthorInput" class="tm-input" type="text" maxlength="40"
+        <span class="tm-field-label">登録者名（ログイン中はアカウントの名前が自動で入ります）</span>
+        <input id="nodeAuthorInput" class="tm-input" type="text" maxlength="120"
           autocomplete="off" placeholder="あなたの名前">
       </label>
 
@@ -720,6 +723,6 @@
   </dialog>
 
   <script src="vendor/xlsx.full.min.js"></script>
-  <script src="manual.js?v=59"></script>
+  <script src="manual.js?v=60"></script>
 </body>
 </html>

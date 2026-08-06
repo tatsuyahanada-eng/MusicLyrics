@@ -87,14 +87,30 @@ function cbc_init_auth($pdo, $driver) {
   $eng  = ($driver === 'mysql') ? ' ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci' : '';
   $pdo->exec(
     "CREATE TABLE IF NOT EXISTS users (
-      username   VARCHAR(64)  NOT NULL PRIMARY KEY,
-      pass_hash  VARCHAR(255) NULL,
-      is_admin   INT          NOT NULL DEFAULT 0,
-      allowed    $text        NULL,
-      created_at BIGINT       NOT NULL DEFAULT 0,
-      updated_at BIGINT       NOT NULL DEFAULT 0
+      username     VARCHAR(64)  NOT NULL PRIMARY KEY,
+      display_name VARCHAR(120) NULL,
+      pass_hash    VARCHAR(255) NULL,
+      is_admin     INT          NOT NULL DEFAULT 0,
+      allowed      $text        NULL,
+      created_at   BIGINT       NOT NULL DEFAULT 0,
+      updated_at   BIGINT       NOT NULL DEFAULT 0
     )$eng"
   );
+  // 既存の users テーブルに display_name が無ければ後付けする。
+  try {
+    if ($driver === 'sqlite') {
+      $cols = array();
+      foreach ($pdo->query("PRAGMA table_info(users)")->fetchAll() as $r) { $cols[] = strtolower($r['name']); }
+    } else {
+      $sql = "SELECT COLUMN_NAME AS c FROM information_schema.columns WHERE table_name = 'users'";
+      if ($driver === 'mysql') $sql .= " AND table_schema = DATABASE()";
+      $cols = array();
+      foreach ($pdo->query($sql)->fetchAll() as $r) { $cols[] = strtolower($r['c']); }
+    }
+    if (!in_array('display_name', $cols, true)) {
+      $pdo->exec("ALTER TABLE users ADD COLUMN display_name VARCHAR(120) NULL");
+    }
+  } catch (Throwable $e) { /* 追加できなくても致命ではない */ }
   $pdo->exec(
     "CREATE TABLE IF NOT EXISTS sessions (
       token      VARCHAR(64)  NOT NULL PRIMARY KEY,

@@ -217,6 +217,23 @@ function cbc_user_allowed($pdo, $username) {
     return is_array($a) ? array_values(array_filter($a, 'is_string')) : array();
   } catch (Throwable $e) { return array(); }
 }
+// ユーザーの表示名（登録者名に使う）。display_name が空なら username を返す。
+function cbc_display_name($pdo, $username) {
+  if ($username === null || $username === '') return null;
+  try {
+    $q = $pdo->prepare('SELECT display_name FROM users WHERE username = ?');
+    $q->execute(array($username));
+    $n = $q->fetchColumn();
+    if ($n !== false && $n !== null && trim((string)$n) !== '') return mb_substr(trim((string)$n), 0, 120);
+  } catch (Throwable $e) {}
+  return mb_substr((string)$username, 0, 120);
+}
+// 項目の登録者名：ログイン中ならそのユーザーの表示名を自動採用（端末のみ表示のときは author 指定にフォールバック）。
+function cbc_node_author($pdo, $d) {
+  $s = cbc_session($pdo);
+  if ($s) { $n = cbc_display_name($pdo, $s['username']); if ($n !== null && $n !== '') return $n; }
+  return author_of($d);
+}
 function require_login($pdo) {
   $s = cbc_session($pdo);
   if (!$s) fail('ログインが必要です', 401);
@@ -311,7 +328,7 @@ switch ($action) {
     $sort = (int) $ord->fetchColumn();
     $id = gen_id();
     $ts = now_ms();
-    $who = author_of($d);
+    $who = cbc_node_author($pdo, $d);
     list($lset, $lhash) = lock_hash_from($d, null);
     $finalLock = $lset ? $lhash : null;
     $ins = $pdo->prepare('INSERT INTO nodes (id, parent_id, sort_order, title, body, created_by, updated_by, lock_hash, updated_at, created_at) VALUES (?,?,?,?,?,?,?,?,?,?)');
@@ -325,7 +342,7 @@ switch ($action) {
     if (empty($d['id'])) fail('id は必須です');
     $title = trim(isset($d['title']) ? $d['title'] : '');
     if ($title === '') fail('title は必須です');
-    $who = author_of($d);
+    $who = cbc_node_author($pdo, $d);
     $curq = $pdo->prepare('SELECT lock_hash FROM nodes WHERE id = ?');
     $curq->execute(array($d['id']));
     $curHash = $curq->fetchColumn();
@@ -839,7 +856,8 @@ switch ($action) {
     $exp = now_ms() + 30 * 24 * 60 * 60 * 1000; // 30日
     $pdo->prepare('INSERT INTO sessions (token, username, is_admin, created_at, expires_at) VALUES (?,?,?,?,?)')
       ->execute(array($token, $id, $isAdmin ? 1 : 0, now_ms(), $exp));
-    ok(array('token' => $token, 'username' => $id, 'isAdmin' => $isAdmin, 'allowed' => $isAdmin ? null : $allowed));
+    ok(array('token' => $token, 'username' => $id, 'name' => cbc_display_name($pdo, $id),
+      'isAdmin' => $isAdmin, 'allowed' => $isAdmin ? null : $allowed));
   }
 
   case 'logout': {
@@ -851,17 +869,19 @@ switch ($action) {
   case 'me': {
     $s = cbc_session($pdo);
     if (!$s) fail('未ログインです', 401);
-    ok(array('username' => $s['username'], 'isAdmin' => $s['is_admin'],
+    ok(array('username' => $s['username'], 'name' => cbc_display_name($pdo, $s['username']),
+      'isAdmin' => $s['is_admin'],
       'allowed' => $s['is_admin'] ? null : cbc_user_allowed($pdo, $s['username'])));
   }
 
   case 'users_list': {
     require_admin_session($pdo);
-    $rows = $pdo->query('SELECT username, is_admin, allowed FROM users ORDER BY username')->fetchAll();
+    $rows = $pdo->query('SELECT username, display_name, is_admin, allowed FROM users ORDER BY username')->fetchAll();
     $out = array();
     foreach ($rows as $r) {
       $a = json_decode($r['allowed'], true);
-      $out[] = array('username' => $r['username'], 'isAdmin' => ((int)$r['is_admin'] === 1),
+      $out[] = array('username' => $r['username'], 'name' => $r['display_name'],
+        'isAdmin' => ((int)$r['is_admin'] === 1),
         'allowed' => is_array($a) ? array_values(array_filter($a, 'is_string')) : array());
     }
     ok(array('users' => $out));
@@ -873,6 +893,8 @@ switch ($action) {
     $u = trim((string)(isset($d['username']) ? $d['username'] : ''));
     if ($u === '') fail('IDは必須です');
     if (!preg_match('/^[\w.@\-]{1,64}$/u', $u)) fail('IDに使えない文字が含まれています');
+    $name = trim((string)(isset($d['name']) ? $d['name'] : ''));
+    $name = ($name === '') ? null : mb_substr($name, 0, 120);
     $allowed = (isset($d['allowed']) && is_array($d['allowed'])) ? array_values(array_filter($d['allowed'], 'is_string')) : array();
     $isAdmin = !empty($d['isAdmin']) ? 1 : 0;
     $allowedJson = json_encode($allowed, JSON_UNESCAPED_UNICODE);
@@ -883,11 +905,11 @@ switch ($action) {
     if (isset($d['pw']) && $d['pw'] !== '') $hash = password_hash((string)$d['pw'], PASSWORD_DEFAULT);
     if (!$ex && ($hash === '' || $hash === null)) fail('新規ユーザーにはパスワードを設定してください');
     if ($ex) {
-      $pdo->prepare('UPDATE users SET pass_hash = ?, is_admin = ?, allowed = ?, updated_at = ? WHERE username = ?')
-        ->execute(array($hash, $isAdmin, $allowedJson, now_ms(), $u));
+      $pdo->prepare('UPDATE users SET display_name = ?, pass_hash = ?, is_admin = ?, allowed = ?, updated_at = ? WHERE username = ?')
+        ->execute(array($name, $hash, $isAdmin, $allowedJson, now_ms(), $u));
     } else {
-      $pdo->prepare('INSERT INTO users (username, pass_hash, is_admin, allowed, created_at, updated_at) VALUES (?,?,?,?,?,?)')
-        ->execute(array($u, $hash, $isAdmin, $allowedJson, now_ms(), now_ms()));
+      $pdo->prepare('INSERT INTO users (username, display_name, pass_hash, is_admin, allowed, created_at, updated_at) VALUES (?,?,?,?,?,?,?)')
+        ->execute(array($u, $name, $hash, $isAdmin, $allowedJson, now_ms(), now_ms()));
     }
     ok(array('username' => $u));
   }
