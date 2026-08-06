@@ -186,6 +186,60 @@ function require_admin($d) {
   $pw = isset($d['admin']) ? (string)$d['admin'] : '';
   if (ADMIN_PW === '' || $pw === '' || !hash_equals(ADMIN_PW, $pw)) fail('管理者パスワードが必要です', 403);
 }
+
+/* ---------- アプリ内ログイン（ページ閲覧権限） ---------- */
+// 現在のセッション（X-User-Token）を返す。無効/期限切れは null。
+function cbc_session($pdo) {
+  static $cached = false;
+  if ($cached !== false) return $cached;
+  $cached = null;
+  $tok = isset($_SERVER['HTTP_X_USER_TOKEN']) ? trim($_SERVER['HTTP_X_USER_TOKEN']) : '';
+  if ($tok !== '') {
+    try {
+      $q = $pdo->prepare('SELECT token, username, is_admin, expires_at FROM sessions WHERE token = ?');
+      $q->execute(array($tok));
+      $r = $q->fetch();
+      if ($r && (int)$r['expires_at'] > now_ms()) {
+        $cached = array('token' => $tok, 'username' => $r['username'], 'is_admin' => ((int)$r['is_admin'] === 1));
+      }
+    } catch (Throwable $e) { $cached = null; }
+  }
+  return $cached;
+}
+// ユーザーに許可された大項目（カテゴリ）ID配列。未設定は空配列（何も見えない）。
+function cbc_user_allowed($pdo, $username) {
+  try {
+    $q = $pdo->prepare('SELECT allowed FROM users WHERE username = ?');
+    $q->execute(array($username));
+    $v = $q->fetchColumn();
+    if ($v === false || $v === null || $v === '') return array();
+    $a = json_decode($v, true);
+    return is_array($a) ? array_values(array_filter($a, 'is_string')) : array();
+  } catch (Throwable $e) { return array(); }
+}
+function require_login($pdo) {
+  $s = cbc_session($pdo);
+  if (!$s) fail('ログインが必要です', 401);
+  return $s;
+}
+function require_admin_session($pdo) {
+  $s = cbc_session($pdo);
+  if (!$s || !$s['is_admin']) fail('管理者としてログインしてください', 403);
+  return $s;
+}
+// フラットなノード配列を、許可された大項目（＝ルート）配下だけに絞る
+function cbc_filter_allowed($rows, $allowed) {
+  $allow = array(); foreach ($allowed as $a) $allow[$a] = true;
+  $parent = array(); foreach ($rows as $r) $parent[$r['id']] = $r['parent_id'];
+  $rootOf = function ($id) use ($parent) {
+    $g = 0;
+    while (isset($parent[$id]) && $parent[$id] !== null && $parent[$id] !== '' && $g++ < 60) $id = $parent[$id];
+    return $id;
+  };
+  $out = array();
+  foreach ($rows as $r) { if (isset($allow[$rootOf($r['id'])])) $out[] = $r; }
+  return $out;
+}
 // 履歴から在庫数と各行の残数(balance)を再計算（履歴を修正・削除したとき用）
 function cbc_inv_recalc($pdo, $itemId) {
   $q = $pdo->prepare('SELECT id, action, qty FROM inv_logs WHERE item_id = ? ORDER BY created_at ASC, id ASC');
@@ -229,8 +283,11 @@ catch (Throwable $e) { fail('DBに接続できません: ' . $e->getMessage(), 5
 switch ($action) {
 
   case 'tree': {
+    $s = require_login($pdo); // アプリ内ログイン必須
     $rows = $pdo->query('SELECT id, parent_id, sort_order, title, body, created_by, updated_by, updated_at, created_at, lock_hash FROM nodes ORDER BY parent_id, sort_order, created_at')->fetchAll();
-    ok(array('nodes' => prune_locked($rows)));
+    $nodes = prune_locked($rows);
+    if (!$s['is_admin']) $nodes = cbc_filter_allowed($nodes, cbc_user_allowed($pdo, $s['username'])); // 権限フィルタ
+    ok(array('nodes' => $nodes));
   }
 
   case 'node_create': {
@@ -682,9 +739,17 @@ switch ($action) {
 
   case 'ai_summarize': {
     // 指定項目の本文を AI で要約
+    $s = require_login($pdo);
     $d = body_json();
     $id = isset($d['id']) ? $d['id'] : '';
     if ($id === '') fail('id は必須です');
+    // 非管理者は、許可された大項目配下の項目のみ要約可
+    if (!$s['is_admin']) {
+      $all = $pdo->query('SELECT id, parent_id FROM nodes')->fetchAll();
+      $vis = cbc_filter_allowed($all, cbc_user_allowed($pdo, $s['username']));
+      $okv = false; foreach ($vis as $v) { if ($v['id'] === $id) { $okv = true; break; } }
+      if (!$okv) fail('この項目を要約する権限がありません', 403);
+    }
     $q = $pdo->prepare('SELECT title, body FROM nodes WHERE id = ?');
     $q->execute(array($id));
     $row = $q->fetch();
@@ -701,10 +766,12 @@ switch ($action) {
 
   case 'ai_search': {
     // 自然文の質問に最も関連する項目を AI が選ぶ（意味で探す）
+    $s = require_login($pdo);
     $d = body_json();
     $query = isset($d['q']) ? trim($d['q']) : '';
     if ($query === '') fail('検索語が必要です');
     $rows = $pdo->query('SELECT id, parent_id, title, body FROM nodes')->fetchAll();
+    if (!$s['is_admin']) $rows = cbc_filter_allowed($rows, cbc_user_allowed($pdo, $s['username'])); // 権限内のみ
     if (!$rows) ok(array('results' => array()));
     $byId = array();
     foreach ($rows as $r) $byId[$r['id']] = $r;
@@ -733,6 +800,92 @@ switch ($action) {
       if (count($results) >= 5) break;
     }
     ok(array('results' => $results));
+  }
+
+  case 'login': {
+    // アプリ内ログイン。ADMIN_PW でのログインは管理者（ID不問・全ページ）。
+    $d = body_json();
+    $id = isset($d['id']) ? trim((string)$d['id']) : '';
+    $pw = isset($d['pw']) ? (string)$d['pw'] : '';
+    if ($id === '' || $pw === '') fail('IDとパスワードを入力してください');
+    $isAdmin = false; $allowed = array();
+    if (ADMIN_PW !== '' && hash_equals(ADMIN_PW, $pw)) {
+      $isAdmin = true; // 管理者パスワードでログイン
+    } else {
+      $q = $pdo->prepare('SELECT username, pass_hash, is_admin FROM users WHERE username = ?');
+      $q->execute(array($id));
+      $u = $q->fetch();
+      if (!$u || empty($u['pass_hash']) || !password_verify($pw, $u['pass_hash'])) fail('IDまたはパスワードが違います', 401);
+      $isAdmin = ((int)$u['is_admin'] === 1);
+      $allowed = cbc_user_allowed($pdo, $id);
+    }
+    // 期限切れセッションの掃除（ベストエフォート）
+    try { $pdo->prepare('DELETE FROM sessions WHERE expires_at < ?')->execute(array(now_ms())); } catch (Throwable $e) {}
+    $token = bin2hex(random_bytes(24));
+    $exp = now_ms() + 30 * 24 * 60 * 60 * 1000; // 30日
+    $pdo->prepare('INSERT INTO sessions (token, username, is_admin, created_at, expires_at) VALUES (?,?,?,?,?)')
+      ->execute(array($token, $id, $isAdmin ? 1 : 0, now_ms(), $exp));
+    ok(array('token' => $token, 'username' => $id, 'isAdmin' => $isAdmin, 'allowed' => $isAdmin ? null : $allowed));
+  }
+
+  case 'logout': {
+    $s = cbc_session($pdo);
+    if ($s) $pdo->prepare('DELETE FROM sessions WHERE token = ?')->execute(array($s['token']));
+    ok();
+  }
+
+  case 'me': {
+    $s = cbc_session($pdo);
+    if (!$s) fail('未ログインです', 401);
+    ok(array('username' => $s['username'], 'isAdmin' => $s['is_admin'],
+      'allowed' => $s['is_admin'] ? null : cbc_user_allowed($pdo, $s['username'])));
+  }
+
+  case 'users_list': {
+    require_admin_session($pdo);
+    $rows = $pdo->query('SELECT username, is_admin, allowed FROM users ORDER BY username')->fetchAll();
+    $out = array();
+    foreach ($rows as $r) {
+      $a = json_decode($r['allowed'], true);
+      $out[] = array('username' => $r['username'], 'isAdmin' => ((int)$r['is_admin'] === 1),
+        'allowed' => is_array($a) ? array_values(array_filter($a, 'is_string')) : array());
+    }
+    ok(array('users' => $out));
+  }
+
+  case 'user_save': {
+    require_admin_session($pdo);
+    $d = body_json();
+    $u = trim((string)(isset($d['username']) ? $d['username'] : ''));
+    if ($u === '') fail('IDは必須です');
+    if (!preg_match('/^[\w.@\-]{1,64}$/u', $u)) fail('IDに使えない文字が含まれています');
+    $allowed = (isset($d['allowed']) && is_array($d['allowed'])) ? array_values(array_filter($d['allowed'], 'is_string')) : array();
+    $isAdmin = !empty($d['isAdmin']) ? 1 : 0;
+    $allowedJson = json_encode($allowed, JSON_UNESCAPED_UNICODE);
+    $q = $pdo->prepare('SELECT pass_hash FROM users WHERE username = ?');
+    $q->execute(array($u));
+    $ex = $q->fetch();
+    $hash = $ex ? $ex['pass_hash'] : '';
+    if (isset($d['pw']) && $d['pw'] !== '') $hash = password_hash((string)$d['pw'], PASSWORD_DEFAULT);
+    if (!$ex && ($hash === '' || $hash === null)) fail('新規ユーザーにはパスワードを設定してください');
+    if ($ex) {
+      $pdo->prepare('UPDATE users SET pass_hash = ?, is_admin = ?, allowed = ?, updated_at = ? WHERE username = ?')
+        ->execute(array($hash, $isAdmin, $allowedJson, now_ms(), $u));
+    } else {
+      $pdo->prepare('INSERT INTO users (username, pass_hash, is_admin, allowed, created_at, updated_at) VALUES (?,?,?,?,?,?)')
+        ->execute(array($u, $hash, $isAdmin, $allowedJson, now_ms(), now_ms()));
+    }
+    ok(array('username' => $u));
+  }
+
+  case 'user_delete': {
+    require_admin_session($pdo);
+    $d = body_json();
+    $u = trim((string)(isset($d['username']) ? $d['username'] : ''));
+    if ($u === '') fail('IDは必須です');
+    $pdo->prepare('DELETE FROM users WHERE username = ?')->execute(array($u));
+    $pdo->prepare('DELETE FROM sessions WHERE username = ?')->execute(array($u));
+    ok();
   }
 
   default:

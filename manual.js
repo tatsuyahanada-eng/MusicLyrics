@@ -952,6 +952,14 @@
       updateAuthGate();
       return;
     }
+    // Basic認証は通ったが、アプリ内ログインが未了 → ログイン画面を出して中身は隠す
+    if (serverMode() && !session) {
+      breadcrumbBar.innerHTML = `<span class="tm-crumb is-current" data-crumb-home>TOP</span>`;
+      chatLog.innerHTML = ''; choiceDock.innerHTML = ''; navAddDock.innerHTML = '';
+      backBtn.disabled = true; remainHint.textContent = '';
+      showAppLogin();
+      return;
+    }
 
     const atRoot = navPath.length === 0;
     const curNode = atRoot ? null : findNode(navPath[navPath.length - 1]);
@@ -2461,6 +2469,9 @@
      ============================================================ */
   const API = 'api.php';
   const TOKEN_KEY = 'treeManual.apiToken.v1';
+  const USER_TOKEN_KEY = 'treeManual.userToken.v1';
+  function userToken() { return localStorage.getItem(USER_TOKEN_KEY) || ''; }
+  let session = null; // { username, isAdmin, allowed(null=all) } ／未ログインは null
   const apiTokenInput = $('#apiToken');
   const serverStatusEl = $('#serverStatus');
   const syncStatusEl = $('#syncStatus');
@@ -2497,15 +2508,15 @@
   let idleTimer = null;
   function resetIdleTimer() {
     if (idleTimer) { clearTimeout(idleTimer); idleTimer = null; }
-    if (loggedOut) return;             // 既にログアウト済みなら計測しない
-    if (!serverMode()) return;          // 接続できていない間は計測しない（ゲート表示中）
+    if (!serverMode()) return;          // 接続できていない間は計測しない
+    if (!session) return;               // アプリ内ログイン中のみ計測
     if (!(IDLE_LIMIT > 0)) return;
-    idleTimer = setTimeout(() => { doLogout('timeout'); }, IDLE_LIMIT);
+    idleTimer = setTimeout(() => { appLogout('timeout'); }, IDLE_LIMIT);
   }
   ['pointerdown', 'keydown', 'touchstart', 'wheel', 'mousemove'].forEach((ev) => {
-    document.addEventListener(ev, () => { if (!loggedOut) resetIdleTimer(); }, { passive: true });
+    document.addEventListener(ev, () => { if (session) resetIdleTimer(); }, { passive: true });
   });
-  document.addEventListener('visibilitychange', () => { if (!document.hidden && !loggedOut) resetIdleTimer(); });
+  document.addEventListener('visibilitychange', () => { if (!document.hidden && session) resetIdleTimer(); });
 
   // ブラウザにキャッシュされた Basic認証の資格情報をできる限り消す（再ログインでパスワードを求めるため）
   function clearBasicAuth() {
@@ -2565,20 +2576,29 @@
       const opts = { method, headers: {}, cache: 'no-store' };
       const tok = apiToken();
       if (tok) opts.headers['X-Api-Token'] = tok;
+      if (userToken()) opts.headers['X-User-Token'] = userToken(); // アプリ内ログインのセッション
       if (body != null) { opts.headers['Content-Type'] = 'application/json'; opts.body = JSON.stringify(body); }
       const res = await fetch(`${API}?action=${encodeURIComponent(action)}`, opts);
       let data = null;
       try { data = await res.json(); } catch (e) { /* non-JSON */ }
       if (data === null || typeof data !== 'object') throw new Error('サーバー応答が不正です（PHP未対応の可能性）');
       if (res.status === 401) {
-        const t = await askToken(data.error);
+        const err = data.error || '';
+        // アプリ内ログインのセッション切れ／未ログインは、編集トークンではなくログイン画面へ
+        if (/ログイン/.test(err)) {
+          session = null;
+          try { localStorage.removeItem(USER_TOKEN_KEY); } catch (_) {}
+          showAppLogin();
+          const e = new Error(err || 'ログインが必要です'); e.needLogin = true; throw e;
+        }
+        const t = await askToken(err);
         if (t != null) {
           apiTokenInput.value = t;
           localStorage.setItem(TOKEN_KEY, t);
           updateEditLock();
           continue; // 新しい合言葉で再試行
         }
-        throw new Error(data.error || '編集には合言葉（トークン）が必要です');
+        throw new Error(err || '編集には合言葉（トークン）が必要です');
       }
       if (!res.ok || data.ok === false) throw new Error(data.error || data.message || `HTTP ${res.status}`);
       return data;
@@ -2767,7 +2787,7 @@
   }); }
   { const lo = $('#footerLogout'); if (lo) lo.addEventListener('click', () => {
     askConfirm('ログアウトします。再び見るにはログインが必要です。よろしいですか？',
-      () => { doLogout('manual'); }, 'ログアウト');
+      () => { appLogout('manual'); }, 'ログアウト');
   }); }
   { const rb = $('#authRetryBtn'); if (rb) rb.addEventListener('click', async () => {
     rb.disabled = true; const t = rb.textContent; rb.textContent = '接続中…';
@@ -3704,14 +3724,195 @@
     setTimeout(() => showBanner('ios'), 800);
   }
 
+  /* ============================================================
+     アプリ内ログイン（IDごとの閲覧権限）＋ ユーザー管理
+     ============================================================ */
+  const appLoginEl = $('#appLogin');
+  function showAppLogin(msg) {
+    if (!appLoginEl) return;
+    // Basic認証ゲートが出ているときはそちらを優先
+    if (gateReason()) { appLoginEl.hidden = true; return; }
+    const g = $('#authGate'); if (g) g.hidden = true; // 接続中ゲートは隠す
+    appLoginEl.hidden = false;
+    const err = $('#loginError'); if (err) err.textContent = msg || '';
+    // 中身を隠す
+    document.querySelectorAll('dialog[open]').forEach((d) => { try { d.close(); } catch (_) {} });
+    if (chatLog) chatLog.innerHTML = '';
+    if (choiceDock) choiceDock.innerHTML = '';
+    if (navAddDock) navAddDock.innerHTML = '';
+    setTimeout(() => { const el = $('#loginId'); if (el) el.focus(); }, 30);
+  }
+  function hideAppLogin() { if (appLoginEl) appLoginEl.hidden = true; }
+  // セッション（アプリ内ログイン）状態に応じて、編集ボタン・ユーザー管理ボタンの表示を切替
+  function updateSessionUI() {
+    const isAdmin = !!(session && session.isAdmin);
+    if (editModeBtn) editModeBtn.hidden = !isAdmin;       // 編集は管理者のみ
+    const ub = $('#usersBtn'); if (ub) ub.hidden = !isAdmin;
+    const lo = $('#footerLogout'); if (lo) lo.hidden = !session;
+  }
+  // 保存済みトークンでセッション確認（me）
+  async function checkSession() {
+    session = null;
+    const tok = userToken();
+    if (tok) {
+      try {
+        const res = await fetch(`${API}?action=me`, { headers: { 'X-User-Token': tok }, cache: 'no-store' });
+        if (res.ok) { const d = await res.json(); if (d && d.ok !== false) session = { username: d.username, isAdmin: !!d.isAdmin, allowed: d.allowed }; }
+      } catch (_) { session = null; }
+    }
+    updateSessionUI();
+    return session;
+  }
+  async function doAppLogin(id, pw) {
+    const res = await fetch(`${API}?action=login`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id, pw }), cache: 'no-store',
+    });
+    let d = null; try { d = await res.json(); } catch (_) {}
+    if (!res.ok || !d || d.ok === false) throw new Error((d && d.error) || ('HTTP ' + res.status));
+    try { localStorage.setItem(USER_TOKEN_KEY, d.token); } catch (_) {}
+    session = { username: d.username, isAdmin: !!d.isAdmin, allowed: d.allowed };
+    updateSessionUI();
+    hideAppLogin();
+    try { await reloadFromServer(); } catch (e) {}
+    setMode('nav');
+    resetIdleTimer();
+  }
+  async function appLogout(reason) {
+    if (idleTimer) { clearTimeout(idleTimer); idleTimer = null; }
+    try { await apiCall('logout'); } catch (_) {}
+    try { localStorage.removeItem(USER_TOKEN_KEY); } catch (_) {}
+    session = null;
+    updateSessionUI();
+    setMode('nav');
+    showAppLogin(reason === 'timeout' ? '一定時間操作がなかったため、ログアウトしました。もう一度ログインしてください。' : '');
+  }
+  { const f = $('#appLoginForm'); if (f) f.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const id = ($('#loginId').value || '').trim();
+    const pw = $('#loginPw').value || '';
+    const err = $('#loginError'); if (err) err.textContent = '';
+    const btn = f.querySelector('button[type="submit"]'); if (btn) btn.disabled = true;
+    try { await doAppLogin(id, pw); $('#loginPw').value = ''; }
+    catch (ex) { if (err) err.textContent = ex.message || 'ログインに失敗しました'; }
+    finally { if (btn) btn.disabled = false; }
+  }); }
+
+  /* ---------- ユーザーとページ権限（管理者ダイアログ） ---------- */
+  const usersDialog = $('#usersDialog');
+  let usersEditing = null; // 編集中のユーザー名（新規は null）
+  function topCategories() { return tree.map((n) => ({ id: n.id, title: n.title })); }
+  async function openUsers() {
+    if (!usersDialog || !(session && session.isAdmin)) return;
+    usersEditing = null;
+    resetUserForm();
+    await refreshUsersList();
+    usersDialog.showModal();
+    syncTrap();
+  }
+  async function refreshUsersList() {
+    const listEl = $('#usersList');
+    if (!listEl) return;
+    listEl.innerHTML = '<div class="tm-sr-empty">読み込み中…</div>';
+    try {
+      const d = await apiCall('users_list');
+      const users = d.users || [];
+      if (!users.length) { listEl.innerHTML = '<div class="tm-sr-empty">ユーザーはまだいません。下のフォームから追加してください。</div>'; return; }
+      const catName = {}; topCategories().forEach((c) => { catName[c.id] = c.title; });
+      listEl.innerHTML = users.map((u) => {
+        const pages = u.isAdmin ? '全ページ（管理者）'
+          : (u.allowed.length ? u.allowed.map((id) => esc(catName[id] || '（削除済み）')).join('、') : '（許可なし）');
+        return `<div class="tm-user-row">
+          <div class="tm-user-info">
+            <span class="tm-user-name">${esc(u.username)}${u.isAdmin ? ' <span class="tm-user-adminbadge">管理者</span>' : ''}</span>
+            <span class="tm-user-pages">閲覧可: ${pages}</span>
+          </div>
+          <div class="tm-user-ops">
+            <button type="button" class="tm-btn tm-btn-outline tm-btn-sm" data-uedit="${esc(u.username)}">編集</button>
+            <button type="button" class="tm-btn tm-btn-danger-outline tm-btn-sm" data-udel="${esc(u.username)}">削除</button>
+          </div>
+        </div>`;
+      }).join('');
+    } catch (e) { listEl.innerHTML = `<div class="tm-sr-empty">読み込みに失敗しました：${esc(e.message)}</div>`; }
+  }
+  function renderAllowedChecks(allowed) {
+    const box = $('#uAllowed'); if (!box) return;
+    const set = {}; (allowed || []).forEach((id) => { set[id] = true; });
+    const cats = topCategories();
+    box.innerHTML = cats.length ? cats.map((c) => `<label class="tm-allowed-item">
+        <input type="checkbox" value="${esc(c.id)}"${set[c.id] ? ' checked' : ''}> ${esc(c.title)}</label>`).join('')
+      : '<span class="tm-sr-empty">大項目がありません。先に大項目を作成してください。</span>';
+  }
+  function resetUserForm() {
+    usersEditing = null;
+    const t = $('#userFormTitle'); if (t) t.innerHTML = '&#43; ユーザーを追加';
+    const uu = $('#uUsername'); if (uu) { uu.value = ''; uu.disabled = false; }
+    const up = $('#uPassword'); if (up) { up.value = ''; up.placeholder = 'パスワード（必須）'; }
+    const ua = $('#uIsAdmin'); if (ua) ua.checked = false;
+    const ue = $('#userFormError'); if (ue) ue.textContent = '';
+    renderAllowedChecks([]);
+  }
+  function editUserForm(u) {
+    usersEditing = u.username;
+    const t = $('#userFormTitle'); if (t) t.textContent = '「' + u.username + '」を編集';
+    const uu = $('#uUsername'); if (uu) { uu.value = u.username; uu.disabled = true; }
+    const up = $('#uPassword'); if (up) { up.value = ''; up.placeholder = '変更する場合のみ入力'; }
+    const ua = $('#uIsAdmin'); if (ua) ua.checked = !!u.isAdmin;
+    const ue = $('#userFormError'); if (ue) ue.textContent = '';
+    renderAllowedChecks(u.allowed || []);
+  }
+  if (usersDialog) {
+    usersDialog.addEventListener('close', () => { syncTrap(); });
+    { const c = $('#usersClose'); if (c) c.addEventListener('click', () => usersDialog.close()); }
+    { const r = $('#userFormReset'); if (r) r.addEventListener('click', resetUserForm); }
+    { const ub = $('#usersBtn'); if (ub) ub.addEventListener('click', openUsers); }
+    $('#usersList').addEventListener('click', async (e) => {
+      const ed = e.target.closest('[data-uedit]');
+      if (ed) {
+        try { const d = await apiCall('users_list'); const u = (d.users || []).find((x) => x.username === ed.dataset.uedit); if (u) editUserForm(u); } catch (_) {}
+        return;
+      }
+      const del = e.target.closest('[data-udel]');
+      if (del) {
+        const name = del.dataset.udel;
+        askConfirm(`ユーザー「${name}」を削除します。よろしいですか？`, async () => {
+          try { await apiCall('user_delete', { method: 'POST', body: { username: name } }); await refreshUsersList(); if (usersEditing === name) resetUserForm(); }
+          catch (ex) { const ue = $('#userFormError'); if (ue) ue.textContent = '削除に失敗：' + ex.message; }
+        }, '削除する');
+      }
+    });
+    $('#userForm').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const ue = $('#userFormError'); if (ue) ue.textContent = '';
+      const username = ($('#uUsername').value || '').trim();
+      const pw = $('#uPassword').value || '';
+      const isAdmin = $('#uIsAdmin').checked;
+      const allowed = [...$('#uAllowed').querySelectorAll('input[type="checkbox"]:checked')].map((c) => c.value);
+      const body = { username, isAdmin, allowed };
+      if (pw) body.pw = pw;
+      try {
+        await apiCall('user_save', { method: 'POST', body });
+        await refreshUsersList();
+        resetUserForm();
+        syncMsg('ユーザーを保存しました');
+      } catch (ex) { if (ue) ue.textContent = ex.message || '保存に失敗しました'; }
+    });
+  }
+
   /* ---------- boot ---------- */
   (async () => {
     // 接続が確認できるまではゲートを表示して中身（ローカルの古いデータ）を出さない
     showConnecting();
     setServerStatus();
     await detectServer();
-    if (serverMode() && !loggedOut) {
-      try { await reloadFromServer(); } catch (e) { /* サーバー接続済みなら再取得のみ */ }
+    if (serverMode() && !gateReason()) {
+      await checkSession();
+      if (session) {
+        try { await reloadFromServer(); } catch (e) { /* サーバー接続済みなら再取得のみ */ }
+        hideAppLogin();
+      } else {
+        showAppLogin();
+      }
     }
     setMode('nav');
     resetIdleTimer();

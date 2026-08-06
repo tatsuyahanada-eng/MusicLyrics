@@ -78,6 +78,32 @@ function cbc_init_schema($pdo, $driver) {
   cbc_ensure_columns($pdo, $driver);
   cbc_init_inventory($pdo, $driver);
   cbc_init_settings($pdo, $driver);
+  cbc_init_auth($pdo, $driver);
+}
+
+/* アプリ内ログイン用。users=アカウント（許可カテゴリを保持）、sessions=ログインセッション。 */
+function cbc_init_auth($pdo, $driver) {
+  $text = ($driver === 'mysql') ? 'MEDIUMTEXT' : 'TEXT';
+  $eng  = ($driver === 'mysql') ? ' ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci' : '';
+  $pdo->exec(
+    "CREATE TABLE IF NOT EXISTS users (
+      username   VARCHAR(64)  NOT NULL PRIMARY KEY,
+      pass_hash  VARCHAR(255) NULL,
+      is_admin   INT          NOT NULL DEFAULT 0,
+      allowed    $text        NULL,
+      created_at BIGINT       NOT NULL DEFAULT 0,
+      updated_at BIGINT       NOT NULL DEFAULT 0
+    )$eng"
+  );
+  $pdo->exec(
+    "CREATE TABLE IF NOT EXISTS sessions (
+      token      VARCHAR(64)  NOT NULL PRIMARY KEY,
+      username   VARCHAR(64)  NULL,
+      is_admin   INT          NOT NULL DEFAULT 0,
+      created_at BIGINT       NOT NULL DEFAULT 0,
+      expires_at BIGINT       NOT NULL DEFAULT 0
+    )$eng"
+  );
 }
 
 /* アプリ共通設定（キー/値）。ピン留め（全端末で共有）などを保存する。 */

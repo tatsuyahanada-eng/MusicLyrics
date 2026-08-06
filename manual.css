@@ -1736,3 +1736,29 @@ textarea.tm-ff-input { width: 100%; resize: vertical; min-height: 88px; }
   color: var(--tm-muted);
   word-break: break-word;
 }
+/* アプリ内ログインフォーム */
+.tm-login-form { display: flex; flex-direction: column; gap: 10px; text-align: left; }
+.tm-login-form .tm-input { width: 100%; }
+.tm-login-form .tm-btn-primary { margin-top: 4px; }
+
+/* ユーザーとページ権限ダイアログ */
+.tm-users-hint { font-size: 12px; color: var(--tm-muted); line-height: 1.7; margin-bottom: 10px; }
+.tm-users-list { display: flex; flex-direction: column; gap: 8px; margin-bottom: 12px; }
+.tm-user-row {
+  display: flex; align-items: center; justify-content: space-between; gap: 10px;
+  padding: 10px 12px; border: 1px solid var(--tm-line); border-radius: 8px; background: var(--tm-panel-solid);
+}
+.tm-user-info { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+.tm-user-name { color: var(--tm-cyan); font-weight: 700; font-size: 14px; }
+.tm-user-adminbadge {
+  font-size: 10px; font-weight: 700; color: #1a1400; background: var(--tm-warn);
+  padding: 1px 7px; border-radius: 8px; margin-left: 4px;
+}
+.tm-user-pages { font-size: 12px; color: var(--tm-muted); word-break: break-word; }
+.tm-user-ops { display: flex; gap: 6px; flex: none; }
+.tm-users-sep { border: none; border-top: 1px solid var(--tm-line); margin: 12px 0; }
+.tm-users-subtitle { color: var(--tm-cyan); font-size: 14px; margin: 0 0 10px; }
+.tm-user-form { display: flex; flex-direction: column; gap: 12px; }
+.tm-allowed-list { display: flex; flex-direction: column; gap: 6px; max-height: 220px; overflow-y: auto; }
+.tm-allowed-item { display: flex; align-items: center; gap: 8px; font-size: 14px; color: var(--tm-text); cursor: pointer; }
+.tm-allowed-item input { width: 16px; height: 16px; accent-color: var(--tm-cyan); flex: none; }

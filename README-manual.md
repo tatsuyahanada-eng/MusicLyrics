@@ -93,6 +93,29 @@ FTPソフトで、`uploads/` フォルダのパーミッションを **705（必
 > 再入力を求められないことがあります。確実に入力し直したい場合は、ブラウザ（またはPWAアプリ）を
 > 一度完全に閉じてから開き直してください。
 
+## アプリ内ログインと、IDごとのページ閲覧権限
+
+サーバーのアクセス制限（Basic認証）の内側に、**アプリ独自のログイン**を設けています。
+これにより「どのIDがどの大項目（カテゴリ）を閲覧できるか」を管理者が設定できます。
+
+### ログインの仕組み
+- 画面を開くと（Basic認証を通過後）**アプリのログイン画面**が出ます。ID・パスワードでログインします。
+- **管理者**：`config.php` の `ADMIN_PW`（管理者パスワード）でログインします（IDは任意の文字でOK）。
+  全ページの閲覧・編集・ユーザー権限設定ができます。
+- **一般ユーザー**：管理者が作成したID/パスワードでログインします。**許可された大項目だけ**が表示されます
+  （許可外のカテゴリはサーバー側でも渡されないため、URL直打ち等でも見られません）。
+- 一定時間（既定30分）操作がないと自動ログアウトします。画面下部「🔒 ログアウト」でも手動ログアウトできます。
+
+### 管理者による権限設定
+1. 管理者でログイン → 上部「修正」→ ツールバーの **「👥 ユーザー権限」** を開く。
+2. ユーザーを追加：**ID・パスワード**を入力し、**閲覧できる大項目（カテゴリ）にチェック**して保存。
+   - 例：ユーザーA＝「大項目1」と「大項目3」、ユーザーB＝「大項目2」だけ、のように振り分け。
+   - 「管理者にする」にチェックすると、そのIDは全ページ閲覧・編集ができます。
+3. 既存ユーザーは「編集」で権限変更・パスワード再設定、「削除」で削除できます。
+
+> 権限は **大項目（カテゴリ）単位** です。許可した大項目の中の子項目はすべて閲覧できます。
+> 「在庫管理」はログイン済みの全員に表示されます（カテゴリ単位の権限対象外）。
+
 ## AI（Google Gemini）で探す・要約する（任意）
 
 自然文で項目を探す「AIで探す」と、項目の本文を要約する「AI要約」を使えます。
@@ -171,7 +194,7 @@ define('API_TOKEN', '好きな合言葉');      // 公開URLでは必ず設定
 
 **方法A（かんたん・推奨）: 自動作成**
 `config.php` を正しく設定した状態で `manual.html` を一度開くと、`db.php` が
-`nodes` / `inv_items` / `inv_logs` / `app_settings` の各テーブルを自動で作成します。特別な操作は不要です。
+`nodes` / `inv_items` / `inv_logs` / `app_settings` / `users` / `sessions` の各テーブルを自動で作成します。特別な操作は不要です。
 
 **方法B: 手動でSQLを実行**
 phpMyAdmin 等で下記SQLを実行して、テーブルを作成しておくこともできます
@@ -223,6 +246,25 @@ CREATE TABLE IF NOT EXISTS app_settings (
   k VARCHAR(64) NOT NULL PRIMARY KEY,
   v MEDIUMTEXT  NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- アプリ内ログイン：ユーザー（許可カテゴリを保持）
+CREATE TABLE IF NOT EXISTS users (
+  username   VARCHAR(64)  NOT NULL PRIMARY KEY,
+  pass_hash  VARCHAR(255) NULL,
+  is_admin   INT          NOT NULL DEFAULT 0,
+  allowed    MEDIUMTEXT   NULL,
+  created_at BIGINT       NOT NULL DEFAULT 0,
+  updated_at BIGINT       NOT NULL DEFAULT 0
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- アプリ内ログイン：ログインセッション
+CREATE TABLE IF NOT EXISTS sessions (
+  token      VARCHAR(64) NOT NULL PRIMARY KEY,
+  username   VARCHAR(64) NULL,
+  is_admin   INT         NOT NULL DEFAULT 0,
+  created_at BIGINT      NOT NULL DEFAULT 0,
+  expires_at BIGINT      NOT NULL DEFAULT 0
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 ```
 
 ### 5. 既存データの移行（引き継ぐ場合）
@@ -232,7 +274,7 @@ CREATE TABLE IF NOT EXISTS app_settings (
 
 **旧サーバーで書き出し（例: mysqldump）**
 ```bash
-mysqldump -h 旧DBホスト -u 旧ユーザー -p 旧DB名 nodes inv_items inv_logs app_settings > casebycase.sql
+mysqldump -h 旧DBホスト -u 旧ユーザー -p 旧DB名 nodes inv_items inv_logs app_settings users sessions > casebycase.sql
 ```
 （phpMyAdmin の「エクスポート」で `nodes` `inv_items` `inv_logs` `app_settings` を選んでも構いません）
 
