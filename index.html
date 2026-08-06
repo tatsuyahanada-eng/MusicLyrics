@@ -10,6 +10,7 @@
     integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin="" defer></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js" defer></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js" defer></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js" defer></script>
   <style>
     :root {
       --bg: #eaf2fb;
@@ -435,14 +436,15 @@
 
     <!-- 領収書（リテイルオンサイト時のみ表示） -->
     <section class="panel receipt-panel" id="receiptPanel" style="display:none;">
-      <h2>領収書画像（複数アップロード可）</h2>
-      <input id="receiptFiles" type="file" accept="image/*" multiple>
-      <p class="hint">画像（JPEG/PNG等）に対応。PDF出力時、明細の後ろに領収書ページとして添付されます。</p>
-      <p class="gmap-note" style="margin-top:10px">
-        ⚠️ <b>高速代がPDFの場合は、そのファイルも一緒に提出してください。</b><br>
-        本ツールでは領収書は画像のみ取り込みます。PDFの高速料金明細は、生成したPDFと合わせて別途送付してください。
-      </p>
-      <div id="receiptPreview" class="receipt-preview"></div>
+      <h2>高速代 領収書（PDF・複数アップロード可）</h2>
+      <input id="tollReceiptFiles" type="file" accept="application/pdf,.pdf" multiple>
+      <p class="hint">ETC利用明細等のPDFに対応。全ページが最終PDFの後ろに追加されます。</p>
+      <div id="tollReceiptPreview" class="receipt-preview"></div>
+
+      <h2 style="margin-top:20px">駐車場代 領収書（画像・複数アップロード可）</h2>
+      <input id="parkReceiptFiles" type="file" accept="image/*" multiple>
+      <p class="hint">画像（JPEG/PNG等）に対応。1ファイル1ページで最終PDFの後ろに追加されます。</p>
+      <div id="parkReceiptPreview" class="receipt-preview"></div>
     </section>
 
     <!-- 総移動距離 -->
@@ -507,10 +509,58 @@
       document.getElementById('baseAddr').value = '東京都台東区台東2-1-1';
     });
 
-    // 領収書ファイル（画像のみ・複数）
-    let receiptData = [];
-    document.getElementById('receiptFiles').addEventListener('change', async (e) => {
-      const previewEl = document.getElementById('receiptPreview');
+    // 領収書ファイル（高速代PDF・駐車場代画像）
+    let tollReceipts = [];   // { name, pdfDoc, numPages, thumbUrl }
+    let parkReceipts = [];   // { name, dataUrl, type }
+
+    async function _renderPdfPage(pdfDoc, pageNum, scale) {
+      const page = await pdfDoc.getPage(pageNum);
+      const viewport = page.getViewport({ scale });
+      const canvas = document.createElement('canvas');
+      canvas.width = viewport.width;
+      canvas.height = viewport.height;
+      await page.render({ canvasContext: canvas.getContext('2d'), viewport }).promise;
+      return canvas;
+    }
+
+    // 高速代PDF
+    document.getElementById('tollReceiptFiles').addEventListener('change', async (e) => {
+      const previewEl = document.getElementById('tollReceiptPreview');
+      if (window.pdfjsLib && !window.pdfjsLib.GlobalWorkerOptions.workerSrc) {
+        window.pdfjsLib.GlobalWorkerOptions.workerSrc =
+          'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+      }
+      for (const f of e.target.files) {
+        if (!(f.type === 'application/pdf' || /\.pdf$/i.test(f.name))) {
+          alert(`${f.name} はPDFではないため取り込みませんでした`);
+          continue;
+        }
+        try {
+          if (!window.pdfjsLib) throw new Error('PDF.jsが未ロードです（ネット接続を確認してください）');
+          const buf = await f.arrayBuffer();
+          const doc = await window.pdfjsLib.getDocument({ data: new Uint8Array(buf) }).promise;
+          const thumb = await _renderPdfPage(doc, 1, 0.5);
+          const item = { name: f.name, pdfDoc: doc, numPages: doc.numPages };
+          tollReceipts.push(item);
+          const div = document.createElement('div');
+          div.className = 'receipt-item';
+          div.innerHTML = `<img src="${thumb.toDataURL('image/jpeg', 0.85)}" alt=""><div class="name"><span style="font-size:9px;background:#d6435f;color:#fff;padding:1px 5px;border-radius:3px;margin-right:4px">PDF ${doc.numPages}p</span>${xmlEsc(f.name)}</div><button type="button" class="rem">✕ 削除</button>`;
+          div.querySelector('.rem').addEventListener('click', () => {
+            const idx = tollReceipts.indexOf(item);
+            if (idx >= 0) tollReceipts.splice(idx, 1);
+            div.remove();
+          });
+          previewEl.appendChild(div);
+        } catch (err) {
+          alert(`${f.name} の読み込みに失敗しました: ${err.message}`);
+        }
+      }
+      e.target.value = '';
+    });
+
+    // 駐車場代 画像
+    document.getElementById('parkReceiptFiles').addEventListener('change', async (e) => {
+      const previewEl = document.getElementById('parkReceiptPreview');
       for (const f of e.target.files) {
         if (!/^image\//.test(f.type)) {
           alert(`${f.name} は画像ファイルではないため取り込みませんでした（対応形式: JPEG/PNG等）`);
@@ -522,13 +572,13 @@
           r.readAsDataURL(f);
         });
         const item = { name: f.name, dataUrl, type: f.type };
-        receiptData.push(item);
+        parkReceipts.push(item);
         const div = document.createElement('div');
         div.className = 'receipt-item';
         div.innerHTML = `<img src="${dataUrl}" alt=""><div class="name">${xmlEsc(f.name)}</div><button type="button" class="rem">✕ 削除</button>`;
         div.querySelector('.rem').addEventListener('click', () => {
-          const idx = receiptData.indexOf(item);
-          if (idx >= 0) receiptData.splice(idx, 1);
+          const idx = parkReceipts.indexOf(item);
+          if (idx >= 0) parkReceipts.splice(idx, 1);
           div.remove();
         });
         previewEl.appendChild(div);
@@ -1247,6 +1297,29 @@
           <div style="font-size:12px;display:flex;justify-content:space-between;margin:3px 0"><span>駐車場</span><span>${parkSum.toLocaleString()} 円</span></div>
           <div style="font-size:14px;font-weight:700;display:flex;justify-content:space-between;padding-top:8px;margin-top:6px;border-top:1px solid #2f7be0"><span>請求総額</span><span style="color:#1a8f5f;font-size:20px">${total.toLocaleString()} 円</span></div>
         </div>
+        ${_buildAttachmentListHtml()}
+      `;
+    }
+
+    function _buildAttachmentListHtml() {
+      if (tollReceipts.length === 0 && parkReceipts.length === 0) return '';
+      const tollRows = tollReceipts.map((r, i) =>
+        `<tr><td style="border:1px solid #999;padding:4px 8px;font-size:11px;width:60px">高速代-${i + 1}</td><td style="border:1px solid #999;padding:4px 8px;font-size:11px">${xmlEsc(r.name)}</td><td style="border:1px solid #999;padding:4px 8px;font-size:11px;text-align:right;width:80px">${r.numPages} ページ</td></tr>`
+      ).join('');
+      const parkRows = parkReceipts.map((r, i) =>
+        `<tr><td style="border:1px solid #999;padding:4px 8px;font-size:11px;width:60px">駐車場-${i + 1}</td><td style="border:1px solid #999;padding:4px 8px;font-size:11px">${xmlEsc(r.name)}</td><td style="border:1px solid #999;padding:4px 8px;font-size:11px;text-align:right;width:80px">1 ページ</td></tr>`
+      ).join('');
+      return `
+        <h3 style="font-size:13px;color:#1f63c0;margin:18px 0 4px">添付ファイル一覧</h3>
+        <table style="width:100%;border-collapse:collapse">
+          <thead><tr>
+            <th style="border:1px solid #999;background:#eef5fd;padding:4px 6px;font-size:11px">種別</th>
+            <th style="border:1px solid #999;background:#eef5fd;padding:4px 6px;font-size:11px">ファイル名</th>
+            <th style="border:1px solid #999;background:#eef5fd;padding:4px 6px;font-size:11px">ページ数</th>
+          </tr></thead>
+          <tbody>${tollRows}${parkRows}</tbody>
+        </table>
+        <p style="font-size:10px;color:#5e7081;margin:6px 0 0">※ 本明細の次ページ以降に、高速代PDF（全ページ展開）→ 駐車場代画像の順で添付されています。</p>
       `;
     }
 
@@ -1284,14 +1357,26 @@
             y += pageHPx;
           }
         }
-        // 領収書ページ（画像を1枚1ページで追加）
-        for (const r of receiptData) {
+        // 領収書ページ：高速代PDF（全ページ展開）→ 駐車場代画像
+        const fitOnA4 = (nw, nh) => {
+          let iw = A4W - MX * 2, ih = (nh * iw) / nw;
+          if (ih > A4H - MY * 2 - 8) { ih = A4H - MY * 2 - 8; iw = (nw * ih) / nh; }
+          return { iw, ih };
+        };
+        for (const r of tollReceipts) {
+          for (let p = 1; p <= r.numPages; p++) {
+            const c = await _renderPdfPage(r.pdfDoc, p, 2);
+            pdf.addPage();
+            const { iw, ih } = fitOnA4(c.width, c.height);
+            pdf.addImage(c.toDataURL('image/jpeg', 0.92), 'JPEG', (A4W - iw) / 2, MY + 4, iw, ih);
+          }
+        }
+        for (const r of parkReceipts) {
           const img = new Image();
           img.src = r.dataUrl;
           await new Promise(res => { img.onload = res; img.onerror = res; });
           pdf.addPage();
-          let iw = A4W - MX * 2, ih = (img.height * iw) / img.width;
-          if (ih > A4H - MY * 2 - 8) { ih = A4H - MY * 2 - 8; iw = (img.width * ih) / img.height; }
+          const { iw, ih } = fitOnA4(img.width, img.height);
           const fmt = r.type && r.type.indexOf('png') >= 0 ? 'PNG' : 'JPEG';
           pdf.addImage(r.dataUrl, fmt, (A4W - iw) / 2, MY + 4, iw, ih);
         }
