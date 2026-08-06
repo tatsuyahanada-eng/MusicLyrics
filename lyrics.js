@@ -2356,24 +2356,57 @@ function displayLine(text) {
 /* ============================================================
    Lyrics API
    ============================================================ */
-/* Race lyrics.ovh and LRCLIB in parallel. Whichever returns a
-   non-empty payload first wins. This cuts the worst-case wait
-   from ovh_time + lrclib_time (sequential fallback) down to
-   min(ovh_time, lrclib_time) — usually ~500ms instead of 1-2s
-   when ovh doesn't have the track. Reject only if both fail. */
+/* Fetch lyrics from LRCLIB (which has timestamped LRC when a
+   track is synced) and lyrics.ovh (plain text only), in parallel.
+   Whoever comes back first can't just "win": lyrics.ovh is
+   almost always faster than LRCLIB but returns *plain text*, so
+   naively racing loses the synced timestamps we need for karaoke
+   sync — the lyric line stops following the video and seeking
+   can't recover because plain mode runs on a fixed-interval
+   timer. So the resolution rules are:
+     1. LRCLIB returns a SYNCED payload → resolve immediately.
+        (This is the ideal case — synced LRC beats plain text
+        even if we pay a small wait for it.)
+     2. Otherwise wait for both, then prefer LRCLIB's plain over
+        ovh's plain (LRCLIB does an artist+title match check,
+        ovh does not — so its plain result is more trustworthy).
+     3. Fall back to whichever side actually returned something.
+     4. Both failed → reject. */
 function fetchLyricsWithFallback(artist, title) {
   return new Promise((resolve, reject) => {
-    let failures = 0;
     let done = false;
-    const win  = (raw) => { if (!done) { done = true; resolve(raw); } };
-    const lose = () => {
-      if (++failures === 2 && !done) {
-        reject(new Error('歌詞が見つかりませんでした。'));
+    let lrcPending = true, ovhPending = true;
+    let lrcRaw = null,     ovhRaw = null;
+    const finish = (raw) => { if (!done) { done = true; resolve(raw); } };
+    const bail   = ()    => { if (!done) { done = true;
+      reject(new Error('歌詞が見つかりませんでした。')); } };
+    const decide = () => {
+      if (done) return;
+      /* Rule 1: LRCLIB gave us timestamped lyrics — that's the win */
+      if (lrcRaw && isSyncedLyricText(lrcRaw)) return finish(lrcRaw);
+      /* Rule 2/3: both sides settled — prefer LRCLIB, then ovh */
+      if (!lrcPending && !ovhPending) {
+        if (lrcRaw) return finish(lrcRaw);
+        if (ovhRaw) return finish(ovhRaw);
+        return bail();
       }
     };
-    fetchLyricsLrclib(artist, title).then(win, lose);
-    fetchLyricsOvh   (artist, title).then(win, lose);
+    fetchLyricsLrclib(artist, title).then(
+      raw => { lrcRaw = raw; lrcPending = false; decide(); },
+      _   => {                lrcPending = false; decide(); }
+    );
+    fetchLyricsOvh(artist, title).then(
+      raw => { ovhRaw = raw; ovhPending = false; decide(); },
+      _   => {                ovhPending = false; decide(); }
+    );
   });
+}
+
+/* Cheap detector for LRC-style timestamped lyrics. LRC lines look
+   like `[00:12.34] some text` — a single such line is enough for
+   parseLrc() to run the app in synced mode. */
+function isSyncedLyricText(text) {
+  return /^\s*\[\d+:\d+(?:\.\d+)?\]/m.test(text || '');
 }
 
 async function fetchLyricsOvh(artist, title) {
