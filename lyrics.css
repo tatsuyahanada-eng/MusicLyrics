@@ -1350,6 +1350,103 @@ body.song-active .ly-fx { display: block; }
   100% { transform: translateX(170vw) scale(var(--cloud-scale, 1)); }
 }
 
+/* ---- Collage FX (SUPER BEAVER-style MV lyric backdrop) ----
+   Chaotic paper-collage look: red halftone stars, coloured
+   tape strips, halftone dot patches, chunky white arrows and
+   a black banner strip, all subtly rocking in place. Each piece
+   uses --rot (base tilt) and --drift (rock amplitude) from JS
+   so every run of the effect is compositionally different. */
+.ly-collage-star,
+.ly-collage-tape,
+.ly-collage-halftone,
+.ly-collage-arrow,
+.ly-collage-banner {
+  position: absolute;
+  pointer-events: none;
+  transform-origin: 50% 50%;
+  animation: ly-collage-rock ease-in-out infinite alternate;
+  will-change: transform;
+  --rot: 0deg;
+  --drift: 4deg;
+}
+@keyframes ly-collage-rock {
+  0%   { transform: translate(-50%, -50%) rotate(calc(var(--rot) - var(--drift))); }
+  100% { transform: translate(-50%, -50%) rotate(calc(var(--rot) + var(--drift))); }
+}
+
+/* Red 5-point star — solid fill; the halftone-dot texture that
+   the reference frames show is faked with a repeated radial-
+   gradient mask so it stays crisp at any scale. */
+.ly-collage-star {
+  background:
+    radial-gradient(circle at 50% 50%, rgba(0,0,0,0.35) 25%, transparent 27%) 0 0 / 7px 7px,
+    radial-gradient(circle at 50% 50%, #d92c3a 0%, #a41823 100%);
+  -webkit-mask-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><polygon points='50,3 62,38 98,38 69,60 80,96 50,73 20,96 31,60 2,38 38,38' fill='black'/></svg>");
+          mask-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><polygon points='50,3 62,38 98,38 69,60 80,96 50,73 20,96 31,60 2,38 38,38' fill='black'/></svg>");
+  -webkit-mask-size: contain;  mask-size: contain;
+  -webkit-mask-repeat: no-repeat; mask-repeat: no-repeat;
+  filter: drop-shadow(0 4px 8px rgba(0, 0, 0, 0.55));
+}
+
+/* Coloured tape strips — a solid colour plus a repeating
+   diagonal white spike/stripe overlay, edges scuffed by a slight
+   inset shadow. */
+.ly-collage-tape {
+  border-radius: 2px;
+  box-shadow:
+    0 3px 10px rgba(0, 0, 0, 0.55),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.28);
+}
+.ly-collage-tape-blue {
+  background:
+    repeating-linear-gradient(-32deg,
+      transparent 0 5px,
+      rgba(255, 255, 255, 0.55) 5px 7px,
+      transparent 7px 12px),
+    linear-gradient(180deg, #4fa6ff 0%, #2670c9 100%);
+}
+.ly-collage-tape-red {
+  background:
+    repeating-linear-gradient(32deg,
+      transparent 0 5px,
+      rgba(255, 255, 255, 0.55) 5px 7px,
+      transparent 7px 12px),
+    linear-gradient(180deg, #e15353 0%, #a01f1f 100%);
+}
+
+/* Halftone dot patch — a random rectangle of dot pattern that
+   sits behind the collage like a printed newspaper cutout. */
+.ly-collage-halftone {
+  background:
+    radial-gradient(circle, rgba(255, 255, 255, 0.72) 22%, transparent 24%) 0 0 / 6px 6px,
+    radial-gradient(ellipse at 30% 40%, rgba(255, 255, 255, 0.08) 0%, transparent 60%);
+  border-radius: 6px;
+  opacity: 0.55;
+  filter: blur(0.4px);
+}
+
+/* Chunky white arrow — bold pointing shape from the reference
+   frames, faded a touch so it doesn't overpower the stars. */
+.ly-collage-arrow {
+  background: no-repeat center/contain
+    url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 60'><polygon points='0,30 30,4 30,22 90,22 90,38 30,38 30,56' fill='%23f2f2f2' stroke='%23000' stroke-width='2'/></svg>");
+  filter: drop-shadow(0 3px 6px rgba(0, 0, 0, 0.5));
+  opacity: 0.85;
+}
+
+/* Black scroll banner — thick strip with wedge cutouts on both
+   ends, echoes the "叶えたいこれは誰の願い" plate in the reference. */
+.ly-collage-banner {
+  background: #0b0b0b;
+  border-radius: 2px;
+  box-shadow:
+    0 6px 18px rgba(0, 0, 0, 0.65),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.10);
+  clip-path: polygon(
+    3% 0%, 97% 0%, 100% 50%, 97% 100%, 3% 100%, 0% 50%
+  );
+}
+
 /* Lyric stack — fills the rest, centred */
 .ly-lyric-stack {
   flex: 1;

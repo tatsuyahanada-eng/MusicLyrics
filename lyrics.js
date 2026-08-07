@@ -2767,12 +2767,13 @@ function applyTextColor() {
    Background FX themes
    (rings / stars / streaks / squares / triangles / mix)
    ============================================================ */
-const FX_THEMES = ['rings', 'squares', 'water', 'clouds', 'none'];
+const FX_THEMES = ['rings', 'squares', 'water', 'clouds', 'collage', 'none'];
 const FX_LABELS = {
   rings:    '✨リング',
   squares:  '✨スクエア',
   water:    '💧水中',
   clouds:   '☁ 雲',
+  collage:  '🎸コラージュ',
   none:     '⛶ なし',
 };
 const SQUARE_TINTS = [
@@ -2831,7 +2832,75 @@ function buildFx() {
       elFx.appendChild(c);
     }
 
+  } else if (fxTheme === 'collage') {
+    buildCollageFx();
+
   } /* fxTheme === 'none' → leave elFx empty */
+}
+
+/* SUPER BEAVER-style MV lyric backdrop — red stars, coloured
+   tape strips, halftone dot patches, chunky arrows and a black
+   scroll banner scatter across the top and bottom bands of the
+   stage, leaving the middle vertical band clear so lyrics stay
+   legible. Each piece gets a random size, rotation and slow
+   drift so the collage never sits perfectly still. */
+function buildCollageFx() {
+  const P = [];
+  const rand = (min, max) => min + Math.random() * (max - min);
+  /* Position bias: alternately place pieces in the top ~30% or
+     bottom ~30% of the stage so the centre stays clear for text. */
+  const mkPiece = (cls, w, h, rot, isTop) => {
+    const el = mkEl('span', cls);
+    el.style.width  = w.toFixed(0) + 'px';
+    el.style.height = h.toFixed(0) + 'px';
+    el.style.top    = isTop
+      ? rand(-4, 30).toFixed(1) + '%'
+      : rand(66, 100).toFixed(1) + '%';
+    el.style.left   = rand(4, 96).toFixed(1) + '%';
+    el.style.setProperty('--rot',  rot.toFixed(1) + 'deg');
+    el.style.setProperty('--drift', rand(-6, 6).toFixed(1) + 'deg');
+    el.style.animationDuration = rand(18, 34).toFixed(2) + 's';
+    el.style.animationDelay    = (-rand(0, 20)).toFixed(2) + 's';
+    return el;
+  };
+  /* 5 red stars, distributed both bands */
+  for (let i = 0; i < 5; i++) {
+    const s = rand(70, 150);
+    P.push(mkPiece('ly-collage-star', s, s, rand(-30, 30), i % 2 === 0));
+  }
+  /* 3 blue tape strips */
+  for (let i = 0; i < 3; i++) {
+    P.push(mkPiece('ly-collage-tape ly-collage-tape-blue',
+      rand(100, 200), rand(22, 32), rand(-45, 45), Math.random() < 0.5));
+  }
+  /* 2 red tape strips */
+  for (let i = 0; i < 2; i++) {
+    P.push(mkPiece('ly-collage-tape ly-collage-tape-red',
+      rand(80, 180), rand(20, 30), rand(-45, 45), Math.random() < 0.5));
+  }
+  /* 3 halftone dot patches */
+  for (let i = 0; i < 3; i++) {
+    const s = rand(70, 130);
+    P.push(mkPiece('ly-collage-halftone', s, s, rand(0, 45), Math.random() < 0.5));
+  }
+  /* 3 white chunky arrows */
+  for (let i = 0; i < 3; i++) {
+    P.push(mkPiece('ly-collage-arrow',
+      rand(50, 90), rand(30, 55), rand(-25, 25), Math.random() < 0.5));
+  }
+  /* 1 black scroll banner near the very top */
+  const bn = mkEl('span', 'ly-collage-banner');
+  bn.style.width  = rand(180, 280).toFixed(0) + 'px';
+  bn.style.height = '42px';
+  bn.style.top    = rand(-2, 6).toFixed(1) + '%';
+  bn.style.left   = '50%';
+  bn.style.setProperty('--rot',  rand(-8, 8).toFixed(1) + 'deg');
+  bn.style.setProperty('--drift', rand(-2, 2).toFixed(1) + 'deg');
+  bn.style.animationDuration = rand(26, 40).toFixed(2) + 's';
+  bn.style.animationDelay    = (-rand(0, 15)).toFixed(2) + 's';
+  P.push(bn);
+
+  P.forEach(el => elFx.appendChild(el));
 }
 
 /* Shared "expand & blink" element builder. Supports square /
