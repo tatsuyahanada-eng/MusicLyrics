@@ -31,12 +31,18 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.FilterChipDefaults
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
@@ -48,6 +54,7 @@ import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
@@ -59,6 +66,7 @@ import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.nativeCanvas
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
@@ -96,28 +104,26 @@ private fun typeColor(type: String): Long = when (type) {
 
 private fun isShape(type: String) = type in ShapeTypes
 
-// アイテム番号：MAIN/SUB は負の番号で表現し、他とは別色で強調する
 private const val NUM_MAIN = -1
 private const val NUM_SUB = -2
 private fun numLabel(n: Int): String = when (n) { NUM_MAIN -> "MAIN"; NUM_SUB -> "SUB"; else -> "$n" }
 private fun isMainSub(n: Int) = n < 0
 private fun numBoxColor(n: Int, type: String): Long = when (n) {
-    NUM_MAIN -> 0xFFD50000   // MAIN: 赤で強調
-    NUM_SUB -> 0xFFFFAB00    // SUB: アンバーで強調
+    NUM_MAIN -> 0xFFD50000
+    NUM_SUB -> 0xFFFFAB00
     else -> typeColor(type)
 }
 private fun numTextColorInt(n: Int): Int = when (n) {
-    NUM_SUB -> android.graphics.Color.BLACK  // 明るい背景には黒文字
+    NUM_SUB -> android.graphics.Color.BLACK
     else -> android.graphics.Color.WHITE
 }
 
-// 図形の半幅・半高（px）
 private fun shapeHalf(type: String, size: String): Pair<Float, Float> {
     val s = when (size) { "S" -> 0; "L" -> 2; "XL" -> 3; else -> 1 }
     return when (type) {
         "横長方形" -> listOf(Pair(40f, 22f), Pair(67f, 37f), Pair(104f, 54f), Pair(144f, 75f))[s]
         "縦長方形" -> listOf(Pair(22f, 40f), Pair(37f, 67f), Pair(54f, 104f), Pair(75f, 144f))[s]
-        else -> listOf(Pair(22f, 22f), Pair(37f, 37f), Pair(58f, 58f), Pair(80f, 80f))[s] // 正方形・丸
+        else -> listOf(Pair(22f, 22f), Pair(37f, 37f), Pair(58f, 58f), Pair(80f, 80f))[s]
     }
 }
 
@@ -137,15 +143,30 @@ private data class StrokeT(val pts: List<Offset>, val mode: PenMode, val colorL:
 fun DrawScreen(modifier: Modifier = Modifier) {
     val context = LocalContext.current
 
+    // ── ページ管理 ──
+    val pageNames = remember { mutableStateListOf<String>() }
+    var pageCount by remember { mutableIntStateOf(1) }
+    var curPage by remember { mutableIntStateOf(0) }
+    var showPageRename by remember { mutableStateOf(false) }
+    var pageRenameIdx by remember { mutableIntStateOf(-1) }
+    var pageRenameInput by remember { mutableStateOf("") }
+    var showPageDelete by remember { mutableStateOf(false) }
+    var pageDeleteIdx by remember { mutableIntStateOf(-1) }
+
+    remember {
+        val meta = loadPageMeta(context)
+        pageCount = meta.first
+        pageNames.clear(); pageNames.addAll(meta.second)
+        0
+    }
+
     val marks = remember { mutableStateListOf<MarkT>() }
     val texts = remember { mutableStateListOf<TextT>() }
     val strokes = remember { mutableStateListOf<StrokeT>() }
-    // 取消用の履歴（追加・削除・移動すべてを1手ずつ元に戻せるよう、直前の全状態を保持）
     val undoStack = remember { mutableStateListOf<Triple<List<MarkT>, List<TextT>, List<StrokeT>>>() }
-    remember { loadDraw(context, marks, texts, strokes); 0 }
+    remember { loadDrawPage(context, curPage, marks, texts, strokes); 0 }
 
-    // 背景写真は端末に保存し、再表示・メール添付時の再描画でも使えるようにする
-    var bg by remember { mutableStateOf(loadBitmapFile(drawBgFile(context))) }
+    var bg by remember { mutableStateOf(loadBitmapFile(drawBgFile(context, curPage))) }
     var tool by remember { mutableStateOf(DTool.MARK) }
     var penMode by remember { mutableStateOf(PenMode.FREE) }
     var selType by remember { mutableStateOf("RST") }
@@ -159,11 +180,9 @@ fun DrawScreen(modifier: Modifier = Modifier) {
     var moveKind by remember { mutableStateOf<String?>(null) }
     var moveIdx by remember { mutableIntStateOf(-1) }
     var lastP by remember { mutableStateOf(Offset.Zero) }
-    // 移動モードで選択中の対象（タップで選択し、離してもハイライトを維持）
     var selKind by remember { mutableStateOf<String?>(null) }
     var selIdx by remember { mutableIntStateOf(-1) }
 
-    // フリーサイズ：長押しドラッグ中のプレビュー用状態
     var freeCenter by remember { mutableStateOf<Offset?>(null) }
     var freeDragCur by remember { mutableStateOf(Offset.Zero) }
 
@@ -180,10 +199,10 @@ fun DrawScreen(modifier: Modifier = Modifier) {
     val distance = remember { loadDistanceRecords(context) }
     val distUnit = remember { loadDistUnit(context) }
     val picker = rememberLauncherForActivityResult(ActivityResultContracts.PickVisualMedia()) { uri: Uri? ->
-        if (uri != null) { bg = loadBitmap(context, uri); saveDrawBg(context, bg) }
+        if (uri != null) { bg = loadBitmap(context, uri); saveDrawBg(context, curPage, bg) }
     }
     val cameraLauncher = rememberLauncherForActivityResult(ActivityResultContracts.TakePicture()) { ok ->
-        if (ok) photoFile?.let { bg = loadBitmapFile(it); saveDrawBg(context, bg) }
+        if (ok) photoFile?.let { bg = loadBitmapFile(it); saveDrawBg(context, curPage, bg) }
     }
     val launchCamera: () -> Unit = {
         val f = File(context.cacheDir, "capture_${System.currentTimeMillis()}.jpg")
@@ -195,9 +214,8 @@ fun DrawScreen(modifier: Modifier = Modifier) {
         if (granted) launchCamera() else Toast.makeText(context, "カメラ権限が必要です", Toast.LENGTH_SHORT).show()
     }
 
-    fun persist() = saveDraw(context, marks, texts, strokes)
+    fun persist() = saveDrawPage(context, curPage, marks, texts, strokes)
 
-    // 変更前の状態を履歴に積む（この直後に marks/texts/strokes を変更する）
     fun pushUndo() {
         undoStack.add(Triple(marks.toList(), texts.toList(), strokes.toList()))
         if (undoStack.size > 40) undoStack.removeAt(0)
@@ -224,7 +242,96 @@ fun DrawScreen(modifier: Modifier = Modifier) {
         persist()
     }
 
+    fun switchPage(newPage: Int) {
+        if (newPage == curPage) return
+        saveDrawPage(context, curPage, marks, texts, strokes)
+        undoStack.clear()
+        marks.clear(); texts.clear(); strokes.clear()
+        curPage = newPage
+        loadDrawPage(context, curPage, marks, texts, strokes)
+        bg = loadBitmapFile(drawBgFile(context, curPage))
+        selKind = null; selIdx = -1
+    }
+
+    fun addPage() {
+        saveDrawPage(context, curPage, marks, texts, strokes)
+        pageCount++
+        pageNames.add("ページ$pageCount")
+        savePageMeta(context, pageCount, pageNames)
+        switchPage(pageCount - 1)
+    }
+
+    fun deletePage(idx: Int) {
+        if (pageCount <= 1) return
+        deleteDrawPage(context, idx)
+        drawBgFile(context, idx).delete()
+        for (i in idx + 1 until pageCount) {
+            renameDrawPage(context, i, i - 1)
+            val oldBg = drawBgFile(context, i)
+            if (oldBg.exists()) oldBg.renameTo(drawBgFile(context, i - 1))
+        }
+        pageNames.removeAt(idx)
+        pageCount--
+        savePageMeta(context, pageCount, pageNames)
+        val newCur = if (curPage >= pageCount) pageCount - 1 else if (curPage > idx) curPage - 1 else curPage
+        marks.clear(); texts.clear(); strokes.clear(); undoStack.clear()
+        curPage = newCur
+        loadDrawPage(context, curPage, marks, texts, strokes)
+        bg = loadBitmapFile(drawBgFile(context, curPage))
+        selKind = null; selIdx = -1
+    }
+
     Column(modifier = modifier.fillMaxSize().padding(8.dp)) {
+        // ── ページタブ ──
+        Row(
+            modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(2.dp)
+        ) {
+            for (i in 0 until pageCount) {
+                val isCurrent = i == curPage
+                val tabName = pageNames.getOrElse(i) { "ページ${i + 1}" }
+                Box(
+                    modifier = Modifier
+                        .background(
+                            if (isCurrent) Color(0xFF1565C0) else Color(0xFFE0E0E0),
+                            RoundedCornerShape(topStart = 6.dp, topEnd = 6.dp)
+                        )
+                        .clickable { switchPage(i) }
+                        .padding(horizontal = 10.dp, vertical = 4.dp)
+                ) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text(
+                            tabName,
+                            color = if (isCurrent) Color.White else Color.Black,
+                            fontSize = 12.sp,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                            modifier = Modifier.clickable(onClick = {
+                                pageRenameIdx = i
+                                pageRenameInput = tabName
+                                showPageRename = true
+                            }).weight(1f, fill = false)
+                        )
+                        if (pageCount > 1) {
+                            Spacer(Modifier.width(2.dp))
+                            Icon(
+                                Icons.Default.Close,
+                                contentDescription = "削除",
+                                tint = if (isCurrent) Color.White.copy(alpha = 0.7f) else Color.Gray,
+                                modifier = Modifier
+                                    .size(14.dp)
+                                    .clickable { pageDeleteIdx = i; showPageDelete = true }
+                            )
+                        }
+                    }
+                }
+            }
+            IconButton(onClick = { addPage() }, modifier = Modifier.size(28.dp)) {
+                Icon(Icons.Default.Add, contentDescription = "ページ追加", modifier = Modifier.size(18.dp))
+            }
+        }
+
         // ツール
         Row(modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
             horizontalArrangement = Arrangement.spacedBy(6.dp)) {
@@ -300,7 +407,7 @@ fun DrawScreen(modifier: Modifier = Modifier) {
                 .weight(1f)
                 .background(Color.White, RoundedCornerShape(4.dp))
                 .border(1.dp, Color(0xFFBDBDBD), RoundedCornerShape(4.dp))
-                .pointerInput(tool, penMode, selType, selNum, selColor, selTextSize, selSize) {
+                .pointerInput(tool, penMode, selType, selNum, selColor, selTextSize, selSize, curPage) {
                     when {
                         tool == DTool.PEN -> detectDragGestures(
                             onDragStart = { off -> dragStart = norm(off, size.width, size.height); live = listOf(dragStart) },
@@ -332,7 +439,6 @@ fun DrawScreen(modifier: Modifier = Modifier) {
                             },
                             onDragEnd = { if (moveKind != null) persist(); moveKind = null; moveIdx = -1 }
                         )
-                        // 図形ドラッグ＝フリーサイズ配置
                         tool == DTool.MARK && isShape(selType) -> detectDragGestures(
                             onDragStart = { off ->
                                 dragStart = norm(off, size.width, size.height)
@@ -383,8 +489,7 @@ fun DrawScreen(modifier: Modifier = Modifier) {
                         )
                     }
                 }
-                // 図形タップ＝プリセットサイズで配置
-                .pointerInput(tool, selType, selNum, selSize) {
+                .pointerInput(tool, selType, selNum, selSize, curPage) {
                     if (tool == DTool.MARK && isShape(selType)) detectTapGestures(
                         onTap = { off ->
                             val p = norm(off, size.width, size.height)
@@ -393,8 +498,7 @@ fun DrawScreen(modifier: Modifier = Modifier) {
                         }
                     )
                 }
-                // 移動モード：タップだけで対象を選択（動かさなくてもハイライト表示）
-                .pointerInput(tool) {
+                .pointerInput(tool, curPage) {
                     if (tool == DTool.MOVE) detectTapGestures(onTap = { off ->
                         val p = norm(off, size.width, size.height)
                         val n = nearestKind(p, marks, texts, strokes)
@@ -415,7 +519,6 @@ fun DrawScreen(modifier: Modifier = Modifier) {
                 if (live.size >= 2) drawStroke(StrokeT(live, penMode, selColor), w, h)
                 marks.forEach { drawMark(it, w, h) }
                 texts.forEach { drawTextItem(it, w, h) }
-                // 移動モード：選択中の対象を常時ハイライト（タップで選択、離しても維持）
                 if (tool == DTool.MOVE && selKind != null && selIdx >= 0) {
                     val hc: Offset? = when (selKind) {
                         "M" -> marks.getOrNull(selIdx)?.let { Offset(it.x * w, it.y * h) }
@@ -430,7 +533,6 @@ fun DrawScreen(modifier: Modifier = Modifier) {
                         drawCircle(Color(0xFF2196F3), radius = 54f, center = it, style = Stroke(4f))
                     }
                 }
-                // フリーサイズ：長押しドラッグ中のプレビュー（点線枠）
                 freeCenter?.let { center ->
                     val cx = center.x * w; val cy = center.y * h
                     val hw = abs(freeDragCur.x - center.x) * w
@@ -453,11 +555,17 @@ fun DrawScreen(modifier: Modifier = Modifier) {
         Row(modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
             horizontalArrangement = Arrangement.spacedBy(6.dp)) {
             OutlinedButton(onClick = { showPhotoChoice = true }) { Text("写真取込") }
-            OutlinedButton(onClick = { bg = null; drawBgFile(context).delete() }) { Text("背景白") }
+            OutlinedButton(onClick = { bg = null; drawBgFile(context, curPage).delete() }) { Text("背景白") }
             OutlinedButton(onClick = { undo() }, enabled = undoStack.isNotEmpty()) { Text("取消") }
             OutlinedButton(onClick = { showClear = true }) { Text("全消去") }
-            OutlinedButton(onClick = { exportImage(context, marks, texts, strokes, bg, pdf = false) }) { Text("画像保存") }
-            OutlinedButton(onClick = { exportImage(context, marks, texts, strokes, bg, pdf = true) }) { Text("PDF保存") }
+            OutlinedButton(onClick = {
+                saveDrawPage(context, curPage, marks, texts, strokes)
+                exportImage(context, curPage, marks, texts, strokes, bg, pdf = false)
+            }) { Text("画像保存") }
+            OutlinedButton(onClick = {
+                saveDrawPage(context, curPage, marks, texts, strokes)
+                exportAllPages(context, pageCount, pageNames)
+            }) { Text("PDF保存") }
         }
     }
 
@@ -546,6 +654,44 @@ fun DrawScreen(modifier: Modifier = Modifier) {
                 }) { Text("消去する") }
             },
             dismissButton = { TextButton(onClick = { showClear = false }) { Text("やめる") } }
+        )
+    }
+
+    // ページ名変更ダイアログ
+    if (showPageRename) {
+        AlertDialog(
+            onDismissRequest = { showPageRename = false },
+            title = { Text("ページ名を変更") },
+            text = { OutlinedTextField(value = pageRenameInput, onValueChange = { pageRenameInput = it }, singleLine = true) },
+            confirmButton = {
+                TextButton(onClick = {
+                    if (pageRenameInput.isNotBlank() && pageRenameIdx in pageNames.indices) {
+                        pageNames[pageRenameIdx] = pageRenameInput
+                        savePageMeta(context, pageCount, pageNames)
+                    }
+                    showPageRename = false
+                }) { Text("変更") }
+            },
+            dismissButton = { TextButton(onClick = { showPageRename = false }) { Text("取消") } }
+        )
+    }
+
+    // ページ削除確認ダイアログ
+    if (showPageDelete) {
+        AlertDialog(
+            onDismissRequest = { showPageDelete = false },
+            title = { Text("ページ削除の確認") },
+            text = {
+                val name = pageNames.getOrElse(pageDeleteIdx) { "ページ${pageDeleteIdx + 1}" }
+                Text("「$name」を削除します。この操作は元に戻せません。よろしいですか？")
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    showPageDelete = false
+                    deletePage(pageDeleteIdx)
+                }) { Text("削除する") }
+            },
+            dismissButton = { TextButton(onClick = { showPageDelete = false }) { Text("やめる") } }
         )
     }
 }
@@ -680,7 +826,6 @@ private fun loadBitmapFile(file: File): Bitmap? = try {
 
 private fun stamp(): String = SimpleDateFormat("yyyyMMdd_HHmm", Locale.JAPAN).format(Date())
 
-// PNG / PDF 出力（android.graphics で同じ描画）
 private fun renderToCanvas(
     c: android.graphics.Canvas, w: Int, h: Int,
     marks: List<MarkT>, texts: List<TextT>, strokes: List<StrokeT>, bg: Bitmap?
@@ -763,7 +908,6 @@ private fun renderToCanvas(
     }
 }
 
-// 見取り図の上部に付ける見出し（店舗名・日付）情報を取得する。
 private fun drawingHeaderInfo(context: Context): Pair<String, String> {
     val storeName = loadIdInfo(context).storeName
     val raw = context.getSharedPreferences("result_prefs", Context.MODE_PRIVATE).getString("data", "") ?: ""
@@ -776,12 +920,16 @@ private fun drawingHeaderInfo(context: Context): Pair<String, String> {
     return storeName to date
 }
 
-// 上部の見出し帯（タイトル・店舗名・日付）を描く。
-private fun drawHeader(c: android.graphics.Canvas, w: Int, headerH: Int, storeName: String, date: String) {
+private fun drawHeader(c: android.graphics.Canvas, w: Int, headerH: Int, storeName: String, date: String, pageName: String = "") {
     val title = Paint().apply {
         color = android.graphics.Color.BLACK; textSize = 42f; isAntiAlias = true; typeface = Typeface.DEFAULT_BOLD
     }
     c.drawText("見取り図", 28f, 54f, title)
+    if (pageName.isNotBlank()) {
+        c.drawText("[$pageName]", 220f, 54f, Paint().apply {
+            color = android.graphics.Color.rgb(0x15, 0x65, 0xC0); textSize = 32f; isAntiAlias = true; typeface = Typeface.DEFAULT_BOLD
+        })
+    }
     val info = Paint().apply {
         color = android.graphics.Color.rgb(0x33, 0x33, 0x33); textSize = 32f; isAntiAlias = true
     }
@@ -796,20 +944,18 @@ private fun drawHeader(c: android.graphics.Canvas, w: Int, headerH: Int, storeNa
     })
 }
 
-// 見出し帯＋見取り図本体を1ページに合成して描く。
 private fun renderPage(
     c: android.graphics.Canvas, w: Int, totalH: Int, headerH: Int,
     marks: List<MarkT>, texts: List<TextT>, strokes: List<StrokeT>, bg: Bitmap?,
-    storeName: String, date: String
+    storeName: String, date: String, pageName: String = ""
 ) {
     c.drawColor(android.graphics.Color.WHITE)
-    // 見取り図本体は見出しの下の領域に描く（クリップして見出し帯を侵食しないようにする）
     c.save()
     c.clipRect(0f, headerH.toFloat(), w.toFloat(), totalH.toFloat())
     c.translate(0f, headerH.toFloat())
     renderToCanvas(c, w, totalH - headerH, marks, texts, strokes, bg)
     c.restore()
-    drawHeader(c, w, headerH, storeName, date)
+    drawHeader(c, w, headerH, storeName, date, pageName)
 }
 
 private fun drawingFileName(storeName: String, ext: String): String {
@@ -817,23 +963,26 @@ private fun drawingFileName(storeName: String, ext: String): String {
     return if (store.isEmpty()) "見取り図_${stamp()}.$ext" else "見取り図_${store}_${stamp()}.$ext"
 }
 
+// 現在のページだけをPNG出力
 private fun exportImage(
-    context: Context, marks: List<MarkT>, texts: List<TextT>, strokes: List<StrokeT>, bg: Bitmap?, pdf: Boolean
+    context: Context, pageIdx: Int, marks: List<MarkT>, texts: List<TextT>, strokes: List<StrokeT>, bg: Bitmap?, pdf: Boolean
 ) {
     try {
         val w = 1080; val headerH = 120; val h = 1440 + headerH
         val (storeName, date) = drawingHeaderInfo(context)
+        val meta = loadPageMeta(context)
+        val pageName = meta.second.getOrElse(pageIdx) { "ページ${pageIdx + 1}" }
         val file: File
         if (pdf) {
             val doc = android.graphics.pdf.PdfDocument()
             val page = doc.startPage(android.graphics.pdf.PdfDocument.PageInfo.Builder(w, h, 1).create())
-            renderPage(page.canvas, w, h, headerH, marks, texts, strokes, bg, storeName, date)
+            renderPage(page.canvas, w, h, headerH, marks, texts, strokes, bg, storeName, date, pageName)
             doc.finishPage(page)
             file = File(context.cacheDir, drawingFileName(storeName, "pdf"))
             file.outputStream().use { doc.writeTo(it) }; doc.close()
         } else {
             val bmp = Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888)
-            renderPage(android.graphics.Canvas(bmp), w, h, headerH, marks, texts, strokes, bg, storeName, date)
+            renderPage(android.graphics.Canvas(bmp), w, h, headerH, marks, texts, strokes, bg, storeName, date, pageName)
             file = File(context.cacheDir, drawingFileName(storeName, "png"))
             file.outputStream().use { bmp.compress(Bitmap.CompressFormat.PNG, 100, it) }
         }
@@ -847,39 +996,82 @@ private fun exportImage(
     }
 }
 
-// ── 背景写真の端末内保存 ──
-private fun drawBgFile(context: Context): File = File(context.cacheDir, "draw_bg.jpg")
+// 全ページをまとめてPDF出力
+private fun exportAllPages(context: Context, pageCount: Int, pageNames: List<String>) {
+    try {
+        val w = 1080; val headerH = 120; val h = 1440 + headerH
+        val (storeName, date) = drawingHeaderInfo(context)
+        val doc = android.graphics.pdf.PdfDocument()
+        for (i in 0 until pageCount) {
+            val m = mutableListOf<MarkT>(); val t = mutableListOf<TextT>(); val s = mutableListOf<StrokeT>()
+            loadDrawPage(context, i, m, t, s)
+            val pageBg = loadBitmapFile(drawBgFile(context, i))
+            val pageName = pageNames.getOrElse(i) { "ページ${i + 1}" }
+            val page = doc.startPage(android.graphics.pdf.PdfDocument.PageInfo.Builder(w, h, i + 1).create())
+            renderPage(page.canvas, w, h, headerH, m, t, s, pageBg, storeName, date, pageName)
+            doc.finishPage(page)
+        }
+        val file = File(context.cacheDir, drawingFileName(storeName, "pdf"))
+        file.outputStream().use { doc.writeTo(it) }; doc.close()
+        val uri = FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", file)
+        context.startActivity(Intent.createChooser(Intent(Intent.ACTION_SEND).apply {
+            type = "application/pdf"
+            putExtra(Intent.EXTRA_STREAM, uri); addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+        }, "見取り図を保存・共有"))
+    } catch (e: Exception) {
+        Toast.makeText(context, "PDF出力に失敗: ${e.message}", Toast.LENGTH_LONG).show()
+    }
+}
 
-private fun saveDrawBg(context: Context, bmp: Bitmap?) {
-    val f = drawBgFile(context)
+// ── 背景写真の端末内保存（ページごと）──
+private fun drawBgFile(context: Context, pageIdx: Int): File =
+    File(context.cacheDir, if (pageIdx == 0) "draw_bg.jpg" else "draw_bg_$pageIdx.jpg")
+
+private fun saveDrawBg(context: Context, pageIdx: Int, bmp: Bitmap?) {
+    val f = drawBgFile(context, pageIdx)
     if (bmp == null) { f.delete(); return }
     runCatching { f.outputStream().use { bmp.compress(Bitmap.CompressFormat.JPEG, 85, it) } }
 }
 
 /**
- * 端末に保存済みの作図データ（アイテム・線・文字＋背景写真）からファイルを生成する。
+ * 端末に保存済みの作図データ（全ページ）からPDF/PNGファイルを生成する。
  * 結果タブのメール添付など、作図タブを開いていなくても見取り図を出力するために使う。
- * 作図が空（要素も背景も無し）の場合は null を返す。
+ * 作図が空（全ページとも要素も背景も無し）の場合は null を返す。
  */
 fun renderSavedDrawing(context: Context, pdf: Boolean): File? {
-    val marks = mutableListOf<MarkT>(); val texts = mutableListOf<TextT>(); val strokes = mutableListOf<StrokeT>()
-    loadDraw(context, marks, texts, strokes)
-    val bg = loadBitmapFile(drawBgFile(context))
-    if (marks.isEmpty() && texts.isEmpty() && strokes.isEmpty() && bg == null) return null
+    val (pageCount, pageNames) = loadPageMeta(context)
+    var hasContent = false
+    for (i in 0 until pageCount) {
+        val m = mutableListOf<MarkT>(); val t = mutableListOf<TextT>(); val s = mutableListOf<StrokeT>()
+        loadDrawPage(context, i, m, t, s)
+        val bg = loadBitmapFile(drawBgFile(context, i))
+        if (m.isNotEmpty() || t.isNotEmpty() || s.isNotEmpty() || bg != null) { hasContent = true; break }
+    }
+    if (!hasContent) return null
     return try {
         val w = 1080; val headerH = 120; val h = 1440 + headerH
         val (storeName, date) = drawingHeaderInfo(context)
         if (pdf) {
             val doc = android.graphics.pdf.PdfDocument()
-            val page = doc.startPage(android.graphics.pdf.PdfDocument.PageInfo.Builder(w, h, 1).create())
-            renderPage(page.canvas, w, h, headerH, marks, texts, strokes, bg, storeName, date)
-            doc.finishPage(page)
+            for (i in 0 until pageCount) {
+                val m = mutableListOf<MarkT>(); val t = mutableListOf<TextT>(); val s = mutableListOf<StrokeT>()
+                loadDrawPage(context, i, m, t, s)
+                val bg = loadBitmapFile(drawBgFile(context, i))
+                val pageName = pageNames.getOrElse(i) { "ページ${i + 1}" }
+                val page = doc.startPage(android.graphics.pdf.PdfDocument.PageInfo.Builder(w, h, i + 1).create())
+                renderPage(page.canvas, w, h, headerH, m, t, s, bg, storeName, date, pageName)
+                doc.finishPage(page)
+            }
             val file = File(context.cacheDir, drawingFileName(storeName, "pdf"))
             file.outputStream().use { doc.writeTo(it) }; doc.close()
             file
         } else {
+            val m = mutableListOf<MarkT>(); val t = mutableListOf<TextT>(); val s = mutableListOf<StrokeT>()
+            loadDrawPage(context, 0, m, t, s)
+            val bg = loadBitmapFile(drawBgFile(context, 0))
+            val pageName = pageNames.getOrElse(0) { "ページ1" }
             val bmp = Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888)
-            renderPage(android.graphics.Canvas(bmp), w, h, headerH, marks, texts, strokes, bg, storeName, date)
+            renderPage(android.graphics.Canvas(bmp), w, h, headerH, m, t, s, bg, storeName, date, pageName)
             val file = File(context.cacheDir, drawingFileName(storeName, "png"))
             file.outputStream().use { bmp.compress(Bitmap.CompressFormat.PNG, 100, it) }
             file
@@ -887,22 +1079,49 @@ fun renderSavedDrawing(context: Context, pdf: Boolean): File? {
     } catch (e: Exception) { null }
 }
 
-// ── 端末内保存 ──
+// ── 端末内保存（ページ対応）──
 private const val DRAW_PREFS = "draw_prefs"
 
-private fun saveDraw(context: Context, marks: List<MarkT>, texts: List<TextT>, strokes: List<StrokeT>) {
+private fun savePageMeta(context: Context, pageCount: Int, pageNames: List<String>) {
+    val prefs = context.getSharedPreferences(DRAW_PREFS, Context.MODE_PRIVATE)
+    prefs.edit()
+        .putInt("page_count", pageCount)
+        .putString("page_names", pageNames.joinToString("\t"))
+        .apply()
+}
+
+private fun loadPageMeta(context: Context): Pair<Int, MutableList<String>> {
+    val prefs = context.getSharedPreferences(DRAW_PREFS, Context.MODE_PRIVATE)
+    val count = prefs.getInt("page_count", 0)
+    if (count == 0) {
+        val hasLegacy = prefs.getString("data", null)
+        if (hasLegacy != null && hasLegacy.isNotBlank()) {
+            prefs.edit().putString("data_0", hasLegacy).putInt("page_count", 1)
+                .putString("page_names", "ページ1").apply()
+            return 1 to mutableListOf("ページ1")
+        }
+        prefs.edit().putInt("page_count", 1).putString("page_names", "ページ1").apply()
+        return 1 to mutableListOf("ページ1")
+    }
+    val namesRaw = prefs.getString("page_names", "") ?: ""
+    val names = if (namesRaw.isNotBlank()) namesRaw.split("\t").toMutableList() else mutableListOf()
+    while (names.size < count) names.add("ページ${names.size + 1}")
+    return count to names
+}
+
+private fun saveDrawPage(context: Context, pageIdx: Int, marks: List<MarkT>, texts: List<TextT>, strokes: List<StrokeT>) {
     val sb = StringBuilder()
     marks.forEach { sb.append("M|${it.x}|${it.y}|${it.type}|${it.num}|${it.size}|${it.label.replace("\n", " ").replace("|", "/")}|${it.customHW}|${it.customHH}\n") }
     texts.forEach { sb.append("T|${it.x}|${it.y}|${it.sizeF}|${it.colorL}|${if (it.boxed) 1 else 0}|${it.s.replace("\n", "~~").replace("|", "/")}\n") }
     strokes.forEach { st -> sb.append("S|${st.mode.name}|${st.colorL}|").append(st.pts.joinToString(";") { "${it.x},${it.y}" }).append("\n") }
-    context.getSharedPreferences(DRAW_PREFS, Context.MODE_PRIVATE).edit().putString("data", sb.toString()).apply()
+    context.getSharedPreferences(DRAW_PREFS, Context.MODE_PRIVATE).edit().putString("data_$pageIdx", sb.toString()).apply()
 }
 
-private fun loadDraw(
-    context: Context, marks: MutableList<MarkT>, texts: MutableList<TextT>,
+private fun loadDrawPage(
+    context: Context, pageIdx: Int, marks: MutableList<MarkT>, texts: MutableList<TextT>,
     strokes: MutableList<StrokeT>
 ) {
-    val s = context.getSharedPreferences(DRAW_PREFS, Context.MODE_PRIVATE).getString("data", "") ?: ""
+    val s = context.getSharedPreferences(DRAW_PREFS, Context.MODE_PRIVATE).getString("data_$pageIdx", "") ?: ""
     if (s.isBlank()) return
     s.split("\n").forEach { line ->
         val f = line.split("|")
@@ -925,4 +1144,17 @@ private fun loadDraw(
             }
         }
     }
+}
+
+private fun deleteDrawPage(context: Context, pageIdx: Int) {
+    context.getSharedPreferences(DRAW_PREFS, Context.MODE_PRIVATE).edit().remove("data_$pageIdx").apply()
+}
+
+private fun renameDrawPage(context: Context, fromIdx: Int, toIdx: Int) {
+    val prefs = context.getSharedPreferences(DRAW_PREFS, Context.MODE_PRIVATE)
+    val data = prefs.getString("data_$fromIdx", null)
+    val editor = prefs.edit()
+    if (data != null) editor.putString("data_$toIdx", data)
+    else editor.remove("data_$toIdx")
+    editor.remove("data_$fromIdx").apply()
 }
