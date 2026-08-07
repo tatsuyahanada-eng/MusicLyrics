@@ -14,10 +14,12 @@ import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.horizontalScroll
@@ -139,6 +141,7 @@ private fun markHalf(m: MarkT): Pair<Float, Float> =
 private data class TextT(val x: Float, val y: Float, val s: String, val sizeF: Float, val colorL: Long, val boxed: Boolean)
 private data class StrokeT(val pts: List<Offset>, val mode: PenMode, val colorL: Long)
 
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun DrawScreen(modifier: Modifier = Modifier) {
     val context = LocalContext.current
@@ -286,51 +289,66 @@ fun DrawScreen(modifier: Modifier = Modifier) {
         Row(
             modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
             verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(2.dp)
+            horizontalArrangement = Arrangement.spacedBy(0.dp)
         ) {
             for (i in 0 until pageCount) {
                 val isCurrent = i == curPage
                 val tabName = pageNames.getOrElse(i) { "ページ${i + 1}" }
                 Box(
                     modifier = Modifier
-                        .background(
-                            if (isCurrent) Color(0xFF1565C0) else Color(0xFFE0E0E0),
-                            RoundedCornerShape(topStart = 6.dp, topEnd = 6.dp)
+                        .border(
+                            width = if (isCurrent) 2.dp else 1.dp,
+                            color = if (isCurrent) Color(0xFF1565C0) else Color(0xFFBDBDBD),
+                            shape = RoundedCornerShape(topStart = 8.dp, topEnd = 8.dp)
                         )
-                        .clickable { switchPage(i) }
-                        .padding(horizontal = 10.dp, vertical = 4.dp)
+                        .background(
+                            if (isCurrent) Color(0xFF1565C0) else Color(0xFFF5F5F5),
+                            RoundedCornerShape(topStart = 8.dp, topEnd = 8.dp)
+                        )
+                        .combinedClickable(
+                            onClick = { switchPage(i) },
+                            onLongClick = {
+                                pageRenameIdx = i
+                                pageRenameInput = tabName
+                                showPageRename = true
+                            }
+                        )
+                        .padding(horizontal = 14.dp, vertical = 6.dp)
                 ) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Text(
                             tabName,
-                            color = if (isCurrent) Color.White else Color.Black,
-                            fontSize = 12.sp,
+                            color = if (isCurrent) Color.White else Color(0xFF333333),
+                            fontSize = 13.sp,
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis,
-                            modifier = Modifier.clickable(onClick = {
-                                pageRenameIdx = i
-                                pageRenameInput = tabName
-                                showPageRename = true
-                            }).weight(1f, fill = false)
                         )
                         if (pageCount > 1) {
-                            Spacer(Modifier.width(2.dp))
+                            Spacer(Modifier.width(6.dp))
                             Icon(
                                 Icons.Default.Close,
                                 contentDescription = "削除",
-                                tint = if (isCurrent) Color.White.copy(alpha = 0.7f) else Color.Gray,
+                                tint = if (isCurrent) Color.White.copy(alpha = 0.8f) else Color(0xFF999999),
                                 modifier = Modifier
-                                    .size(14.dp)
+                                    .size(16.dp)
                                     .clickable { pageDeleteIdx = i; showPageDelete = true }
                             )
                         }
                     }
                 }
             }
-            IconButton(onClick = { addPage() }, modifier = Modifier.size(28.dp)) {
-                Icon(Icons.Default.Add, contentDescription = "ページ追加", modifier = Modifier.size(18.dp))
+            Spacer(Modifier.width(4.dp))
+            OutlinedButton(
+                onClick = { addPage() },
+                modifier = Modifier.height(32.dp),
+                shape = RoundedCornerShape(8.dp)
+            ) {
+                Icon(Icons.Default.Add, contentDescription = "ページ追加", modifier = Modifier.size(16.dp))
+                Spacer(Modifier.width(2.dp))
+                Text("追加", fontSize = 12.sp)
             }
         }
+        if (pageCount > 1) Text("長押しでページ名変更", fontSize = 10.sp, color = Color(0xFF999999))
 
         // ツール
         Row(modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
