@@ -39,7 +39,6 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.Close
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.FilterChipDefaults
@@ -155,6 +154,8 @@ fun DrawScreen(modifier: Modifier = Modifier) {
     var pageRenameInput by remember { mutableStateOf("") }
     var showPageDelete by remember { mutableStateOf(false) }
     var pageDeleteIdx by remember { mutableIntStateOf(-1) }
+    var showPageMenu by remember { mutableStateOf(false) }
+    var pageMenuIdx by remember { mutableIntStateOf(-1) }
 
     remember {
         val meta = loadPageMeta(context)
@@ -296,6 +297,7 @@ fun DrawScreen(modifier: Modifier = Modifier) {
                 val tabName = pageNames.getOrElse(i) { "ページ${i + 1}" }
                 Box(
                     modifier = Modifier
+                        .width(96.dp)
                         .border(
                             width = if (isCurrent) 2.dp else 1.dp,
                             color = if (isCurrent) Color(0xFF1565C0) else Color(0xFFBDBDBD),
@@ -307,34 +309,18 @@ fun DrawScreen(modifier: Modifier = Modifier) {
                         )
                         .combinedClickable(
                             onClick = { switchPage(i) },
-                            onLongClick = {
-                                pageRenameIdx = i
-                                pageRenameInput = tabName
-                                showPageRename = true
-                            }
+                            onLongClick = { pageMenuIdx = i; showPageMenu = true }
                         )
-                        .padding(horizontal = 14.dp, vertical = 6.dp)
+                        .padding(horizontal = 14.dp, vertical = 8.dp)
                 ) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Text(
-                            tabName,
-                            color = if (isCurrent) Color.White else Color(0xFF333333),
-                            fontSize = 13.sp,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis,
-                        )
-                        if (pageCount > 1) {
-                            Spacer(Modifier.width(6.dp))
-                            Icon(
-                                Icons.Default.Close,
-                                contentDescription = "削除",
-                                tint = if (isCurrent) Color.White.copy(alpha = 0.8f) else Color(0xFF999999),
-                                modifier = Modifier
-                                    .size(16.dp)
-                                    .clickable { pageDeleteIdx = i; showPageDelete = true }
-                            )
-                        }
-                    }
+                    Text(
+                        tabName,
+                        color = if (isCurrent) Color.White else Color(0xFF333333),
+                        fontSize = 13.sp,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.fillMaxWidth(),
+                    )
                 }
             }
             Spacer(Modifier.width(4.dp))
@@ -348,7 +334,7 @@ fun DrawScreen(modifier: Modifier = Modifier) {
                 Text("追加", fontSize = 12.sp)
             }
         }
-        if (pageCount > 1) Text("長押しでページ名変更", fontSize = 10.sp, color = Color(0xFF999999))
+        Text("長押しで名前変更・削除", fontSize = 10.sp, color = Color(0xFF999999))
 
         // ツール
         Row(modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
@@ -672,6 +658,34 @@ fun DrawScreen(modifier: Modifier = Modifier) {
                 }) { Text("消去する") }
             },
             dismissButton = { TextButton(onClick = { showClear = false }) { Text("やめる") } }
+        )
+    }
+
+    // ページ長押しメニュー（名前変更／削除を選択）
+    if (showPageMenu) {
+        val tabName = pageNames.getOrElse(pageMenuIdx) { "ページ${pageMenuIdx + 1}" }
+        AlertDialog(
+            onDismissRequest = { showPageMenu = false },
+            title = { Text(tabName) },
+            text = {
+                Column {
+                    TextButton(onClick = {
+                        showPageMenu = false
+                        pageRenameIdx = pageMenuIdx
+                        pageRenameInput = tabName
+                        showPageRename = true
+                    }, modifier = Modifier.fillMaxWidth()) { Text("名前を変更") }
+                    if (pageCount > 1) {
+                        TextButton(onClick = {
+                            showPageMenu = false
+                            pageDeleteIdx = pageMenuIdx
+                            showPageDelete = true
+                        }, modifier = Modifier.fillMaxWidth()) { Text("このページを削除", color = Color(0xFFD32F2F)) }
+                    }
+                }
+            },
+            confirmButton = {},
+            dismissButton = { TextButton(onClick = { showPageMenu = false }) { Text("閉じる") } }
         )
     }
 
