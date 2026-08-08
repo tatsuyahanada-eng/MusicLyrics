@@ -2308,6 +2308,49 @@
     flashSaved('ひな型を出力しました');
   });
 
+  /* ---------- 完全バックアップ（JSON）：色・文字サイズ・入力欄・ユーザー権限もそのまま保存/復元 ---------- */
+  { const be = $('#backupExportBtn'); if (be) be.addEventListener('click', async () => {
+    try {
+      const d = await apiCall('backup_export');
+      const backup = d.backup || d;
+      const blob = new Blob([JSON.stringify(backup, null, 2)], { type: 'application/json;charset=utf-8' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `casebycase-backup-${new Date().toISOString().slice(0, 10)}.json`;
+      a.click();
+      URL.revokeObjectURL(url);
+      flashSaved('完全バックアップ（JSON）を出力しました');
+    } catch (e) { flashSaved('バックアップ出力に失敗：' + e.message); }
+  }); }
+
+  const backupFile = $('#backupFile');
+  { const bi = $('#backupImportBtn'); if (bi && backupFile) bi.addEventListener('click', () => backupFile.click()); }
+  if (backupFile) backupFile.addEventListener('change', () => {
+    const f = backupFile.files[0];
+    if (!f) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+      let parsed = null;
+      try { parsed = JSON.parse(reader.result); }
+      catch (e) { flashSaved('JSONを読み込めませんでした（ファイルが壊れている可能性があります）'); backupFile.value = ''; return; }
+      const b = (parsed && parsed.backup) ? parsed.backup : parsed;
+      if (!b || !Array.isArray(b.nodes)) { flashSaved('完全バックアップのJSONではないようです（nodes がありません）'); backupFile.value = ''; return; }
+      const nUsers = Array.isArray(b.users) ? b.users.length : 0;
+      askConfirm(`このバックアップで全データを置き換えます（項目 ${b.nodes.length} 件・ユーザー権限 ${nUsers} 件）。色・文字サイズ・入力欄も復元され、現在のサーバー上のデータは上書きされます。よろしいですか？`, async () => {
+        try {
+          const r = await apiCall('backup_import', { method: 'POST', body: { backup: b } });
+          await reloadFromServer();
+          navRestart();
+          renderEdit();
+          flashSaved(`復元しました（項目 ${r.nodes} 件 / ユーザー権限 ${r.users} 件）`);
+        } catch (e) { saveStatus.textContent = '✗ 復元に失敗：' + e.message; }
+      }, '復元する');
+      backupFile.value = '';
+    };
+    reader.readAsText(f);
+  });
+
   const xlsxDialog = $('#xlsxDialog');
   const xlsxFile = $('#xlsxFile');
   let xlsxParsed = null;

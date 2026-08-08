@@ -952,6 +952,116 @@ switch ($action) {
     ok();
   }
 
+  case 'backup_export': {
+    // 完全バックアップ（管理者のみ）。本文HTML（色・サイズ・入力欄）・ロック・
+    // ユーザー権限（パスワードハッシュ含む）・在庫・設定を、無加工でそのまま書き出す。
+    require_admin_session($pdo);
+    $nodes    = $pdo->query('SELECT id, parent_id, sort_order, title, body, created_by, updated_by, updated_at, created_at, lock_hash FROM nodes ORDER BY parent_id, sort_order, created_at')->fetchAll();
+    $users    = $pdo->query('SELECT username, display_name, pass_hash, is_admin, allowed, created_at, updated_at FROM users ORDER BY username')->fetchAll();
+    $invItems = $pdo->query('SELECT id, name, model, qty, note, sort_order, created_at, updated_at FROM inv_items ORDER BY sort_order, created_at')->fetchAll();
+    $invLogs  = $pdo->query('SELECT id, item_id, action, qty, balance, person, note, created_at FROM inv_logs ORDER BY created_at, id')->fetchAll();
+    $settings = $pdo->query('SELECT k, v FROM app_settings')->fetchAll();
+    ok(array('backup' => array(
+      'app'         => 'case-by-case',
+      'version'     => 1,
+      'exported_at' => now_ms(),
+      'nodes'       => $nodes,
+      'users'       => $users,
+      'inv_items'   => $invItems,
+      'inv_logs'    => $invLogs,
+      'settings'    => $settings,
+    )));
+  }
+
+  case 'backup_import': {
+    // 完全バックアップの復元（管理者のみ）。全データを置き換える（トランザクション）。
+    // sessions は触らないので、実行中の管理者はログインを維持したまま復元できる。
+    require_admin_session($pdo);
+    $d = body_json();
+    $b = (isset($d['backup']) && is_array($d['backup'])) ? $d['backup'] : $d;
+    if (!isset($b['nodes']) || !is_array($b['nodes'])) fail('バックアップの形式が正しくありません（nodes がありません）');
+    $ts = now_ms();
+    $pdo->beginTransaction();
+    try {
+      // ---- nodes ----
+      $pdo->exec('DELETE FROM nodes');
+      $ins = $pdo->prepare('INSERT INTO nodes (id, parent_id, sort_order, title, body, created_by, updated_by, updated_at, created_at, lock_hash) VALUES (?,?,?,?,?,?,?,?,?,?)');
+      foreach ($b['nodes'] as $n) {
+        $ins->execute(array(
+          !empty($n['id']) ? $n['id'] : gen_id(),
+          (isset($n['parent_id']) && $n['parent_id'] !== '') ? $n['parent_id'] : null,
+          isset($n['sort_order']) ? (int)$n['sort_order'] : 0,
+          isset($n['title']) ? $n['title'] : '（無題）',
+          isset($n['body']) ? $n['body'] : '',
+          (isset($n['created_by']) && $n['created_by'] !== '') ? $n['created_by'] : null,
+          (isset($n['updated_by']) && $n['updated_by'] !== '') ? $n['updated_by'] : null,
+          isset($n['updated_at']) ? (int)$n['updated_at'] : $ts,
+          isset($n['created_at']) ? (int)$n['created_at'] : $ts,
+          (isset($n['lock_hash']) && $n['lock_hash'] !== '') ? $n['lock_hash'] : null,
+        ));
+      }
+      // ---- users（ユーザー権限）----
+      if (isset($b['users']) && is_array($b['users'])) {
+        $pdo->exec('DELETE FROM users');
+        $iu = $pdo->prepare('INSERT INTO users (username, display_name, pass_hash, is_admin, allowed, created_at, updated_at) VALUES (?,?,?,?,?,?,?)');
+        foreach ($b['users'] as $u) {
+          if (empty($u['username'])) continue;
+          $allowed = null;
+          if (isset($u['allowed'])) $allowed = is_array($u['allowed']) ? json_encode(array_values($u['allowed']), JSON_UNESCAPED_UNICODE) : (string)$u['allowed'];
+          $iu->execute(array(
+            $u['username'],
+            isset($u['display_name']) ? $u['display_name'] : null,
+            isset($u['pass_hash']) ? $u['pass_hash'] : null,
+            !empty($u['is_admin']) ? 1 : 0,
+            $allowed,
+            isset($u['created_at']) ? (int)$u['created_at'] : $ts,
+            isset($u['updated_at']) ? (int)$u['updated_at'] : $ts,
+          ));
+        }
+      }
+      // ---- inv_items ----
+      if (isset($b['inv_items']) && is_array($b['inv_items'])) {
+        $pdo->exec('DELETE FROM inv_items');
+        $ii = $pdo->prepare('INSERT INTO inv_items (id, name, model, qty, note, sort_order, created_at, updated_at) VALUES (?,?,?,?,?,?,?,?)');
+        foreach ($b['inv_items'] as $it) {
+          if (empty($it['id'])) continue;
+          $ii->execute(array($it['id'], isset($it['name']) ? $it['name'] : '', isset($it['model']) ? $it['model'] : null,
+            isset($it['qty']) ? (int)$it['qty'] : 0, isset($it['note']) ? $it['note'] : null, isset($it['sort_order']) ? (int)$it['sort_order'] : 0,
+            isset($it['created_at']) ? (int)$it['created_at'] : $ts, isset($it['updated_at']) ? (int)$it['updated_at'] : $ts));
+        }
+      }
+      // ---- inv_logs ----
+      if (isset($b['inv_logs']) && is_array($b['inv_logs'])) {
+        $pdo->exec('DELETE FROM inv_logs');
+        $il = $pdo->prepare('INSERT INTO inv_logs (id, item_id, action, qty, balance, person, note, created_at) VALUES (?,?,?,?,?,?,?,?)');
+        foreach ($b['inv_logs'] as $lg) {
+          if (empty($lg['id'])) continue;
+          $il->execute(array($lg['id'], isset($lg['item_id']) ? $lg['item_id'] : '', isset($lg['action']) ? $lg['action'] : '',
+            isset($lg['qty']) ? (int)$lg['qty'] : 0, isset($lg['balance']) ? (int)$lg['balance'] : 0,
+            isset($lg['person']) ? $lg['person'] : null, isset($lg['note']) ? $lg['note'] : null,
+            isset($lg['created_at']) ? (int)$lg['created_at'] : $ts));
+        }
+      }
+      // ---- settings（ピン留め・AI/在庫トグル等）----
+      if (isset($b['settings']) && is_array($b['settings'])) {
+        $pdo->exec('DELETE FROM app_settings');
+        $is = $pdo->prepare('INSERT INTO app_settings (k, v) VALUES (?, ?)');
+        foreach ($b['settings'] as $st) {
+          if (!isset($st['k'])) continue;
+          $is->execute(array($st['k'], isset($st['v']) ? $st['v'] : ''));
+        }
+      }
+      $pdo->commit();
+    } catch (Throwable $e) {
+      if ($pdo->inTransaction()) $pdo->rollBack();
+      fail('復元に失敗しました：' . $e->getMessage(), 500);
+    }
+    ok(array(
+      'nodes' => count($b['nodes']),
+      'users' => (isset($b['users']) && is_array($b['users'])) ? count($b['users']) : 0,
+    ));
+  }
+
   default:
     fail('不明なアクションです: ' . $action, 404);
 }

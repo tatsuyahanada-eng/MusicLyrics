@@ -207,6 +207,9 @@
           <button id="xlsxTemplateBtn" class="tm-btn tm-btn-outline" type="button">&#128203; Excelひな型</button>
           <button id="xlsxExportBtn" class="tm-btn tm-btn-outline" type="button">&#8681; Excel出力</button>
           <input id="xlsxFile" type="file" accept=".xlsx,.xls,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" hidden>
+          <button id="backupExportBtn" class="tm-btn tm-btn-outline" type="button" title="色・文字サイズ・入力欄・ユーザー権限も含めて、まるごとバックアップ（JSON）">&#128190; 完全バックアップ</button>
+          <button id="backupImportBtn" class="tm-btn tm-btn-outline" type="button" title="完全バックアップ（JSON）から、まるごと復元">&#8635; バックアップ復元</button>
+          <input id="backupFile" type="file" accept="application/json,.json" hidden>
           <button id="invEditBtn" class="tm-btn tm-btn-outline" type="button">&#128230; 在庫を修正（管理者）</button>
           <button id="usersBtn" class="tm-btn tm-btn-outline" type="button" hidden>&#128101; ユーザー権限</button>
           <button id="resetBtn" class="tm-btn tm-btn-danger-outline" type="button">初期化</button>
@@ -739,6 +742,6 @@
   </dialog>
 
   <script src="vendor/xlsx.full.min.js"></script>
-  <script src="manual.js?v=65"></script>
+  <script src="manual.js?v=66"></script>
 </body>
 </html>
