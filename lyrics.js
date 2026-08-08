@@ -153,12 +153,13 @@ let elArtist, elTitle, elTitleWrap, elFetchBtn, elSearchHint, elStatus,
    - dynamic : per-character reveal with rotating typographic variants
    - mix     : random placement + per-character reveal + variants
    - normal  : one line at a time, no past/next context */
-const LYRIC_STYLES = ['random', 'dynamic', 'mix', 'normal'];
+const LYRIC_STYLES = ['random', 'dynamic', 'mix', 'normal', 'collage'];
 const LYRIC_STYLE_LABELS = {
   random:  '🎨Random',
   dynamic: '🎨Dynamic',
   mix:     '🎨Mix',
   normal:  '🎨Normal',
+  collage: '🎸ROCK',
 };
 let lyricStyle = 'random';
 let fxTheme = 'rings';
@@ -2332,6 +2333,8 @@ function renderLrcView() {
     [idx - 2, idx - 1, idx, idx + 1, idx + 2]
   );
   updateLyricTimeInfo();
+  /* ROCK: reshuffle the collage layout on every new line */
+  refreshCollageBackdrop();
 }
 
 /** Plain-mode (no LRC timestamps): push a new line and re-render
@@ -2351,6 +2354,8 @@ function displayLine(text) {
     plainHistory[0],
     []
   );
+  /* ROCK: reshuffle the collage layout on every new line */
+  refreshCollageBackdrop();
 }
 
 /* ============================================================
@@ -2720,11 +2725,19 @@ function applyLyricStyle() {
   document.body.classList.toggle('lyric-random',  lyricStyle === 'random');
   document.body.classList.toggle('lyric-mix',     lyricStyle === 'mix');
   document.body.classList.toggle('lyric-dynamic', lyricStyle === 'dynamic');
-  document.body.classList.toggle('lyric-normal',  lyricStyle === 'normal');
+  /* ROCK piggybacks on the single-line-only Normal layout so past
+     and next lines are hidden; the collage backdrop and the bold
+     text styling then layer on top via .lyric-collage. */
+  document.body.classList.toggle('lyric-normal',
+    lyricStyle === 'normal' || lyricStyle === 'collage');
+  document.body.classList.toggle('lyric-collage', lyricStyle === 'collage');
   if (elStyleToggleBtn) {
     elStyleToggleBtn.classList.toggle('active', lyricStyle !== 'random');
     elStyleToggleBtn.textContent = LYRIC_STYLE_LABELS[lyricStyle] || LYRIC_STYLE_LABELS.random;
   }
+  /* ROCK swaps in / out of the FX layer, so a style change has to
+     rebuild the backdrop even when the ✨ FX theme hasn't moved. */
+  buildFx();
 }
 
 /* Colour theme (lyrics on dark vs. light background) */
@@ -2767,13 +2780,10 @@ function applyTextColor() {
    Background FX themes
    (rings / stars / streaks / squares / triangles / mix)
    ============================================================ */
-const FX_THEMES = ['rings', 'squares', 'water', 'clouds', 'collage', 'none'];
+const FX_THEMES = ['rings', 'squares', 'none'];
 const FX_LABELS = {
   rings:    '✨リング',
   squares:  '✨スクエア',
-  water:    '💧水中',
-  clouds:   '☁ 雲',
-  collage:  '🎸コラージュ',
   none:     '⛶ なし',
 };
 const SQUARE_TINTS = [
@@ -2789,53 +2799,41 @@ function cycleFxTheme() {
   buildFx();
 }
 
-/* Populate the .ly-fx layer with the elements for the active theme */
+/* Populate the .ly-fx layer with the elements for the active
+   background effect. The ROCK/collage lyric style owns the FX
+   layer entirely while it's active — the backdrop belongs to
+   the lyric look, not to whatever ✨ FX the user last picked —
+   so we short-circuit to buildCollageFx() before honouring the
+   fxTheme choice. */
 function buildFx() {
   if (!elFx) return;
   elFx.innerHTML = '';
-  elFx.dataset.theme = fxTheme;
   document.body.classList.remove('fx-glass');   /* retired */
+
+  if (lyricStyle === 'collage') {
+    elFx.dataset.theme = 'collage';
+    if (elFxThemeBtn) elFxThemeBtn.textContent = FX_LABELS[fxTheme] || '✨';
+    buildCollageFx();
+    return;
+  }
+
+  elFx.dataset.theme = fxTheme;
   if (elFxThemeBtn) elFxThemeBtn.textContent = FX_LABELS[fxTheme] || '✨';
 
   if (fxTheme === 'rings') {
     for (let i = 0; i < 6; i++) elFx.appendChild(mkEl('span', 'ly-ripple'));
-
   } else if (fxTheme === 'squares') {
     for (let i = 0; i < 8; i++) elFx.appendChild(buildBlinker('square', i));
-
-  } else if (fxTheme === 'water') {
-    /* Aquarium-tank feel: fewer, larger, slower bubbles so the
-       stage stays calm and the lyrics stay dominant. */
-    for (let i = 0; i < 8; i++) {
-      const b = mkEl('span', 'ly-bubble');
-      const size = 7 + Math.random() * 16;
-      b.style.width  = size.toFixed(1) + 'px';
-      b.style.height = size.toFixed(1) + 'px';
-      b.style.left   = (Math.random() * 100).toFixed(1) + '%';
-      /* 18–34s per rise — languid, not lively */
-      b.style.animationDuration = (18 + Math.random() * 16).toFixed(2) + 's';
-      b.style.animationDelay    = (-Math.random() * 22).toFixed(2) + 's';
-      b.style.setProperty('--sway', (10 + Math.random() * 16).toFixed(1) + 'px');
-      elFx.appendChild(b);
-    }
-
-  } else if (fxTheme === 'clouds') {
-    /* Slow drifting soft cloud shapes */
-    for (let i = 0; i < 5; i++) {
-      const c = mkEl('span', 'ly-cloud');
-      const scale = 0.6 + Math.random() * 0.9;
-      c.style.setProperty('--cloud-scale', scale.toFixed(2));
-      c.style.top = (8 + Math.random() * 74).toFixed(1) + '%';
-      c.style.animationDuration = (28 + Math.random() * 24).toFixed(2) + 's';
-      c.style.animationDelay    = (-Math.random() * 40).toFixed(2) + 's';
-      c.style.opacity = (0.32 + Math.random() * 0.38).toFixed(2);
-      elFx.appendChild(c);
-    }
-
-  } else if (fxTheme === 'collage') {
-    buildCollageFx();
-
   } /* fxTheme === 'none' → leave elFx empty */
+}
+
+/* Reshuffle the collage layer — called every time the current
+   lyric line changes while the ROCK style is active, so the
+   backdrop pulses with the song instead of sitting frozen. */
+function refreshCollageBackdrop() {
+  if (lyricStyle !== 'collage' || !elFx) return;
+  elFx.innerHTML = '';
+  buildCollageFx();
 }
 
 /* SUPER BEAVER-style MV lyric backdrop — red stars, coloured

@@ -1364,10 +1364,21 @@ body.song-active .ly-fx { display: block; }
   position: absolute;
   pointer-events: none;
   transform-origin: 50% 50%;
-  animation: ly-collage-rock ease-in-out infinite alternate;
-  will-change: transform;
+  /* Two overlapping animations: a quick opacity pop so the piece
+     reads as newly-laid-down when the layer reshuffles on each
+     lyric line, and a slow rocking rotation that keeps it alive
+     while it sits. Only the second touches transform, so the two
+     don't fight over the same property. */
+  animation:
+    ly-collage-enter 0.32s ease-out,
+    ly-collage-rock ease-in-out infinite alternate;
+  will-change: transform, opacity;
   --rot: 0deg;
   --drift: 4deg;
+}
+@keyframes ly-collage-enter {
+  0%   { opacity: 0; }
+  100% { opacity: 1; }
 }
 @keyframes ly-collage-rock {
   0%   { transform: translate(-50%, -50%) rotate(calc(var(--rot) - var(--drift))); }
@@ -2068,6 +2079,53 @@ body.lyric-normal .ly-line-current.enter.dir-zoom {
 @keyframes ly-normal-fade {
   0%   { opacity: 0; }
   100% { opacity: 1; }
+}
+
+/* ============================================================
+   ROCK style — SUPER BEAVER-style MV lyric card. Piggybacks on
+   the Normal single-line layout so past/next lines stay hidden,
+   then layers the collage backdrop (built by buildCollageFx
+   into .ly-fx) and a bold white text treatment on top. The FX
+   layer is reshuffled every time renderLrcView() / displayLine()
+   advances, so the whole scene re-composes on every lyric line
+   — matching the "画面の表示が変わる" per-line effect the user
+   asked for. Best on loud / flashy songs.
+   ============================================================ */
+body.lyric-collage .ly-line-current {
+  font-size: clamp(1.9rem, 6.4vw, 3.6rem);
+  font-weight: 900;
+  letter-spacing: 0.03em;
+  color: #ffffff;
+  padding: 6px 22px;
+  text-shadow:
+    /* Sharp black outline stroke — reads as printed over the collage */
+    0  2px 0 rgba(0, 0, 0, 0.9),
+    0 -2px 0 rgba(0, 0, 0, 0.9),
+    2px 0 0 rgba(0, 0, 0, 0.9),
+   -2px 0 0 rgba(0, 0, 0, 0.9),
+    /* Soft depth halo */
+    0 6px 18px rgba(0, 0, 0, 0.7),
+    /* Faint red glow — ties the text to the star palette */
+    0 0 32px rgba(217, 44, 58, 0.35);
+}
+body.lyric-collage.lyrics-fs #stage .ly-line-current,
+body.lyric-collage.karaoke-mode #stage .ly-line-current {
+  font-size: clamp(2.8rem, 8.5vw, 5.6rem);
+}
+/* Punchier entrance — slight scale kick with the fade so each new
+   line snaps in with the rock energy the collage backdrop conveys */
+body.lyric-collage .ly-line-current.enter,
+body.lyric-collage .ly-line-current.enter.dir-up,
+body.lyric-collage .ly-line-current.enter.dir-down,
+body.lyric-collage .ly-line-current.enter.dir-left,
+body.lyric-collage .ly-line-current.enter.dir-right,
+body.lyric-collage .ly-line-current.enter.dir-zoom {
+  animation: ly-collage-text-in 0.35s cubic-bezier(0.2, 1.4, 0.3, 1) both;
+}
+@keyframes ly-collage-text-in {
+  0%   { opacity: 0; transform: scale(0.82) rotate(-1.5deg); }
+  60%  { opacity: 1; transform: scale(1.06) rotate(0.6deg); }
+  100% { opacity: 1; transform: scale(1)    rotate(0deg); }
 }
 
 /* ---- Stage message overlay (e.g. "No Lyrics") ---- */
