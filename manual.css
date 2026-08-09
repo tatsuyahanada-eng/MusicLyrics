@@ -1427,6 +1427,16 @@ textarea.tm-ff-input { width: 100%; resize: vertical; min-height: 88px; }
 .tm-footer-trips { color: var(--tm-muted); }
 .tm-footer-trips:hover { color: var(--tm-cyan); }
 .tm-trip-form { margin-bottom: 8px; }
+.tm-trip-topbar { display: flex; justify-content: flex-end; margin-bottom: 12px; }
+.tm-trip-histhead { font-family: var(--tm-mono); font-size: 13px; letter-spacing: 1px; color: var(--tm-cyan); margin-bottom: 10px; }
+/* 目的地追加 / GoogleMapで距離測定 の強調ボタン（シアン系アクセント） */
+.tm-trip-accentbtn {
+  color: #051018;
+  background: linear-gradient(180deg, #67e8f9, #22b8cf);
+  border: 1px solid #22b8cf;
+  font-weight: 600;
+}
+.tm-trip-accentbtn:hover { background: linear-gradient(180deg, #7ff0ff, #29c7db); }
 .tm-trip-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px 14px; }
 .tm-trip-grid .tm-trip-wide { grid-column: 1 / -1; }
 .tm-trip-inline { display: flex; gap: 8px; align-items: center; }

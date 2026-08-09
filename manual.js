@@ -2975,21 +2975,27 @@
     const sb = $('#tripSaveBtn'); if (sb) sb.innerHTML = '&#43; この内容で登録';
     tripRecalc(); tripMsg('');
   }
-  function openTrips() {
+  function openTrips(mode) {
     if (!tripViewEl || !session) return;
+    const history = (mode === 'history');
     tripReturnMode = !editView.hidden ? 'edit' : 'nav';
     tripOpen = true;
     navView.hidden = true; if (invViewEl) invViewEl.hidden = true; editView.hidden = true;
     tripViewEl.hidden = false;
     breadcrumbBar.style.display = 'none';
+    const formSec = $('#tripFormSection'); if (formSec) formSec.hidden = history;   // 入力フォーム
+    const histSec = $('#tripHistorySection'); if (histSec) histSec.hidden = !history; // 履歴検索
     const uw = $('#tripFilterUserWrap'); if (uw) uw.hidden = !(session && session.isAdmin);
-    tripResetForm();
+    const jp = tripViewEl.querySelector('.tm-panel-head-jp'); if (jp) jp.textContent = history ? '交通費 履歴検索' : '交通費精算';
     const now = new Date();
     if ($('#tripFilterMonth')) $('#tripFilterMonth').value = now.getFullYear() + '-' + String(now.getMonth() + 1).padStart(2, '0');
-    // 一覧は「検索」を押したときだけ表示する（初期は非表示）
-    const wrap = $('#tripTableWrap');
-    if (wrap) wrap.innerHTML = '<div class="tm-trip-empty">月やユーザーを指定して「検索」を押すと一覧が表示されます。</div>';
-    tripListData = [];
+    if (history) {
+      tripSearch(); // 履歴ウィンドウは開いたら現在月で検索して表示
+    } else {
+      tripResetForm();
+      const wrap = $('#tripTableWrap'); if (wrap) wrap.innerHTML = ''; // 入力画面には一覧を出さない
+      tripListData = [];
+    }
     syncTrap();
   }
   function closeTrips() { setMode(tripReturnMode === 'edit' ? 'edit' : 'nav'); syncTrap(); }
@@ -3135,8 +3141,9 @@
     XLSX.writeFile(wb, `交通費-${mm}.xlsx`);
     tripMsg('Excelを出力しました');
   }
-  { const b = $('#footerTrips'); if (b) b.addEventListener('click', openTrips); }
+  { const b = $('#footerTrips'); if (b) b.addEventListener('click', () => openTrips()); }
   { const b = $('#tripBackBtn'); if (b) b.addEventListener('click', closeTrips); }
+  { const b = $('#tripHistoryBtn'); if (b) b.addEventListener('click', () => { window.open(location.pathname + '?trip=history', '_blank', 'noopener'); }); }
   { const b = $('#tripCompanyBtn'); if (b) b.addEventListener('click', () => { if ($('#tripStart')) $('#tripStart').value = travelOrigin; }); }
   { const b = $('#tripAddDestBtn'); if (b) b.addEventListener('click', () => tripAppendDest('')); }
   { const b = $('#tripMapBtn'); if (b) b.addEventListener('click', tripOpenMap); }
@@ -4231,5 +4238,10 @@
     }
     setMode('nav');
     resetIdleTimer();
+    // 別ウィンドウで「交通費履歴検索」を開いた場合（?trip=history）は、そのまま履歴検索を表示
+    try {
+      const qp = new URLSearchParams(location.search);
+      if (qp.get('trip') === 'history' && session) openTrips('history');
+    } catch (_) {}
   })();
 })();

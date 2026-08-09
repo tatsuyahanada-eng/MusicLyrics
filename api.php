@@ -336,6 +336,41 @@ function cbc_filter_allowed($rows, $allowed) {
   foreach ($rows as $r) { if (isset($allow[$rootOf($r['id'])])) $out[] = $r; }
   return $out;
 }
+// 「オンサイト」を含む項目のルート大項目ID一覧（交通費のユーザー絞り込み用）
+function cbc_onsite_root_ids($pdo) {
+  try {
+    $rows = $pdo->query('SELECT id, parent_id, title FROM nodes')->fetchAll();
+  } catch (Throwable $e) { return array(); }
+  $parent = array();
+  foreach ($rows as $r) { $parent[$r['id']] = $r['parent_id']; }
+  $rootOf = function ($id) use ($parent) {
+    $g = 0;
+    while (isset($parent[$id]) && $parent[$id] !== null && $parent[$id] !== '' && $g++ < 60) $id = $parent[$id];
+    return $id;
+  };
+  $roots = array();
+  foreach ($rows as $r) {
+    if (mb_strpos((string)$r['title'], 'オンサイト') !== false) $roots[$rootOf($r['id'])] = true;
+  }
+  return array_keys($roots);
+}
+// 「オンサイト」カテゴリを閲覧できるアカウント（管理者＋許可された一般ユーザー）
+function cbc_onsite_users($pdo) {
+  $onsite = cbc_onsite_root_ids($pdo);
+  $allow = array(); foreach ($onsite as $r) $allow[$r] = true;
+  $out = array();
+  try {
+    foreach ($pdo->query('SELECT username, display_name, is_admin, allowed FROM users ORDER BY display_name, username')->fetchAll() as $u) {
+      $ok = ((int)$u['is_admin'] === 1);
+      if (!$ok) {
+        $al = json_decode($u['allowed'], true);
+        if (is_array($al)) foreach ($al as $a) { if (isset($allow[$a])) { $ok = true; break; } }
+      }
+      if ($ok) $out[] = array('username' => $u['username'], 'display_name' => $u['display_name']);
+    }
+  } catch (Throwable $e) {}
+  return $out;
+}
 // 履歴から在庫数と各行の残数(balance)を再計算（履歴を修正・削除したとき用）
 function cbc_inv_recalc($pdo, $itemId) {
   $q = $pdo->prepare('SELECT id, action, qty FROM inv_logs WHERE item_id = ? ORDER BY created_at ASC, id ASC');
@@ -1210,13 +1245,9 @@ switch ($action) {
       );
       $sum += (int)$r['total'];
     }
-    // 管理者向け：ユーザー一覧（絞り込みプルダウン用）
+    // 管理者向け：ユーザー絞り込みプルダウン＝「リテイルオンサイト」を閲覧できるアカウント
     $users = array();
-    if ($s['is_admin']) {
-      foreach ($pdo->query('SELECT DISTINCT username, display_name FROM trips ORDER BY username')->fetchAll() as $u) {
-        $users[] = array('username' => $u['username'], 'display_name' => $u['display_name']);
-      }
-    }
+    if ($s['is_admin']) $users = cbc_onsite_users($pdo);
     ok(array('items' => $items, 'total_sum' => $sum, 'is_admin' => $s['is_admin'], 'users' => $users));
   }
 
