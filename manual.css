@@ -1423,6 +1423,41 @@ textarea.tm-ff-input { width: 100%; resize: vertical; min-height: 88px; }
 .tm-inv-toolbar { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 10px; }
 .tm-inv-tablewrap { overflow-x: auto; -webkit-overflow-scrolling: touch; }
 
+/* ---- 交通費（Travel） ---- */
+.tm-footer-trips { color: var(--tm-muted); }
+.tm-footer-trips:hover { color: var(--tm-cyan); }
+.tm-trip-form { margin-bottom: 8px; }
+.tm-trip-origin { font-size: 12px; color: var(--tm-muted); margin-bottom: 10px; }
+.tm-trip-origin b { color: var(--tm-text); }
+.tm-trip-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px 14px; }
+.tm-trip-grid .tm-trip-dest, .tm-trip-grid .tm-trip-note, .tm-trip-grid .tm-trip-round { grid-column: 1 / -1; }
+.tm-trip-distbtn { display: flex; flex-direction: column; justify-content: flex-end; }
+.tm-trip-distbtn .tm-btn { width: 100%; }
+.tm-trip-calcline {
+  display: flex; flex-wrap: wrap; gap: 8px 24px; align-items: baseline;
+  margin: 12px 0 6px; padding: 10px 12px; border: 1px solid var(--tm-line);
+  border-radius: 8px; background: rgba(56, 189, 248, 0.06); font-size: 14px;
+}
+.tm-trip-calcline b { font-family: var(--tm-mono); font-size: 16px; color: var(--tm-cyan); }
+.tm-trip-total b { color: #22c55e; font-size: 18px; }
+.tm-trip-filter { display: flex; flex-wrap: wrap; gap: 10px 14px; align-items: flex-end; margin: 6px 0 12px; }
+.tm-trip-filter .tm-field { min-width: 130px; }
+.tm-trip-filterbtns { justify-content: flex-end; }
+.tm-trip-tablewrap { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+.tm-trip-table { width: 100%; border-collapse: collapse; font-size: 13px; min-width: 760px; }
+.tm-trip-table th, .tm-trip-table td { padding: 8px 10px; text-align: left; border-bottom: 1px solid var(--tm-line); vertical-align: middle; white-space: nowrap; }
+.tm-trip-table th {
+  font-family: var(--tm-mono); font-size: 10px; letter-spacing: 1px;
+  color: var(--tm-cyan); text-transform: uppercase;
+  border-bottom: 1px solid var(--tm-line-strong);
+}
+.tm-trip-table td.num, .tm-trip-table th.num { text-align: right; font-variant-numeric: tabular-nums; }
+.tm-trip-table tfoot td { font-weight: bold; border-top: 2px solid var(--tm-line-strong); }
+.tm-trip-table .tm-trip-total-cell { color: #22c55e; }
+.tm-trip-empty { color: var(--tm-muted); padding: 16px 4px; font-size: 13px; }
+.tm-trip-ops { display: flex; gap: 6px; }
+@media (max-width: 560px) { .tm-trip-grid { grid-template-columns: 1fr; } }
+
 .tm-inv-table { width: 100%; border-collapse: collapse; font-size: 14px; min-width: 520px; }
 .tm-inv-table th, .tm-inv-table td { padding: 10px 12px; text-align: left; border-bottom: 1px solid var(--tm-line); vertical-align: middle; }
 .tm-inv-table th {

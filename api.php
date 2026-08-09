@@ -21,6 +21,8 @@ if (!defined('UPLOAD_URL'))       define('UPLOAD_URL', 'uploads');
 if (!defined('UPLOAD_MAX_BYTES')) define('UPLOAD_MAX_BYTES', 5 * 1024 * 1024);
 if (!defined('GEMINI_API_KEY'))   define('GEMINI_API_KEY', '');
 if (!defined('GEMINI_MODEL'))     define('GEMINI_MODEL', 'gemini-1.5-flash');
+if (!defined('GOOGLE_MAPS_API_KEY')) define('GOOGLE_MAPS_API_KEY', '');
+if (!defined('TRAVEL_ORIGIN'))    define('TRAVEL_ORIGIN', '東京都台東区台東2-1-1'); // 交通費の起点（日本リテイル）
 
 /* ---------- helpers ---------- */
 function fail($msg, $code = 400) {
@@ -141,6 +143,75 @@ function cbc_gemini($pdo, $prompt, $jsonMode = false, $maxTokens = 1024) {
   fail('利用可能なGeminiモデルが見つかりませんでした。config.php の GEMINI_MODEL をご確認ください（例: gemini-2.0-flash）。詳細: ' . $lastMsg, 502);
 }
 function now_ms() { return (int) round(microtime(true) * 1000); }
+
+/* 汎用 HTTP GET（curl があれば curl、無ければ file_get_contents）。戻り値: array($code, $body, $err) */
+function cbc_http_get($url) {
+  if (function_exists('curl_init')) {
+    $ch = curl_init($url);
+    curl_setopt_array($ch, array(
+      CURLOPT_RETURNTRANSFER => true,
+      CURLOPT_TIMEOUT => 20,
+      CURLOPT_FOLLOWLOCATION => true,
+    ));
+    $resp = curl_exec($ch);
+    $code = (int)curl_getinfo($ch, CURLINFO_HTTP_CODE);
+    $err = curl_error($ch);
+    curl_close($ch);
+    if ($resp === false) return array(0, '', $err !== '' ? $err : 'connection error');
+    return array($code, $resp, '');
+  }
+  $ctx = stream_context_create(array('http' => array('timeout' => 20, 'ignore_errors' => true)));
+  $resp = @file_get_contents($url, false, $ctx);
+  if ($resp === false) return array(0, '', 'サーバーの外部通信設定をご確認ください');
+  $code = 200;
+  if (isset($http_response_header[0]) && preg_match('/\s(\d{3})\s/', $http_response_header[0], $m)) $code = (int)$m[1];
+  return array($code, $resp, '');
+}
+
+/* Google Maps Distance Matrix で、車の移動距離（km・片道）を求める。
+   戻り値: array($km|null, $errorMessage, $resolvedDestination) */
+function cbc_maps_distance_km($origin, $dest) {
+  if (GOOGLE_MAPS_API_KEY === '') return array(null, 'Googleマップの距離計算は未設定です（config.php の GOOGLE_MAPS_API_KEY）。距離は手入力してください。', '');
+  $url = 'https://maps.googleapis.com/maps/api/distancematrix/json'
+    . '?origins=' . rawurlencode($origin)
+    . '&destinations=' . rawurlencode($dest)
+    . '&mode=driving&language=ja&region=jp&units=metric&key=' . urlencode(GOOGLE_MAPS_API_KEY);
+  list($code, $body, $err) = cbc_http_get($url);
+  if ($code !== 200 || $body === '') return array(null, '距離の取得に失敗しました（通信エラー）: ' . $err, '');
+  $j = json_decode($body, true);
+  if (!is_array($j)) return array(null, '距離の応答を解析できませんでした', '');
+  $status = isset($j['status']) ? $j['status'] : '';
+  if ($status !== 'OK') {
+    $msg = isset($j['error_message']) ? $j['error_message'] : $status;
+    return array(null, 'Googleマップのエラー: ' . $msg, '');
+  }
+  $el = isset($j['rows'][0]['elements'][0]) ? $j['rows'][0]['elements'][0] : null;
+  if (!$el || !isset($el['status']) || $el['status'] !== 'OK') {
+    $es = $el && isset($el['status']) ? $el['status'] : 'NOT_FOUND';
+    return array(null, '目的地までの経路が見つかりませんでした（住所をご確認ください / ' . $es . '）', '');
+  }
+  $meters = isset($el['distance']['value']) ? (int)$el['distance']['value'] : 0;
+  $resolved = isset($j['destination_addresses'][0]) ? $j['destination_addresses'][0] : '';
+  $km = round($meters / 1000, 1);
+  return array($km, '', $resolved);
+}
+
+/* 交通費の金額を計算。戻り値: array(片道km, 往復1/0, 単価, ガソリン代, 高速代, 駐車場代, 合計) */
+function cbc_trip_costs($d) {
+  $oneWay = isset($d['one_way_km']) ? (float)$d['one_way_km'] : 0;
+  if ($oneWay < 0) $oneWay = 0;
+  $round = !empty($d['round_trip']) ? 1 : 0;
+  $rate = isset($d['gas_rate']) ? (int)$d['gas_rate'] : 18;
+  if ($rate < 0) $rate = 0;
+  $toll = isset($d['toll_cost']) ? (int)$d['toll_cost'] : 0;
+  $park = isset($d['parking_cost']) ? (int)$d['parking_cost'] : 0;
+  if ($toll < 0) $toll = 0;
+  if ($park < 0) $park = 0;
+  $effKm = $oneWay * ($round ? 2 : 1);
+  $gas = (int) round($effKm * $rate);
+  $total = $gas + $toll + $park;
+  return array($oneWay, $round, $rate, $gas, $toll, $park, $total);
+}
 function author_of($d) {
   $a = isset($d['author']) ? trim((string)$d['author']) : '';
   if ($a === '') return null;
@@ -298,6 +369,8 @@ if ($action === 'config') {
     'dbConnected' => $connected,
     'hasToken'    => (API_TOKEN !== ''),
     'hasGemini'   => (GEMINI_API_KEY !== ''),
+    'hasMaps'     => (GOOGLE_MAPS_API_KEY !== ''),
+    'travelOrigin' => TRAVEL_ORIGIN,
     'aiOn'        => $aiOn,
     'invOn'       => $invOn,
     'uploads'     => true,
@@ -1060,6 +1133,103 @@ switch ($action) {
       'nodes' => count($b['nodes']),
       'users' => (isset($b['users']) && is_array($b['users'])) ? count($b['users']) : 0,
     ));
+  }
+
+  case 'trip_distance': {
+    // 起点（TRAVEL_ORIGIN）から目的地までの車の移動距離（片道km）をGoogleマップで求める。
+    require_login($pdo);
+    $d = body_json();
+    $dest = trim((string)(isset($d['destination']) ? $d['destination'] : ''));
+    if ($dest === '') fail('目的地の住所を入力してください');
+    list($km, $err, $resolved) = cbc_maps_distance_km(TRAVEL_ORIGIN, $dest);
+    if ($km === null) fail($err, 400);
+    ok(array('km' => $km, 'origin' => TRAVEL_ORIGIN, 'destination' => $resolved));
+  }
+
+  case 'trip_save': {
+    // 交通費レコードの登録/更新。username はログインセッションから決定（なりすまし不可）。
+    // 金額（ガソリン代・合計）はサーバー側で計算して確定する。
+    $s = require_login($pdo);
+    $d = body_json();
+    $date = trim((string)(isset($d['trip_date']) ? $d['trip_date'] : ''));
+    if ($date === '' || !preg_match('/^\d{4}-\d{2}-\d{2}$/', $date)) $date = date('Y-m-d');
+    list($oneWay, $round, $rate, $gas, $toll, $park, $total) = cbc_trip_costs($d);
+    $caseName = mb_substr(trim((string)(isset($d['case_name']) ? $d['case_name'] : '')), 0, 255);
+    $dest     = mb_substr(trim((string)(isset($d['destination']) ? $d['destination'] : '')), 0, 255);
+    $note     = mb_substr(trim((string)(isset($d['note']) ? $d['note'] : '')), 0, 500);
+    $ts = now_ms();
+    $id = trim((string)(isset($d['id']) ? $d['id'] : ''));
+    if ($id !== '') {
+      // 既存レコードの更新：本人か管理者のみ
+      $q = $pdo->prepare('SELECT username FROM trips WHERE id = ?');
+      $q->execute(array($id));
+      $owner = $q->fetchColumn();
+      if ($owner === false) fail('対象の記録が見つかりません', 404);
+      if (!$s['is_admin'] && $owner !== $s['username']) fail('他のユーザーの記録は編集できません', 403);
+      $pdo->prepare('UPDATE trips SET trip_date=?, case_name=?, destination=?, one_way_km=?, round_trip=?, gas_rate=?, gas_cost=?, toll_cost=?, parking_cost=?, total=?, note=?, updated_at=? WHERE id=?')
+        ->execute(array($date, $caseName, $dest, $oneWay, $round, $rate, $gas, $toll, $park, $total, $note, $ts, $id));
+    } else {
+      $id = 't' . bin2hex(random_bytes(9));
+      $pdo->prepare('INSERT INTO trips (id, username, display_name, trip_date, case_name, destination, one_way_km, round_trip, gas_rate, gas_cost, toll_cost, parking_cost, total, note, created_at, updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)')
+        ->execute(array($id, $s['username'], cbc_display_name($pdo, $s['username']), $date, $caseName, $dest, $oneWay, $round, $rate, $gas, $toll, $park, $total, $note, $ts, $ts));
+    }
+    ok(array('id' => $id, 'gas_cost' => $gas, 'total' => $total));
+  }
+
+  case 'trip_list': {
+    // 一覧。管理者は全員（username で絞り込み可）、一般ユーザーは自分の分のみ。
+    // month（YYYY-MM）または from/to（YYYY-MM-DD）で期間を絞れる。
+    $s = require_login($pdo);
+    $d = body_json();
+    $where = array(); $args = array();
+    if (!$s['is_admin']) { $where[] = 'username = ?'; $args[] = $s['username']; }
+    else if (!empty($d['username'])) { $where[] = 'username = ?'; $args[] = (string)$d['username']; }
+    $month = trim((string)(isset($d['month']) ? $d['month'] : ''));
+    if ($month !== '' && preg_match('/^\d{4}-\d{2}$/', $month)) { $where[] = 'trip_date LIKE ?'; $args[] = $month . '-%'; }
+    $from = trim((string)(isset($d['from']) ? $d['from'] : ''));
+    $to   = trim((string)(isset($d['to']) ? $d['to'] : ''));
+    if ($from !== '' && preg_match('/^\d{4}-\d{2}-\d{2}$/', $from)) { $where[] = 'trip_date >= ?'; $args[] = $from; }
+    if ($to   !== '' && preg_match('/^\d{4}-\d{2}-\d{2}$/', $to))   { $where[] = 'trip_date <= ?'; $args[] = $to; }
+    $sql = 'SELECT id, username, display_name, trip_date, case_name, destination, one_way_km, round_trip, gas_rate, gas_cost, toll_cost, parking_cost, total, note FROM trips';
+    if ($where) $sql .= ' WHERE ' . implode(' AND ', $where);
+    $sql .= ' ORDER BY trip_date DESC, created_at DESC';
+    $st = $pdo->prepare($sql);
+    $st->execute($args);
+    $rows = $st->fetchAll();
+    $items = array(); $sum = 0;
+    foreach ($rows as $r) {
+      $items[] = array(
+        'id' => $r['id'], 'username' => $r['username'], 'display_name' => $r['display_name'],
+        'trip_date' => $r['trip_date'], 'case_name' => $r['case_name'], 'destination' => $r['destination'],
+        'one_way_km' => (float)$r['one_way_km'], 'round_trip' => (int)$r['round_trip'],
+        'gas_rate' => (int)$r['gas_rate'], 'gas_cost' => (int)$r['gas_cost'],
+        'toll_cost' => (int)$r['toll_cost'], 'parking_cost' => (int)$r['parking_cost'],
+        'total' => (int)$r['total'], 'note' => $r['note'],
+      );
+      $sum += (int)$r['total'];
+    }
+    // 管理者向け：ユーザー一覧（絞り込みプルダウン用）
+    $users = array();
+    if ($s['is_admin']) {
+      foreach ($pdo->query('SELECT DISTINCT username, display_name FROM trips ORDER BY username')->fetchAll() as $u) {
+        $users[] = array('username' => $u['username'], 'display_name' => $u['display_name']);
+      }
+    }
+    ok(array('items' => $items, 'total_sum' => $sum, 'is_admin' => $s['is_admin'], 'users' => $users));
+  }
+
+  case 'trip_delete': {
+    $s = require_login($pdo);
+    $d = body_json();
+    $id = trim((string)(isset($d['id']) ? $d['id'] : ''));
+    if ($id === '') fail('id は必須です');
+    $q = $pdo->prepare('SELECT username FROM trips WHERE id = ?');
+    $q->execute(array($id));
+    $owner = $q->fetchColumn();
+    if ($owner === false) { ok(); }
+    if (!$s['is_admin'] && $owner !== $s['username']) fail('他のユーザーの記録は削除できません', 403);
+    $pdo->prepare('DELETE FROM trips WHERE id = ?')->execute(array($id));
+    ok();
   }
 
   default:

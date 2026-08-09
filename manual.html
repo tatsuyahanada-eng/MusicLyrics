@@ -9,7 +9,7 @@
   <link rel="manifest" href="manifest.webmanifest">
   <link rel="icon" href="icon.svg" type="image/svg+xml">
   <link rel="apple-touch-icon" href="icon-192.png">
-  <link rel="stylesheet" href="manual.css?v=58">
+  <link rel="stylesheet" href="manual.css?v=59">
 </head>
 <body class="tm-body">
 
@@ -187,6 +187,81 @@
       </div>
     </section>
 
+    <!-- ============ TRAVEL EXPENSE (交通費) ============ -->
+    <section id="tripView" class="tm-view" hidden>
+      <div class="tm-panel">
+        <div class="tm-panel-corner tm-corner-tl"></div>
+        <div class="tm-panel-corner tm-corner-tr"></div>
+        <div class="tm-panel-corner tm-corner-bl"></div>
+        <div class="tm-panel-corner tm-corner-br"></div>
+
+        <div class="tm-panel-head">
+          <span class="tm-panel-head-label">TRAVEL</span>
+          <span class="tm-panel-head-jp">交通費（オンサイト案件）</span>
+        </div>
+
+        <!-- 登録フォーム -->
+        <div class="tm-trip-form">
+          <div class="tm-trip-origin">起点：<b id="tripOrigin">日本リテイル（東京都台東区台東2-1-1）</b></div>
+          <div class="tm-trip-grid">
+            <label class="tm-field"><span class="tm-field-label">日付</span>
+              <input id="tripDate" class="tm-input" type="date"></label>
+            <label class="tm-field"><span class="tm-field-label">案件名</span>
+              <input id="tripCase" class="tm-input" type="text" maxlength="255" placeholder="例：〇〇店 POS設置"></label>
+            <label class="tm-field tm-trip-dest"><span class="tm-field-label">目的地の住所</span>
+              <input id="tripDest" class="tm-input" type="text" maxlength="255" placeholder="例：東京都新宿区西新宿2-8-1"></label>
+            <div class="tm-field tm-trip-distbtn">
+              <span class="tm-field-label">&nbsp;</span>
+              <button id="tripCalcBtn" class="tm-btn tm-btn-outline" type="button">&#128663; 距離を計算</button>
+            </div>
+            <label class="tm-lock-toggle tm-trip-round"><input type="checkbox" id="tripRound" checked>
+              <span>往復（片道の2倍で計算）</span></label>
+            <label class="tm-field"><span class="tm-field-label">片道距離 (km)</span>
+              <input id="tripKm" class="tm-input" type="number" min="0" step="0.1" inputmode="decimal" placeholder="0.0"></label>
+            <label class="tm-field"><span class="tm-field-label">ガソリン単価 (円/km)</span>
+              <input id="tripRate" class="tm-input" type="number" min="0" step="1" value="18"></label>
+            <label class="tm-field"><span class="tm-field-label">高速代 (円)</span>
+              <input id="tripToll" class="tm-input" type="number" min="0" step="1" value="0"></label>
+            <label class="tm-field"><span class="tm-field-label">駐車場代 (円)</span>
+              <input id="tripPark" class="tm-input" type="number" min="0" step="1" value="0"></label>
+            <label class="tm-field tm-trip-note"><span class="tm-field-label">メモ（任意）</span>
+              <input id="tripNote" class="tm-input" type="text" maxlength="500" placeholder=""></label>
+          </div>
+          <div class="tm-trip-calcline">
+            <span>ガソリン代：<b id="tripGas">0</b> 円</span>
+            <span class="tm-trip-total">合計：<b id="tripTotal">0</b> 円</span>
+          </div>
+          <p id="tripMsg" class="tm-sync-status" aria-live="polite"></p>
+          <div class="tm-dialog-actions">
+            <button id="tripResetBtn" class="tm-btn tm-btn-outline" type="button">クリア</button>
+            <button id="tripSaveBtn" class="tm-btn tm-btn-primary" type="button">&#43; この内容で登録</button>
+          </div>
+        </div>
+
+        <hr class="tm-users-sep">
+
+        <!-- 一覧・検索 -->
+        <div class="tm-trip-filter">
+          <label class="tm-field"><span class="tm-field-label">月</span>
+            <input id="tripFilterMonth" class="tm-input" type="month"></label>
+          <label class="tm-field" id="tripFilterUserWrap" hidden><span class="tm-field-label">ユーザー</span>
+            <select id="tripFilterUser" class="tm-input"><option value="">全員</option></select></label>
+          <div class="tm-field tm-trip-filterbtns">
+            <span class="tm-field-label">&nbsp;</span>
+            <span>
+              <button id="tripSearchBtn" class="tm-btn tm-btn-primary" type="button">&#128269; 検索</button>
+              <button id="tripExcelBtn" class="tm-btn tm-btn-outline" type="button">&#8681; Excel出力</button>
+            </span>
+          </div>
+        </div>
+        <div id="tripTableWrap" class="tm-trip-tablewrap"></div>
+
+        <div class="tm-navctrls">
+          <button id="tripBackBtn" class="tm-ghostbtn" type="button">&#9664; 戻る</button>
+        </div>
+      </div>
+    </section>
+
     <!-- ============ EDIT MODE ============ -->
     <section id="editView" class="tm-view" hidden>
       <div class="tm-panel">
@@ -288,6 +363,7 @@
   <footer class="tm-footer">
     <span>&copy; Case By Case</span>
     <button id="footerHelp" class="tm-linkbtn tm-footer-help" type="button">&#128214; このアプリの使い方（マニュアル）</button>
+    <button id="footerTrips" class="tm-linkbtn tm-footer-trips" type="button" hidden>&#128663; 交通費</button>
     <button id="footerChangePw" class="tm-linkbtn tm-footer-changepw" type="button" hidden>&#128273; パスワード変更</button>
     <button id="footerLogout" class="tm-linkbtn tm-footer-logout" type="button">&#128274; ログアウト</button>
     <span id="installHint" class="tm-install" hidden>
@@ -742,6 +818,6 @@
   </dialog>
 
   <script src="vendor/xlsx.full.min.js"></script>
-  <script src="manual.js?v=66"></script>
+  <script src="manual.js?v=67"></script>
 </body>
 </html>

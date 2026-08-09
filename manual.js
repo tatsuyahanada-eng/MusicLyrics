@@ -781,6 +781,7 @@
   let navPath = [];
   let navReorder = false; // 案内モードの簡易並べ替えモード
   let invOpen = false;    // 在庫管理ビューを開いているか
+  let tripOpen = false;   // 交通費ビューを開いているか
   let searchOpen = false; // 検索ダイアログを開いているか
   let updatesOpen = false; // 更新履歴ダイアログを開いているか
   let helpOpen = false;    // 使い方ダイアログを開いているか
@@ -1002,7 +1003,7 @@
   let trapped = false;    // センチネルを積んでいるか
   let absorbPop = false;  // 直後の1回の popstate を無視（プログラム的 back 用）
   try { history.replaceState({ cbcBase: 1 }, ''); } catch (_) {}
-  function needTrap() { return navPath.length > 0 || !editView.hidden || navReorder || invOpen || searchOpen || updatesOpen || helpOpen || listOpen || aiOpen; }
+  function needTrap() { return navPath.length > 0 || !editView.hidden || navReorder || invOpen || tripOpen || searchOpen || updatesOpen || helpOpen || listOpen || aiOpen; }
   function syncTrap() {
     if (needTrap()) {
       if (!trapped) { try { history.pushState({ cbc: 1 }, ''); trapped = true; } catch (_) {} }
@@ -2426,6 +2427,8 @@
   let aiOn = true;               // 管理者による AI表示ON/OFF（全端末共有・既定ON）
   let aiEnabled = false;         // 実際にAIボタンを表示するか（hasGemini かつ aiOn）
   let invOn = false;             // 管理者による 在庫管理の表示ON/OFF（全端末共有・既定OFF）
+  let hasMaps = false;           // サーバーに Google マップのキーが設定済みか（交通費の距離計算）
+  let travelOrigin = '東京都台東区台東2-1-1'; // 交通費の起点（サーバー設定で上書き）
   let dbError = null;
   let authRequired = false;      // Basic認証等でログインが必要（401）→ 中身を出さない
 
@@ -2667,6 +2670,8 @@
       aiOn = (cfg.aiOn !== false);            // 管理者の表示ON/OFF（既定ON）
       aiEnabled = hasGemini && aiOn;          // 実際にAIボタンを出すか
       invOn = (cfg.invOn === true);           // 在庫管理の表示ON/OFF（既定OFF）
+      hasMaps = !!cfg.hasMaps;                // Google マップのキー有無（交通費の距離計算）
+      if (cfg.travelOrigin) travelOrigin = cfg.travelOrigin;
       dbError = cfg.error || null;
       updateAiToggleUI();
       updateInvToggleUI();
@@ -2863,7 +2868,9 @@
     navReorder = false; // モード切替時は簡易並べ替えを解除
     invOpen = false;    // モード切替時は在庫管理を閉じる
     invAdmin = false;
+    tripOpen = false;   // モード切替時は交通費を閉じる
     if (invViewEl) invViewEl.hidden = true;
+    if (tripViewEl) tripViewEl.hidden = true;
     navView.hidden = !isNav;
     editView.hidden = isNav;
     navModeBtn.classList.toggle('is-active', isNav);
@@ -2889,6 +2896,212 @@
   }
   navModeBtn.addEventListener('click', () => { setMode('nav'); syncTrap(); });
   editModeBtn.addEventListener('click', () => { setMode('edit'); syncTrap(); });
+
+  /* ============================================================
+     交通費（Travel Expense）— オンサイト案件の移動費を登録・集計
+     ============================================================ */
+  const tripViewEl = $('#tripView');
+  let tripEditingId = '';   // 編集中のレコードID（空＝新規）
+  let tripListData = [];    // 直近に取得した一覧（Excel出力にも使う）
+  let tripReturnMode = 'nav';
+  function tripMsg(m, isErr) { const el = $('#tripMsg'); if (el) { el.textContent = m || ''; el.style.color = isErr ? 'var(--tm-danger)' : ''; } }
+  function tval(id) { const el = $('#' + id); const v = el ? parseFloat(el.value) : NaN; return isNaN(v) ? 0 : v; }
+  function tstr(id) { const el = $('#' + id); return el ? el.value : ''; }
+  function tchk(id) { const el = $('#' + id); return !!(el && el.checked); }
+
+  function tripRecalc() {
+    const gas = Math.round(tval('tripKm') * (tchk('tripRound') ? 2 : 1) * tval('tripRate'));
+    const total = gas + Math.round(tval('tripToll')) + Math.round(tval('tripPark'));
+    const g = $('#tripGas'), t = $('#tripTotal');
+    if (g) g.textContent = gas.toLocaleString();
+    if (t) t.textContent = total.toLocaleString();
+  }
+  function todayISO() { const d = new Date(); return new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().slice(0, 10); }
+  function tripResetForm() {
+    tripEditingId = '';
+    if ($('#tripDate')) $('#tripDate').value = todayISO();
+    ['tripCase', 'tripDest', 'tripNote'].forEach((id) => { if ($('#' + id)) $('#' + id).value = ''; });
+    if ($('#tripKm')) $('#tripKm').value = '';
+    if ($('#tripRate')) $('#tripRate').value = '18';
+    if ($('#tripToll')) $('#tripToll').value = '0';
+    if ($('#tripPark')) $('#tripPark').value = '0';
+    if ($('#tripRound')) $('#tripRound').checked = true;
+    const sb = $('#tripSaveBtn'); if (sb) sb.innerHTML = '&#43; この内容で登録';
+    tripRecalc(); tripMsg('');
+  }
+  function openTrips() {
+    if (!tripViewEl || !session) return;
+    tripReturnMode = !editView.hidden ? 'edit' : 'nav';
+    tripOpen = true;
+    navView.hidden = true; if (invViewEl) invViewEl.hidden = true; editView.hidden = true;
+    tripViewEl.hidden = false;
+    breadcrumbBar.style.display = 'none';
+    const org = $('#tripOrigin'); if (org && travelOrigin) org.textContent = travelOrigin;
+    const uw = $('#tripFilterUserWrap'); if (uw) uw.hidden = !(session && session.isAdmin);
+    const cb = $('#tripCalcBtn');
+    if (cb) { cb.disabled = !hasMaps; cb.title = hasMaps ? '' : 'Googleマップのキー未設定：距離は手入力してください'; }
+    tripResetForm();
+    const now = new Date();
+    if ($('#tripFilterMonth')) $('#tripFilterMonth').value = now.getFullYear() + '-' + String(now.getMonth() + 1).padStart(2, '0');
+    syncTrap();
+    tripSearch();
+  }
+  function closeTrips() { setMode(tripReturnMode === 'edit' ? 'edit' : 'nav'); syncTrap(); }
+
+  async function tripCalcDistance() {
+    const dest = tstr('tripDest').trim();
+    if (!dest) { tripMsg('目的地の住所を入力してください', true); return; }
+    if (!serverMode()) { tripMsg('距離計算はサーバー接続時のみ利用できます', true); return; }
+    tripMsg('距離を計算中…');
+    try {
+      const d = await apiCall('trip_distance', { method: 'POST', body: { destination: dest } });
+      if ($('#tripKm')) $('#tripKm').value = d.km;
+      tripRecalc();
+      tripMsg('片道 ' + d.km + ' km（' + (d.destination || dest) + '）');
+    } catch (e) { tripMsg('距離の計算に失敗：' + e.message, true); }
+  }
+  async function tripSave() {
+    if (!serverMode()) { tripMsg('登録はサーバー接続時のみ可能です', true); return; }
+    if (!tstr('tripDest').trim() && !tstr('tripCase').trim()) { tripMsg('案件名か目的地を入力してください', true); return; }
+    const body = {
+      id: tripEditingId || '',
+      trip_date: tstr('tripDate'),
+      case_name: tstr('tripCase'),
+      destination: tstr('tripDest'),
+      one_way_km: tval('tripKm'),
+      round_trip: tchk('tripRound') ? 1 : 0,
+      gas_rate: Math.round(tval('tripRate')),
+      toll_cost: Math.round(tval('tripToll')),
+      parking_cost: Math.round(tval('tripPark')),
+      note: tstr('tripNote'),
+    };
+    try {
+      await apiCall('trip_save', { method: 'POST', body });
+      const wasEdit = !!tripEditingId;
+      tripResetForm();
+      tripMsg(wasEdit ? '更新しました' : '登録しました');
+      tripSearch();
+    } catch (e) { tripMsg('登録に失敗：' + e.message, true); }
+  }
+  function tripEdit(rec) {
+    tripEditingId = rec.id;
+    if ($('#tripDate')) $('#tripDate').value = rec.trip_date || '';
+    if ($('#tripCase')) $('#tripCase').value = rec.case_name || '';
+    if ($('#tripDest')) $('#tripDest').value = rec.destination || '';
+    if ($('#tripKm')) $('#tripKm').value = (rec.one_way_km != null ? rec.one_way_km : 0);
+    if ($('#tripRound')) $('#tripRound').checked = !!rec.round_trip;
+    if ($('#tripRate')) $('#tripRate').value = (rec.gas_rate != null ? rec.gas_rate : 18);
+    if ($('#tripToll')) $('#tripToll').value = rec.toll_cost || 0;
+    if ($('#tripPark')) $('#tripPark').value = rec.parking_cost || 0;
+    if ($('#tripNote')) $('#tripNote').value = rec.note || '';
+    const sb = $('#tripSaveBtn'); if (sb) sb.innerHTML = '&#10003; 更新する';
+    tripRecalc();
+    tripMsg('編集中… 内容を直して「更新する」を押してください');
+    if (tripViewEl && tripViewEl.scrollIntoView) tripViewEl.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }
+  async function tripSearch() {
+    const wrap = $('#tripTableWrap');
+    if (wrap) wrap.innerHTML = '<div class="tm-trip-empty">読み込み中…</div>';
+    if (!serverMode()) { if (wrap) wrap.innerHTML = '<div class="tm-trip-empty">一覧はサーバー接続時のみ表示できます。</div>'; return; }
+    const body = {};
+    const m = tstr('tripFilterMonth'); if (m) body.month = m;
+    if (session && session.isAdmin) { const u = tstr('tripFilterUser'); if (u) body.username = u; }
+    try {
+      const d = await apiCall('trip_list', { method: 'POST', body });
+      tripListData = d.items || [];
+      if (session && session.isAdmin && Array.isArray(d.users)) {
+        const sel = $('#tripFilterUser');
+        if (sel) {
+          const cur = sel.value;
+          sel.innerHTML = '<option value="">全員</option>' + d.users.map((u) => `<option value="${esc(u.username)}">${esc(u.display_name || u.username)}</option>`).join('');
+          sel.value = cur;
+        }
+      }
+      renderTripTable(d.items || [], d.total_sum || 0, !!d.is_admin);
+    } catch (e) { if (wrap) wrap.innerHTML = `<div class="tm-trip-empty">読み込みに失敗：${esc(e.message)}</div>`; }
+  }
+  function renderTripTable(items, sum, isAdmin) {
+    const wrap = $('#tripTableWrap'); if (!wrap) return;
+    if (!items.length) { wrap.innerHTML = '<div class="tm-trip-empty">該当する記録はありません。</div>'; return; }
+    const yen = (n) => (Number(n) || 0).toLocaleString();
+    const rows = items.map((r) => {
+      const km = Number(r.one_way_km) || 0;
+      const eff = km * (r.round_trip ? 2 : 1);
+      return `<tr>
+        <td>${esc(r.trip_date || '')}</td>
+        ${isAdmin ? `<td>${esc(r.display_name || r.username || '')}</td>` : ''}
+        <td>${esc(r.case_name || '')}</td>
+        <td>${esc(r.destination || '')}</td>
+        <td class="num">${km}${r.round_trip ? '×2' : ''}=${eff.toFixed(1)}km</td>
+        <td class="num">${yen(r.gas_cost)}</td>
+        <td class="num">${yen(r.toll_cost)}</td>
+        <td class="num">${yen(r.parking_cost)}</td>
+        <td class="num tm-trip-total-cell">${yen(r.total)}</td>
+        <td><div class="tm-trip-ops">
+          <button class="tm-btn tm-btn-outline tm-btn-sm" data-tedit="${esc(r.id)}" type="button">編集</button>
+          <button class="tm-btn tm-btn-danger-outline tm-btn-sm" data-tdel="${esc(r.id)}" type="button">削除</button>
+        </div></td>
+      </tr>`;
+    }).join('');
+    const leftCols = (isAdmin ? 5 : 4) + 3; // 日付(+登録者)+案件+目的地 + 距離/ガソリン/高速 → 駐車まで
+    wrap.innerHTML = `<table class="tm-trip-table">
+      <thead><tr>
+        <th>日付</th>${isAdmin ? '<th>登録者</th>' : ''}<th>案件</th><th>目的地</th>
+        <th class="num">距離</th><th class="num">ガソリン</th><th class="num">高速</th><th class="num">駐車</th><th class="num">合計</th><th>操作</th>
+      </tr></thead>
+      <tbody>${rows}</tbody>
+      <tfoot><tr><td colspan="${leftCols}">合計（${items.length}件）</td><td class="num tm-trip-total-cell">${yen(sum)}</td><td></td></tr></tfoot>
+    </table>`;
+  }
+  function tripExcel() {
+    if (!xlsxOk()) { tripMsg('Excelライブラリを読み込めませんでした', true); return; }
+    const items = tripListData || [];
+    if (!items.length) { tripMsg('出力する記録がありません', true); return; }
+    const isAdmin = !!(session && session.isAdmin);
+    const head = ['日付'].concat(isAdmin ? ['登録者'] : []).concat(['案件名', '目的地', '片道km', '往復', 'ガソリン単価', '対象km', 'ガソリン代', '高速代', '駐車場代', '合計', 'メモ']);
+    const aoa = [head];
+    let sum = 0;
+    items.forEach((r) => {
+      const km = Number(r.one_way_km) || 0;
+      const eff = km * (r.round_trip ? 2 : 1);
+      const row = [r.trip_date || ''].concat(isAdmin ? [r.display_name || r.username || ''] : [])
+        .concat([r.case_name || '', r.destination || '', km, r.round_trip ? '往復' : '片道',
+          Number(r.gas_rate) || 0, eff, Number(r.gas_cost) || 0, Number(r.toll_cost) || 0, Number(r.parking_cost) || 0, Number(r.total) || 0, r.note || '']);
+      aoa.push(row);
+      sum += Number(r.total) || 0;
+    });
+    aoa.push([]);
+    const totalRow = (isAdmin ? ['', '合計'] : ['合計']).concat(['', '', '', '', '', '', '', '', '', sum, '']);
+    aoa.push(totalRow);
+    const ws = XLSX.utils.aoa_to_sheet(aoa);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, '交通費');
+    const mm = tstr('tripFilterMonth') || new Date().toISOString().slice(0, 7);
+    XLSX.writeFile(wb, `交通費-${mm}.xlsx`);
+    tripMsg('Excelを出力しました');
+  }
+  { const b = $('#footerTrips'); if (b) b.addEventListener('click', openTrips); }
+  { const b = $('#tripBackBtn'); if (b) b.addEventListener('click', closeTrips); }
+  { const b = $('#tripCalcBtn'); if (b) b.addEventListener('click', tripCalcDistance); }
+  { const b = $('#tripSaveBtn'); if (b) b.addEventListener('click', tripSave); }
+  { const b = $('#tripResetBtn'); if (b) b.addEventListener('click', tripResetForm); }
+  { const b = $('#tripSearchBtn'); if (b) b.addEventListener('click', tripSearch); }
+  { const b = $('#tripExcelBtn'); if (b) b.addEventListener('click', tripExcel); }
+  { const s = $('#tripFilterUser'); if (s) s.addEventListener('change', tripSearch); }
+  ['tripKm', 'tripRate', 'tripToll', 'tripPark'].forEach((id) => { const el = $('#' + id); if (el) el.addEventListener('input', tripRecalc); });
+  { const r = $('#tripRound'); if (r) r.addEventListener('change', tripRecalc); }
+  { const wrap = $('#tripTableWrap'); if (wrap) wrap.addEventListener('click', (e) => {
+    const ed = e.target.closest('[data-tedit]');
+    if (ed) { const rec = (tripListData || []).find((x) => x.id === ed.dataset.tedit); if (rec) tripEdit(rec); return; }
+    const del = e.target.closest('[data-tdel]');
+    if (del) {
+      const id = del.dataset.tdel;
+      askConfirm('この交通費の記録を削除しますか？', async () => {
+        try { await apiCall('trip_delete', { method: 'POST', body: { id } }); tripSearch(); }
+        catch (ex) { tripMsg('削除に失敗：' + ex.message, true); }
+      }, '削除する');
+    }
+  }); }
 
   /* ============================================================
      INVENTORY（在庫管理）
@@ -3734,6 +3947,7 @@
     const ub = $('#usersBtn'); if (ub) ub.hidden = !isAdmin;
     const lo = $('#footerLogout'); if (lo) lo.hidden = !session;
     const cp = $('#footerChangePw'); if (cp) cp.hidden = !(session && session.canChangePw);
+    const ft = $('#footerTrips'); if (ft) ft.hidden = !session;
     // 上部にログイン中の名前を小さく表示
     const sn = $('#sessionName');
     if (sn) {

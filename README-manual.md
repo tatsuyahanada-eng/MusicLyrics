@@ -241,7 +241,7 @@ define('API_TOKEN', '好きな合言葉');      // 公開URLでは必ず設定
 
 **方法A（かんたん・推奨）: 自動作成**
 `config.php` を正しく設定した状態で `manual.html` を一度開くと、`db.php` が
-`nodes` / `inv_items` / `inv_logs` / `app_settings` / `users` / `sessions` の各テーブルを自動で作成します。特別な操作は不要です。
+`nodes` / `inv_items` / `inv_logs` / `app_settings` / `users` / `sessions` / `trips` の各テーブルを自動で作成します。特別な操作は不要です。
 
 **方法B: 手動でSQLを実行**
 phpMyAdmin 等で下記SQLを実行して、テーブルを作成しておくこともできます
@@ -322,7 +322,7 @@ CREATE TABLE IF NOT EXISTS sessions (
 
 **旧サーバーで書き出し（例: mysqldump）**
 ```bash
-mysqldump -h 旧DBホスト -u 旧ユーザー -p 旧DB名 nodes inv_items inv_logs app_settings users sessions > casebycase.sql
+mysqldump -h 旧DBホスト -u 旧ユーザー -p 旧DB名 nodes inv_items inv_logs app_settings users sessions trips > casebycase.sql
 ```
 （phpMyAdmin の「エクスポート」で `nodes` `inv_items` `inv_logs` `app_settings` を選んでも構いません）
 
@@ -495,6 +495,31 @@ Excelのアウトライン形式では**装飾（色・文字サイズ）・保�
 
 MySQL側で用意するのは**データベース1個だけ**（既存の `LAA0000000-casebycase` をそのまま
 使えます）。上記テーブルはその中に自動で作られます。文字コードは utf8mb4 です。
+
+## 交通費（オンサイト案件）
+
+ログイン後、画面下の **「🚗 交通費」** から使えます。オンサイト案件の移動費を登録・集計し、Excelに出力できます。
+
+### 登録（各ユーザー）
+- **起点**は固定で **日本リテイル（東京都台東区台東2-1-1）**（`config.php` の `TRAVEL_ORIGIN` で変更可）。
+- 入力項目：**日付・案件名・目的地の住所・往復チェック・片道距離(km)・ガソリン単価(円/km, 既定18)・高速代・駐車場代・メモ**。
+- **ガソリン代 = 片道km ×（往復なら2）× 単価**、**合計 = ガソリン代＋高速代＋駐車場代**。金額はサーバー側で確定します。
+- 登録者名は**ログイン中のアカウント**で自動的に記録されます。
+
+### 距離の自動計算（Google マップ）
+- 「🚗 距離を計算」ボタンで、起点→目的地の**車の走行距離（片道km）**をGoogleマップから取得します。
+- 使うには `config.php` に **`GOOGLE_MAPS_API_KEY`** を設定してください（Google Cloud で **Distance Matrix API** を有効化・課金設定が必要）。
+- キー未設定のときはボタンが無効になり、**距離は手入力**で計算できます（機能自体は使えます）。
+
+### 一覧・検索・Excel出力
+- **月**（または特定期間）で絞り込み。**管理者はユーザーでも絞り込み**でき、全ユーザーの記録を横断表示します（一般ユーザーは自分の分のみ）。
+- 一覧下部に**合計金額**を表示。**「⬇ Excel出力」**で、表示中の一覧を `.xlsx`（日付・登録者・案件・目的地・距離・ガソリン代・高速・駐車・合計・メモ）で書き出します。
+- 各行から**編集・削除**が可能（他人の記録は管理者のみ）。
+
+### 交通費テーブル（自動作成されます）
+
+`trips` テーブルが初回アクセス時に自動作成されます（手動SQL不要）。主なカラム：
+`id, username, display_name, trip_date, case_name, destination, one_way_km, round_trip, gas_rate, gas_cost, toll_cost, parking_cost, total, note, created_at, updated_at`。
 
 ## アップデート（差し替え）時の注意
 

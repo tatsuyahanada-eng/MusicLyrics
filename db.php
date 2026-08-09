@@ -8,7 +8,7 @@
 
 /* スキーマのバージョン。テーブル定義（列の追加など）を変えたら必ず上げる。
    これが変わると、各サーバーで初回アクセス時に一度だけ初期化/マイグレーションが走る。 */
-if (!defined('CBC_SCHEMA_VERSION')) define('CBC_SCHEMA_VERSION', '2026-08-07-1');
+if (!defined('CBC_SCHEMA_VERSION')) define('CBC_SCHEMA_VERSION', '2026-08-08-trips');
 
 // 接続だけを1回試みる（スキーマ初期化はしない）。
 function cbc_connect_once($driver, $opts) {
@@ -136,6 +136,56 @@ function cbc_init_schema($pdo, $driver) {
   cbc_init_inventory($pdo, $driver);
   cbc_init_settings($pdo, $driver);
   cbc_init_auth($pdo, $driver);
+  cbc_init_trips($pdo, $driver);
+}
+
+/* 交通費（オンサイト案件の移動費）記録。ユーザーごとに登録し、管理者が月別/ユーザー別に集計。 */
+function cbc_init_trips($pdo, $driver) {
+  if ($driver === 'mysql') {
+    $pdo->exec(
+      "CREATE TABLE IF NOT EXISTS trips (
+        id           VARCHAR(40)  NOT NULL PRIMARY KEY,
+        username     VARCHAR(64)  NULL,
+        display_name VARCHAR(120) NULL,
+        trip_date    VARCHAR(10)  NULL,
+        case_name    VARCHAR(255) NULL,
+        destination  VARCHAR(255) NULL,
+        one_way_km   DECIMAL(8,2) NOT NULL DEFAULT 0,
+        round_trip   INT          NOT NULL DEFAULT 1,
+        gas_rate     INT          NOT NULL DEFAULT 18,
+        gas_cost     INT          NOT NULL DEFAULT 0,
+        toll_cost    INT          NOT NULL DEFAULT 0,
+        parking_cost INT          NOT NULL DEFAULT 0,
+        total        INT          NOT NULL DEFAULT 0,
+        note         VARCHAR(500) NULL,
+        created_at   BIGINT       NOT NULL DEFAULT 0,
+        updated_at   BIGINT       NOT NULL DEFAULT 0,
+        INDEX idx_trip_user_date (username, trip_date)
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci"
+    );
+  } else { // sqlite / pgsql
+    $pdo->exec(
+      "CREATE TABLE IF NOT EXISTS trips (
+        id           VARCHAR(40)  NOT NULL PRIMARY KEY,
+        username     VARCHAR(64)  NULL,
+        display_name VARCHAR(120) NULL,
+        trip_date    VARCHAR(10)  NULL,
+        case_name    VARCHAR(255) NULL,
+        destination  VARCHAR(255) NULL,
+        one_way_km   DECIMAL(8,2) NOT NULL DEFAULT 0,
+        round_trip   INTEGER      NOT NULL DEFAULT 1,
+        gas_rate     INTEGER      NOT NULL DEFAULT 18,
+        gas_cost     INTEGER      NOT NULL DEFAULT 0,
+        toll_cost    INTEGER      NOT NULL DEFAULT 0,
+        parking_cost INTEGER      NOT NULL DEFAULT 0,
+        total        INTEGER      NOT NULL DEFAULT 0,
+        note         VARCHAR(500) NULL,
+        created_at   BIGINT       NOT NULL DEFAULT 0,
+        updated_at   BIGINT       NOT NULL DEFAULT 0
+      )"
+    );
+    $pdo->exec("CREATE INDEX IF NOT EXISTS idx_trip_user_date ON trips (username, trip_date)");
+  }
 }
 
 /* アプリ内ログイン用。users=アカウント（許可カテゴリを保持）、sessions=ログインセッション。 */

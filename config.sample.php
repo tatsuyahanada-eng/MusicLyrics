@@ -53,3 +53,11 @@ define('UPLOAD_MAX_BYTES', 5 * 1024 * 1024);        // 1ファイル上限（5MB
 define('GEMINI_API_KEY', '');                 // 例: 'AIza...'（空なら AI 機能オフ）
 define('GEMINI_MODEL',   'gemini-2.0-flash'); // 使うモデル（例: gemini-2.0-flash / gemini-2.5-flash）
 // ※モデル名が使えない場合は自動で候補（2.0-flash等）を試して切り替えます。
+
+/* ---------- 交通費計算（Google マップ距離） ----------
+   オンサイト案件の交通費で、目的地までの車の距離を自動計算するのに使います。
+   空 '' のときは自動計算は無効になり、距離は手入力になります。
+   キーの取得: Google Cloud で「Distance Matrix API」を有効化し、APIキーを発行（課金設定が必要）。
+   起点（TRAVEL_ORIGIN）は既定で「日本リテイル（東京都台東区台東2-1-1）」。変更可。 */
+define('GOOGLE_MAPS_API_KEY', '');
+define('TRAVEL_ORIGIN',       '東京都台東区台東2-1-1');
