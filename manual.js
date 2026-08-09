@@ -2975,30 +2975,34 @@
     const sb = $('#tripSaveBtn'); if (sb) sb.innerHTML = '&#43; この内容で登録';
     tripRecalc(); tripMsg('');
   }
-  function openTrips(mode) {
+  function openTrips() {
     if (!tripViewEl || !session) return;
-    const history = (mode === 'history');
     tripReturnMode = !editView.hidden ? 'edit' : 'nav';
     tripOpen = true;
     navView.hidden = true; if (invViewEl) invViewEl.hidden = true; editView.hidden = true;
     tripViewEl.hidden = false;
     breadcrumbBar.style.display = 'none';
-    const formSec = $('#tripFormSection'); if (formSec) formSec.hidden = history;   // 入力フォーム
-    const histSec = $('#tripHistorySection'); if (histSec) histSec.hidden = !history; // 履歴検索
-    const uw = $('#tripFilterUserWrap'); if (uw) uw.hidden = !(session && session.isAdmin);
-    const jp = tripViewEl.querySelector('.tm-panel-head-jp'); if (jp) jp.textContent = history ? '交通費 履歴検索' : '交通費精算';
-    const now = new Date();
-    if ($('#tripFilterMonth')) $('#tripFilterMonth').value = now.getFullYear() + '-' + String(now.getMonth() + 1).padStart(2, '0');
-    if (history) {
-      tripSearch(); // 履歴ウィンドウは開いたら現在月で検索して表示
-    } else {
-      tripResetForm();
-      const wrap = $('#tripTableWrap'); if (wrap) wrap.innerHTML = ''; // 入力画面には一覧を出さない
-      tripListData = [];
-    }
+    tripResetForm();
+    tripListData = [];
     syncTrap();
   }
   function closeTrips() { setMode(tripReturnMode === 'edit' ? 'edit' : 'nav'); syncTrap(); }
+
+  // 履歴検索はアプリ内のポップアップ（モーダル）で開く
+  const tripHistoryDialog = $('#tripHistoryDialog');
+  function openTripHistory() {
+    if (!tripHistoryDialog || !session) return;
+    const uw = $('#tripFilterUserWrap'); if (uw) uw.hidden = !(session && session.isAdmin);
+    const now = new Date();
+    if ($('#tripFilterMonth')) $('#tripFilterMonth').value = now.getFullYear() + '-' + String(now.getMonth() + 1).padStart(2, '0');
+    tripHistoryDialog.showModal();
+    syncTrap();
+    tripSearch(); // 開いたら現在月で検索して表示
+  }
+  if (tripHistoryDialog) {
+    tripHistoryDialog.addEventListener('close', () => { syncTrap(); });
+    { const c = $('#tripHistoryClose'); if (c) c.addEventListener('click', () => tripHistoryDialog.close()); }
+  }
 
   // 「GoogleMapで距離測定」：出発地点→目的地1→…をGoogleマップの経路案内で別タブに開く
   function tripOpenMap() {
@@ -3143,7 +3147,7 @@
   }
   { const b = $('#footerTrips'); if (b) b.addEventListener('click', () => openTrips()); }
   { const b = $('#tripBackBtn'); if (b) b.addEventListener('click', closeTrips); }
-  { const b = $('#tripHistoryBtn'); if (b) b.addEventListener('click', () => { window.open(location.pathname + '?trip=history', '_blank', 'noopener'); }); }
+  { const b = $('#tripHistoryBtn'); if (b) b.addEventListener('click', openTripHistory); }
   { const b = $('#tripCompanyBtn'); if (b) b.addEventListener('click', () => { if ($('#tripStart')) $('#tripStart').value = travelOrigin; }); }
   { const b = $('#tripAddDestBtn'); if (b) b.addEventListener('click', () => tripAppendDest('')); }
   { const b = $('#tripMapBtn'); if (b) b.addEventListener('click', tripOpenMap); }
@@ -4238,10 +4242,5 @@
     }
     setMode('nav');
     resetIdleTimer();
-    // 別ウィンドウで「交通費履歴検索」を開いた場合（?trip=history）は、そのまま履歴検索を表示
-    try {
-      const qp = new URLSearchParams(location.search);
-      if (qp.get('trip') === 'history' && session) openTrips('history');
-    } catch (_) {}
   })();
 })();

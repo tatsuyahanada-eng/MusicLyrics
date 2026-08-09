@@ -126,6 +126,31 @@
     </form>
   </dialog>
 
+  <!-- ===== 交通費 履歴検索（ポップアップ） ===== -->
+  <dialog id="tripHistoryDialog" class="tm-dialog tm-search-dialog">
+    <div class="tm-dialog-form">
+      <div class="tm-search-head">
+        <span class="tm-search-ico">&#128203;</span>
+        <h2 class="tm-updates-title">交通費 履歴検索</h2>
+        <button type="button" id="tripHistoryClose" class="tm-btn tm-btn-outline tm-search-closebtn">閉じる</button>
+      </div>
+      <div class="tm-trip-filter">
+        <label class="tm-field"><span class="tm-field-label">月</span>
+          <input id="tripFilterMonth" class="tm-input" type="month"></label>
+        <label class="tm-field" id="tripFilterUserWrap" hidden><span class="tm-field-label">ユーザー</span>
+          <select id="tripFilterUser" class="tm-input"><option value="">全員</option></select></label>
+        <div class="tm-field tm-trip-filterbtns">
+          <span class="tm-field-label">&nbsp;</span>
+          <span>
+            <button id="tripSearchBtn" class="tm-btn tm-btn-primary" type="button">&#128269; 検索</button>
+            <button id="tripExcelBtn" class="tm-btn tm-btn-outline" type="button">&#8681; Excel出力</button>
+          </span>
+        </div>
+      </div>
+      <div id="tripTableWrap" class="tm-trip-tablewrap"></div>
+    </div>
+  </dialog>
+
   <main class="tm-main">
 
     <!-- ============ NAV MODE ============ -->
@@ -251,25 +276,6 @@
             <button id="tripResetBtn" class="tm-btn tm-btn-outline" type="button">クリア</button>
             <button id="tripSaveBtn" class="tm-btn tm-btn-primary" type="button">&#43; この内容で登録</button>
           </div>
-        </div>
-
-        <!-- 一覧・検索（履歴検索。通常は別ウィンドウで開く） -->
-        <div id="tripHistorySection" hidden>
-          <div class="tm-trip-histhead">交通費 履歴検索</div>
-          <div class="tm-trip-filter">
-            <label class="tm-field"><span class="tm-field-label">月</span>
-              <input id="tripFilterMonth" class="tm-input" type="month"></label>
-            <label class="tm-field" id="tripFilterUserWrap" hidden><span class="tm-field-label">ユーザー</span>
-              <select id="tripFilterUser" class="tm-input"><option value="">全員</option></select></label>
-            <div class="tm-field tm-trip-filterbtns">
-              <span class="tm-field-label">&nbsp;</span>
-              <span>
-                <button id="tripSearchBtn" class="tm-btn tm-btn-primary" type="button">&#128269; 検索</button>
-                <button id="tripExcelBtn" class="tm-btn tm-btn-outline" type="button">&#8681; Excel出力</button>
-              </span>
-            </div>
-          </div>
-          <div id="tripTableWrap" class="tm-trip-tablewrap"></div>
         </div>
 
         <div class="tm-navctrls">
@@ -834,6 +840,6 @@
   </dialog>
 
   <script src="vendor/xlsx.full.min.js"></script>
-  <script src="manual.js?v=71"></script>
+  <script src="manual.js?v=72"></script>
 </body>
 </html>
