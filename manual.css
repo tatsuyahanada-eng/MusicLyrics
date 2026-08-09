@@ -1447,17 +1447,22 @@ textarea.tm-ff-input { width: 100%; resize: vertical; min-height: 88px; }
 .tm-trip-nums .tm-input { width: 92px; padding: 6px 8px; font-size: 14px; }
 .tm-trip-nums .tm-trip-roundlbl { flex-direction: row; align-items: center; gap: 6px; font-size: 13px; color: var(--tm-text); padding-bottom: 6px; }
 .tm-trip-nums .tm-trip-roundlbl input { width: auto; }
-/* 案内リストに出す「交通費」入口（ほかの中項目と違う色） */
+/* 案内リストに出す「交通費精算」入口（ほかの中項目と違う色＝蛍光グリーン） */
 .tm-trip-choice {
   display: flex; align-items: center; gap: 10px; width: 100%; text-align: left; cursor: pointer;
   padding: 14px 16px; margin-bottom: 10px; border-radius: 10px;
-  border: 1px solid rgba(250, 204, 21, 0.55);
-  background: linear-gradient(180deg, rgba(250, 204, 21, 0.14), rgba(250, 204, 21, 0.05));
-  color: #fde68a; font-size: 15px; font-weight: 600;
+  border: 1px solid rgba(57, 255, 20, 0.6);
+  background: linear-gradient(180deg, rgba(57, 255, 20, 0.16), rgba(57, 255, 20, 0.05));
+  color: #b8ff8f; font-size: 15px; font-weight: 700;
+  text-shadow: 0 0 6px rgba(57, 255, 20, 0.35);
+  box-shadow: 0 0 0 1px rgba(57, 255, 20, 0.12), 0 0 14px rgba(57, 255, 20, 0.14);
 }
-.tm-trip-choice:hover { border-color: rgba(250, 204, 21, 0.9); background: rgba(250, 204, 21, 0.2); }
+.tm-trip-choice:hover {
+  border-color: rgba(57, 255, 20, 0.95);
+  background: rgba(57, 255, 20, 0.24);
+  color: #d7ffc4;
+}
 .tm-trip-choice .tm-trip-choice-ico { font-size: 18px; }
-.tm-trip-choice .tm-trip-choice-sub { margin-left: auto; font-size: 11px; font-weight: normal; color: rgba(253, 230, 138, 0.7); }
 .tm-trip-calcline {
   display: flex; flex-wrap: wrap; gap: 8px 24px; align-items: baseline;
   margin: 12px 0 6px; padding: 10px 12px; border: 1px solid var(--tm-line);

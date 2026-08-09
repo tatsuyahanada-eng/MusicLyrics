@@ -969,8 +969,7 @@
     const tripEntry = (serverMode() && session && !atRoot && curNode && /オンサイト/.test(curNode.title || ''))
       ? `<button class="tm-trip-choice" data-trip-open type="button">
           <span class="tm-trip-choice-ico">&#129534;</span>
-          <span>交通費を入力</span>
-          <span class="tm-trip-choice-sub">Transportation expenses</span>
+          <span>交通費精算</span>
         </button>` : '';
 
     if (navReorder && kids.length > 0) {
@@ -2987,8 +2986,11 @@
     tripResetForm();
     const now = new Date();
     if ($('#tripFilterMonth')) $('#tripFilterMonth').value = now.getFullYear() + '-' + String(now.getMonth() + 1).padStart(2, '0');
+    // 一覧は「検索」を押したときだけ表示する（初期は非表示）
+    const wrap = $('#tripTableWrap');
+    if (wrap) wrap.innerHTML = '<div class="tm-trip-empty">月やユーザーを指定して「検索」を押すと一覧が表示されます。</div>';
+    tripListData = [];
     syncTrap();
-    tripSearch();
   }
   function closeTrips() { setMode(tripReturnMode === 'edit' ? 'edit' : 'nav'); syncTrap(); }
 
@@ -3085,11 +3087,11 @@
         ${isAdmin ? `<td>${esc(r.display_name || r.username || '')}</td>` : ''}
         <td>${esc(r.case_name || '')}</td>
         <td>${esc(tripRoute(r))}</td>
-        <td class="num">${km}${r.round_trip ? '×2' : ''}=${eff.toFixed(1)}km</td>
-        <td class="num">${yen(r.gas_cost)}</td>
-        <td class="num">${yen(r.toll_cost)}</td>
-        <td class="num">${yen(r.parking_cost)}</td>
-        <td class="num tm-trip-total-cell">${yen(r.total)}</td>
+        <td class="num">${eff.toFixed(1)}km</td>
+        <td class="num">${yen(r.gas_cost)}円</td>
+        <td class="num">${yen(r.toll_cost)}円</td>
+        <td class="num">${yen(r.parking_cost)}円</td>
+        <td class="num tm-trip-total-cell">${yen(r.total)}円</td>
         <td><div class="tm-trip-ops">
           <button class="tm-btn tm-btn-outline tm-btn-sm" data-tedit="${esc(r.id)}" type="button">編集</button>
           <button class="tm-btn tm-btn-danger-outline tm-btn-sm" data-tdel="${esc(r.id)}" type="button">削除</button>
@@ -3103,7 +3105,7 @@
         <th class="num">距離</th><th class="num">ガソリン</th><th class="num">高速</th><th class="num">駐車</th><th class="num">合計</th><th>操作</th>
       </tr></thead>
       <tbody>${rows}</tbody>
-      <tfoot><tr><td colspan="${leftCols}">合計（${items.length}件）</td><td class="num tm-trip-total-cell">${yen(sum)}</td><td></td></tr></tfoot>
+      <tfoot><tr><td colspan="${leftCols}">合計（${items.length}件）</td><td class="num tm-trip-total-cell">${yen(sum)}円</td><td></td></tr></tfoot>
     </table>`;
   }
   function tripExcel() {
