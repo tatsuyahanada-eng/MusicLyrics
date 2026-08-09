@@ -1155,7 +1155,8 @@ switch ($action) {
     if ($date === '' || !preg_match('/^\d{4}-\d{2}-\d{2}$/', $date)) $date = date('Y-m-d');
     list($oneWay, $round, $rate, $gas, $toll, $park, $total) = cbc_trip_costs($d);
     $caseName = mb_substr(trim((string)(isset($d['case_name']) ? $d['case_name'] : '')), 0, 255);
-    $dest     = mb_substr(trim((string)(isset($d['destination']) ? $d['destination'] : '')), 0, 255);
+    $origin   = mb_substr(trim((string)(isset($d['origin']) ? $d['origin'] : '')), 0, 255);
+    $dest     = mb_substr(trim((string)(isset($d['destination']) ? $d['destination'] : '')), 0, 1000);
     $note     = mb_substr(trim((string)(isset($d['note']) ? $d['note'] : '')), 0, 500);
     $ts = now_ms();
     $id = trim((string)(isset($d['id']) ? $d['id'] : ''));
@@ -1166,12 +1167,12 @@ switch ($action) {
       $owner = $q->fetchColumn();
       if ($owner === false) fail('対象の記録が見つかりません', 404);
       if (!$s['is_admin'] && $owner !== $s['username']) fail('他のユーザーの記録は編集できません', 403);
-      $pdo->prepare('UPDATE trips SET trip_date=?, case_name=?, destination=?, one_way_km=?, round_trip=?, gas_rate=?, gas_cost=?, toll_cost=?, parking_cost=?, total=?, note=?, updated_at=? WHERE id=?')
-        ->execute(array($date, $caseName, $dest, $oneWay, $round, $rate, $gas, $toll, $park, $total, $note, $ts, $id));
+      $pdo->prepare('UPDATE trips SET trip_date=?, case_name=?, origin=?, destination=?, one_way_km=?, round_trip=?, gas_rate=?, gas_cost=?, toll_cost=?, parking_cost=?, total=?, note=?, updated_at=? WHERE id=?')
+        ->execute(array($date, $caseName, $origin, $dest, $oneWay, $round, $rate, $gas, $toll, $park, $total, $note, $ts, $id));
     } else {
       $id = 't' . bin2hex(random_bytes(9));
-      $pdo->prepare('INSERT INTO trips (id, username, display_name, trip_date, case_name, destination, one_way_km, round_trip, gas_rate, gas_cost, toll_cost, parking_cost, total, note, created_at, updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)')
-        ->execute(array($id, $s['username'], cbc_display_name($pdo, $s['username']), $date, $caseName, $dest, $oneWay, $round, $rate, $gas, $toll, $park, $total, $note, $ts, $ts));
+      $pdo->prepare('INSERT INTO trips (id, username, display_name, trip_date, case_name, origin, destination, one_way_km, round_trip, gas_rate, gas_cost, toll_cost, parking_cost, total, note, created_at, updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)')
+        ->execute(array($id, $s['username'], cbc_display_name($pdo, $s['username']), $date, $caseName, $origin, $dest, $oneWay, $round, $rate, $gas, $toll, $park, $total, $note, $ts, $ts));
     }
     ok(array('id' => $id, 'gas_cost' => $gas, 'total' => $total));
   }
@@ -1190,7 +1191,7 @@ switch ($action) {
     $to   = trim((string)(isset($d['to']) ? $d['to'] : ''));
     if ($from !== '' && preg_match('/^\d{4}-\d{2}-\d{2}$/', $from)) { $where[] = 'trip_date >= ?'; $args[] = $from; }
     if ($to   !== '' && preg_match('/^\d{4}-\d{2}-\d{2}$/', $to))   { $where[] = 'trip_date <= ?'; $args[] = $to; }
-    $sql = 'SELECT id, username, display_name, trip_date, case_name, destination, one_way_km, round_trip, gas_rate, gas_cost, toll_cost, parking_cost, total, note FROM trips';
+    $sql = 'SELECT id, username, display_name, trip_date, case_name, origin, destination, one_way_km, round_trip, gas_rate, gas_cost, toll_cost, parking_cost, total, note FROM trips';
     if ($where) $sql .= ' WHERE ' . implode(' AND ', $where);
     $sql .= ' ORDER BY trip_date DESC, created_at DESC';
     $st = $pdo->prepare($sql);
@@ -1200,7 +1201,8 @@ switch ($action) {
     foreach ($rows as $r) {
       $items[] = array(
         'id' => $r['id'], 'username' => $r['username'], 'display_name' => $r['display_name'],
-        'trip_date' => $r['trip_date'], 'case_name' => $r['case_name'], 'destination' => $r['destination'],
+        'trip_date' => $r['trip_date'], 'case_name' => $r['case_name'],
+        'origin' => $r['origin'], 'destination' => $r['destination'],
         'one_way_km' => (float)$r['one_way_km'], 'round_trip' => (int)$r['round_trip'],
         'gas_rate' => (int)$r['gas_rate'], 'gas_cost' => (int)$r['gas_cost'],
         'toll_cost' => (int)$r['toll_cost'], 'parking_cost' => (int)$r['parking_cost'],

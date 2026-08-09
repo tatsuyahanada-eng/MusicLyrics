@@ -8,7 +8,7 @@
 
 /* スキーマのバージョン。テーブル定義（列の追加など）を変えたら必ず上げる。
    これが変わると、各サーバーで初回アクセス時に一度だけ初期化/マイグレーションが走る。 */
-if (!defined('CBC_SCHEMA_VERSION')) define('CBC_SCHEMA_VERSION', '2026-08-08-trips');
+if (!defined('CBC_SCHEMA_VERSION')) define('CBC_SCHEMA_VERSION', '2026-08-09-trips2');
 
 // 接続だけを1回試みる（スキーマ初期化はしない）。
 function cbc_connect_once($driver, $opts) {
@@ -149,7 +149,8 @@ function cbc_init_trips($pdo, $driver) {
         display_name VARCHAR(120) NULL,
         trip_date    VARCHAR(10)  NULL,
         case_name    VARCHAR(255) NULL,
-        destination  VARCHAR(255) NULL,
+        origin       VARCHAR(255) NULL,
+        destination  VARCHAR(1000) NULL,
         one_way_km   DECIMAL(8,2) NOT NULL DEFAULT 0,
         round_trip   INT          NOT NULL DEFAULT 1,
         gas_rate     INT          NOT NULL DEFAULT 18,
@@ -171,7 +172,8 @@ function cbc_init_trips($pdo, $driver) {
         display_name VARCHAR(120) NULL,
         trip_date    VARCHAR(10)  NULL,
         case_name    VARCHAR(255) NULL,
-        destination  VARCHAR(255) NULL,
+        origin       VARCHAR(255) NULL,
+        destination  VARCHAR(1000) NULL,
         one_way_km   DECIMAL(8,2) NOT NULL DEFAULT 0,
         round_trip   INTEGER      NOT NULL DEFAULT 1,
         gas_rate     INTEGER      NOT NULL DEFAULT 18,
@@ -186,6 +188,21 @@ function cbc_init_trips($pdo, $driver) {
     );
     $pdo->exec("CREATE INDEX IF NOT EXISTS idx_trip_user_date ON trips (username, trip_date)");
   }
+  // 既存の trips テーブルに origin 列が無ければ後付けする。
+  try {
+    if ($driver === 'sqlite') {
+      $cols = array();
+      foreach ($pdo->query("PRAGMA table_info(trips)")->fetchAll() as $r) { $cols[] = strtolower($r['name']); }
+    } else {
+      $sql = "SELECT COLUMN_NAME AS c FROM information_schema.columns WHERE table_name = 'trips'";
+      if ($driver === 'mysql') $sql .= " AND table_schema = DATABASE()";
+      $cols = array();
+      foreach ($pdo->query($sql)->fetchAll() as $r) { $cols[] = strtolower($r['c']); }
+    }
+    if (!in_array('origin', $cols, true)) {
+      $pdo->exec("ALTER TABLE trips ADD COLUMN origin VARCHAR(255) NULL");
+    }
+  } catch (Throwable $e) { /* 追加できなくても致命ではない */ }
 }
 
 /* アプリ内ログイン用。users=アカウント（許可カテゴリを保持）、sessions=ログインセッション。 */
