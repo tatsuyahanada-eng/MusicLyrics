@@ -3029,8 +3029,8 @@
       await apiCall('trip_save', { method: 'POST', body });
       const wasEdit = !!tripEditingId;
       tripResetForm();
+      // 登録結果の一覧は自動表示しない（一覧は「検索」を押したときだけ表示する）
       tripMsg(wasEdit ? '更新しました' : '登録しました');
-      tripSearch();
     } catch (e) { tripMsg('登録に失敗：' + e.message, true); }
   }
   function tripEdit(rec) {
