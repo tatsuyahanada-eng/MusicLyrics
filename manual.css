@@ -1437,6 +1437,10 @@ textarea.tm-ff-input { width: 100%; resize: vertical; min-height: 88px; }
   font-weight: 600;
 }
 .tm-trip-accentbtn:hover { background: linear-gradient(180deg, #7ff0ff, #29c7db); }
+.tm-trip-paper-note {
+  margin: 10px 0 0; padding: 8px 10px; border-radius: 8px; font-size: 12px; line-height: 1.5;
+  color: var(--tm-warn); border: 1px solid rgba(255, 207, 63, 0.4); background: rgba(255, 207, 63, 0.08);
+}
 .tm-trip-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px 14px; }
 .tm-trip-grid .tm-trip-wide { grid-column: 1 / -1; }
 .tm-trip-inline { display: flex; gap: 8px; align-items: center; }

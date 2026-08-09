@@ -9,7 +9,7 @@
   <link rel="manifest" href="manifest.webmanifest">
   <link rel="icon" href="icon.svg" type="image/svg+xml">
   <link rel="apple-touch-icon" href="icon-192.png">
-  <link rel="stylesheet" href="manual.css?v=62">
+  <link rel="stylesheet" href="manual.css?v=63">
 </head>
 <body class="tm-body">
 
@@ -228,7 +228,7 @@
         <!-- 登録フォーム -->
         <div class="tm-trip-form" id="tripFormSection">
           <div class="tm-trip-topbar">
-            <button id="tripHistoryBtn" class="tm-btn tm-btn-outline" type="button">&#128203; 交通費履歴検索</button>
+            <button id="tripHistoryBtn" class="tm-btn tm-trip-accentbtn" type="button">&#128203; 交通費履歴検索</button>
           </div>
           <div class="tm-trip-grid">
             <label class="tm-field"><span class="tm-field-label">日付</span>
@@ -240,7 +240,7 @@
               <span class="tm-field-label">出発地点</span>
               <div class="tm-trip-inline">
                 <input id="tripStart" class="tm-input" type="text" maxlength="255" placeholder="住所を入力（または「会社から出発」）">
-                <button id="tripCompanyBtn" class="tm-btn tm-btn-outline tm-btn-sm" type="button">会社から出発</button>
+                <button id="tripCompanyBtn" class="tm-btn tm-trip-accentbtn tm-btn-sm" type="button">会社から出発</button>
               </div>
             </div>
 
@@ -262,6 +262,7 @@
                 <label>駐車(円)<input id="tripPark" class="tm-input" type="number" min="0" step="1" value="0"></label>
                 <label class="tm-trip-roundlbl"><input type="checkbox" id="tripRound" checked> 往復</label>
               </div>
+              <p class="tm-trip-paper-note">&#128206; 紙媒体のデータは、管理者にお渡しください。それまでは大切に保管しておいてください。</p>
             </div>
 
             <label class="tm-field tm-trip-wide"><span class="tm-field-label">メモ（任意）</span>
