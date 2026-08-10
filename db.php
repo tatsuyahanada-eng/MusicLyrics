@@ -8,7 +8,7 @@
 
 /* スキーマのバージョン。テーブル定義（列の追加など）を変えたら必ず上げる。
    これが変わると、各サーバーで初回アクセス時に一度だけ初期化/マイグレーションが走る。 */
-if (!defined('CBC_SCHEMA_VERSION')) define('CBC_SCHEMA_VERSION', '2026-08-09-trips3');
+if (!defined('CBC_SCHEMA_VERSION')) define('CBC_SCHEMA_VERSION', '2026-08-10-trips4');
 
 // 接続だけを1回試みる（スキーマ初期化はしない）。
 function cbc_connect_once($driver, $opts) {
@@ -160,6 +160,7 @@ function cbc_init_trips($pdo, $driver) {
         parking_cost INT          NOT NULL DEFAULT 0,
         other_cost   INT          NOT NULL DEFAULT 0,
         total        INT          NOT NULL DEFAULT 0,
+        cost_details MEDIUMTEXT   NULL,
         note         VARCHAR(500) NULL,
         created_at   BIGINT       NOT NULL DEFAULT 0,
         updated_at   BIGINT       NOT NULL DEFAULT 0,
@@ -184,6 +185,7 @@ function cbc_init_trips($pdo, $driver) {
         parking_cost INTEGER      NOT NULL DEFAULT 0,
         other_cost   INTEGER      NOT NULL DEFAULT 0,
         total        INTEGER      NOT NULL DEFAULT 0,
+        cost_details TEXT         NULL,
         note         VARCHAR(500) NULL,
         created_at   BIGINT       NOT NULL DEFAULT 0,
         updated_at   BIGINT       NOT NULL DEFAULT 0
@@ -207,6 +209,9 @@ function cbc_init_trips($pdo, $driver) {
     }
     if (!in_array('other_cost', $cols, true)) {
       $pdo->exec("ALTER TABLE trips ADD COLUMN other_cost $intType NOT NULL DEFAULT 0");
+    }
+    if (!in_array('cost_details', $cols, true)) {
+      $pdo->exec("ALTER TABLE trips ADD COLUMN cost_details " . (($driver === 'mysql') ? 'MEDIUMTEXT' : 'TEXT') . " NULL");
     }
   } catch (Throwable $e) { /* 追加できなくても致命ではない */ }
 }

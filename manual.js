@@ -2921,9 +2921,90 @@
   function tstr(id) { const el = $('#' + id); return el ? el.value : ''; }
   function tchk(id) { const el = $('#' + id); return !!(el && el.checked); }
 
+  /* ---- 費用の内訳（高速代・駐車場代・その他）：行を追加して複数入力できる ---- */
+  // 費用ブロックの定義。prefix は 'trip'（登録フォーム）/ 'te'（編集ポップアップ）
+  const TRIP_COSTS = [
+    { key: 'toll',  rows: 'TollRows',  sum: 'TollSum',  ph: '例：ETC 往路' },
+    { key: 'park',  rows: 'ParkRows',  sum: 'ParkSum',  ph: '例：コインパーキング' },
+    { key: 'other', rows: 'OtherRows', sum: 'OtherSum', ph: '例：宅配便' },
+  ];
+  function costBox(prefix, c) { return $('#' + prefix + c.rows); }
+  function costAddRow(prefix, c, amount, note) {
+    const box = costBox(prefix, c); if (!box) return;
+    const row = document.createElement('div');
+    row.className = 'tm-trip-costrow';
+    row.innerHTML = '<input class="tm-input tm-trip-cost-amt" type="number" min="0" step="1" inputmode="numeric" placeholder="0">'
+      + '<span class="tm-trip-cost-yen">円</span>'
+      + '<input class="tm-input tm-trip-cost-note" type="text" maxlength="100">'
+      + '<button class="tm-trip-destdel" type="button" title="この行を削除">&times;</button>';
+    const ai = row.querySelector('.tm-trip-cost-amt');
+    const ni = row.querySelector('.tm-trip-cost-note');
+    ai.value = (amount === 0 || amount) ? amount : '';
+    ni.value = note || '';
+    ni.placeholder = c.ph;
+    box.appendChild(row);
+    costUpdateRows(prefix, c);
+  }
+  function costUpdateRows(prefix, c) {
+    const box = costBox(prefix, c); if (!box) return;
+    const rows = box.children;
+    for (let i = 0; i < rows.length; i++) {
+      const del = rows[i].querySelector('.tm-trip-destdel');
+      if (del) del.style.visibility = (rows.length > 1) ? 'visible' : 'hidden';
+    }
+  }
+  function costSetRows(prefix, c, lines) {
+    const box = costBox(prefix, c); if (!box) return;
+    box.innerHTML = '';
+    const arr = (lines && lines.length) ? lines : [{ amount: '', note: '' }];
+    arr.forEach((l) => costAddRow(prefix, c, (l && l.amount != null) ? l.amount : '', l && l.note));
+    costUpdateRows(prefix, c);
+  }
+  function costGetRows(prefix, c) {
+    const box = costBox(prefix, c); if (!box) return [];
+    const out = [];
+    box.querySelectorAll('.tm-trip-costrow').forEach((r) => {
+      const a = parseInt(r.querySelector('.tm-trip-cost-amt').value, 10);
+      const n = r.querySelector('.tm-trip-cost-note').value.trim();
+      const amt = isNaN(a) ? 0 : Math.max(0, a);
+      if (amt === 0 && !n) return;
+      out.push({ amount: amt, note: n });
+    });
+    return out;
+  }
+  function costSum(prefix, c) {
+    let s = 0; costGetRows(prefix, c).forEach((l) => { s += l.amount; });
+    return s;
+  }
+  // 各ブロックの小計を表示し、合計を返す
+  function costRefreshSums(prefix) {
+    let total = 0;
+    TRIP_COSTS.forEach((c) => {
+      const s = costSum(prefix, c);
+      total += s;
+      const el = $('#' + prefix + c.sum); if (el) el.textContent = s.toLocaleString();
+    });
+    return total;
+  }
+  // 費用ブロックの共通イベント（入力で再計算・×で行削除・＋で行追加）
+  function costWire(prefix, recalc) {
+    TRIP_COSTS.forEach((c) => {
+      const box = costBox(prefix, c);
+      if (box) {
+        box.addEventListener('input', recalc);
+        box.addEventListener('click', (e) => {
+          const del = e.target.closest('.tm-trip-destdel');
+          if (del && box.children.length > 1) { del.closest('.tm-trip-costrow').remove(); costUpdateRows(prefix, c); recalc(); }
+        });
+      }
+      const add = $('#' + prefix + c.key.charAt(0).toUpperCase() + c.key.slice(1) + 'Add');
+      if (add) add.addEventListener('click', () => { costAddRow(prefix, c, '', ''); recalc(); });
+    });
+  }
+
   function tripRecalc() {
     const gas = Math.round(tval('tripKm') * (tchk('tripRound') ? 2 : 1) * tval('tripRate'));
-    const total = gas + Math.round(tval('tripToll')) + Math.round(tval('tripPark')) + Math.round(tval('tripOther'));
+    const total = gas + costRefreshSums('trip');
     const g = $('#tripGas'), t = $('#tripTotal');
     if (g) g.textContent = gas.toLocaleString();
     if (t) t.textContent = total.toLocaleString();
@@ -2981,9 +3062,7 @@
     tripSetDests(['']);
     if ($('#tripKm')) $('#tripKm').value = '';
     if ($('#tripRate')) $('#tripRate').value = '18';
-    if ($('#tripToll')) $('#tripToll').value = '0';
-    if ($('#tripPark')) $('#tripPark').value = '0';
-    if ($('#tripOther')) $('#tripOther').value = '0';
+    TRIP_COSTS.forEach((c) => costSetRows('trip', c, []));
     if ($('#tripRound')) $('#tripRound').checked = true;
     const sb = $('#tripSaveBtn'); if (sb) sb.innerHTML = '&#43; この内容で登録';
     tripRecalc(); tripMsg('');
@@ -3054,9 +3133,9 @@
       one_way_km: tval('tripKm'),
       round_trip: tchk('tripRound') ? 1 : 0,
       gas_rate: Math.round(tval('tripRate')),
-      toll_cost: Math.round(tval('tripToll')),
-      parking_cost: Math.round(tval('tripPark')),
-      other_cost: Math.round(tval('tripOther')),
+      toll_items: costGetRows('trip', TRIP_COSTS[0]),
+      parking_items: costGetRows('trip', TRIP_COSTS[1]),
+      other_items: costGetRows('trip', TRIP_COSTS[2]),
       note: tstr('tripNote'),
     };
     try {
@@ -3073,10 +3152,17 @@
   function teMsg(m, isErr) { const el = $('#teMsg'); if (el) { el.textContent = m || ''; el.style.color = isErr ? 'var(--tm-danger)' : ''; } }
   function teRecalc() {
     const gas = Math.round(tval('teKm') * (tchk('teRound') ? 2 : 1) * tval('teRate'));
-    const total = gas + Math.round(tval('teToll')) + Math.round(tval('tePark')) + Math.round(tval('teOther'));
+    const total = gas + costRefreshSums('te');
     const g = $('#teGas'), t = $('#teTotal');
     if (g) g.textContent = gas.toLocaleString();
     if (t) t.textContent = total.toLocaleString();
+  }
+  // 保存済みレコードから内訳を取り出す（内訳が無い古い記録は、合計金額1行として表示）
+  function tripLinesOf(rec, key, fallbackAmount) {
+    const d = rec.cost_details;
+    if (d && Array.isArray(d[key]) && d[key].length) return d[key];
+    const amt = Number(fallbackAmount) || 0;
+    return amt ? [{ amount: amt, note: '' }] : [];
   }
   function tripEdit(rec) {
     if (!tripEditDialog) return;
@@ -3088,9 +3174,9 @@
     if ($('#teKm')) $('#teKm').value = (rec.one_way_km != null ? rec.one_way_km : 0);
     if ($('#teRound')) $('#teRound').checked = !!rec.round_trip;
     if ($('#teRate')) $('#teRate').value = (rec.gas_rate != null ? rec.gas_rate : 18);
-    if ($('#teToll')) $('#teToll').value = rec.toll_cost || 0;
-    if ($('#tePark')) $('#tePark').value = rec.parking_cost || 0;
-    if ($('#teOther')) $('#teOther').value = rec.other_cost || 0;
+    costSetRows('te', TRIP_COSTS[0], tripLinesOf(rec, 'toll', rec.toll_cost));
+    costSetRows('te', TRIP_COSTS[1], tripLinesOf(rec, 'park', rec.parking_cost));
+    costSetRows('te', TRIP_COSTS[2], tripLinesOf(rec, 'other', rec.other_cost));
     if ($('#teNote')) $('#teNote').value = rec.note || '';
     teRecalc(); teMsg('');
     tripEditDialog.showModal(); // 履歴ポップアップの手前に表示
@@ -3112,9 +3198,9 @@
       one_way_km: tval('teKm'),
       round_trip: tchk('teRound') ? 1 : 0,
       gas_rate: Math.round(tval('teRate')),
-      toll_cost: Math.round(tval('teToll')),
-      parking_cost: Math.round(tval('tePark')),
-      other_cost: Math.round(tval('teOther')),
+      toll_items: costGetRows('te', TRIP_COSTS[0]),
+      parking_items: costGetRows('te', TRIP_COSTS[1]),
+      other_items: costGetRows('te', TRIP_COSTS[2]),
       note: tstr('teNote'),
     };
     try {
@@ -3158,7 +3244,8 @@
       const del = e.target.closest('.tm-trip-destdel');
       if (del && box.children.length > 1) { del.closest('.tm-trip-destrow').remove(); tripUpdateDestNos(box); }
     }); }
-    ['teKm', 'teRate', 'teToll', 'tePark', 'teOther'].forEach((id) => { const el = $('#' + id); if (el) el.addEventListener('input', teRecalc); });
+    ['teKm', 'teRate'].forEach((id) => { const el = $('#' + id); if (el) el.addEventListener('input', teRecalc); });
+    costWire('te', teRecalc);
     { const r = $('#teRound'); if (r) r.addEventListener('change', teRecalc); }
     { const dt = $('#teDate'); if (dt) dt.addEventListener('blur', () => {
       const v = dt.value.trim(); if (!v) return;
@@ -3237,7 +3324,14 @@
     const items = tripListData || [];
     if (!items.length) { tripMsg('出力する記録がありません', true); return; }
     const isAdmin = !!(session && session.isAdmin);
-    const head = ['日付'].concat(isAdmin ? ['登録者'] : []).concat(['店舗名', '出発地点', '目的地', '片道km', '往復', 'ガソリン単価', '対象km', 'ガソリン代', '高速代', '駐車場代', 'その他', '合計', 'メモ']);
+    // 内訳（複数行入力ぶん）を「500(往路)+1200(復路)」のような文字列にする
+    const breakdown = (rec, key, fallback) => {
+      const lines = tripLinesOf(rec, key, fallback);
+      if (!lines.length) return '';
+      if (lines.length === 1 && !lines[0].note) return '';
+      return lines.map((l) => (Number(l.amount) || 0).toLocaleString() + (l.note ? `(${l.note})` : '')).join(' + ');
+    };
+    const head = ['日付'].concat(isAdmin ? ['登録者'] : []).concat(['店舗名', '出発地点', '目的地', '片道km', '往復', 'ガソリン単価', '対象km', 'ガソリン代', '高速代', '高速代の内訳', '駐車場代', '駐車場代の内訳', 'その他', 'その他の内訳', '合計', 'メモ']);
     const aoa = [head];
     let sum = 0;
     items.forEach((r) => {
@@ -3245,12 +3339,16 @@
       const eff = km * (r.round_trip ? 2 : 1);
       const row = [r.trip_date || ''].concat(isAdmin ? [r.display_name || r.username || ''] : [])
         .concat([r.case_name || '', r.origin || '', tripRoute(r), km, r.round_trip ? '往復' : '片道',
-          Number(r.gas_rate) || 0, eff, Number(r.gas_cost) || 0, Number(r.toll_cost) || 0, Number(r.parking_cost) || 0, Number(r.other_cost) || 0, Number(r.total) || 0, r.note || '']);
+          Number(r.gas_rate) || 0, eff, Number(r.gas_cost) || 0,
+          Number(r.toll_cost) || 0, breakdown(r, 'toll', r.toll_cost),
+          Number(r.parking_cost) || 0, breakdown(r, 'park', r.parking_cost),
+          Number(r.other_cost) || 0, breakdown(r, 'other', r.other_cost),
+          Number(r.total) || 0, r.note || '']);
       aoa.push(row);
       sum += Number(r.total) || 0;
     });
     aoa.push([]);
-    const totalRow = (isAdmin ? ['', '合計'] : ['合計']).concat(['', '', '', '', '', '', '', '', '', '', '', sum, '']);
+    const totalRow = (isAdmin ? ['', '合計'] : ['合計']).concat(['', '', '', '', '', '', '', '', '', '', '', '', '', '', sum, '']);
     aoa.push(totalRow);
     const ws = XLSX.utils.aoa_to_sheet(aoa);
     const wb = XLSX.utils.book_new();
@@ -3281,7 +3379,8 @@
     dt.value = n;
     tripMsg(/^\d{4}-\d{2}-\d{2}$/.test(n) ? '' : '日付は「2026-08-01」の形式で入力してください', !/^\d{4}-\d{2}-\d{2}$/.test(n));
   }); }
-  ['tripKm', 'tripRate', 'tripToll', 'tripPark', 'tripOther'].forEach((id) => { const el = $('#' + id); if (el) el.addEventListener('input', tripRecalc); });
+  ['tripKm', 'tripRate'].forEach((id) => { const el = $('#' + id); if (el) el.addEventListener('input', tripRecalc); });
+  costWire('trip', tripRecalc);
   { const r = $('#tripRound'); if (r) r.addEventListener('change', tripRecalc); }
   { const wrap = $('#tripTableWrap'); if (wrap) wrap.addEventListener('click', (e) => {
     const ed = e.target.closest('[data-tedit]');

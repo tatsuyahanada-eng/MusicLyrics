@@ -1463,6 +1463,16 @@ textarea.tm-ff-input { width: 100%; resize: vertical; min-height: 88px; }
 .tm-trip-nums .tm-trip-roundlbl { flex-direction: row; align-items: center; gap: 6px; font-size: 13px; color: var(--tm-text); padding-bottom: 6px; }
 .tm-trip-nums .tm-trip-roundlbl input { width: auto; }
 .tm-trip-nums .tm-trip-otherlbl .tm-input { width: 150px; }
+/* 費用の内訳（高速代・駐車場代・その他を複数行入力） */
+.tm-trip-costblock { margin-top: 2px; }
+.tm-trip-costsum { margin-left: 10px; font-size: 11px; color: var(--tm-muted); font-weight: normal; }
+.tm-trip-costsum b { color: var(--tm-green); font-family: var(--tm-mono); }
+.tm-trip-costrows { display: flex; flex-direction: column; gap: 6px; margin-bottom: 8px; }
+.tm-trip-costrow { display: flex; gap: 8px; align-items: center; }
+.tm-trip-costrow .tm-trip-cost-amt { width: 110px; flex: 0 0 auto; text-align: right; padding: 6px 8px; }
+.tm-trip-costrow .tm-trip-cost-yen { flex: 0 0 auto; font-size: 12px; color: var(--tm-muted); }
+.tm-trip-costrow .tm-trip-cost-note { flex: 1 1 auto; min-width: 0; padding: 6px 8px; }
+.tm-trip-costblock > .tm-btn { align-self: flex-start; }
 
 /* ---- 交通費のアクセント（要所に緑） ---- */
 #tripView .tm-panel-head-label,

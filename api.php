@@ -196,23 +196,51 @@ function cbc_maps_distance_km($origin, $dest) {
   return array($km, '', $resolved);
 }
 
-/* 交通費の金額を計算。戻り値: array(片道km, 往復1/0, 単価, ガソリン代, 高速代, 駐車場代, その他, 合計) */
+/* 費用の内訳（[{amount,note}, ...]）を正規化する。金額0・空行は除く。 */
+function cbc_trip_lines($v) {
+  $out = array();
+  if (!is_array($v)) return $out;
+  foreach ($v as $row) {
+    if (is_array($row)) {
+      $amt = isset($row['amount']) ? (int)$row['amount'] : 0;
+      $note = isset($row['note']) ? mb_substr(trim((string)$row['note']), 0, 100) : '';
+    } else {
+      $amt = (int)$row; $note = '';
+    }
+    if ($amt < 0) $amt = 0;
+    if ($amt === 0 && $note === '') continue;
+    $out[] = array('amount' => $amt, 'note' => $note);
+  }
+  return $out;
+}
+function cbc_trip_lines_sum($lines) {
+  $s = 0; foreach ($lines as $l) $s += (int)$l['amount']; return $s;
+}
+/* 交通費の金額を計算。内訳（*_items）があればその合計を採用し、無ければ従来の単一金額を使う。
+   戻り値: array(片道km, 往復1/0, 単価, ガソリン代, 高速代, 駐車場代, その他, 合計, 内訳配列) */
 function cbc_trip_costs($d) {
   $oneWay = isset($d['one_way_km']) ? (float)$d['one_way_km'] : 0;
   if ($oneWay < 0) $oneWay = 0;
   $round = !empty($d['round_trip']) ? 1 : 0;
   $rate = isset($d['gas_rate']) ? (int)$d['gas_rate'] : 18;
   if ($rate < 0) $rate = 0;
-  $toll = isset($d['toll_cost']) ? (int)$d['toll_cost'] : 0;
-  $park = isset($d['parking_cost']) ? (int)$d['parking_cost'] : 0;
-  $other = isset($d['other_cost']) ? (int)$d['other_cost'] : 0;
+
+  $tollLines = cbc_trip_lines(isset($d['toll_items']) ? $d['toll_items'] : null);
+  $parkLines = cbc_trip_lines(isset($d['parking_items']) ? $d['parking_items'] : null);
+  $otherLines = cbc_trip_lines(isset($d['other_items']) ? $d['other_items'] : null);
+
+  $toll  = isset($d['toll_items'])    ? cbc_trip_lines_sum($tollLines)  : (isset($d['toll_cost']) ? (int)$d['toll_cost'] : 0);
+  $park  = isset($d['parking_items']) ? cbc_trip_lines_sum($parkLines)  : (isset($d['parking_cost']) ? (int)$d['parking_cost'] : 0);
+  $other = isset($d['other_items'])   ? cbc_trip_lines_sum($otherLines) : (isset($d['other_cost']) ? (int)$d['other_cost'] : 0);
   if ($toll < 0) $toll = 0;
   if ($park < 0) $park = 0;
   if ($other < 0) $other = 0;
+
   $effKm = $oneWay * ($round ? 2 : 1);
   $gas = (int) round($effKm * $rate);
   $total = $gas + $toll + $park + $other;
-  return array($oneWay, $round, $rate, $gas, $toll, $park, $other, $total);
+  $details = array('toll' => $tollLines, 'park' => $parkLines, 'other' => $otherLines);
+  return array($oneWay, $round, $rate, $gas, $toll, $park, $other, $total, $details);
 }
 function author_of($d) {
   $a = isset($d['author']) ? trim((string)$d['author']) : '';
@@ -1190,7 +1218,8 @@ switch ($action) {
     $d = body_json();
     $date = trim((string)(isset($d['trip_date']) ? $d['trip_date'] : ''));
     if ($date === '' || !preg_match('/^\d{4}-\d{2}-\d{2}$/', $date)) $date = date('Y-m-d');
-    list($oneWay, $round, $rate, $gas, $toll, $park, $other, $total) = cbc_trip_costs($d);
+    list($oneWay, $round, $rate, $gas, $toll, $park, $other, $total, $details) = cbc_trip_costs($d);
+    $detailsJson = json_encode($details, JSON_UNESCAPED_UNICODE);
     $caseName = mb_substr(trim((string)(isset($d['case_name']) ? $d['case_name'] : '')), 0, 255);
     $origin   = mb_substr(trim((string)(isset($d['origin']) ? $d['origin'] : '')), 0, 255);
     $dest     = mb_substr(trim((string)(isset($d['destination']) ? $d['destination'] : '')), 0, 1000);
@@ -1204,12 +1233,12 @@ switch ($action) {
       $owner = $q->fetchColumn();
       if ($owner === false) fail('対象の記録が見つかりません', 404);
       if (!$s['is_admin'] && $owner !== $s['username']) fail('他のユーザーの記録は編集できません', 403);
-      $pdo->prepare('UPDATE trips SET trip_date=?, case_name=?, origin=?, destination=?, one_way_km=?, round_trip=?, gas_rate=?, gas_cost=?, toll_cost=?, parking_cost=?, other_cost=?, total=?, note=?, updated_at=? WHERE id=?')
-        ->execute(array($date, $caseName, $origin, $dest, $oneWay, $round, $rate, $gas, $toll, $park, $other, $total, $note, $ts, $id));
+      $pdo->prepare('UPDATE trips SET trip_date=?, case_name=?, origin=?, destination=?, one_way_km=?, round_trip=?, gas_rate=?, gas_cost=?, toll_cost=?, parking_cost=?, other_cost=?, total=?, cost_details=?, note=?, updated_at=? WHERE id=?')
+        ->execute(array($date, $caseName, $origin, $dest, $oneWay, $round, $rate, $gas, $toll, $park, $other, $total, $detailsJson, $note, $ts, $id));
     } else {
       $id = 't' . bin2hex(random_bytes(9));
-      $pdo->prepare('INSERT INTO trips (id, username, display_name, trip_date, case_name, origin, destination, one_way_km, round_trip, gas_rate, gas_cost, toll_cost, parking_cost, other_cost, total, note, created_at, updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)')
-        ->execute(array($id, $s['username'], cbc_display_name($pdo, $s['username']), $date, $caseName, $origin, $dest, $oneWay, $round, $rate, $gas, $toll, $park, $other, $total, $note, $ts, $ts));
+      $pdo->prepare('INSERT INTO trips (id, username, display_name, trip_date, case_name, origin, destination, one_way_km, round_trip, gas_rate, gas_cost, toll_cost, parking_cost, other_cost, total, cost_details, note, created_at, updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)')
+        ->execute(array($id, $s['username'], cbc_display_name($pdo, $s['username']), $date, $caseName, $origin, $dest, $oneWay, $round, $rate, $gas, $toll, $park, $other, $total, $detailsJson, $note, $ts, $ts));
     }
     ok(array('id' => $id, 'gas_cost' => $gas, 'total' => $total));
   }
@@ -1235,7 +1264,7 @@ switch ($action) {
     $to   = trim((string)(isset($d['to']) ? $d['to'] : ''));
     if ($from !== '' && preg_match('/^\d{4}-\d{2}-\d{2}$/', $from)) { $where[] = 'trip_date >= ?'; $args[] = $from; }
     if ($to   !== '' && preg_match('/^\d{4}-\d{2}-\d{2}$/', $to))   { $where[] = 'trip_date <= ?'; $args[] = $to; }
-    $sql = 'SELECT id, username, display_name, trip_date, case_name, origin, destination, one_way_km, round_trip, gas_rate, gas_cost, toll_cost, parking_cost, other_cost, total, note FROM trips';
+    $sql = 'SELECT id, username, display_name, trip_date, case_name, origin, destination, one_way_km, round_trip, gas_rate, gas_cost, toll_cost, parking_cost, other_cost, total, cost_details, note FROM trips';
     if ($where) $sql .= ' WHERE ' . implode(' AND ', $where);
     $sql .= ' ORDER BY trip_date DESC, created_at DESC';
     $st = $pdo->prepare($sql);
@@ -1251,6 +1280,7 @@ switch ($action) {
         'gas_rate' => (int)$r['gas_rate'], 'gas_cost' => (int)$r['gas_cost'],
         'toll_cost' => (int)$r['toll_cost'], 'parking_cost' => (int)$r['parking_cost'],
         'other_cost' => (int)$r['other_cost'],
+        'cost_details' => (isset($r['cost_details']) && $r['cost_details'] !== '') ? json_decode($r['cost_details'], true) : null,
         'total' => (int)$r['total'], 'note' => $r['note'],
       );
       $sum += (int)$r['total'];

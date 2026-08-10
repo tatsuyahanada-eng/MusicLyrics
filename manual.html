@@ -9,7 +9,7 @@
   <link rel="manifest" href="manifest.webmanifest">
   <link rel="icon" href="icon.svg" type="image/svg+xml">
   <link rel="apple-touch-icon" href="icon-192.png">
-  <link rel="stylesheet" href="manual.css?v=67">
+  <link rel="stylesheet" href="manual.css?v=69">
 </head>
 <body class="tm-body">
 
@@ -183,15 +183,30 @@
         </div>
 
         <div class="tm-field tm-trip-wide">
-          <span class="tm-field-label">距離・金額</span>
+          <span class="tm-field-label">距離</span>
           <div class="tm-trip-nums">
             <label>片道(km)<input id="teKm" class="tm-input" type="number" min="0" step="0.1" inputmode="decimal"></label>
             <label>単価(円/km)<input id="teRate" class="tm-input" type="number" min="0" step="1"></label>
-            <label>高速代(円)<input id="teToll" class="tm-input" type="number" min="0" step="1"></label>
-            <label>駐車場代(円)<input id="tePark" class="tm-input" type="number" min="0" step="1"></label>
-            <label class="tm-trip-otherlbl">その他(配送、雑費など)(円)<input id="teOther" class="tm-input" type="number" min="0" step="1"></label>
             <label class="tm-trip-roundlbl"><input type="checkbox" id="teRound"> 往復</label>
           </div>
+        </div>
+
+        <div class="tm-field tm-trip-wide tm-trip-costblock">
+          <span class="tm-field-label">高速代（複数可）<span class="tm-trip-costsum">小計 <b id="teTollSum">0</b> 円</span></span>
+          <div id="teTollRows" class="tm-trip-costrows"></div>
+          <button id="teTollAdd" class="tm-btn tm-trip-accentbtn tm-btn-sm" type="button">&#43; 高速代を追加</button>
+        </div>
+
+        <div class="tm-field tm-trip-wide tm-trip-costblock">
+          <span class="tm-field-label">駐車場代（複数可）<span class="tm-trip-costsum">小計 <b id="teParkSum">0</b> 円</span></span>
+          <div id="teParkRows" class="tm-trip-costrows"></div>
+          <button id="teParkAdd" class="tm-btn tm-trip-accentbtn tm-btn-sm" type="button">&#43; 駐車場代を追加</button>
+        </div>
+
+        <div class="tm-field tm-trip-wide tm-trip-costblock">
+          <span class="tm-field-label">その他(配送、雑費など)（複数可）<span class="tm-trip-costsum">小計 <b id="teOtherSum">0</b> 円</span></span>
+          <div id="teOtherRows" class="tm-trip-costrows"></div>
+          <button id="teOtherAdd" class="tm-btn tm-trip-accentbtn tm-btn-sm" type="button">&#43; その他を追加</button>
         </div>
 
         <label class="tm-field tm-trip-wide"><span class="tm-field-label">メモ（任意）</span>
@@ -315,15 +330,30 @@
             </div>
 
             <div class="tm-field tm-trip-wide">
-              <span class="tm-field-label">距離・金額</span>
+              <span class="tm-field-label">距離</span>
               <div class="tm-trip-nums">
                 <label>片道(km)<input id="tripKm" class="tm-input" type="number" min="0" step="0.1" inputmode="decimal" placeholder="0.0"></label>
                 <label>単価(円/km)<input id="tripRate" class="tm-input" type="number" min="0" step="1" value="18"></label>
-                <label>高速代(円)<input id="tripToll" class="tm-input" type="number" min="0" step="1" value="0"></label>
-                <label>駐車場代(円)<input id="tripPark" class="tm-input" type="number" min="0" step="1" value="0"></label>
-                <label class="tm-trip-otherlbl">その他(配送、雑費など)(円)<input id="tripOther" class="tm-input" type="number" min="0" step="1" value="0"></label>
                 <label class="tm-trip-roundlbl"><input type="checkbox" id="tripRound" checked> 往復</label>
               </div>
+            </div>
+
+            <div class="tm-field tm-trip-wide tm-trip-costblock">
+              <span class="tm-field-label">高速代（複数可）<span class="tm-trip-costsum">小計 <b id="tripTollSum">0</b> 円</span></span>
+              <div id="tripTollRows" class="tm-trip-costrows"></div>
+              <button id="tripTollAdd" class="tm-btn tm-trip-accentbtn tm-btn-sm" type="button">&#43; 高速代を追加</button>
+            </div>
+
+            <div class="tm-field tm-trip-wide tm-trip-costblock">
+              <span class="tm-field-label">駐車場代（複数可）<span class="tm-trip-costsum">小計 <b id="tripParkSum">0</b> 円</span></span>
+              <div id="tripParkRows" class="tm-trip-costrows"></div>
+              <button id="tripParkAdd" class="tm-btn tm-trip-accentbtn tm-btn-sm" type="button">&#43; 駐車場代を追加</button>
+            </div>
+
+            <div class="tm-field tm-trip-wide tm-trip-costblock">
+              <span class="tm-field-label">その他(配送、雑費など)（複数可）<span class="tm-trip-costsum">小計 <b id="tripOtherSum">0</b> 円</span></span>
+              <div id="tripOtherRows" class="tm-trip-costrows"></div>
+              <button id="tripOtherAdd" class="tm-btn tm-trip-accentbtn tm-btn-sm" type="button">&#43; その他を追加</button>
               <p class="tm-trip-paper-note">&#128206; 紙媒体のデータは、管理者にお渡しください。それまでは大切に保管しておいてください。</p>
             </div>
 
@@ -904,6 +934,6 @@
   </dialog>
 
   <script src="vendor/xlsx.full.min.js"></script>
-  <script src="manual.js?v=79"></script>
+  <script src="manual.js?v=80"></script>
 </body>
 </html>
