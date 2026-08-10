@@ -9,7 +9,7 @@
   <link rel="manifest" href="manifest.webmanifest">
   <link rel="icon" href="icon.svg" type="image/svg+xml">
   <link rel="apple-touch-icon" href="icon-192.png">
-  <link rel="stylesheet" href="manual.css?v=63">
+  <link rel="stylesheet" href="manual.css?v=64">
 </head>
 <body class="tm-body">
 
@@ -148,6 +148,64 @@
         </div>
       </div>
       <div id="tripTableWrap" class="tm-trip-tablewrap"></div>
+    </div>
+  </dialog>
+
+  <!-- ===== 交通費 記録の編集（履歴ポップアップの手前に開く） ===== -->
+  <dialog id="tripEditDialog" class="tm-dialog tm-search-dialog">
+    <div class="tm-dialog-form">
+      <div class="tm-search-head">
+        <span class="tm-search-ico">&#9998;</span>
+        <h2 class="tm-updates-title">交通費の編集</h2>
+        <button type="button" id="teCancelBtn" class="tm-btn tm-btn-outline tm-search-closebtn">閉じる</button>
+      </div>
+      <div class="tm-trip-grid">
+        <label class="tm-field"><span class="tm-field-label">日付（手入力可・例 2026-08-01）</span>
+          <input id="teDate" class="tm-input" type="text" inputmode="numeric" maxlength="10" autocomplete="off" placeholder="YYYY-MM-DD"></label>
+        <label class="tm-field"><span class="tm-field-label">店舗名</span>
+          <input id="teCase" class="tm-input" type="text" maxlength="255"></label>
+
+        <div class="tm-field tm-trip-wide">
+          <span class="tm-field-label">出発地点</span>
+          <div class="tm-trip-inline">
+            <input id="teStart" class="tm-input" type="text" maxlength="255" placeholder="住所を入力（または「会社から出発」）">
+            <button id="teCompanyBtn" class="tm-btn tm-trip-accentbtn tm-btn-sm" type="button">会社から出発</button>
+          </div>
+        </div>
+
+        <div class="tm-field tm-trip-wide">
+          <span class="tm-field-label">目的地（最大5つ）</span>
+          <div id="teDests"></div>
+          <div class="tm-trip-destbtns">
+            <button id="teAddDestBtn" class="tm-btn tm-trip-accentbtn tm-btn-sm" type="button">&#43; 目的地を追加</button>
+            <button id="teMapBtn" class="tm-btn tm-trip-accentbtn tm-btn-sm" type="button">&#128506; GoogleMapで距離測定</button>
+          </div>
+        </div>
+
+        <div class="tm-field tm-trip-wide">
+          <span class="tm-field-label">距離・金額</span>
+          <div class="tm-trip-nums">
+            <label>片道(km)<input id="teKm" class="tm-input" type="number" min="0" step="0.1" inputmode="decimal"></label>
+            <label>単価(円/km)<input id="teRate" class="tm-input" type="number" min="0" step="1"></label>
+            <label>高速(円)<input id="teToll" class="tm-input" type="number" min="0" step="1"></label>
+            <label>駐車(円)<input id="tePark" class="tm-input" type="number" min="0" step="1"></label>
+            <label title="発送費・雑費など">その他(円)<input id="teOther" class="tm-input" type="number" min="0" step="1"></label>
+            <label class="tm-trip-roundlbl"><input type="checkbox" id="teRound"> 往復</label>
+          </div>
+        </div>
+
+        <label class="tm-field tm-trip-wide"><span class="tm-field-label">メモ（任意）</span>
+          <input id="teNote" class="tm-input" type="text" maxlength="500"></label>
+      </div>
+      <div class="tm-trip-calcline">
+        <span>ガソリン代：<b id="teGas">0</b> 円</span>
+        <span class="tm-trip-total">合計：<b id="teTotal">0</b> 円</span>
+      </div>
+      <p id="teMsg" class="tm-sync-status" aria-live="polite"></p>
+      <div class="tm-dialog-actions">
+        <button type="button" id="teCancelBtn2" class="tm-btn tm-btn-outline">キャンセル</button>
+        <button type="button" id="teSaveBtn" class="tm-btn tm-btn-primary">&#10003; 更新する</button>
+      </div>
     </div>
   </dialog>
 
@@ -843,6 +901,6 @@
   </dialog>
 
   <script src="vendor/xlsx.full.min.js"></script>
-  <script src="manual.js?v=74"></script>
+  <script src="manual.js?v=75"></script>
 </body>
 </html>

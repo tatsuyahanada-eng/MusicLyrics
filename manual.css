@@ -17,6 +17,7 @@
   --tm-muted: #6f97a2;
   --tm-warn: #ffcf3f;
   --tm-danger: #ff5a6e;
+  --tm-green: #39ff14;
   --tm-radius: 6px;
   --tm-mono: 'Courier New', ui-monospace, monospace;
   --tm-sans: 'Segoe UI', 'Hiragino Sans', 'Noto Sans JP', sans-serif;
@@ -1461,22 +1462,14 @@ textarea.tm-ff-input { width: 100%; resize: vertical; min-height: 88px; }
 .tm-trip-nums .tm-input { width: 92px; padding: 6px 8px; font-size: 14px; }
 .tm-trip-nums .tm-trip-roundlbl { flex-direction: row; align-items: center; gap: 6px; font-size: 13px; color: var(--tm-text); padding-bottom: 6px; }
 .tm-trip-nums .tm-trip-roundlbl input { width: auto; }
-/* 案内リストに出す「交通費精算」入口（ほかの中項目と違う色＝蛍光グリーン） */
-.tm-trip-choice {
-  display: flex; align-items: center; gap: 10px; width: 100%; text-align: left; cursor: pointer;
-  padding: 14px 16px; margin-bottom: 10px; border-radius: 10px;
-  border: 1px solid rgba(57, 255, 20, 0.6);
-  background: linear-gradient(180deg, rgba(57, 255, 20, 0.16), rgba(57, 255, 20, 0.05));
-  color: #b8ff8f; font-size: 15px; font-weight: 700;
-  text-shadow: 0 0 6px rgba(57, 255, 20, 0.35);
-  box-shadow: 0 0 0 1px rgba(57, 255, 20, 0.12), 0 0 14px rgba(57, 255, 20, 0.14);
+/* 案内リストの「交通費精算」入口。見た目・動作は他の項目（.tm-choice）と同じで、
+   ハイライト（矢印・枠・発光）の色だけ緑にする。 */
+.tm-choice-trip::before { color: var(--tm-green, #39ff14); }
+.tm-choice-trip:hover, .tm-choice-trip:focus-visible {
+  border-color: var(--tm-green, #39ff14);
+  background: rgba(20, 62, 32, 0.9);
+  box-shadow: inset 0 0 0 1px var(--tm-green, #39ff14), 0 0 22px rgba(57, 255, 20, 0.5);
 }
-.tm-trip-choice:hover {
-  border-color: rgba(57, 255, 20, 0.95);
-  background: rgba(57, 255, 20, 0.24);
-  color: #d7ffc4;
-}
-.tm-trip-choice .tm-trip-choice-ico { font-size: 18px; }
 .tm-trip-calcline {
   display: flex; flex-wrap: wrap; gap: 8px 24px; align-items: baseline;
   margin: 12px 0 6px; padding: 10px 12px; border: 1px solid var(--tm-line);

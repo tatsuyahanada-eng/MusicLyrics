@@ -967,9 +967,9 @@
 
     // 「リテイルオンサイト」など“オンサイト”の中項目の一覧に、ほかと違う色の「交通費」入口を出す。
     const tripEntry = (serverMode() && session && !atRoot && curNode && /オンサイト/.test(curNode.title || ''))
-      ? `<button class="tm-trip-choice" data-trip-open type="button">
-          <span class="tm-trip-choice-ico">&#129534;</span>
-          <span>交通費精算</span>
+      ? `<button class="tm-choice tm-choice-trip" data-trip-open type="button">
+          <span class="tm-choice-main">交通費精算</span>
+          <span class="tm-choice-meta">交通費の入力・履歴検索</span>
         </button>` : '';
 
     if (navReorder && kids.length > 0) {
@@ -1069,8 +1069,8 @@
   window.addEventListener('popstate', () => {
     if (absorbPop) { absorbPop = false; return; } // プログラム的backの分は無視
     trapped = false;
-    const dlg = document.querySelector('dialog[open]');
-    if (dlg) { dlg.close(); }                                  // 開いているダイアログを閉じる
+    const dlgs = document.querySelectorAll('dialog[open]');
+    if (dlgs.length) { dlgs[dlgs.length - 1].close(); }         // 一番手前のダイアログを閉じる（重なりに対応）
     else if (!editView.hidden) { setMode('nav'); }             // 編集モード→案内モード
     else if (tripOpen) { closeTrips(); }                       // 交通費→元へ
     else if (invOpen) { closeInventory(); }                    // 在庫管理→大項目へ
@@ -2443,11 +2443,11 @@
 
   /* ---------- ログアウト / 自動ログアウト（無操作タイマー） ---------- */
   const LOGOUT_KEY = 'treeManual.loggedOut.v1';
-  // 無操作で自動ログアウトするまでの時間（既定12時間＝半日）。?idlemin=... で上書き可（テスト/運用調整用）
-  let IDLE_LIMIT = 12 * 60 * 60 * 1000;
+  // 無操作で自動ログアウトするまでの時間（既定9時間）。?idlemin=... で上書き可（テスト/運用調整用）
+  let IDLE_LIMIT = 9 * 60 * 60 * 1000;
   try {
     const qs = new URLSearchParams(location.search);
-    if (qs.has('idlemin')) IDLE_LIMIT = Math.max(0.05, parseFloat(qs.get('idlemin')) || 720) * 60 * 1000;
+    if (qs.has('idlemin')) IDLE_LIMIT = Math.max(0.05, parseFloat(qs.get('idlemin')) || 540) * 60 * 1000;
     else if (qs.has('idlems')) IDLE_LIMIT = Math.max(3000, parseInt(qs.get('idlems'), 10) || IDLE_LIMIT);
     else {
       const m = parseFloat(localStorage.getItem('treeManual.idleMin.v1'));
@@ -2461,7 +2461,7 @@
     if (raw) { const o = JSON.parse(raw); loggedOut = !!o.out; logoutReason = o.reason || 'manual'; }
   } catch (_) {}
   // 最終操作時刻（端末に保存）。setTimeout は端末スリープ等で止まることがあるため、
-  // 「最終操作からの経過時間」でも判定する。これにより半日たてば復帰時に確実にログアウトする。
+  // 「最終操作からの経過時間」でも判定する。これにより9時間たてば復帰時に確実にログアウトする。
   const ACTIVE_KEY = 'treeManual.lastActive.v1';
   let lastActiveAt = Date.now();
   try { const t = parseInt(localStorage.getItem(ACTIVE_KEY), 10); if (t > 0) lastActiveAt = t; } catch (_) {}
@@ -2937,19 +2937,21 @@
     return m[1] + '-' + String(m[2]).padStart(2, '0') + '-' + String(m[3]).padStart(2, '0');
   }
   const TRIP_MAX_DEST = 5;
-  function tripDestBox() { return $('#tripDests'); }
-  function tripUpdateDestNos() {
-    const box = tripDestBox(); if (!box) return;
+  // 目的地の入力欄は、登録フォーム（#tripDests）と編集ポップアップ（#teDests）の両方で使う。
+  function tripDestBox(box) { return box || $('#tripDests'); }
+  function tripUpdateDestNos(boxArg) {
+    const box = tripDestBox(boxArg); if (!box) return;
     const rows = box.children;
     for (let i = 0; i < rows.length; i++) {
       const no = rows[i].querySelector('.tm-trip-destno'); if (no) no.textContent = (i + 1);
       const inp = rows[i].querySelector('input'); if (inp) inp.placeholder = '目的地' + (i + 1) + 'の住所';
       const del = rows[i].querySelector('.tm-trip-destdel'); if (del) del.style.visibility = (rows.length > 1) ? 'visible' : 'hidden';
     }
-    const add = $('#tripAddDestBtn'); if (add) add.disabled = (rows.length >= TRIP_MAX_DEST);
+    const add = (box.id === 'teDests') ? $('#teAddDestBtn') : $('#tripAddDestBtn');
+    if (add) add.disabled = (rows.length >= TRIP_MAX_DEST);
   }
-  function tripAppendDest(value) {
-    const box = tripDestBox(); if (!box || box.children.length >= TRIP_MAX_DEST) return;
+  function tripAppendDest(value, boxArg) {
+    const box = tripDestBox(boxArg); if (!box || box.children.length >= TRIP_MAX_DEST) return;
     const row = document.createElement('div');
     row.className = 'tm-trip-destrow';
     row.innerHTML = '<span class="tm-trip-destno"></span>'
@@ -2957,17 +2959,17 @@
       + '<button class="tm-trip-destdel" type="button" title="削除">&times;</button>';
     row.querySelector('input').value = value || '';
     box.appendChild(row);
-    tripUpdateDestNos();
+    tripUpdateDestNos(box);
   }
-  function tripSetDests(values) {
-    const box = tripDestBox(); if (!box) return;
+  function tripSetDests(values, boxArg) {
+    const box = tripDestBox(boxArg); if (!box) return;
     box.innerHTML = '';
     const vals = (values && values.length) ? values.slice(0, TRIP_MAX_DEST) : [''];
-    vals.forEach((v) => tripAppendDest(v));
-    tripUpdateDestNos();
+    vals.forEach((v) => tripAppendDest(v, box));
+    tripUpdateDestNos(box);
   }
-  function tripGetDests() {
-    const box = tripDestBox(); if (!box) return [];
+  function tripGetDests(boxArg) {
+    const box = tripDestBox(boxArg); if (!box) return [];
     const out = [];
     box.querySelectorAll('.tm-trip-dest-in').forEach((i) => { const v = i.value.trim(); if (v) out.push(v); });
     return out;
@@ -3006,9 +3008,13 @@
     const uw = $('#tripFilterUserWrap'); if (uw) uw.hidden = !(session && session.isAdmin);
     const now = new Date();
     if ($('#tripFilterMonth')) $('#tripFilterMonth').value = now.getFullYear() + '-' + String(now.getMonth() + 1).padStart(2, '0');
+    // 開いた時点では検索しない（件数が多いと表示に時間がかかるため）。
+    // 月・対象者を選んで「検索」を押したときに初めて一覧を読み込む。
+    const wrap = $('#tripTableWrap');
+    if (wrap) wrap.innerHTML = '<div class="tm-trip-empty">月（と対象者）を選んで「検索」を押すと、一覧が表示されます。</div>';
+    tripListData = [];
     tripHistoryDialog.showModal();
     syncTrap();
-    tripSearch(); // 開いたら現在月で検索して表示
   }
   if (tripHistoryDialog) {
     tripHistoryDialog.addEventListener('close', () => { syncTrap(); });
@@ -3055,23 +3061,90 @@
       tripMsg(wasEdit ? '更新しました' : '登録しました');
     } catch (e) { tripMsg('登録に失敗：' + e.message, true); }
   }
+  /* ---- 編集は専用ポップアップで（履歴ポップアップの手前に開く。裏の入力画面は変えない） ---- */
+  const tripEditDialog = $('#tripEditDialog');
+  const teDestBox = () => $('#teDests');
+  function teMsg(m, isErr) { const el = $('#teMsg'); if (el) { el.textContent = m || ''; el.style.color = isErr ? 'var(--tm-danger)' : ''; } }
+  function teRecalc() {
+    const gas = Math.round(tval('teKm') * (tchk('teRound') ? 2 : 1) * tval('teRate'));
+    const total = gas + Math.round(tval('teToll')) + Math.round(tval('tePark')) + Math.round(tval('teOther'));
+    const g = $('#teGas'), t = $('#teTotal');
+    if (g) g.textContent = gas.toLocaleString();
+    if (t) t.textContent = total.toLocaleString();
+  }
   function tripEdit(rec) {
+    if (!tripEditDialog) return;
     tripEditingId = rec.id;
-    if ($('#tripDate')) $('#tripDate').value = rec.trip_date || '';
-    if ($('#tripCase')) $('#tripCase').value = rec.case_name || '';
-    if ($('#tripStart')) $('#tripStart').value = rec.origin || '';
-    tripSetDests(String(rec.destination || '').split('\n').filter((x) => x));
-    if ($('#tripKm')) $('#tripKm').value = (rec.one_way_km != null ? rec.one_way_km : 0);
-    if ($('#tripRound')) $('#tripRound').checked = !!rec.round_trip;
-    if ($('#tripRate')) $('#tripRate').value = (rec.gas_rate != null ? rec.gas_rate : 18);
-    if ($('#tripToll')) $('#tripToll').value = rec.toll_cost || 0;
-    if ($('#tripPark')) $('#tripPark').value = rec.parking_cost || 0;
-    if ($('#tripOther')) $('#tripOther').value = rec.other_cost || 0;
-    if ($('#tripNote')) $('#tripNote').value = rec.note || '';
-    const sb = $('#tripSaveBtn'); if (sb) sb.innerHTML = '&#10003; 更新する';
-    tripRecalc();
-    tripMsg('編集中… 内容を直して「更新する」を押してください');
-    if (tripViewEl && tripViewEl.scrollIntoView) tripViewEl.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    if ($('#teDate')) $('#teDate').value = rec.trip_date || '';
+    if ($('#teCase')) $('#teCase').value = rec.case_name || '';
+    if ($('#teStart')) $('#teStart').value = rec.origin || '';
+    tripSetDests(String(rec.destination || '').split('\n').filter((x) => x), teDestBox());
+    if ($('#teKm')) $('#teKm').value = (rec.one_way_km != null ? rec.one_way_km : 0);
+    if ($('#teRound')) $('#teRound').checked = !!rec.round_trip;
+    if ($('#teRate')) $('#teRate').value = (rec.gas_rate != null ? rec.gas_rate : 18);
+    if ($('#teToll')) $('#teToll').value = rec.toll_cost || 0;
+    if ($('#tePark')) $('#tePark').value = rec.parking_cost || 0;
+    if ($('#teOther')) $('#teOther').value = rec.other_cost || 0;
+    if ($('#teNote')) $('#teNote').value = rec.note || '';
+    teRecalc(); teMsg('');
+    tripEditDialog.showModal(); // 履歴ポップアップの手前に表示
+    syncTrap();
+  }
+  async function teSave() {
+    if (!serverMode()) { teMsg('更新はサーバー接続時のみ可能です', true); return; }
+    const dests = tripGetDests(teDestBox());
+    if (!tstr('teCase').trim() && !dests.length) { teMsg('店舗名か目的地を入力してください', true); return; }
+    const body = {
+      id: tripEditingId,
+      trip_date: tripNormalizeDate(tstr('teDate')),
+      case_name: tstr('teCase'),
+      origin: tstr('teStart').trim(),
+      destination: dests.join('\n'),
+      one_way_km: tval('teKm'),
+      round_trip: tchk('teRound') ? 1 : 0,
+      gas_rate: Math.round(tval('teRate')),
+      toll_cost: Math.round(tval('teToll')),
+      parking_cost: Math.round(tval('tePark')),
+      other_cost: Math.round(tval('teOther')),
+      note: tstr('teNote'),
+    };
+    try {
+      await apiCall('trip_save', { method: 'POST', body });
+      tripEditingId = '';
+      tripEditDialog.close();
+      tripSearch(); // 履歴ポップアップの一覧を更新
+    } catch (e) { teMsg('更新に失敗：' + e.message, true); }
+  }
+  if (tripEditDialog) {
+    tripEditDialog.addEventListener('close', () => { tripEditingId = ''; syncTrap(); });
+    { const c = $('#teCancelBtn'); if (c) c.addEventListener('click', () => tripEditDialog.close()); }
+    { const c = $('#teCancelBtn2'); if (c) c.addEventListener('click', () => tripEditDialog.close()); }
+    { const s = $('#teSaveBtn'); if (s) s.addEventListener('click', teSave); }
+    { const b = $('#teCompanyBtn'); if (b) b.addEventListener('click', () => { if ($('#teStart')) $('#teStart').value = travelOrigin; }); }
+    { const b = $('#teAddDestBtn'); if (b) b.addEventListener('click', () => tripAppendDest('', teDestBox())); }
+    { const b = $('#teMapBtn'); if (b) b.addEventListener('click', () => {
+      let start = tstr('teStart').trim(); if (!start) start = travelOrigin;
+      const dests = tripGetDests(teDestBox());
+      if (!dests.length) { teMsg('目的地を1つ以上入力してください', true); return; }
+      const enc = encodeURIComponent;
+      let url = 'https://www.google.com/maps/dir/?api=1&travelmode=driving&origin=' + enc(start) + '&destination=' + enc(dests[dests.length - 1]);
+      const wp = dests.slice(0, -1);
+      if (wp.length) url += '&waypoints=' + wp.map(enc).join('%7C');
+      window.open(url, '_blank', 'noopener');
+      teMsg('Googleマップを別タブで開きました。距離を確認して「片道(km)」に入力してください。');
+    }); }
+    { const box = teDestBox(); if (box) box.addEventListener('click', (e) => {
+      const del = e.target.closest('.tm-trip-destdel');
+      if (del && box.children.length > 1) { del.closest('.tm-trip-destrow').remove(); tripUpdateDestNos(box); }
+    }); }
+    ['teKm', 'teRate', 'teToll', 'tePark', 'teOther'].forEach((id) => { const el = $('#' + id); if (el) el.addEventListener('input', teRecalc); });
+    { const r = $('#teRound'); if (r) r.addEventListener('change', teRecalc); }
+    { const dt = $('#teDate'); if (dt) dt.addEventListener('blur', () => {
+      const v = dt.value.trim(); if (!v) return;
+      const n = tripNormalizeDate(v); dt.value = n;
+      const okFmt = /^\d{4}-\d{2}-\d{2}$/.test(n);
+      teMsg(okFmt ? '' : '日付は「2026-08-01」の形式で入力してください', !okFmt);
+    }); }
   }
   function tripRoute(r) {
     const dests = String(r.destination || '').split('\n').filter((x) => x);
