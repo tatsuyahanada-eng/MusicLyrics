@@ -9,7 +9,7 @@
   <link rel="manifest" href="manifest.webmanifest">
   <link rel="icon" href="icon.svg" type="image/svg+xml">
   <link rel="apple-touch-icon" href="icon-192.png">
-  <link rel="stylesheet" href="manual.css?v=69">
+  <link rel="stylesheet" href="manual.css?v=70">
 </head>
 <body class="tm-body">
 
@@ -135,8 +135,17 @@
         <button type="button" id="tripHistoryClose" class="tm-btn tm-btn-outline tm-search-closebtn">閉じる</button>
       </div>
       <div class="tm-trip-filter">
-        <label class="tm-field"><span class="tm-field-label">月</span>
+        <label class="tm-field"><span class="tm-field-label">検索方法</span>
+          <select id="tripFilterMode" class="tm-input">
+            <option value="month">月で検索</option>
+            <option value="range">期間で検索</option>
+          </select></label>
+        <label class="tm-field" id="tripMonthWrap"><span class="tm-field-label">月</span>
           <input id="tripFilterMonth" class="tm-input" type="month"></label>
+        <label class="tm-field" id="tripFromWrap" hidden><span class="tm-field-label">開始日</span>
+          <input id="tripFilterFrom" class="tm-input" type="date"></label>
+        <label class="tm-field" id="tripToWrap" hidden><span class="tm-field-label">終了日</span>
+          <input id="tripFilterTo" class="tm-input" type="date"></label>
         <label class="tm-field" id="tripFilterUserWrap" hidden><span class="tm-field-label">ユーザー</span>
           <select id="tripFilterUser" class="tm-input"><option value="">全員</option></select></label>
         <div class="tm-field tm-trip-filterbtns">
@@ -934,6 +943,6 @@
   </dialog>
 
   <script src="vendor/xlsx.full.min.js"></script>
-  <script src="manual.js?v=80"></script>
+  <script src="manual.js?v=81"></script>
 </body>
 </html>

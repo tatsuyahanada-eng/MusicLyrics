@@ -1474,6 +1474,20 @@ textarea.tm-ff-input { width: 100%; resize: vertical; min-height: 88px; }
 .tm-trip-costrow .tm-trip-cost-note { flex: 1 1 auto; min-width: 0; padding: 6px 8px; }
 .tm-trip-costblock > .tm-btn { align-self: flex-start; }
 
+/* 交通費の履歴検索・編集ポップアップは、画面サイズに合わせて大きく表示する
+   （PCでは横広く、スマホでは画面いっぱい。縦は画面内に収めてスクロール） */
+#tripHistoryDialog, #tripEditDialog {
+  width: min(1500px, 96vw);
+  max-width: 96vw;
+  max-height: 92vh;
+  overflow: auto;
+}
+#tripHistoryDialog .tm-dialog-form, #tripEditDialog .tm-dialog-form { padding: 20px clamp(14px, 2.2vw, 28px); }
+@media (max-width: 700px) {
+  #tripHistoryDialog, #tripEditDialog { width: 98vw; max-width: 98vw; max-height: 94vh; }
+  #tripHistoryDialog .tm-dialog-form, #tripEditDialog .tm-dialog-form { padding: 16px 12px; }
+}
+
 /* ---- 交通費のアクセント（要所に緑） ---- */
 #tripView .tm-panel-head-label,
 #tripView .tm-panel-head-jp { color: var(--tm-green); text-shadow: 0 0 10px rgba(57, 255, 20, 0.3); }

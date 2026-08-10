@@ -3088,7 +3088,12 @@
     if (!tripHistoryDialog || !session) return;
     const uw = $('#tripFilterUserWrap'); if (uw) uw.hidden = !(session && session.isAdmin);
     const now = new Date();
-    if ($('#tripFilterMonth')) $('#tripFilterMonth').value = now.getFullYear() + '-' + String(now.getMonth() + 1).padStart(2, '0');
+    const ym = now.getFullYear() + '-' + String(now.getMonth() + 1).padStart(2, '0');
+    if ($('#tripFilterMonth')) $('#tripFilterMonth').value = ym;
+    // 期間検索の初期値は「今月の1日〜今日」
+    if ($('#tripFilterFrom')) $('#tripFilterFrom').value = ym + '-01';
+    if ($('#tripFilterTo')) $('#tripFilterTo').value = todayISO();
+    tripSyncFilterMode();
     // 開いた時点では検索しない（件数が多いと表示に時間がかかるため）。
     // 月・対象者を選んで「検索」を押したときに初めて一覧を読み込む。
     const wrap = $('#tripTableWrap');
@@ -3101,9 +3106,17 @@
     tripLoadUsers(); // 担当者リストは開いた時点で用意する（記録は「検索」を押すまで読まない）
     syncTrap();
   }
+  // 「月で検索」／「期間で検索」の切替
+  function tripSyncFilterMode() {
+    const range = tstr('tripFilterMode') === 'range';
+    const mw = $('#tripMonthWrap'); if (mw) mw.hidden = range;
+    const fw = $('#tripFromWrap'); if (fw) fw.hidden = !range;
+    const tw = $('#tripToWrap'); if (tw) tw.hidden = !range;
+  }
   if (tripHistoryDialog) {
     tripHistoryDialog.addEventListener('close', () => { syncTrap(); });
     { const c = $('#tripHistoryClose'); if (c) c.addEventListener('click', () => tripHistoryDialog.close()); }
+    { const m = $('#tripFilterMode'); if (m) m.addEventListener('change', tripSyncFilterMode); }
   }
 
   // 「GoogleMapで距離測定」：出発地点→目的地1→…をGoogleマップの経路案内で別タブに開く
@@ -3276,7 +3289,14 @@
     if (wrap) wrap.innerHTML = '<div class="tm-trip-empty">読み込み中…</div>';
     if (!serverMode()) { if (wrap) wrap.innerHTML = '<div class="tm-trip-empty">一覧はサーバー接続時のみ表示できます。</div>'; return; }
     const body = {};
-    const m = tstr('tripFilterMonth'); if (m) body.month = m;
+    if (tstr('tripFilterMode') === 'range') {
+      const f = tstr('tripFilterFrom'), t = tstr('tripFilterTo');
+      if (f) body.from = f;
+      if (t) body.to = t;
+      if (!f && !t) { if (wrap) wrap.innerHTML = '<div class="tm-trip-empty">開始日・終了日のどちらかを指定してください。</div>'; return; }
+    } else {
+      const m = tstr('tripFilterMonth'); if (m) body.month = m;
+    }
     if (session && session.isAdmin) { const u = tstr('tripFilterUser'); if (u) body.username = u; }
     try {
       const d = await apiCall('trip_list', { method: 'POST', body });
