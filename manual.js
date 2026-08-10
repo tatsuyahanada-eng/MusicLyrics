@@ -2997,6 +2997,8 @@
     breadcrumbBar.style.display = 'none';
     tripResetForm();
     tripListData = [];
+    // 開いたときは画面の先頭（入力の最初）を表示する
+    try { window.scrollTo(0, 0); } catch (_) {}
     syncTrap();
   }
   function closeTrips() { setMode(tripReturnMode === 'edit' ? 'edit' : 'nav'); syncTrap(); }
@@ -3014,6 +3016,9 @@
     if (wrap) wrap.innerHTML = '<div class="tm-trip-empty">月（と対象者）を選んで「検索」を押すと、一覧が表示されます。</div>';
     tripListData = [];
     tripHistoryDialog.showModal();
+    // ポップアップは必ず先頭（上部）から表示する
+    tripHistoryDialog.scrollTop = 0;
+    const hf = tripHistoryDialog.querySelector('.tm-dialog-form'); if (hf) hf.scrollTop = 0;
     syncTrap();
   }
   if (tripHistoryDialog) {
@@ -3088,6 +3093,9 @@
     if ($('#teNote')) $('#teNote').value = rec.note || '';
     teRecalc(); teMsg('');
     tripEditDialog.showModal(); // 履歴ポップアップの手前に表示
+    // ポップアップは必ず先頭（上部）から表示する
+    tripEditDialog.scrollTop = 0;
+    const ef = tripEditDialog.querySelector('.tm-dialog-form'); if (ef) ef.scrollTop = 0;
     syncTrap();
   }
   async function teSave() {

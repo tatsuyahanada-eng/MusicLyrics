@@ -9,7 +9,7 @@
   <link rel="manifest" href="manifest.webmanifest">
   <link rel="icon" href="icon.svg" type="image/svg+xml">
   <link rel="apple-touch-icon" href="icon-192.png">
-  <link rel="stylesheet" href="manual.css?v=64">
+  <link rel="stylesheet" href="manual.css?v=65">
 </head>
 <body class="tm-body">
 
@@ -187,9 +187,9 @@
           <div class="tm-trip-nums">
             <label>片道(km)<input id="teKm" class="tm-input" type="number" min="0" step="0.1" inputmode="decimal"></label>
             <label>単価(円/km)<input id="teRate" class="tm-input" type="number" min="0" step="1"></label>
-            <label>高速(円)<input id="teToll" class="tm-input" type="number" min="0" step="1"></label>
-            <label>駐車(円)<input id="tePark" class="tm-input" type="number" min="0" step="1"></label>
-            <label title="発送費・雑費など">その他(円)<input id="teOther" class="tm-input" type="number" min="0" step="1"></label>
+            <label>高速代(円)<input id="teToll" class="tm-input" type="number" min="0" step="1"></label>
+            <label>駐車場代(円)<input id="tePark" class="tm-input" type="number" min="0" step="1"></label>
+            <label class="tm-trip-otherlbl">その他(配送、雑費など)(円)<input id="teOther" class="tm-input" type="number" min="0" step="1"></label>
             <label class="tm-trip-roundlbl"><input type="checkbox" id="teRound"> 往復</label>
           </div>
         </div>
@@ -317,9 +317,9 @@
               <div class="tm-trip-nums">
                 <label>片道(km)<input id="tripKm" class="tm-input" type="number" min="0" step="0.1" inputmode="decimal" placeholder="0.0"></label>
                 <label>単価(円/km)<input id="tripRate" class="tm-input" type="number" min="0" step="1" value="18"></label>
-                <label>高速(円)<input id="tripToll" class="tm-input" type="number" min="0" step="1" value="0"></label>
-                <label>駐車(円)<input id="tripPark" class="tm-input" type="number" min="0" step="1" value="0"></label>
-                <label title="発送費・雑費など">その他(円)<input id="tripOther" class="tm-input" type="number" min="0" step="1" value="0"></label>
+                <label>高速代(円)<input id="tripToll" class="tm-input" type="number" min="0" step="1" value="0"></label>
+                <label>駐車場代(円)<input id="tripPark" class="tm-input" type="number" min="0" step="1" value="0"></label>
+                <label class="tm-trip-otherlbl">その他(配送、雑費など)(円)<input id="tripOther" class="tm-input" type="number" min="0" step="1" value="0"></label>
                 <label class="tm-trip-roundlbl"><input type="checkbox" id="tripRound" checked> 往復</label>
               </div>
               <p class="tm-trip-paper-note">&#128206; 紙媒体のデータは、管理者にお渡しください。それまでは大切に保管しておいてください。</p>
@@ -901,6 +901,6 @@
   </dialog>
 
   <script src="vendor/xlsx.full.min.js"></script>
-  <script src="manual.js?v=75"></script>
+  <script src="manual.js?v=76"></script>
 </body>
 </html>

@@ -1462,8 +1462,38 @@ textarea.tm-ff-input { width: 100%; resize: vertical; min-height: 88px; }
 .tm-trip-nums .tm-input { width: 92px; padding: 6px 8px; font-size: 14px; }
 .tm-trip-nums .tm-trip-roundlbl { flex-direction: row; align-items: center; gap: 6px; font-size: 13px; color: var(--tm-text); padding-bottom: 6px; }
 .tm-trip-nums .tm-trip-roundlbl input { width: auto; }
+.tm-trip-nums .tm-trip-otherlbl .tm-input { width: 150px; }
+
+/* ---- 交通費のアクセント（要所に緑） ---- */
+#tripView .tm-panel-head-label,
+#tripView .tm-panel-head-jp { color: var(--tm-green); text-shadow: 0 0 10px rgba(57, 255, 20, 0.3); }
+#tripView .tm-panel { border-color: rgba(57, 255, 20, 0.22); }
+#tripView .tm-panel-corner { border-color: rgba(57, 255, 20, 0.55); }
+#tripView .tm-field-label { color: #cdeccd; }
+.tm-trip-calcline {
+  border-color: rgba(57, 255, 20, 0.35) !important;
+  background: rgba(57, 255, 20, 0.07) !important;
+}
+.tm-trip-calcline b { color: var(--tm-green); }
+.tm-trip-calcline .tm-trip-total b { color: var(--tm-green); text-shadow: 0 0 10px rgba(57, 255, 20, 0.35); }
+/* 登録・更新ボタンは緑（交通費の主操作） */
+#tripSaveBtn, #teSaveBtn {
+  color: #05230d;
+  background: linear-gradient(180deg, #7dff5c, #35d81f);
+  border-color: #35d81f;
+}
+#tripSaveBtn:hover, #teSaveBtn:hover { background: linear-gradient(180deg, #96ff7c, #45e82f); }
+/* 履歴・編集ポップアップの見出しも緑 */
+#tripHistoryDialog .tm-updates-title, #tripEditDialog .tm-updates-title,
+#tripHistoryDialog .tm-search-ico, #tripEditDialog .tm-search-ico { color: var(--tm-green); }
+#tripHistoryDialog .tm-trip-table th, #tripEditDialog .tm-trip-table th { color: var(--tm-green); }
+.tm-trip-table .tm-trip-total-cell { color: var(--tm-green); }
 /* 案内リストの「交通費精算」入口。見た目・動作は他の項目（.tm-choice）と同じで、
-   ハイライト（矢印・枠・発光）の色だけ緑にする。 */
+   通常時はうっすら緑、マウスオーバー時は緑のハイライト。 */
+.tm-choice-trip {
+  border-color: rgba(57, 255, 20, 0.35);
+  background: rgba(14, 40, 24, 0.72);
+}
 .tm-choice-trip::before { color: var(--tm-green, #39ff14); }
 .tm-choice-trip:hover, .tm-choice-trip:focus-visible {
   border-color: var(--tm-green, #39ff14);
