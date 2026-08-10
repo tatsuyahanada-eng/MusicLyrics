@@ -3404,6 +3404,15 @@
     const wrap = $('#tripTableWrap'); if (!wrap) return;
     if (!items.length) { wrap.innerHTML = '<div class="tm-trip-empty">該当する記録はありません。</div>'; return; }
     const yen = (n) => (Number(n) || 0).toLocaleString();
+    // 各列の合計（総距離・ガソリン代・高速代・駐車場代・その他）
+    const sums = { km: 0, gas: 0, toll: 0, park: 0, other: 0 };
+    items.forEach((r) => {
+      sums.km += (Number(r.one_way_km) || 0) * (r.round_trip ? 2 : 1);
+      sums.gas += Number(r.gas_cost) || 0;
+      sums.toll += Number(r.toll_cost) || 0;
+      sums.park += Number(r.parking_cost) || 0;
+      sums.other += Number(r.other_cost) || 0;
+    });
     const rows = items.map((r) => {
       const km = Number(r.one_way_km) || 0;
       const eff = km * (r.round_trip ? 2 : 1);
@@ -3424,14 +3433,23 @@
         </div></td>
       </tr>`;
     }).join('');
-    const leftCols = (isAdmin ? 5 : 4) + 3; // 日付(+登録者)+店舗+目的地 + 距離/ガソリン/高速 → 駐車まで
+    const labelCols = isAdmin ? 4 : 3; // 日付(+登録者)+店舗+目的地
     wrap.innerHTML = `<table class="tm-trip-table">
       <thead><tr>
         <th>日付</th>${isAdmin ? '<th>登録者</th>' : ''}<th>店舗</th><th>目的地</th>
         <th class="num">距離</th><th class="num">ガソリン</th><th class="num">高速</th><th class="num">駐車</th><th class="num">その他</th><th class="num">合計</th><th>操作</th>
       </tr></thead>
       <tbody>${rows}</tbody>
-      <tfoot><tr><td colspan="${leftCols + 1}">合計（${items.length}件）</td><td class="num tm-trip-total-cell">${yen(sum)}円</td><td></td></tr></tfoot>
+      <tfoot><tr>
+        <td colspan="${labelCols}">合計（${items.length}件）</td>
+        <td class="num">${sums.km.toFixed(1)}km</td>
+        <td class="num">${yen(sums.gas)}円</td>
+        <td class="num">${yen(sums.toll)}円</td>
+        <td class="num">${yen(sums.park)}円</td>
+        <td class="num">${yen(sums.other)}円</td>
+        <td class="num tm-trip-total-cell">${yen(sum)}円</td>
+        <td></td>
+      </tr></tfoot>
     </table>`;
   }
   function tripExcel() {
@@ -3449,6 +3467,7 @@
     const head = ['日付'].concat(isAdmin ? ['登録者'] : []).concat(['店舗名', '出発地点', '目的地', '片道km', '往復', 'ガソリン単価', '対象km', 'ガソリン代', '高速代', '高速代の内訳', '駐車場代', '駐車場代の内訳', 'その他', 'その他の内訳', '合計', 'メモ']);
     const aoa = [head];
     let sum = 0;
+    const s = { km: 0, gas: 0, toll: 0, park: 0, other: 0 };
     items.forEach((r) => {
       const km = Number(r.one_way_km) || 0;
       const eff = km * (r.round_trip ? 2 : 1);
@@ -3461,9 +3480,18 @@
           Number(r.total) || 0, r.note || '']);
       aoa.push(row);
       sum += Number(r.total) || 0;
+      s.km += eff; s.gas += Number(r.gas_cost) || 0; s.toll += Number(r.toll_cost) || 0;
+      s.park += Number(r.parking_cost) || 0; s.other += Number(r.other_cost) || 0;
     });
     aoa.push([]);
-    const totalRow = (isAdmin ? ['', '合計'] : ['合計']).concat(['', '', '', '', '', '', '', '', '', '', '', '', '', '', sum, '']);
+    // 合計行：対象km・ガソリン代・高速代・駐車場代・その他・合計を集計
+    // 列並び: [日付(+登録者)] 店舗名/出発地点/目的地/片道km/往復/ガソリン単価/対象km/ガソリン代/
+    //         高速代/内訳/駐車場代/内訳/その他/内訳/合計/メモ
+    const totalRow = (isAdmin ? ['合計', ''] : ['合計'])
+      .concat(['', '', '', '', '', '',               // 店舗名・出発地点・目的地・片道km・往復・ガソリン単価
+        Math.round(s.km * 10) / 10, s.gas,           // 対象km・ガソリン代
+        s.toll, '', s.park, '', s.other, '',         // 高速代/内訳・駐車場代/内訳・その他/内訳
+        sum, '']);
     aoa.push(totalRow);
     const ws = XLSX.utils.aoa_to_sheet(aoa);
     const wb = XLSX.utils.book_new();
