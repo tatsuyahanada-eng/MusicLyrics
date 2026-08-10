@@ -1,0 +1,212 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta http-equiv="Cache-Control" content="no-store">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>シフト管理カレンダー</title>
+  <link rel="stylesheet" href="schedule.css?v=1">
+</head>
+<body class="sc-body">
+
+  <header class="sc-header">
+    <div class="sc-header-inner">
+      <h1 class="sc-header-title">📅 シフト管理カレンダー</h1>
+      <p class="sc-header-sub">
+        休み希望・稼働可能日の申請 → 確定入力までを1画面で。ダブルブッキングは自動で検知します。
+      </p>
+    </div>
+  </header>
+
+  <!-- 月ナビ -->
+  <nav class="sc-monthnav">
+    <div class="sc-monthnav-inner">
+      <button id="prevMonth" class="sc-btn sc-btn-ghost" aria-label="前の月">◀</button>
+      <h2 id="monthLabel" class="sc-month-label">----年--月</h2>
+      <button id="nextMonth" class="sc-btn sc-btn-ghost" aria-label="次の月">▶</button>
+      <button id="todayBtn" class="sc-btn sc-btn-sm sc-btn-outline">今月</button>
+      <label class="sc-jump">
+        <span class="sc-jump-label">月を指定</span>
+        <input id="monthPicker" class="sc-input sc-input-sm" type="month">
+      </label>
+    </div>
+  </nav>
+
+  <!-- 重複警告バナー -->
+  <div id="conflictBanner" class="sc-conflict-banner" hidden role="alert"></div>
+
+  <main class="sc-main">
+
+    <!-- 左：カレンダー -->
+    <section class="sc-calendar-col">
+
+      <div class="sc-toolbar">
+        <div class="sc-toolbar-group">
+          <span class="sc-toolbar-label">まとめて入力</span>
+          <div class="sc-paint-tabs" role="group" aria-label="まとめて入力モード">
+            <button class="sc-paint-tab active" data-paint="off-mode" type="button">選択のみ</button>
+            <button class="sc-paint-tab" data-paint="available" type="button">◯ 稼働可</button>
+            <button class="sc-paint-tab" data-paint="off" type="button">✕ 休み希望</button>
+            <button class="sc-paint-tab" data-paint="clear" type="button">− 未定に戻す</button>
+          </div>
+          <p id="paintHint" class="sc-hint">
+            日付をクリックすると詳細パネルが開きます。まとめて入力を選ぶと、クリック（ドラッグ）で一括設定できます。
+          </p>
+        </div>
+
+        <div class="sc-toolbar-group">
+          <span class="sc-toolbar-label">クイック設定（表示中の月）</span>
+          <div class="sc-quick-row">
+            <button id="quickWeekday" class="sc-btn sc-btn-sm sc-btn-outline" type="button">平日を稼働可</button>
+            <button id="quickWeekend" class="sc-btn sc-btn-sm sc-btn-outline" type="button">土日祝を休み希望</button>
+            <button id="quickClear" class="sc-btn sc-btn-sm sc-btn-outline sc-btn-danger" type="button">希望をクリア</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="sc-weekdays" aria-hidden="true">
+        <span class="sc-wd sc-wd-sun">日</span>
+        <span class="sc-wd">月</span>
+        <span class="sc-wd">火</span>
+        <span class="sc-wd">水</span>
+        <span class="sc-wd">木</span>
+        <span class="sc-wd">金</span>
+        <span class="sc-wd sc-wd-sat">土</span>
+      </div>
+
+      <div id="calendar" class="sc-calendar" role="grid" aria-label="カレンダー"></div>
+
+      <ul class="sc-legend">
+        <li><span class="sc-chip sc-chip-available">◯</span> 稼働可能</li>
+        <li><span class="sc-chip sc-chip-off">✕</span> 休み希望</li>
+        <li><span class="sc-chip sc-chip-confirmed">確定</span> 確定した仕事</li>
+        <li><span class="sc-chip sc-chip-tentative">仮</span> 仮おさえ</li>
+        <li><span class="sc-chip sc-chip-conflict">⚠</span> 重複あり</li>
+      </ul>
+
+      <div id="stats" class="sc-stats"></div>
+    </section>
+
+    <!-- 右：詳細パネル -->
+    <aside class="sc-side">
+      <div id="sidePanel" class="sc-side-inner">
+        <p class="sc-side-empty">カレンダーの日付を選択してください。</p>
+      </div>
+    </aside>
+  </main>
+
+  <!-- 稼働可能日の一覧 & コピー -->
+  <section class="sc-section">
+    <div class="sc-section-inner">
+      <div class="sc-section-head">
+        <h3 class="sc-section-title">📤 稼働可能日をメールで送る</h3>
+        <span id="availCount" class="sc-section-count"></span>
+      </div>
+
+      <div class="sc-export-opts">
+        <label class="sc-field">
+          <span class="sc-field-label">書式</span>
+          <select id="exportFormat" class="sc-input sc-input-sm">
+            <option value="mail">メール本文（あいさつ文つき）</option>
+            <option value="bullet">箇条書きのみ</option>
+            <option value="inline">カンマ区切り（1行）</option>
+            <option value="dayonly">日付の数字のみ</option>
+          </select>
+        </label>
+        <label class="sc-field">
+          <span class="sc-field-label">差出人名</span>
+          <input id="senderName" class="sc-input sc-input-sm" type="text" placeholder="山田 太郎" autocomplete="off">
+        </label>
+        <label class="sc-check">
+          <input id="excludeBooked" type="checkbox" checked>
+          <span>確定済みの日を除外する</span>
+        </label>
+        <label class="sc-check">
+          <input id="includeUndecided" type="checkbox">
+          <span>未定の日も「稼働可能」に含める</span>
+        </label>
+      </div>
+
+      <textarea id="exportText" class="sc-textarea" rows="12" spellcheck="false"
+        aria-label="送信用テキスト"></textarea>
+
+      <div class="sc-export-actions">
+        <button id="copyExport" class="sc-btn">📋 コピー</button>
+        <button id="mailtoExport" class="sc-btn sc-btn-outline">✉️ メールソフトで開く</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- 確定予定一覧 -->
+  <section class="sc-section">
+    <div class="sc-section-inner">
+      <div class="sc-section-head">
+        <h3 class="sc-section-title">🗂 今月の予定一覧</h3>
+        <span id="jobCount" class="sc-section-count"></span>
+      </div>
+      <div id="jobList" class="sc-joblist"></div>
+      <div class="sc-export-actions">
+        <button id="copyJobs" class="sc-btn sc-btn-outline sc-btn-sm">📋 予定一覧をコピー</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- 設定・データ -->
+  <section class="sc-section">
+    <div class="sc-section-inner">
+      <div class="sc-section-head">
+        <h3 class="sc-section-title">⚙️ 設定とデータ</h3>
+      </div>
+
+      <div class="sc-settings">
+        <label class="sc-field">
+          <span class="sc-field-label">移動・準備の余裕時間</span>
+          <select id="bufferMin" class="sc-input sc-input-sm">
+            <option value="0">なし（時間が重なる時だけ警告）</option>
+            <option value="30">30分</option>
+            <option value="60">60分</option>
+            <option value="90">90分</option>
+            <option value="120">120分</option>
+          </select>
+        </label>
+        <label class="sc-field">
+          <span class="sc-field-label">既定の開始時刻</span>
+          <input id="defStart" class="sc-input sc-input-sm" type="time">
+        </label>
+        <label class="sc-field">
+          <span class="sc-field-label">既定の終了時刻</span>
+          <input id="defEnd" class="sc-input sc-input-sm" type="time">
+        </label>
+      </div>
+
+      <div class="sc-data-actions">
+        <button id="exportJson" class="sc-btn sc-btn-sm sc-btn-outline">💾 バックアップ保存</button>
+        <label class="sc-btn sc-btn-sm sc-btn-outline sc-file-label">
+          📂 バックアップ読込
+          <input id="importJson" type="file" accept="application/json,.json" hidden>
+        </label>
+        <button id="resetAll" class="sc-btn sc-btn-sm sc-btn-outline sc-btn-danger">🗑 全データ削除</button>
+      </div>
+      <p class="sc-note">
+        データはこのブラウザ内（localStorage）にのみ保存されます。別の端末やブラウザには引き継がれないため、
+        大切な予定はバックアップ保存をおすすめします。
+      </p>
+
+      <details class="sc-help">
+        <summary>使い方</summary>
+        <ol class="sc-help-list">
+          <li><strong>希望を出す</strong>：月を選び「まとめて入力」で稼働可能日・休み希望日をクリックで塗り分けます。</li>
+          <li><strong>送る</strong>：「稼働可能日をメールで送る」のテキストをコピーして、そのままメールに貼り付けます。</li>
+          <li><strong>確定を入れる</strong>：日付をクリックして詳細パネルから予定を追加します。時間が重なる予定があると
+            警告が出て、確認しない限り登録できません。</li>
+          <li><strong>確認する</strong>：重複がある日はカレンダー上で⚠マークと赤枠になり、画面上部にも警告が出ます。</li>
+        </ol>
+      </details>
+    </div>
+  </section>
+
+  <div id="toast" class="sc-toast" role="status" aria-live="polite" hidden></div>
+
+  <script src="schedule.js?v=1"></script>
+</body>
+</html>

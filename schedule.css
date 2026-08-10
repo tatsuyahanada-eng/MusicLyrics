@@ -1,0 +1,607 @@
+/* ============================================================
+   シフト管理カレンダー — schedule.css  v1
+   ============================================================ */
+
+:root {
+  --sc-bg: #0d0d14;
+  --sc-surface: #1a1a2e;
+  --sc-surface-2: #12122a;
+  --sc-primary: #7c3aed;
+  --sc-primary-hover: #6d28d9;
+  --sc-text: #f1f5f9;
+  --sc-muted: #94a3b8;
+  --sc-border: #334155;
+  --sc-radius: 12px;
+  --sc-shadow: 0 4px 14px rgba(0, 0, 0, 0.5);
+
+  --sc-available: #22c55e;
+  --sc-off: #f43f5e;
+  --sc-confirmed: #38bdf8;
+  --sc-tentative: #f59e0b;
+  --sc-conflict: #ef4444;
+  --sc-sun: #fb7185;
+  --sc-sat: #60a5fa;
+}
+
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+[hidden] { display: none !important; }
+
+.sc-body {
+  font-family: 'Segoe UI', 'Hiragino Sans', 'Noto Sans JP', sans-serif;
+  background: var(--sc-bg);
+  color: var(--sc-text);
+  min-height: 100vh;
+  line-height: 1.6;
+  -webkit-text-size-adjust: 100%;
+}
+
+/* ---- Header ---- */
+.sc-header {
+  background: linear-gradient(135deg, #7c3aed 0%, #2563eb 100%);
+  padding: 18px 16px 14px;
+  text-align: center;
+}
+
+.sc-header-inner { max-width: 1180px; margin: 0 auto; }
+
+.sc-header-title {
+  font-size: clamp(1.3rem, 4vw, 2rem);
+  font-weight: 800;
+  letter-spacing: 0.03em;
+  color: #fff;
+  text-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+}
+
+.sc-header-sub {
+  margin-top: 4px;
+  font-size: 0.76rem;
+  color: rgba(255, 255, 255, 0.85);
+}
+
+/* ---- 月ナビ ---- */
+.sc-monthnav {
+  background: var(--sc-surface-2);
+  border-bottom: 1px solid var(--sc-border);
+  position: sticky;
+  top: 0;
+  z-index: 30;
+}
+
+.sc-monthnav-inner {
+  max-width: 1180px;
+  margin: 0 auto;
+  padding: 8px 16px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.sc-month-label {
+  font-size: clamp(1.05rem, 3vw, 1.4rem);
+  font-weight: 700;
+  min-width: 8.5em;
+  text-align: center;
+}
+
+.sc-jump {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-left: auto;
+}
+
+.sc-jump-label { font-size: 0.74rem; color: var(--sc-muted); }
+
+/* ---- 汎用パーツ ---- */
+.sc-btn {
+  background: var(--sc-primary);
+  color: #fff;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  padding: 8px 14px;
+  font-size: 0.86rem;
+  font-weight: 600;
+  font-family: inherit;
+  cursor: pointer;
+  transition: background 0.15s, transform 0.08s, opacity 0.15s;
+  white-space: nowrap;
+}
+.sc-btn:hover { background: var(--sc-primary-hover); }
+.sc-btn:active { transform: translateY(1px); }
+.sc-btn:disabled { opacity: 0.45; cursor: not-allowed; }
+
+.sc-btn-sm { padding: 5px 10px; font-size: 0.78rem; }
+
+.sc-btn-outline {
+  background: transparent;
+  border-color: var(--sc-border);
+  color: var(--sc-text);
+}
+.sc-btn-outline:hover { background: rgba(255, 255, 255, 0.07); }
+
+.sc-btn-ghost {
+  background: transparent;
+  color: var(--sc-text);
+  border-color: transparent;
+  padding: 6px 12px;
+  font-size: 1rem;
+}
+.sc-btn-ghost:hover { background: rgba(255, 255, 255, 0.08); }
+
+.sc-btn-danger { color: #fca5a5; border-color: #7f1d1d; }
+.sc-btn-danger:hover { background: rgba(239, 68, 68, 0.14); }
+
+.sc-input {
+  background: #0f0f22;
+  border: 1px solid var(--sc-border);
+  border-radius: 8px;
+  color: var(--sc-text);
+  padding: 8px 10px;
+  font-size: 0.88rem;
+  font-family: inherit;
+  width: 100%;
+}
+.sc-input:focus { outline: 2px solid var(--sc-primary); outline-offset: -1px; }
+.sc-input-sm { padding: 5px 8px; font-size: 0.8rem; }
+
+.sc-field { display: flex; flex-direction: column; gap: 3px; }
+.sc-field-label { font-size: 0.72rem; color: var(--sc-muted); font-weight: 600; }
+
+.sc-check {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.8rem;
+  color: var(--sc-muted);
+  cursor: pointer;
+  user-select: none;
+}
+.sc-check input { width: 16px; height: 16px; accent-color: var(--sc-primary); cursor: pointer; }
+
+.sc-hint { font-size: 0.72rem; color: var(--sc-muted); }
+
+/* ---- 重複バナー ---- */
+.sc-conflict-banner {
+  background: rgba(239, 68, 68, 0.14);
+  border-bottom: 1px solid var(--sc-conflict);
+  color: #fecaca;
+  padding: 8px 16px;
+  font-size: 0.82rem;
+}
+.sc-conflict-banner-inner { max-width: 1180px; margin: 0 auto; }
+.sc-conflict-banner strong { color: #fff; }
+.sc-conflict-list { margin-top: 4px; padding-left: 1.1em; font-size: 0.78rem; }
+
+/* ---- レイアウト ---- */
+.sc-main {
+  max-width: 1180px;
+  margin: 0 auto;
+  padding: 14px 16px;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 330px;
+  gap: 16px;
+  align-items: start;
+}
+
+/* ---- ツールバー ---- */
+.sc-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 14px;
+  background: var(--sc-surface);
+  border: 1px solid var(--sc-border);
+  border-radius: var(--sc-radius);
+  padding: 10px 12px;
+  margin-bottom: 12px;
+}
+
+.sc-toolbar-group { display: flex; flex-direction: column; gap: 5px; flex: 1 1 260px; }
+.sc-toolbar-label { font-size: 0.72rem; color: var(--sc-muted); font-weight: 700; }
+
+.sc-paint-tabs { display: flex; flex-wrap: wrap; gap: 5px; }
+
+.sc-paint-tab {
+  background: transparent;
+  border: 1px solid var(--sc-border);
+  border-radius: 999px;
+  color: var(--sc-muted);
+  padding: 5px 11px;
+  font-size: 0.78rem;
+  font-weight: 600;
+  font-family: inherit;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+.sc-paint-tab:hover { background: rgba(255, 255, 255, 0.06); color: var(--sc-text); }
+.sc-paint-tab.active {
+  background: var(--sc-primary);
+  border-color: var(--sc-primary);
+  color: #fff;
+}
+
+.sc-quick-row { display: flex; flex-wrap: wrap; gap: 5px; }
+
+/* ---- カレンダー ---- */
+.sc-weekdays {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 4px;
+  margin-bottom: 4px;
+}
+
+.sc-wd {
+  text-align: center;
+  font-size: 0.76rem;
+  font-weight: 700;
+  color: var(--sc-muted);
+  padding: 2px 0;
+}
+.sc-wd-sun { color: var(--sc-sun); }
+.sc-wd-sat { color: var(--sc-sat); }
+
+.sc-calendar {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 4px;
+}
+
+.sc-cell {
+  position: relative;
+  background: var(--sc-surface);
+  border: 1px solid var(--sc-border);
+  border-radius: 9px;
+  min-height: 92px;
+  padding: 4px 5px 5px;
+  text-align: left;
+  font-family: inherit;
+  color: var(--sc-text);
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  overflow: hidden;
+  transition: border-color 0.12s, background 0.12s;
+}
+.sc-cell:hover { border-color: var(--sc-primary); }
+.sc-cell:focus-visible { outline: 2px solid var(--sc-primary); outline-offset: 1px; }
+
+.sc-cell-out { opacity: 0.32; }
+.sc-cell-past { background: #14141f; }
+.sc-cell-today { box-shadow: inset 0 0 0 2px var(--sc-primary); }
+.sc-cell-selected { border-color: #fff; box-shadow: inset 0 0 0 2px #fff; }
+
+.sc-cell-available { background: linear-gradient(180deg, rgba(34, 197, 94, 0.20), rgba(34, 197, 94, 0.06)); }
+.sc-cell-off { background: linear-gradient(180deg, rgba(244, 63, 94, 0.20), rgba(244, 63, 94, 0.06)); }
+.sc-cell-conflict { border-color: var(--sc-conflict); box-shadow: inset 0 0 0 2px var(--sc-conflict); }
+
+.sc-cell-head { display: flex; align-items: center; gap: 4px; }
+
+.sc-daynum { font-size: 0.92rem; font-weight: 700; line-height: 1.2; }
+.sc-daynum-sun { color: var(--sc-sun); }
+.sc-daynum-sat { color: var(--sc-sat); }
+.sc-daynum-holiday { color: var(--sc-sun); }
+
+.sc-cell-marks { margin-left: auto; display: flex; gap: 2px; align-items: center; font-size: 0.72rem; }
+.sc-mark-available { color: var(--sc-available); font-weight: 800; }
+.sc-mark-off { color: var(--sc-off); font-weight: 800; }
+.sc-mark-conflict { color: var(--sc-conflict); font-weight: 800; }
+
+.sc-holiday-name {
+  font-size: 0.6rem;
+  color: var(--sc-sun);
+  line-height: 1.2;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.sc-cell-jobs { display: flex; flex-direction: column; gap: 2px; margin-top: 1px; }
+
+.sc-job-pill {
+  font-size: 0.62rem;
+  line-height: 1.35;
+  border-radius: 4px;
+  padding: 1px 4px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  border-left: 3px solid transparent;
+}
+.sc-job-pill-confirmed {
+  background: rgba(56, 189, 248, 0.18);
+  border-left-color: var(--sc-confirmed);
+  color: #bae6fd;
+}
+.sc-job-pill-tentative {
+  background: rgba(245, 158, 11, 0.18);
+  border-left-color: var(--sc-tentative);
+  color: #fde68a;
+}
+.sc-job-pill-conflict { box-shadow: inset 0 0 0 1px var(--sc-conflict); }
+
+.sc-job-more { font-size: 0.6rem; color: var(--sc-muted); }
+
+/* ---- 凡例・集計 ---- */
+.sc-legend {
+  list-style: none;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 10px;
+  font-size: 0.74rem;
+  color: var(--sc-muted);
+}
+.sc-legend li { display: flex; align-items: center; gap: 4px; }
+
+.sc-chip {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 20px;
+  height: 18px;
+  padding: 0 5px;
+  border-radius: 5px;
+  font-size: 0.66rem;
+  font-weight: 700;
+}
+.sc-chip-available { background: rgba(34, 197, 94, 0.25); color: var(--sc-available); }
+.sc-chip-off { background: rgba(244, 63, 94, 0.25); color: var(--sc-off); }
+.sc-chip-confirmed { background: rgba(56, 189, 248, 0.22); color: var(--sc-confirmed); }
+.sc-chip-tentative { background: rgba(245, 158, 11, 0.22); color: var(--sc-tentative); }
+.sc-chip-conflict { background: rgba(239, 68, 68, 0.25); color: var(--sc-conflict); }
+
+.sc-stats {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.sc-stat {
+  background: var(--sc-surface);
+  border: 1px solid var(--sc-border);
+  border-radius: 9px;
+  padding: 7px 12px;
+  min-width: 96px;
+}
+.sc-stat-label { display: block; font-size: 0.68rem; color: var(--sc-muted); }
+.sc-stat-value { font-size: 1.1rem; font-weight: 800; }
+.sc-stat-unit { font-size: 0.7rem; font-weight: 600; color: var(--sc-muted); margin-left: 2px; }
+
+/* ---- サイドパネル ---- */
+.sc-side { position: sticky; top: 58px; }
+
+.sc-side-inner {
+  background: var(--sc-surface);
+  border: 1px solid var(--sc-border);
+  border-radius: var(--sc-radius);
+  padding: 12px;
+  max-height: calc(100vh - 74px);
+  overflow-y: auto;
+}
+
+.sc-side-empty { color: var(--sc-muted); font-size: 0.84rem; text-align: center; padding: 24px 0; }
+
+.sc-side-date { font-size: 1.05rem; font-weight: 800; }
+.sc-side-date-sub { font-size: 0.72rem; color: var(--sc-muted); }
+
+.sc-side-block { margin-top: 12px; }
+.sc-side-block-title {
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: var(--sc-muted);
+  margin-bottom: 5px;
+}
+
+.sc-wish-row { display: flex; gap: 5px; }
+
+.sc-wish-btn {
+  flex: 1;
+  background: transparent;
+  border: 1px solid var(--sc-border);
+  border-radius: 8px;
+  color: var(--sc-muted);
+  padding: 7px 4px;
+  font-size: 0.78rem;
+  font-weight: 700;
+  font-family: inherit;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+.sc-wish-btn:hover { background: rgba(255, 255, 255, 0.06); }
+.sc-wish-btn.active-available {
+  background: rgba(34, 197, 94, 0.2);
+  border-color: var(--sc-available);
+  color: var(--sc-available);
+}
+.sc-wish-btn.active-off {
+  background: rgba(244, 63, 94, 0.2);
+  border-color: var(--sc-off);
+  color: var(--sc-off);
+}
+.sc-wish-btn.active-none {
+  background: rgba(255, 255, 255, 0.1);
+  border-color: var(--sc-muted);
+  color: var(--sc-text);
+}
+
+/* 予定カード */
+.sc-job-card {
+  background: var(--sc-surface-2);
+  border: 1px solid var(--sc-border);
+  border-left: 4px solid var(--sc-confirmed);
+  border-radius: 8px;
+  padding: 7px 9px;
+  margin-bottom: 6px;
+}
+.sc-job-card-tentative { border-left-color: var(--sc-tentative); }
+.sc-job-card-conflict { border-color: var(--sc-conflict); background: rgba(239, 68, 68, 0.1); }
+
+.sc-job-card-top { display: flex; align-items: baseline; gap: 6px; flex-wrap: wrap; }
+.sc-job-time { font-size: 0.8rem; font-weight: 800; color: var(--sc-confirmed); font-variant-numeric: tabular-nums; }
+.sc-job-card-tentative .sc-job-time { color: var(--sc-tentative); }
+.sc-job-title { font-size: 0.88rem; font-weight: 700; word-break: break-word; }
+.sc-job-status {
+  font-size: 0.62rem;
+  font-weight: 700;
+  border-radius: 4px;
+  padding: 1px 5px;
+  background: rgba(56, 189, 248, 0.2);
+  color: var(--sc-confirmed);
+}
+.sc-job-card-tentative .sc-job-status { background: rgba(245, 158, 11, 0.2); color: var(--sc-tentative); }
+.sc-job-meta { font-size: 0.72rem; color: var(--sc-muted); word-break: break-word; }
+.sc-job-warn { font-size: 0.72rem; color: #fca5a5; margin-top: 3px; font-weight: 600; }
+.sc-job-actions { display: flex; gap: 5px; margin-top: 5px; }
+
+.sc-empty-note { font-size: 0.78rem; color: var(--sc-muted); }
+
+/* フォーム */
+.sc-form { display: flex; flex-direction: column; gap: 8px; }
+.sc-form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+
+.sc-alert {
+  border-radius: 8px;
+  padding: 8px 10px;
+  font-size: 0.76rem;
+  line-height: 1.5;
+}
+.sc-alert-danger {
+  background: rgba(239, 68, 68, 0.14);
+  border: 1px solid var(--sc-conflict);
+  color: #fecaca;
+}
+.sc-alert-warn {
+  background: rgba(245, 158, 11, 0.14);
+  border: 1px solid var(--sc-tentative);
+  color: #fde68a;
+}
+.sc-alert-title { font-weight: 800; display: block; margin-bottom: 2px; }
+.sc-alert ul { margin: 3px 0 0 1.1em; }
+
+.sc-form-actions { display: flex; gap: 6px; }
+.sc-form-actions .sc-btn { flex: 1; }
+
+/* ---- セクション ---- */
+.sc-section { border-top: 1px solid var(--sc-border); }
+.sc-section-inner { max-width: 1180px; margin: 0 auto; padding: 16px; }
+
+.sc-section-head { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; }
+.sc-section-title { font-size: 1rem; font-weight: 800; }
+.sc-section-count { font-size: 0.78rem; color: var(--sc-muted); }
+
+.sc-export-opts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  align-items: flex-end;
+  margin-bottom: 10px;
+}
+.sc-export-opts .sc-field { min-width: 190px; }
+
+.sc-textarea {
+  width: 100%;
+  background: #0f0f22;
+  border: 1px solid var(--sc-border);
+  border-radius: var(--sc-radius);
+  color: var(--sc-text);
+  padding: 10px 12px;
+  font-size: 0.85rem;
+  font-family: 'Consolas', 'Menlo', 'Hiragino Sans', monospace;
+  line-height: 1.7;
+  resize: vertical;
+}
+.sc-textarea:focus { outline: 2px solid var(--sc-primary); outline-offset: -1px; }
+
+.sc-export-actions { display: flex; gap: 8px; margin-top: 8px; flex-wrap: wrap; }
+
+/* 予定一覧 */
+.sc-joblist { display: flex; flex-direction: column; gap: 6px; }
+
+.sc-joblist-row {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  background: var(--sc-surface);
+  border: 1px solid var(--sc-border);
+  border-left: 4px solid var(--sc-confirmed);
+  border-radius: 8px;
+  padding: 7px 10px;
+  font-size: 0.84rem;
+  flex-wrap: wrap;
+  cursor: pointer;
+}
+.sc-joblist-row:hover { border-color: var(--sc-primary); }
+.sc-joblist-row-tentative { border-left-color: var(--sc-tentative); }
+.sc-joblist-row-conflict { border-color: var(--sc-conflict); }
+.sc-joblist-date { font-weight: 800; min-width: 6.5em; font-variant-numeric: tabular-nums; }
+.sc-joblist-time { color: var(--sc-muted); font-variant-numeric: tabular-nums; min-width: 8.5em; }
+.sc-joblist-title { font-weight: 600; }
+.sc-joblist-meta { color: var(--sc-muted); font-size: 0.76rem; }
+
+/* 設定 */
+.sc-settings { display: flex; flex-wrap: wrap; gap: 12px; margin-bottom: 12px; }
+.sc-settings .sc-field { min-width: 180px; }
+
+.sc-data-actions { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+.sc-file-label { display: inline-flex; align-items: center; cursor: pointer; }
+
+.sc-note { font-size: 0.72rem; color: var(--sc-muted); margin-top: 8px; }
+
+.sc-help { margin-top: 12px; font-size: 0.8rem; color: var(--sc-muted); }
+.sc-help summary { cursor: pointer; font-weight: 700; color: var(--sc-text); }
+.sc-help-list { margin: 8px 0 0 1.2em; display: flex; flex-direction: column; gap: 4px; }
+
+/* ---- トースト ---- */
+.sc-toast {
+  position: fixed;
+  left: 50%;
+  bottom: 24px;
+  transform: translateX(-50%);
+  background: #111827;
+  border: 1px solid var(--sc-primary);
+  border-radius: 999px;
+  padding: 9px 18px;
+  font-size: 0.84rem;
+  font-weight: 600;
+  box-shadow: var(--sc-shadow);
+  z-index: 100;
+  animation: sc-toast-in 0.18s ease-out;
+  max-width: 90vw;
+  text-align: center;
+}
+.sc-toast-error { border-color: var(--sc-conflict); color: #fecaca; }
+
+@keyframes sc-toast-in {
+  from { opacity: 0; transform: translate(-50%, 10px); }
+  to   { opacity: 1; transform: translate(-50%, 0); }
+}
+
+/* ---- レスポンシブ ---- */
+@media (max-width: 900px) {
+  .sc-main { grid-template-columns: minmax(0, 1fr); }
+  .sc-side { position: static; }
+  .sc-side-inner { max-height: none; }
+}
+
+@media (max-width: 560px) {
+  .sc-monthnav-inner { gap: 4px; flex-wrap: nowrap; }
+  .sc-month-label { min-width: 0; flex: 1; white-space: nowrap; font-size: 1rem; }
+  .sc-btn-ghost { padding: 6px 6px; }
+  .sc-jump-label { display: none; }
+  .sc-jump .sc-input-sm { width: auto; max-width: 108px; }
+  .sc-cell { min-height: 74px; padding: 3px 3px 4px; }
+  .sc-daynum { font-size: 0.82rem; }
+  .sc-holiday-name { display: none; }
+  .sc-job-pill { font-size: 0.56rem; }
+  .sc-calendar, .sc-weekdays { gap: 2px; }
+  .sc-form-row { grid-template-columns: 1fr; }
+  .sc-joblist-date { min-width: 5.5em; }
+}
+
+@media print {
+  .sc-body { background: #fff; color: #000; }
+  .sc-monthnav, .sc-toolbar, .sc-side, .sc-export-actions, .sc-data-actions, .sc-help { display: none; }
+  .sc-cell { border-color: #999; min-height: 80px; }
+}
