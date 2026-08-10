@@ -426,9 +426,13 @@ if ($action === 'config') {
   catch (Throwable $e) { $err = $e->getMessage(); }
   $aiOn = true; // AI機能の表示ON/OFF（管理者が切替・全端末共有）。既定はON。
   $invOn = false; // 在庫管理の表示ON/OFF（管理者が切替・全端末共有）。既定はOFF（非表示）。
+  $tripOn = true; // 交通費精算の表示ON/OFF（管理者が切替・全端末共有）。既定はON。
+  $tripPos = 999; // TOPの大項目一覧での「交通費精算」の並び順（大きいほど後ろ）
   if ($connected) {
     try { $aiOn = (cbc_setting_get(cbc_pdo(), 'ai_enabled', '1') !== '0'); } catch (Throwable $e) {}
     try { $invOn = (cbc_setting_get(cbc_pdo(), 'inv_enabled', '0') === '1'); } catch (Throwable $e) {}
+    try { $tripOn = (cbc_setting_get(cbc_pdo(), 'trip_enabled', '1') !== '0'); } catch (Throwable $e) {}
+    try { $tripPos = (int)cbc_setting_get(cbc_pdo(), 'trip_pos', '999'); } catch (Throwable $e) {}
   }
   ok(array(
     'dbConnected' => $connected,
@@ -438,6 +442,8 @@ if ($action === 'config') {
     'travelOrigin' => TRAVEL_ORIGIN,
     'aiOn'        => $aiOn,
     'invOn'       => $invOn,
+    'tripOn'      => $tripOn,
+    'tripPos'     => $tripPos,
     'uploads'     => true,
     'driver'      => defined('DB_DRIVER') ? DB_DRIVER : 'mysql',
     'error'       => $connected ? null : $err,
@@ -903,6 +909,25 @@ switch ($action) {
     $on = !empty($d['on']);
     cbc_setting_set($pdo, 'ai_enabled', $on ? '1' : '0');
     ok(array('aiOn' => $on));
+  }
+
+  case 'trip_set_enabled': {
+    // 交通費精算の表示ON/OFFを切り替え（全端末共有・管理者のみ）
+    require_admin_session($pdo);
+    $d = body_json();
+    $on = !empty($d['on']);
+    cbc_setting_set($pdo, 'trip_enabled', $on ? '1' : '0');
+    ok(array('tripOn' => $on));
+  }
+
+  case 'trip_set_pos': {
+    // TOPの大項目一覧での「交通費精算」の並び順（全端末共有）
+    require_token();
+    $d = body_json();
+    $pos = isset($d['pos']) ? (int)$d['pos'] : 999;
+    if ($pos < 0) $pos = 0;
+    cbc_setting_set($pdo, 'trip_pos', (string)$pos);
+    ok(array('tripPos' => $pos));
   }
 
   case 'inv_set_enabled': {

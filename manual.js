@@ -764,6 +764,26 @@
     updateInvToggleUI();
   }); }
 
+  function updateTripToggleUI() {
+    const chk = $('#tripToggle'), state = $('#tripState');
+    if (chk) chk.checked = tripOn;
+    if (state) { state.textContent = tripOn ? 'ON' : 'OFF'; state.classList.toggle('is-on', tripOn); }
+  }
+  { const chk = $('#tripToggle'); if (chk) chk.addEventListener('change', async () => {
+    const want = chk.checked;
+    tripOn = want;
+    try {
+      await apiCall('trip_set_enabled', { method: 'POST', body: { on: want } });
+      syncMsg(want ? '交通費精算を表示にしました' : '交通費精算を非表示にしました');
+      renderNav();
+    } catch (e) {
+      tripOn = !want; chk.checked = tripOn;
+      syncMsg('交通費精算の表示設定の保存に失敗：' + e.message, true);
+    }
+    updateTripToggleUI();
+    updateSessionUI();
+  }); }
+
   if (aiSummaryDialog) {
     aiSummaryDialog.addEventListener('close', () => { aiOpen = false; syncTrap(); });
     const cl = $('#aiSummaryClose'); if (cl) cl.addEventListener('click', () => aiSummaryDialog.close());
@@ -828,10 +848,22 @@
   }
   // TOP画面のピン留めセクション（この端末のみ。存在しない項目は自動的に除外）
   function pinsSectionHtml() {
-    const valid = pins.filter((id) => findNode(id));
-    if (valid.length !== pins.length) { pins = valid; savePinsCache(); } // 消えた項目は掃除（この端末の表示のみ）
+    // 「交通費精算」はツリーの項目ではないので、表示できるときだけ有効なピンとして扱う
+    const valid = pins.filter((id) => (id === TRIP_PIN_ID) ? tripAvailable() : !!findNode(id));
+    const stillKnown = pins.filter((id) => (id === TRIP_PIN_ID) || !!findNode(id));
+    if (stillKnown.length !== pins.length) { pins = stillKnown; savePinsCache(); } // 消えた項目は掃除
     if (!valid.length) return '';
     const tiles = valid.map((id) => {
+      if (id === TRIP_PIN_ID) {
+        return `<div class="tm-pin-tile tm-pin-tile-trip" data-trip-open role="button" tabindex="0">
+          <span class="tm-pin-star">&#9733;</span>
+          <span class="tm-pin-body">
+            <span class="tm-pin-name">&#129534; 交通費精算</span>
+            <span class="tm-pin-path">交通費の入力・履歴検索</span>
+          </span>
+          <span class="tm-pin-remove" data-unpin="${id}" role="button" tabindex="0" title="ピン留めを外す">&#10005;</span>
+        </div>`;
+      }
       const node = findNode(id);
       const locked = isLocked(node);
       const path = pinPathLabel(id);
@@ -859,6 +891,41 @@
       <span class="tm-choice-main">${locked ? '🔒 ' : ''}${esc(c.title)}</span>
       <span class="tm-choice-meta">${!locked && flag ? flag + ' · ' : ''}${meta}</span>
     </button>`;
+  }
+
+  /* ---- 交通費精算の表示条件（在庫管理と同じ扱い） ---- */
+  const TRIP_PIN_ID = '__trip__'; // ピン留め用の特別ID（通常の項目IDとは別）
+  // 交通費精算を使える状態か（サーバー接続＋ログイン＋管理者がONにしている）
+  function tripAvailable() { return !!(serverMode() && session && tripOn); }
+  // “オンサイト”を含む項目がツリーに1つも無いか（無いときはTOPにタイルを出す）
+  function noOnsiteCategory() {
+    let found = false;
+    const walk = (arr) => { (arr || []).forEach((n) => { if (found) return; if (/オンサイト/.test(n.title || '')) { found = true; return; } walk(n.children); }); };
+    walk(tree);
+    return !found;
+  }
+  function tripTopTileShown() { return tripAvailable() && noOnsiteCategory(); }
+  // TOPの並べ替えモードに出す「交通費精算」の行
+  function tripSortRow(i, n) {
+    return `<div class="tm-sortrow tm-sortrow-trip" data-sortid="${TRIP_PIN_ID}">
+      <span class="tm-drag-handle" style="visibility:hidden">&#8942;&#8942;</span>
+      <span class="tm-sortrow-name">&#129534; 交通費精算</span>
+      <span class="tm-sortrow-ctrls">
+        <button class="tm-iconbtn" data-navup="${TRIP_PIN_ID}" type="button" ${i === 0 ? 'disabled' : ''} title="上へ">&#9650;</button>
+        <button class="tm-iconbtn" data-navdown="${TRIP_PIN_ID}" type="button" ${i === n - 1 ? 'disabled' : ''} title="下へ">&#9660;</button>
+      </span>
+    </div>`;
+  }
+  // 「交通費精算」の並び順を変更して共有保存する
+  async function tripMovePos(dir) {
+    const max = (tree || []).length;
+    let pos = Math.max(0, Math.min(tripPos, max)) + dir;
+    if (pos < 0) pos = 0;
+    if (pos > max) pos = max;
+    tripPos = pos;
+    renderNav();
+    try { await apiCall('trip_set_pos', { method: 'POST', body: { pos } }); }
+    catch (e) { syncMsg('並び順の保存に失敗：' + e.message, true); }
   }
 
   // 簡易並べ替えモードの1行（長押し／ハンドルのドラッグで移動、▲▼でも移動可）
@@ -966,20 +1033,36 @@
     </button>` : '';
 
     // 「リテイルオンサイト」など“オンサイト”の中項目の一覧に、ほかと違う色の「交通費」入口を出す。
-    const tripEntry = (serverMode() && session && !atRoot && curNode && /オンサイト/.test(curNode.title || ''))
+    const tripEntry = (tripAvailable() && !atRoot && curNode && /オンサイト/.test(curNode.title || ''))
       ? `<button class="tm-choice tm-choice-trip" data-trip-open type="button">
           <span class="tm-choice-main">交通費精算</span>
           <span class="tm-choice-meta">交通費の入力・履歴検索</span>
         </button>` : '';
+    // “オンサイト”の大項目が無いときは、在庫管理と同じように大項目一覧（TOP）にタイルを出す。
+    const tripTile = tripTopTileShown() ? `<button class="tm-cat-tile tm-trip-tile" data-trip-open type="button">
+      <span class="tm-cat-no">&#129534;</span>
+      <span class="tm-cat-name">交通費精算</span>
+      <span class="tm-cat-sub">交通費の入力・履歴検索</span>
+      <span class="tm-cat-pin ${isPinned(TRIP_PIN_ID) ? 'is-on' : ''}" data-pintoggle="${TRIP_PIN_ID}" role="button" tabindex="0"
+        title="TOP画面にピン留め">${isPinned(TRIP_PIN_ID) ? '&#9733;' : '&#9734;'}</span>
+    </button>` : '';
 
     if (navReorder && kids.length > 0) {
       choiceDock.className = 'tm-choicedock tm-sortmode';
+      // TOPの並べ替えでは「交通費精算」も対象にする（tripPos の位置に差し込む）
+      const rows = kids.map((c, i) => ({ html: sortRow(c, i, kids.length) }));
+      if (atRoot && tripTopTileShown()) {
+        const pos = Math.max(0, Math.min(tripPos, rows.length));
+        rows.splice(pos, 0, { html: tripSortRow(pos, rows.length + 1) });
+      }
       choiceDock.innerHTML =
         `<div class="tm-sort-hint">&#8645; 並べ替え中：<strong>長押し</strong>（またはハンドル&#8942;&#8942;をドラッグ）や ▲▼ でこの階層の順番を変更できます。</div>` +
-        kids.map((c, i) => sortRow(c, i, kids.length)).join('');
+        rows.map((r) => r.html).join('');
     } else if (atRoot) {
       choiceDock.className = 'tm-choicedock tm-cat-grid';
-      choiceDock.innerHTML = kids.map((c, i) => categoryTile(c, i)).join('') + invTile;
+      const tiles = kids.map((c, i) => categoryTile(c, i));
+      if (tripTile) tiles.splice(Math.max(0, Math.min(tripPos, tiles.length)), 0, tripTile);
+      choiceDock.innerHTML = tiles.join('') + invTile;
     } else if (kids.length > 0) {
       choiceDock.className = 'tm-choicedock';
       choiceDock.innerHTML = `<div class="tm-choice-label">${depthLabel(navPath.length)}を選択</div>` +
@@ -1081,6 +1164,7 @@
   });
 
   async function navReorderMove(id, dir) {
+    if (id === TRIP_PIN_ID) { tripMovePos(dir); return; } // 交通費精算は位置だけを保存
     try {
       await opMove(id, dir);
       renderNav();
@@ -1088,6 +1172,9 @@
   }
   choiceDock.addEventListener('click', (e) => {
     if (Date.now() < suppressClickUntil) return; // 直前のドラッグのクリックを無視
+    // タイル内のピン留め（★）はタイル本体より先に処理する
+    const pinT = e.target.closest('[data-pintoggle]');
+    if (pinT) { e.stopPropagation(); togglePin(pinT.dataset.pintoggle); renderNav(); return; }
     if (e.target.closest('[data-trip-open]')) { openTrips(); return; }
     if (e.target.closest('[data-inv]')) { openInventory(); return; }
     const up = e.target.closest('[data-navup]');
@@ -1119,6 +1206,7 @@
     const el = document.elementFromPoint(x, y);
     const row = el && el.closest ? el.closest('.tm-sortrow') : null;
     if (!row || row === sortDrag.row) return;
+    if (row.dataset.sortid === TRIP_PIN_ID) return; // 交通費精算の行は落とし先にしない
     const rect = row.getBoundingClientRect();
     const pos = (y - rect.top) < rect.height / 2 ? 'before' : 'after';
     row.classList.add(pos === 'before' ? 'drop-before' : 'drop-after');
@@ -1161,6 +1249,7 @@
     if (e.button != null && e.button > 0) return;
     const row = e.target.closest('.tm-sortrow');
     if (!row) return;
+    if (row.dataset.sortid === TRIP_PIN_ID) return; // 交通費精算は▲▼だけで移動（ドラッグ対象外）
     const onHandle = !!e.target.closest('.tm-drag-handle');
     if (!onHandle && e.target.closest('.tm-iconbtn, button')) return; // ▲▼等では開始しない
     sortDrag = { id: row.dataset.sortid, pointerId: e.pointerId, startX: e.clientX, startY: e.clientY, active: false, target: null, timer: null, row };
@@ -1208,7 +1297,8 @@
     // ピン留めを外す（タイル内の×。移動より先に判定）
     const un = e.target.closest('[data-unpin]');
     if (un) { e.stopPropagation(); togglePin(un.dataset.unpin); renderNav(); return; }
-    // ピン留めタイルをタップ → その項目へ移動
+    // ピン留めタイルをタップ → その項目へ移動（交通費精算のピンは交通費画面へ）
+    if (e.target.closest('[data-trip-open]')) { openTrips(); return; }
     const pg = e.target.closest('[data-pingoto]');
     if (pg) { navGotoId(pg.dataset.pingoto); return; }
     // 現在の項目をピン留め／解除
@@ -2436,6 +2526,8 @@
   let aiOn = true;               // 管理者による AI表示ON/OFF（全端末共有・既定ON）
   let aiEnabled = false;         // 実際にAIボタンを表示するか（hasGemini かつ aiOn）
   let invOn = false;             // 管理者による 在庫管理の表示ON/OFF（全端末共有・既定OFF）
+  let tripOn = true;             // 管理者による 交通費精算の表示ON/OFF（全端末共有・既定ON）
+  let tripPos = 999;             // TOPの大項目一覧での「交通費精算」タイルの並び順
   let hasMaps = false;           // サーバーに Google マップのキーが設定済みか（交通費の距離計算）
   let travelOrigin = '東京都台東区台東2-1-1'; // 交通費の起点（サーバー設定で上書き）
   let dbError = null;
@@ -2681,11 +2773,14 @@
       aiOn = (cfg.aiOn !== false);            // 管理者の表示ON/OFF（既定ON）
       aiEnabled = hasGemini && aiOn;          // 実際にAIボタンを出すか
       invOn = (cfg.invOn === true);           // 在庫管理の表示ON/OFF（既定OFF）
+      tripOn = (cfg.tripOn !== false);        // 交通費精算の表示ON/OFF（既定ON）
+      if (cfg.tripPos != null) tripPos = parseInt(cfg.tripPos, 10) || 0;
       hasMaps = !!cfg.hasMaps;                // Google マップのキー有無（交通費の距離計算）
       if (cfg.travelOrigin) travelOrigin = cfg.travelOrigin;
       dbError = cfg.error || null;
       updateAiToggleUI();
       updateInvToggleUI();
+      updateTripToggleUI();
       // DB接続が一時的な「接続数オーバー(1040)」で失敗しているだけなら、
       // 少し待って数回だけ自動リトライする（アクセス集中時に怖いエラー画面を出さない）。
       if (!dbConnected && dbError && /too many connections|max_connections|max_user_connections/i.test(dbError) && retry < 3) {
@@ -4259,7 +4354,7 @@
     const ub = $('#usersBtn'); if (ub) ub.hidden = !isAdmin;
     const lo = $('#footerLogout'); if (lo) lo.hidden = !session;
     const cp = $('#footerChangePw'); if (cp) cp.hidden = !(session && session.canChangePw);
-    const ft = $('#footerTrips'); if (ft) ft.hidden = !session;
+    const ft = $('#footerTrips'); if (ft) ft.hidden = !(session && tripOn);
     // 上部にログイン中の名前を小さく表示
     const sn = $('#sessionName');
     if (sn) {
