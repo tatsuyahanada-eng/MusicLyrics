@@ -8,7 +8,7 @@
 
 /* スキーマのバージョン。テーブル定義（列の追加など）を変えたら必ず上げる。
    これが変わると、各サーバーで初回アクセス時に一度だけ初期化/マイグレーションが走る。 */
-if (!defined('CBC_SCHEMA_VERSION')) define('CBC_SCHEMA_VERSION', '2026-08-10-trips4');
+if (!defined('CBC_SCHEMA_VERSION')) define('CBC_SCHEMA_VERSION', '2026-08-10-trips5');
 
 // 接続だけを1回試みる（スキーマ初期化はしない）。
 function cbc_connect_once($driver, $opts) {
@@ -150,12 +150,14 @@ function cbc_init_trips($pdo, $driver) {
         display_name VARCHAR(120) NULL,
         trip_date    VARCHAR(10)  NULL,
         case_name    VARCHAR(255) NULL,
+        mode         VARCHAR(10)  NOT NULL DEFAULT 'car',
         origin       VARCHAR(255) NULL,
         destination  VARCHAR(1000) NULL,
         one_way_km   DECIMAL(8,2) NOT NULL DEFAULT 0,
         round_trip   INT          NOT NULL DEFAULT 1,
         gas_rate     INT          NOT NULL DEFAULT 18,
         gas_cost     INT          NOT NULL DEFAULT 0,
+        fare_cost    INT          NOT NULL DEFAULT 0,
         toll_cost    INT          NOT NULL DEFAULT 0,
         parking_cost INT          NOT NULL DEFAULT 0,
         other_cost   INT          NOT NULL DEFAULT 0,
@@ -175,12 +177,14 @@ function cbc_init_trips($pdo, $driver) {
         display_name VARCHAR(120) NULL,
         trip_date    VARCHAR(10)  NULL,
         case_name    VARCHAR(255) NULL,
+        mode         VARCHAR(10)  NOT NULL DEFAULT 'car',
         origin       VARCHAR(255) NULL,
         destination  VARCHAR(1000) NULL,
         one_way_km   DECIMAL(8,2) NOT NULL DEFAULT 0,
         round_trip   INTEGER      NOT NULL DEFAULT 1,
         gas_rate     INTEGER      NOT NULL DEFAULT 18,
         gas_cost     INTEGER      NOT NULL DEFAULT 0,
+        fare_cost    INTEGER      NOT NULL DEFAULT 0,
         toll_cost    INTEGER      NOT NULL DEFAULT 0,
         parking_cost INTEGER      NOT NULL DEFAULT 0,
         other_cost   INTEGER      NOT NULL DEFAULT 0,
@@ -212,6 +216,13 @@ function cbc_init_trips($pdo, $driver) {
     }
     if (!in_array('cost_details', $cols, true)) {
       $pdo->exec("ALTER TABLE trips ADD COLUMN cost_details " . (($driver === 'mysql') ? 'MEDIUMTEXT' : 'TEXT') . " NULL");
+    }
+    // 車／電車の区分と、電車の運賃。既存レコードはすべて「車」として扱う。
+    if (!in_array('mode', $cols, true)) {
+      $pdo->exec("ALTER TABLE trips ADD COLUMN mode VARCHAR(10) NOT NULL DEFAULT 'car'");
+    }
+    if (!in_array('fare_cost', $cols, true)) {
+      $pdo->exec("ALTER TABLE trips ADD COLUMN fare_cost $intType NOT NULL DEFAULT 0");
     }
   } catch (Throwable $e) { /* 追加できなくても致命ではない */ }
 }

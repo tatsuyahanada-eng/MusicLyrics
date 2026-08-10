@@ -3019,10 +3019,15 @@
   /* ---- 費用の内訳（高速代・駐車場代・その他）：行を追加して複数入力できる ---- */
   // 費用ブロックの定義。prefix は 'trip'（登録フォーム）/ 'te'（編集ポップアップ）
   const TRIP_COSTS = [
+    { key: 'fare',  rows: 'FareRows',  sum: 'FareSum',  ph: '例：上野→新宿 往復' },
     { key: 'toll',  rows: 'TollRows',  sum: 'TollSum',  ph: '例：ETC 往路' },
     { key: 'park',  rows: 'ParkRows',  sum: 'ParkSum',  ph: '例：コインパーキング' },
     { key: 'other', rows: 'OtherRows', sum: 'OtherSum', ph: '例：宅配便' },
   ];
+  const COST_FARE = TRIP_COSTS[0], COST_TOLL = TRIP_COSTS[1], COST_PARK = TRIP_COSTS[2], COST_OTHER = TRIP_COSTS[3];
+  // 移動手段ごとに使う費用ブロック（車＝高速・駐車・その他／電車＝運賃・その他）
+  const TRIP_MODE_COSTS = { car: [COST_TOLL, COST_PARK, COST_OTHER], train: [COST_FARE, COST_OTHER] };
+  function tripCostsOf(mode) { return TRIP_MODE_COSTS[mode === 'train' ? 'train' : 'car']; }
   function costBox(prefix, c) { return $('#' + prefix + c.rows); }
   function costAddRow(prefix, c, amount, note) {
     const box = costBox(prefix, c); if (!box) return;
@@ -3071,12 +3076,13 @@
     let s = 0; costGetRows(prefix, c).forEach((l) => { s += l.amount; });
     return s;
   }
-  // 各ブロックの小計を表示し、合計を返す
+  // 各ブロックの小計を表示し、いま選んでいる移動手段で使うブロックの合計を返す
   function costRefreshSums(prefix) {
+    const use = tripCostsOf(tripModeGet(prefix));
     let total = 0;
     TRIP_COSTS.forEach((c) => {
       const s = costSum(prefix, c);
-      total += s;
+      if (use.indexOf(c) >= 0) total += s;
       const el = $('#' + prefix + c.sum); if (el) el.textContent = s.toLocaleString();
     });
     return total;
@@ -3097,11 +3103,34 @@
     });
   }
 
+  /* ---- 移動手段（車／電車）の切り替え ---- */
+  // prefix は 'trip'（登録フォーム）/ 'te'（編集ポップアップ）
+  function tripModeGet(prefix) {
+    const r = document.querySelector('input[name="' + prefix + 'Mode"]:checked');
+    return (r && r.value === 'train') ? 'train' : 'car';
+  }
+  function tripModeApply(prefix) {
+    const train = tripModeGet(prefix) === 'train';
+    const car = $('#' + prefix + 'CarFields'), tr = $('#' + prefix + 'TrainFields');
+    if (car) car.hidden = train;
+    if (tr) tr.hidden = !train;
+    const gl = $('#' + prefix + 'GasLine'), fl = $('#' + prefix + 'FareLine');
+    if (gl) gl.hidden = train;
+    if (fl) fl.hidden = !train;
+  }
+  function tripModeSet(prefix, mode) {
+    const v = (mode === 'train') ? 'train' : 'car';
+    document.querySelectorAll('input[name="' + prefix + 'Mode"]').forEach((r) => { r.checked = (r.value === v); });
+    tripModeApply(prefix);
+  }
   function tripRecalc() {
-    const gas = Math.round(tval('tripKm') * (tchk('tripRound') ? 2 : 1) * tval('tripRate'));
+    tripModeApply('trip');
+    const train = tripModeGet('trip') === 'train';
+    const gas = train ? 0 : Math.round(tval('tripKm') * (tchk('tripRound') ? 2 : 1) * tval('tripRate'));
     const total = gas + costRefreshSums('trip');
-    const g = $('#tripGas'), t = $('#tripTotal');
+    const g = $('#tripGas'), t = $('#tripTotal'), f = $('#tripFare');
     if (g) g.textContent = gas.toLocaleString();
+    if (f) f.textContent = costSum('trip', COST_FARE).toLocaleString();
     if (t) t.textContent = total.toLocaleString();
   }
   function todayISO() { const d = new Date(); return new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().slice(0, 10); }
@@ -3118,12 +3147,14 @@
   function tripUpdateDestNos(boxArg) {
     const box = tripDestBox(boxArg); if (!box) return;
     const rows = box.children;
+    // 入れ物ごとに、プレースホルダの文言（%n=番号）と「追加」ボタンのidを持たせている
+    const ph = box.dataset.ph || '目的地%nの住所';
     for (let i = 0; i < rows.length; i++) {
       const no = rows[i].querySelector('.tm-trip-destno'); if (no) no.textContent = (i + 1);
-      const inp = rows[i].querySelector('input'); if (inp) inp.placeholder = '目的地' + (i + 1) + 'の住所';
+      const inp = rows[i].querySelector('input'); if (inp) inp.placeholder = ph.replace('%n', i + 1);
       const del = rows[i].querySelector('.tm-trip-destdel'); if (del) del.style.visibility = (rows.length > 1) ? 'visible' : 'hidden';
     }
-    const add = (box.id === 'teDests') ? $('#teAddDestBtn') : $('#tripAddDestBtn');
+    const add = box.dataset.add ? $('#' + box.dataset.add) : null;
     if (add) add.disabled = (rows.length >= TRIP_MAX_DEST);
   }
   function tripAppendDest(value, boxArg) {
@@ -3153,8 +3184,10 @@
   function tripResetForm() {
     tripEditingId = '';
     if ($('#tripDate')) $('#tripDate').value = todayISO();
-    ['tripCase', 'tripStart', 'tripNote'].forEach((id) => { if ($('#' + id)) $('#' + id).value = ''; });
+    ['tripCase', 'tripStart', 'tripStartSt', 'tripNote'].forEach((id) => { if ($('#' + id)) $('#' + id).value = ''; });
+    tripModeSet('trip', 'car'); // 既定は車
     tripSetDests(['']);
+    tripSetDests([''], $('#tripStations'));
     if ($('#tripKm')) $('#tripKm').value = '';
     if ($('#tripRate')) $('#tripRate').value = '18';
     TRIP_COSTS.forEach((c) => costSetRows('trip', c, []));
@@ -3188,6 +3221,7 @@
     // 期間検索の初期値は「今月の1日〜今日」
     if ($('#tripFilterFrom')) $('#tripFilterFrom').value = ym + '-01';
     if ($('#tripFilterTo')) $('#tripFilterTo').value = todayISO();
+    if ($('#tripFilterKind')) $('#tripFilterKind').value = ''; // 移動手段は「すべて」から
     tripSyncFilterMode();
     // 開いた時点では検索しない（件数が多いと表示に時間がかかるため）。
     // 月・対象者を選んで「検索」を押したときに初めて一覧を読み込む。
@@ -3214,6 +3248,16 @@
     { const m = $('#tripFilterMode'); if (m) m.addEventListener('change', tripSyncFilterMode); }
   }
 
+  // 「Yahoo!路線で運賃を調べる」：出発駅→到着駅…をYahoo!路線情報で別タブに開く
+  //   経由駅は via（最大3つ）で渡す。最後の駅を到着駅として扱う。
+  function tripYahooUrl(from, stations) {
+    const enc = encodeURIComponent;
+    const to = stations[stations.length - 1];
+    const via = stations.slice(0, -1).slice(0, 3);
+    let url = 'https://transit.yahoo.co.jp/search/result?from=' + enc(from) + '&to=' + enc(to);
+    via.forEach((v) => { url += '&via=' + enc(v); });
+    return url + '&type=1&ticket=ic';
+  }
   // 「GoogleMapで距離測定」：出発地点→目的地1→…をGoogleマップの経路案内で別タブに開く
   function tripOpenMap() {
     let start = tstr('tripStart').trim();
@@ -3230,20 +3274,25 @@
   }
   async function tripSave() {
     if (!serverMode()) { tripMsg('登録はサーバー接続時のみ可能です', true); return; }
-    const dests = tripGetDests();
-    if (!tstr('tripCase').trim() && !dests.length) { tripMsg('店舗名か目的地を入力してください', true); return; }
+    const train = tripModeGet('trip') === 'train';
+    const dests = train ? tripGetDests($('#tripStations')) : tripGetDests();
+    if (!tstr('tripCase').trim() && !dests.length) {
+      tripMsg(train ? '店舗名か到着駅を入力してください' : '店舗名か目的地を入力してください', true); return;
+    }
     const body = {
       id: tripEditingId || '',
       trip_date: tripNormalizeDate(tstr('tripDate')),
       case_name: tstr('tripCase'),
-      origin: tstr('tripStart').trim(),
+      mode: train ? 'train' : 'car',
+      origin: (train ? tstr('tripStartSt') : tstr('tripStart')).trim(),
       destination: dests.join('\n'),
-      one_way_km: tval('tripKm'),
-      round_trip: tchk('tripRound') ? 1 : 0,
+      one_way_km: train ? 0 : tval('tripKm'),
+      round_trip: (!train && tchk('tripRound')) ? 1 : 0,
       gas_rate: Math.round(tval('tripRate')),
-      toll_items: costGetRows('trip', TRIP_COSTS[0]),
-      parking_items: costGetRows('trip', TRIP_COSTS[1]),
-      other_items: costGetRows('trip', TRIP_COSTS[2]),
+      fare_items: train ? costGetRows('trip', COST_FARE) : [],
+      toll_items: train ? [] : costGetRows('trip', COST_TOLL),
+      parking_items: train ? [] : costGetRows('trip', COST_PARK),
+      other_items: costGetRows('trip', COST_OTHER),
       note: tstr('tripNote'),
     };
     try {
@@ -3258,11 +3307,15 @@
   const tripEditDialog = $('#tripEditDialog');
   const teDestBox = () => $('#teDests');
   function teMsg(m, isErr) { const el = $('#teMsg'); if (el) { el.textContent = m || ''; el.style.color = isErr ? 'var(--tm-danger)' : ''; } }
+  const teStationBox = () => $('#teStations');
   function teRecalc() {
-    const gas = Math.round(tval('teKm') * (tchk('teRound') ? 2 : 1) * tval('teRate'));
+    tripModeApply('te');
+    const train = tripModeGet('te') === 'train';
+    const gas = train ? 0 : Math.round(tval('teKm') * (tchk('teRound') ? 2 : 1) * tval('teRate'));
     const total = gas + costRefreshSums('te');
-    const g = $('#teGas'), t = $('#teTotal');
+    const g = $('#teGas'), t = $('#teTotal'), f = $('#teFare');
     if (g) g.textContent = gas.toLocaleString();
+    if (f) f.textContent = costSum('te', COST_FARE).toLocaleString();
     if (t) t.textContent = total.toLocaleString();
   }
   // 保存済みレコードから内訳を取り出す（内訳が無い古い記録は、合計金額1行として表示）
@@ -3275,16 +3328,22 @@
   function tripEdit(rec) {
     if (!tripEditDialog) return;
     tripEditingId = rec.id;
+    const train = (rec.mode === 'train');
+    const places = String(rec.destination || '').split('\n').filter((x) => x);
     if ($('#teDate')) $('#teDate').value = rec.trip_date || '';
     if ($('#teCase')) $('#teCase').value = rec.case_name || '';
-    if ($('#teStart')) $('#teStart').value = rec.origin || '';
-    tripSetDests(String(rec.destination || '').split('\n').filter((x) => x), teDestBox());
+    tripModeSet('te', train ? 'train' : 'car');
+    if ($('#teStart')) $('#teStart').value = train ? '' : (rec.origin || '');
+    if ($('#teStartSt')) $('#teStartSt').value = train ? (rec.origin || '') : '';
+    tripSetDests(train ? [''] : places, teDestBox());
+    tripSetDests(train ? places : [''], teStationBox());
     if ($('#teKm')) $('#teKm').value = (rec.one_way_km != null ? rec.one_way_km : 0);
     if ($('#teRound')) $('#teRound').checked = !!rec.round_trip;
     if ($('#teRate')) $('#teRate').value = (rec.gas_rate != null ? rec.gas_rate : 18);
-    costSetRows('te', TRIP_COSTS[0], tripLinesOf(rec, 'toll', rec.toll_cost));
-    costSetRows('te', TRIP_COSTS[1], tripLinesOf(rec, 'park', rec.parking_cost));
-    costSetRows('te', TRIP_COSTS[2], tripLinesOf(rec, 'other', rec.other_cost));
+    costSetRows('te', COST_FARE, tripLinesOf(rec, 'fare', rec.fare_cost));
+    costSetRows('te', COST_TOLL, tripLinesOf(rec, 'toll', rec.toll_cost));
+    costSetRows('te', COST_PARK, tripLinesOf(rec, 'park', rec.parking_cost));
+    costSetRows('te', COST_OTHER, tripLinesOf(rec, 'other', rec.other_cost));
     if ($('#teNote')) $('#teNote').value = rec.note || '';
     teRecalc(); teMsg('');
     tripEditDialog.showModal(); // 履歴ポップアップの手前に表示
@@ -3295,20 +3354,25 @@
   }
   async function teSave() {
     if (!serverMode()) { teMsg('更新はサーバー接続時のみ可能です', true); return; }
-    const dests = tripGetDests(teDestBox());
-    if (!tstr('teCase').trim() && !dests.length) { teMsg('店舗名か目的地を入力してください', true); return; }
+    const train = tripModeGet('te') === 'train';
+    const dests = train ? tripGetDests(teStationBox()) : tripGetDests(teDestBox());
+    if (!tstr('teCase').trim() && !dests.length) {
+      teMsg(train ? '店舗名か到着駅を入力してください' : '店舗名か目的地を入力してください', true); return;
+    }
     const body = {
       id: tripEditingId,
       trip_date: tripNormalizeDate(tstr('teDate')),
       case_name: tstr('teCase'),
-      origin: tstr('teStart').trim(),
+      mode: train ? 'train' : 'car',
+      origin: (train ? tstr('teStartSt') : tstr('teStart')).trim(),
       destination: dests.join('\n'),
-      one_way_km: tval('teKm'),
-      round_trip: tchk('teRound') ? 1 : 0,
+      one_way_km: train ? 0 : tval('teKm'),
+      round_trip: (!train && tchk('teRound')) ? 1 : 0,
       gas_rate: Math.round(tval('teRate')),
-      toll_items: costGetRows('te', TRIP_COSTS[0]),
-      parking_items: costGetRows('te', TRIP_COSTS[1]),
-      other_items: costGetRows('te', TRIP_COSTS[2]),
+      fare_items: train ? costGetRows('te', COST_FARE) : [],
+      toll_items: train ? [] : costGetRows('te', COST_TOLL),
+      parking_items: train ? [] : costGetRows('te', COST_PARK),
+      other_items: costGetRows('te', COST_OTHER),
       note: tstr('teNote'),
     };
     try {
@@ -3348,10 +3412,20 @@
       window.open(url, '_blank', 'noopener');
       teMsg('Googleマップを別タブで開きました。距離を確認して「片道(km)」に入力してください。');
     }); }
-    { const box = teDestBox(); if (box) box.addEventListener('click', (e) => {
+    { const b = $('#teAddStBtn'); if (b) b.addEventListener('click', () => tripAppendDest('', teStationBox())); }
+    { const b = $('#teYahooBtn'); if (b) b.addEventListener('click', () => {
+      const from = tstr('teStartSt').trim();
+      const st = tripGetDests(teStationBox());
+      if (!from) { teMsg('出発駅を入力してください', true); return; }
+      if (!st.length) { teMsg('到着駅を1つ以上入力してください', true); return; }
+      window.open(tripYahooUrl(from, st), '_blank', 'noopener');
+      teMsg('Yahoo!路線情報を別タブで開きました。運賃を確認して「運賃」に入力してください。');
+    }); }
+    [teDestBox(), teStationBox()].forEach((box) => { if (box) box.addEventListener('click', (e) => {
       const del = e.target.closest('.tm-trip-destdel');
       if (del && box.children.length > 1) { del.closest('.tm-trip-destrow').remove(); tripUpdateDestNos(box); }
-    }); }
+    }); });
+    document.querySelectorAll('input[name="teMode"]').forEach((r) => r.addEventListener('change', teRecalc));
     ['teKm', 'teRate'].forEach((id) => { const el = $('#' + id); if (el) el.addEventListener('input', teRecalc); });
     costWire('te', teRecalc);
     { const r = $('#teRound'); if (r) r.addEventListener('change', teRecalc); }
@@ -3393,6 +3467,7 @@
       const m = tstr('tripFilterMonth'); if (m) body.month = m;
     }
     if (session && session.isAdmin) { const u = tstr('tripFilterUser'); if (u) body.username = u; }
+    { const k = tstr('tripFilterKind'); if (k) body.mode = k; } // 車／電車の絞り込み
     try {
       const d = await apiCall('trip_list', { method: 'POST', body });
       tripListData = d.items || [];
@@ -3404,27 +3479,31 @@
     const wrap = $('#tripTableWrap'); if (!wrap) return;
     if (!items.length) { wrap.innerHTML = '<div class="tm-trip-empty">該当する記録はありません。</div>'; return; }
     const yen = (n) => (Number(n) || 0).toLocaleString();
-    // 各列の合計（総距離・ガソリン代・高速代・駐車場代・その他）
-    const sums = { km: 0, gas: 0, toll: 0, park: 0, other: 0 };
+    // 各列の合計（総距離・ガソリン代・運賃・高速代・駐車場代・その他）
+    const sums = { km: 0, gas: 0, fare: 0, toll: 0, park: 0, other: 0 };
     items.forEach((r) => {
       sums.km += (Number(r.one_way_km) || 0) * (r.round_trip ? 2 : 1);
       sums.gas += Number(r.gas_cost) || 0;
+      sums.fare += Number(r.fare_cost) || 0;
       sums.toll += Number(r.toll_cost) || 0;
       sums.park += Number(r.parking_cost) || 0;
       sums.other += Number(r.other_cost) || 0;
     });
     const rows = items.map((r) => {
+      const train = (r.mode === 'train');
       const km = Number(r.one_way_km) || 0;
       const eff = km * (r.round_trip ? 2 : 1);
       return `<tr>
         <td><button class="tm-trip-datebtn" data-tedit="${esc(r.id)}" type="button" title="クリックで編集">${esc(r.trip_date || '')}</button></td>
         ${isAdmin ? `<td>${esc(r.display_name || r.username || '')}</td>` : ''}
+        <td><span class="tm-trip-kind ${train ? 'is-train' : 'is-car'}">${train ? '電車' : '車'}</span></td>
         <td>${esc(r.case_name || '')}</td>
         <td>${esc(tripRoute(r))}</td>
-        <td class="num">${eff.toFixed(1)}km</td>
-        <td class="num">${yen(r.gas_cost)}円</td>
-        <td class="num">${yen(r.toll_cost)}円</td>
-        <td class="num">${yen(r.parking_cost)}円</td>
+        <td class="num">${train ? '—' : eff.toFixed(1) + 'km'}</td>
+        <td class="num">${train ? '—' : yen(r.gas_cost) + '円'}</td>
+        <td class="num">${train ? yen(r.fare_cost) + '円' : '—'}</td>
+        <td class="num">${train ? '—' : yen(r.toll_cost) + '円'}</td>
+        <td class="num">${train ? '—' : yen(r.parking_cost) + '円'}</td>
         <td class="num">${yen(r.other_cost)}円</td>
         <td class="num tm-trip-total-cell">${yen(r.total)}円</td>
         <td><div class="tm-trip-ops">
@@ -3433,17 +3512,18 @@
         </div></td>
       </tr>`;
     }).join('');
-    const labelCols = isAdmin ? 4 : 3; // 日付(+登録者)+店舗+目的地
+    const labelCols = isAdmin ? 5 : 4; // 日付(+登録者)+区分+店舗+目的地
     wrap.innerHTML = `<table class="tm-trip-table">
       <thead><tr>
-        <th>日付</th>${isAdmin ? '<th>登録者</th>' : ''}<th>店舗</th><th>目的地</th>
-        <th class="num">距離</th><th class="num">ガソリン</th><th class="num">高速</th><th class="num">駐車</th><th class="num">その他</th><th class="num">合計</th><th>操作</th>
+        <th>日付</th>${isAdmin ? '<th>登録者</th>' : ''}<th>区分</th><th>店舗</th><th>目的地・到着駅</th>
+        <th class="num">距離</th><th class="num">ガソリン</th><th class="num">運賃</th><th class="num">高速</th><th class="num">駐車</th><th class="num">その他</th><th class="num">合計</th><th>操作</th>
       </tr></thead>
       <tbody>${rows}</tbody>
       <tfoot><tr>
         <td colspan="${labelCols}">合計（${items.length}件）</td>
         <td class="num">${sums.km.toFixed(1)}km</td>
         <td class="num">${yen(sums.gas)}円</td>
+        <td class="num">${yen(sums.fare)}円</td>
         <td class="num">${yen(sums.toll)}円</td>
         <td class="num">${yen(sums.park)}円</td>
         <td class="num">${yen(sums.other)}円</td>
@@ -3464,33 +3544,37 @@
       if (lines.length === 1 && !lines[0].note) return '';
       return lines.map((l) => (Number(l.amount) || 0).toLocaleString() + (l.note ? `(${l.note})` : '')).join(' + ');
     };
-    const head = ['日付'].concat(isAdmin ? ['登録者'] : []).concat(['店舗名', '出発地点', '目的地', '片道km', '往復', 'ガソリン単価', '対象km', 'ガソリン代', '高速代', '高速代の内訳', '駐車場代', '駐車場代の内訳', 'その他', 'その他の内訳', '合計', 'メモ']);
+    const head = ['日付'].concat(isAdmin ? ['登録者'] : []).concat(['区分', '店舗名', '出発地点・出発駅', '目的地・到着駅', '片道km', '往復', 'ガソリン単価', '対象km', 'ガソリン代', '運賃', '運賃の内訳', '高速代', '高速代の内訳', '駐車場代', '駐車場代の内訳', 'その他', 'その他の内訳', '合計', 'メモ']);
     const aoa = [head];
     let sum = 0;
-    const s = { km: 0, gas: 0, toll: 0, park: 0, other: 0 };
+    const s = { km: 0, gas: 0, fare: 0, toll: 0, park: 0, other: 0 };
     items.forEach((r) => {
+      const train = (r.mode === 'train');
       const km = Number(r.one_way_km) || 0;
       const eff = km * (r.round_trip ? 2 : 1);
       const row = [r.trip_date || ''].concat(isAdmin ? [r.display_name || r.username || ''] : [])
-        .concat([r.case_name || '', r.origin || '', tripRoute(r), km, r.round_trip ? '往復' : '片道',
-          Number(r.gas_rate) || 0, eff, Number(r.gas_cost) || 0,
+        .concat([train ? '電車' : '車', r.case_name || '', r.origin || '', tripRoute(r),
+          train ? '' : km, train ? '' : (r.round_trip ? '往復' : '片道'),
+          train ? '' : (Number(r.gas_rate) || 0), train ? '' : eff, train ? '' : (Number(r.gas_cost) || 0),
+          Number(r.fare_cost) || 0, breakdown(r, 'fare', r.fare_cost),
           Number(r.toll_cost) || 0, breakdown(r, 'toll', r.toll_cost),
           Number(r.parking_cost) || 0, breakdown(r, 'park', r.parking_cost),
           Number(r.other_cost) || 0, breakdown(r, 'other', r.other_cost),
           Number(r.total) || 0, r.note || '']);
       aoa.push(row);
       sum += Number(r.total) || 0;
-      s.km += eff; s.gas += Number(r.gas_cost) || 0; s.toll += Number(r.toll_cost) || 0;
+      s.km += eff; s.gas += Number(r.gas_cost) || 0; s.fare += Number(r.fare_cost) || 0;
+      s.toll += Number(r.toll_cost) || 0;
       s.park += Number(r.parking_cost) || 0; s.other += Number(r.other_cost) || 0;
     });
     aoa.push([]);
-    // 合計行：対象km・ガソリン代・高速代・駐車場代・その他・合計を集計
-    // 列並び: [日付(+登録者)] 店舗名/出発地点/目的地/片道km/往復/ガソリン単価/対象km/ガソリン代/
-    //         高速代/内訳/駐車場代/内訳/その他/内訳/合計/メモ
+    // 合計行：対象km・ガソリン代・運賃・高速代・駐車場代・その他・合計を集計
+    // 列並び: [日付(+登録者)] 区分/店舗名/出発地点/目的地/片道km/往復/ガソリン単価/対象km/ガソリン代/
+    //         運賃/内訳・高速代/内訳・駐車場代/内訳・その他/内訳・合計・メモ
     const totalRow = (isAdmin ? ['合計', ''] : ['合計'])
-      .concat(['', '', '', '', '', '',               // 店舗名・出発地点・目的地・片道km・往復・ガソリン単価
+      .concat(['', '', '', '', '', '', '',           // 区分・店舗名・出発地点・目的地・片道km・往復・ガソリン単価
         Math.round(s.km * 10) / 10, s.gas,           // 対象km・ガソリン代
-        s.toll, '', s.park, '', s.other, '',         // 高速代/内訳・駐車場代/内訳・その他/内訳
+        s.fare, '', s.toll, '', s.park, '', s.other, '', // 運賃/内訳・高速代/内訳・駐車場代/内訳・その他/内訳
         sum, '']);
     aoa.push(totalRow);
     const ws = XLSX.utils.aoa_to_sheet(aoa);
@@ -3507,10 +3591,20 @@
   { const b = $('#tripCompanyBtn'); if (b) b.addEventListener('click', () => { if ($('#tripStart')) $('#tripStart').value = travelOrigin; }); }
   { const b = $('#tripAddDestBtn'); if (b) b.addEventListener('click', () => tripAppendDest('')); }
   { const b = $('#tripMapBtn'); if (b) b.addEventListener('click', tripOpenMap); }
-  { const box = $('#tripDests'); if (box) box.addEventListener('click', (e) => {
-    const del = e.target.closest('.tm-trip-destdel');
-    if (del && box.children.length > 1) { del.closest('.tm-trip-destrow').remove(); tripUpdateDestNos(); }
+  { const b = $('#tripAddStBtn'); if (b) b.addEventListener('click', () => tripAppendDest('', $('#tripStations'))); }
+  { const b = $('#tripYahooBtn'); if (b) b.addEventListener('click', () => {
+    const from = tstr('tripStartSt').trim();
+    const st = tripGetDests($('#tripStations'));
+    if (!from) { tripMsg('出発駅を入力してください', true); return; }
+    if (!st.length) { tripMsg('到着駅を1つ以上入力してください', true); return; }
+    window.open(tripYahooUrl(from, st), '_blank', 'noopener');
+    tripMsg('Yahoo!路線情報を別タブで開きました。運賃を確認して「運賃」に入力してください。');
   }); }
+  [$('#tripDests'), $('#tripStations')].forEach((box) => { if (box) box.addEventListener('click', (e) => {
+    const del = e.target.closest('.tm-trip-destdel');
+    if (del && box.children.length > 1) { del.closest('.tm-trip-destrow').remove(); tripUpdateDestNos(box); }
+  }); });
+  document.querySelectorAll('input[name="tripMode"]').forEach((r) => r.addEventListener('change', tripRecalc));
   { const b = $('#tripSaveBtn'); if (b) b.addEventListener('click', tripSave); }
   { const b = $('#tripResetBtn'); if (b) b.addEventListener('click', tripResetForm); }
   { const b = $('#tripSearchBtn'); if (b) b.addEventListener('click', tripSearch); }

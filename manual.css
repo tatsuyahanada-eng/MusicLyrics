@@ -1466,6 +1466,29 @@ textarea.tm-ff-input { width: 100%; resize: vertical; min-height: 88px; }
 }
 .tm-trip-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px 14px; }
 .tm-trip-grid .tm-trip-wide { grid-column: 1 / -1; }
+/* 車／電車で出し分けるまとまり。display:contents で、中身はそのまま上のグリッドに並ぶ */
+.tm-trip-modeblock { display: contents; }
+.tm-trip-modeblock[hidden] { display: none; }
+/* 移動手段のラジオボタン */
+.tm-trip-modes { display: flex; flex-wrap: wrap; gap: 8px; }
+.tm-trip-mode {
+  display: inline-flex; align-items: center; gap: 7px; cursor: pointer;
+  padding: 7px 14px; border-radius: 8px; font-size: 14px; color: var(--tm-text);
+  border: 1px solid var(--tm-line); background: rgba(57, 255, 20, 0.04);
+}
+.tm-trip-mode:hover { border-color: rgba(57, 255, 20, 0.5); }
+.tm-trip-mode input { accent-color: var(--tm-green); }
+.tm-trip-mode:has(input:checked) {
+  border-color: var(--tm-green); background: rgba(57, 255, 20, 0.13);
+  box-shadow: 0 0 10px rgba(57, 255, 20, 0.18);
+}
+/* 一覧の「区分」バッジ */
+.tm-trip-kind {
+  display: inline-block; padding: 2px 8px; border-radius: 999px; white-space: nowrap;
+  font-family: var(--tm-mono); font-size: 11px; border: 1px solid var(--tm-line);
+}
+.tm-trip-kind.is-car { color: var(--tm-cyan); border-color: rgba(103, 232, 249, 0.45); background: rgba(103, 232, 249, 0.1); }
+.tm-trip-kind.is-train { color: var(--tm-green); border-color: rgba(57, 255, 20, 0.45); background: rgba(57, 255, 20, 0.1); }
 .tm-trip-inline { display: flex; gap: 8px; align-items: center; }
 .tm-trip-inline .tm-input { flex: 1 1 auto; min-width: 0; }
 .tm-trip-inline .tm-btn { flex: 0 0 auto; white-space: nowrap; }
