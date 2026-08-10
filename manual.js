@@ -2494,6 +2494,8 @@
   });
   // タイマーが端末スリープ等で発火しない場合に備え、定期的にも経過をチェック（サーバー通信なし）
   setInterval(idleCheck, 60 * 1000);
+  // ウィンドウが再びアクティブになったときも経過を確認（visibilitychange が出ない環境の保険）
+  window.addEventListener('focus', () => { if (session) idleCheck(); });
 
   // ブラウザにキャッシュされた Basic認証の資格情報をできる限り消す（再ログインでパスワードを求めるため）
   function clearBasicAuth() {
@@ -2846,6 +2848,7 @@
 
   /* ---------- 他端末の変更を反映（軽いポーリング + 可視化時） ---------- */
   async function pollTick() {
+    if (session && idleExpired()) { appLogout('timeout'); return; } // 無操作が上限を超えていれば必ずログアウト
     if (!serverMode() || document.hidden) return;
     if (nodeDialog.open || confirmDialog.open) return; // 編集中は邪魔しない
     try {
@@ -2920,12 +2923,19 @@
 
   function tripRecalc() {
     const gas = Math.round(tval('tripKm') * (tchk('tripRound') ? 2 : 1) * tval('tripRate'));
-    const total = gas + Math.round(tval('tripToll')) + Math.round(tval('tripPark'));
+    const total = gas + Math.round(tval('tripToll')) + Math.round(tval('tripPark')) + Math.round(tval('tripOther'));
     const g = $('#tripGas'), t = $('#tripTotal');
     if (g) g.textContent = gas.toLocaleString();
     if (t) t.textContent = total.toLocaleString();
   }
   function todayISO() { const d = new Date(); return new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().slice(0, 10); }
+  // 手入力の日付を YYYY-MM-DD に正規化（2026/8/1・2026.08.01・2026年8月1日 なども受け付ける）
+  function tripNormalizeDate(v) {
+    v = String(v || '').trim();
+    const m = v.match(/(\d{4})\s*[\/\.\-年]?\s*(\d{1,2})\s*[\/\.\-月]?\s*(\d{1,2})/);
+    if (!m) return v; // 変換できないものはそのまま（保存時にサーバーが当日補正）
+    return m[1] + '-' + String(m[2]).padStart(2, '0') + '-' + String(m[3]).padStart(2, '0');
+  }
   const TRIP_MAX_DEST = 5;
   function tripDestBox() { return $('#tripDests'); }
   function tripUpdateDestNos() {
@@ -2971,6 +2981,7 @@
     if ($('#tripRate')) $('#tripRate').value = '18';
     if ($('#tripToll')) $('#tripToll').value = '0';
     if ($('#tripPark')) $('#tripPark').value = '0';
+    if ($('#tripOther')) $('#tripOther').value = '0';
     if ($('#tripRound')) $('#tripRound').checked = true;
     const sb = $('#tripSaveBtn'); if (sb) sb.innerHTML = '&#43; この内容で登録';
     tripRecalc(); tripMsg('');
@@ -3024,7 +3035,7 @@
     if (!tstr('tripCase').trim() && !dests.length) { tripMsg('店舗名か目的地を入力してください', true); return; }
     const body = {
       id: tripEditingId || '',
-      trip_date: tstr('tripDate'),
+      trip_date: tripNormalizeDate(tstr('tripDate')),
       case_name: tstr('tripCase'),
       origin: tstr('tripStart').trim(),
       destination: dests.join('\n'),
@@ -3033,6 +3044,7 @@
       gas_rate: Math.round(tval('tripRate')),
       toll_cost: Math.round(tval('tripToll')),
       parking_cost: Math.round(tval('tripPark')),
+      other_cost: Math.round(tval('tripOther')),
       note: tstr('tripNote'),
     };
     try {
@@ -3054,6 +3066,7 @@
     if ($('#tripRate')) $('#tripRate').value = (rec.gas_rate != null ? rec.gas_rate : 18);
     if ($('#tripToll')) $('#tripToll').value = rec.toll_cost || 0;
     if ($('#tripPark')) $('#tripPark').value = rec.parking_cost || 0;
+    if ($('#tripOther')) $('#tripOther').value = rec.other_cost || 0;
     if ($('#tripNote')) $('#tripNote').value = rec.note || '';
     const sb = $('#tripSaveBtn'); if (sb) sb.innerHTML = '&#10003; 更新する';
     tripRecalc();
@@ -3101,6 +3114,7 @@
         <td class="num">${yen(r.gas_cost)}円</td>
         <td class="num">${yen(r.toll_cost)}円</td>
         <td class="num">${yen(r.parking_cost)}円</td>
+        <td class="num">${yen(r.other_cost)}円</td>
         <td class="num tm-trip-total-cell">${yen(r.total)}円</td>
         <td><div class="tm-trip-ops">
           <button class="tm-btn tm-btn-outline tm-btn-sm" data-tedit="${esc(r.id)}" type="button">編集</button>
@@ -3112,10 +3126,10 @@
     wrap.innerHTML = `<table class="tm-trip-table">
       <thead><tr>
         <th>日付</th>${isAdmin ? '<th>登録者</th>' : ''}<th>店舗</th><th>目的地</th>
-        <th class="num">距離</th><th class="num">ガソリン</th><th class="num">高速</th><th class="num">駐車</th><th class="num">合計</th><th>操作</th>
+        <th class="num">距離</th><th class="num">ガソリン</th><th class="num">高速</th><th class="num">駐車</th><th class="num">その他</th><th class="num">合計</th><th>操作</th>
       </tr></thead>
       <tbody>${rows}</tbody>
-      <tfoot><tr><td colspan="${leftCols}">合計（${items.length}件）</td><td class="num tm-trip-total-cell">${yen(sum)}円</td><td></td></tr></tfoot>
+      <tfoot><tr><td colspan="${leftCols + 1}">合計（${items.length}件）</td><td class="num tm-trip-total-cell">${yen(sum)}円</td><td></td></tr></tfoot>
     </table>`;
   }
   function tripExcel() {
@@ -3123,7 +3137,7 @@
     const items = tripListData || [];
     if (!items.length) { tripMsg('出力する記録がありません', true); return; }
     const isAdmin = !!(session && session.isAdmin);
-    const head = ['日付'].concat(isAdmin ? ['登録者'] : []).concat(['店舗名', '出発地点', '目的地', '片道km', '往復', 'ガソリン単価', '対象km', 'ガソリン代', '高速代', '駐車場代', '合計', 'メモ']);
+    const head = ['日付'].concat(isAdmin ? ['登録者'] : []).concat(['店舗名', '出発地点', '目的地', '片道km', '往復', 'ガソリン単価', '対象km', 'ガソリン代', '高速代', '駐車場代', 'その他', '合計', 'メモ']);
     const aoa = [head];
     let sum = 0;
     items.forEach((r) => {
@@ -3131,12 +3145,12 @@
       const eff = km * (r.round_trip ? 2 : 1);
       const row = [r.trip_date || ''].concat(isAdmin ? [r.display_name || r.username || ''] : [])
         .concat([r.case_name || '', r.origin || '', tripRoute(r), km, r.round_trip ? '往復' : '片道',
-          Number(r.gas_rate) || 0, eff, Number(r.gas_cost) || 0, Number(r.toll_cost) || 0, Number(r.parking_cost) || 0, Number(r.total) || 0, r.note || '']);
+          Number(r.gas_rate) || 0, eff, Number(r.gas_cost) || 0, Number(r.toll_cost) || 0, Number(r.parking_cost) || 0, Number(r.other_cost) || 0, Number(r.total) || 0, r.note || '']);
       aoa.push(row);
       sum += Number(r.total) || 0;
     });
     aoa.push([]);
-    const totalRow = (isAdmin ? ['', '合計'] : ['合計']).concat(['', '', '', '', '', '', '', '', '', '', sum, '']);
+    const totalRow = (isAdmin ? ['', '合計'] : ['合計']).concat(['', '', '', '', '', '', '', '', '', '', '', sum, '']);
     aoa.push(totalRow);
     const ws = XLSX.utils.aoa_to_sheet(aoa);
     const wb = XLSX.utils.book_new();
@@ -3160,7 +3174,13 @@
   { const b = $('#tripSearchBtn'); if (b) b.addEventListener('click', tripSearch); }
   { const b = $('#tripExcelBtn'); if (b) b.addEventListener('click', tripExcel); }
   { const s = $('#tripFilterUser'); if (s) s.addEventListener('change', tripSearch); }
-  ['tripKm', 'tripRate', 'tripToll', 'tripPark'].forEach((id) => { const el = $('#' + id); if (el) el.addEventListener('input', tripRecalc); });
+  { const dt = $('#tripDate'); if (dt) dt.addEventListener('blur', () => {
+    const v = dt.value.trim(); if (!v) return;
+    const n = tripNormalizeDate(v);
+    dt.value = n;
+    tripMsg(/^\d{4}-\d{2}-\d{2}$/.test(n) ? '' : '日付は「2026-08-01」の形式で入力してください', !/^\d{4}-\d{2}-\d{2}$/.test(n));
+  }); }
+  ['tripKm', 'tripRate', 'tripToll', 'tripPark', 'tripOther'].forEach((id) => { const el = $('#' + id); if (el) el.addEventListener('input', tripRecalc); });
   { const r = $('#tripRound'); if (r) r.addEventListener('change', tripRecalc); }
   { const wrap = $('#tripTableWrap'); if (wrap) wrap.addEventListener('click', (e) => {
     const ed = e.target.closest('[data-tedit]');

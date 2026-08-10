@@ -8,7 +8,7 @@
 
 /* スキーマのバージョン。テーブル定義（列の追加など）を変えたら必ず上げる。
    これが変わると、各サーバーで初回アクセス時に一度だけ初期化/マイグレーションが走る。 */
-if (!defined('CBC_SCHEMA_VERSION')) define('CBC_SCHEMA_VERSION', '2026-08-09-trips2');
+if (!defined('CBC_SCHEMA_VERSION')) define('CBC_SCHEMA_VERSION', '2026-08-09-trips3');
 
 // 接続だけを1回試みる（スキーマ初期化はしない）。
 function cbc_connect_once($driver, $opts) {
@@ -141,6 +141,7 @@ function cbc_init_schema($pdo, $driver) {
 
 /* 交通費（オンサイト案件の移動費）記録。ユーザーごとに登録し、管理者が月別/ユーザー別に集計。 */
 function cbc_init_trips($pdo, $driver) {
+  $intType = ($driver === 'mysql') ? 'INT' : 'INTEGER';
   if ($driver === 'mysql') {
     $pdo->exec(
       "CREATE TABLE IF NOT EXISTS trips (
@@ -157,6 +158,7 @@ function cbc_init_trips($pdo, $driver) {
         gas_cost     INT          NOT NULL DEFAULT 0,
         toll_cost    INT          NOT NULL DEFAULT 0,
         parking_cost INT          NOT NULL DEFAULT 0,
+        other_cost   INT          NOT NULL DEFAULT 0,
         total        INT          NOT NULL DEFAULT 0,
         note         VARCHAR(500) NULL,
         created_at   BIGINT       NOT NULL DEFAULT 0,
@@ -180,6 +182,7 @@ function cbc_init_trips($pdo, $driver) {
         gas_cost     INTEGER      NOT NULL DEFAULT 0,
         toll_cost    INTEGER      NOT NULL DEFAULT 0,
         parking_cost INTEGER      NOT NULL DEFAULT 0,
+        other_cost   INTEGER      NOT NULL DEFAULT 0,
         total        INTEGER      NOT NULL DEFAULT 0,
         note         VARCHAR(500) NULL,
         created_at   BIGINT       NOT NULL DEFAULT 0,
@@ -201,6 +204,9 @@ function cbc_init_trips($pdo, $driver) {
     }
     if (!in_array('origin', $cols, true)) {
       $pdo->exec("ALTER TABLE trips ADD COLUMN origin VARCHAR(255) NULL");
+    }
+    if (!in_array('other_cost', $cols, true)) {
+      $pdo->exec("ALTER TABLE trips ADD COLUMN other_cost $intType NOT NULL DEFAULT 0");
     }
   } catch (Throwable $e) { /* 追加できなくても致命ではない */ }
 }
