@@ -395,6 +395,11 @@
       <div id="visits"></div>
       <button id="addVisit" class="btn btn-outline btn-sm" type="button" style="margin-bottom:10px;">＋ 訪問先を追加</button>
       <br>
+      <label style="display:inline-flex;align-items:center;gap:6px;font-size:13px;color:var(--text);margin:0 0 8px;font-weight:600">
+        <input type="checkbox" id="roundTrip" checked style="width:auto;margin:0">
+        🏠 最後は基点に戻る（往復ルートで計算）
+      </label>
+      <br>
       <button id="autoDist" class="btn btn-cta" type="button"><span class="ico" aria-hidden="true">📍</span>住所から総移動距離を自動計算</button>
       <button id="openGmaps" class="btn btn-outline btn-sm" type="button" style="margin-left:8px;">🗺️ Googleマップで表示</button>
       <p class="gmap-note">
@@ -685,14 +690,16 @@
       return url;
     }
     document.getElementById('openGmaps').addEventListener('click', () => {
-      const addrs = [document.getElementById('baseAddr').value.trim(),
-        ...[...document.querySelectorAll('.visit-addr')].map(el => el.value.trim())]
+      const base = document.getElementById('baseAddr').value.trim();
+      const addrs = [base, ...[...document.querySelectorAll('.visit-addr')].map(el => el.value.trim())]
         .filter(Boolean);
       if (!addrs.length) {
         const s = document.getElementById('geoStatus');
         s.textContent = '基点住所または訪問先を入力してください'; s.className = 'geo-status err';
         return;
       }
+      // 往復ONで基点あり・訪問先ありなら末尾に基点を追加
+      if (document.getElementById('roundTrip').checked && base && addrs.length >= 2) addrs.push(base);
       window.open(buildGmapsUrl(addrs), '_blank', 'noopener');
     });
 
@@ -869,10 +876,16 @@
       const status = document.getElementById('geoStatus');
       const legBox = document.getElementById('legResult');
       legBox.innerHTML = '';
-      const entries = [{ label: '基点', addr: document.getElementById('baseAddr').value.trim() },
+      const baseAddr = document.getElementById('baseAddr').value.trim();
+      const roundTrip = document.getElementById('roundTrip').checked;
+      const entries = [{ label: '基点', addr: baseAddr },
         ...[...document.querySelectorAll('.visit-addr')].map((el, i) => ({ label: '訪問先' + (i + 1), addr: el.value.trim() }))]
         .filter(e => e.addr);
       if (entries.length < 2) { status.textContent = '基点住所と訪問先を2件以上入力してください'; status.className = 'geo-status err'; return; }
+      // 往復：末尾に基点を追加（基点住所が入力されている場合のみ）
+      if (roundTrip && baseAddr && entries.length >= 2) {
+        entries.push({ label: '基点(帰着)', addr: baseAddr });
+      }
       status.textContent = '位置情報を取得中…'; status.className = 'geo-status';
 
       const resolved = [], failed = [];
