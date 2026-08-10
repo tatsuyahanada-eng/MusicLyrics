@@ -3019,6 +3019,7 @@
     // ポップアップは必ず先頭（上部）から表示する
     tripHistoryDialog.scrollTop = 0;
     const hf = tripHistoryDialog.querySelector('.tm-dialog-form'); if (hf) hf.scrollTop = 0;
+    tripLoadUsers(); // 担当者リストは開いた時点で用意する（記録は「検索」を押すまで読まない）
     syncTrap();
   }
   if (tripHistoryDialog) {
@@ -3158,6 +3159,19 @@
     const dests = String(r.destination || '').split('\n').filter((x) => x);
     return dests.join(' → ');
   }
+  // 絞り込みプルダウンに「オンサイトを閲覧できる担当者」を並べる（選択中の値は維持）
+  function tripFillUsers(users) {
+    const sel = $('#tripFilterUser'); if (!sel) return;
+    const cur = sel.value;
+    sel.innerHTML = '<option value="">全員</option>'
+      + (users || []).map((u) => `<option value="${esc(u.username)}">${esc(u.display_name || u.username)}</option>`).join('');
+    sel.value = cur;
+  }
+  // 履歴検索を開いた時点で、記録は読まずに担当者リストだけ取得する
+  async function tripLoadUsers() {
+    if (!serverMode() || !(session && session.isAdmin)) return;
+    try { const d = await apiCall('trip_users'); tripFillUsers(d.users || []); } catch (_) {}
+  }
   async function tripSearch() {
     const wrap = $('#tripTableWrap');
     if (wrap) wrap.innerHTML = '<div class="tm-trip-empty">読み込み中…</div>';
@@ -3168,14 +3182,7 @@
     try {
       const d = await apiCall('trip_list', { method: 'POST', body });
       tripListData = d.items || [];
-      if (session && session.isAdmin && Array.isArray(d.users)) {
-        const sel = $('#tripFilterUser');
-        if (sel) {
-          const cur = sel.value;
-          sel.innerHTML = '<option value="">全員</option>' + d.users.map((u) => `<option value="${esc(u.username)}">${esc(u.display_name || u.username)}</option>`).join('');
-          sel.value = cur;
-        }
-      }
+      if (session && session.isAdmin && Array.isArray(d.users)) tripFillUsers(d.users);
       renderTripTable(d.items || [], d.total_sum || 0, !!d.is_admin);
     } catch (e) { if (wrap) wrap.innerHTML = `<div class="tm-trip-empty">読み込みに失敗：${esc(e.message)}</div>`; }
   }
@@ -3241,7 +3248,8 @@
     tripMsg('Excelを出力しました');
   }
   { const b = $('#footerTrips'); if (b) b.addEventListener('click', () => openTrips()); }
-  { const b = $('#tripBackBtn'); if (b) b.addEventListener('click', closeTrips); }
+  { const b = $('#backBtnTrip'); if (b) b.addEventListener('click', closeTrips); }
+  { const b = $('#restartBtnTrip'); if (b) b.addEventListener('click', () => { closeTrips(); navRestart(); syncTrap(); }); }
   { const b = $('#tripHistoryBtn'); if (b) b.addEventListener('click', openTripHistory); }
   { const b = $('#tripCompanyBtn'); if (b) b.addEventListener('click', () => { if ($('#tripStart')) $('#tripStart').value = travelOrigin; }); }
   { const b = $('#tripAddDestBtn'); if (b) b.addEventListener('click', () => tripAppendDest('')); }

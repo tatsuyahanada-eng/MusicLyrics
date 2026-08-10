@@ -1214,6 +1214,13 @@ switch ($action) {
     ok(array('id' => $id, 'gas_cost' => $gas, 'total' => $total));
   }
 
+  case 'trip_users': {
+    // 交通費の絞り込み用ユーザー一覧（「オンサイト」を閲覧できるアカウント）。
+    // 履歴検索を開いた時点で、記録を読み込まずに担当者リストだけを取得するために使う。
+    $s = require_login($pdo);
+    ok(array('users' => $s['is_admin'] ? cbc_onsite_users($pdo) : array(), 'is_admin' => $s['is_admin']));
+  }
+
   case 'trip_list': {
     // 一覧。管理者は全員（username で絞り込み可）、一般ユーザーは自分の分のみ。
     // month（YYYY-MM）または from/to（YYYY-MM-DD）で期間を絞れる。
