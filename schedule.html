@@ -5,7 +5,7 @@
   <meta http-equiv="Cache-Control" content="no-store">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>シフト管理カレンダー</title>
-  <link rel="stylesheet" href="schedule.css?v=1">
+  <link rel="stylesheet" href="schedule.css?v=2">
 </head>
 <body class="sc-body">
 
@@ -80,7 +80,7 @@
         <li><span class="sc-chip sc-chip-available">◯</span> 稼働可能</li>
         <li><span class="sc-chip sc-chip-off">✕</span> 休み希望</li>
         <li><span class="sc-chip sc-chip-confirmed">確定</span> 確定した仕事</li>
-        <li><span class="sc-chip sc-chip-tentative">仮</span> 仮おさえ</li>
+        <li><span class="sc-chip sc-chip-tentative">仮</span> 仮出勤（未確定）</li>
         <li><span class="sc-chip sc-chip-conflict">⚠</span> 重複あり</li>
       </ul>
 
@@ -117,9 +117,13 @@
           <span class="sc-field-label">差出人名</span>
           <input id="senderName" class="sc-input sc-input-sm" type="text" placeholder="山田 太郎" autocomplete="off">
         </label>
-        <label class="sc-check">
-          <input id="excludeBooked" type="checkbox" checked>
-          <span>確定済みの日を除外する</span>
+        <label class="sc-field">
+          <span class="sc-field-label">予定が入っている日</span>
+          <select id="excludeMode" class="sc-input sc-input-sm">
+            <option value="both">確定・仮出勤の日を除外</option>
+            <option value="confirmed">確定の日のみ除外（仮出勤は候補に残す）</option>
+            <option value="none">除外しない</option>
+          </select>
         </label>
         <label class="sc-check">
           <input id="includeUndecided" type="checkbox">
@@ -143,8 +147,14 @@
       <div class="sc-section-head">
         <h3 class="sc-section-title">🗂 今月の予定一覧</h3>
         <span id="jobCount" class="sc-section-count"></span>
+        <div class="sc-filter-tabs" role="group" aria-label="表示の絞り込み">
+          <button class="sc-filter-tab active" data-filter="all" type="button">すべて</button>
+          <button class="sc-filter-tab" data-filter="confirmed" type="button">確定のみ</button>
+          <button class="sc-filter-tab" data-filter="tentative" type="button">仮出勤のみ</button>
+        </div>
       </div>
       <div id="jobList" class="sc-joblist"></div>
+      <div id="workTypeSummary" class="sc-worktype-summary"></div>
       <div class="sc-export-actions">
         <button id="copyJobs" class="sc-btn sc-btn-outline sc-btn-sm">📋 予定一覧をコピー</button>
       </div>
@@ -197,16 +207,22 @@
         <ol class="sc-help-list">
           <li><strong>希望を出す</strong>：月を選び「まとめて入力」で稼働可能日・休み希望日をクリックで塗り分けます。</li>
           <li><strong>送る</strong>：「稼働可能日をメールで送る」のテキストをコピーして、そのままメールに貼り付けます。</li>
-          <li><strong>確定を入れる</strong>：日付をクリックして詳細パネルから予定を追加します。時間が重なる予定があると
-            警告が出て、確認しない限り登録できません。</li>
+          <li><strong>仮出勤を入れる</strong>：話が来た段階では区分を「仮出勤」にして、業務内容・時間とあわせて
+            登録しておきます。仮出勤どうしの重なりも検知します。</li>
+          <li><strong>確定にする</strong>：先方から確定の連絡が来たら、予定カードの「確定にする」を押します。
+            案件名・業務内容・時間を確認する画面が開き、内容を直してから確定できます。
+            同じ時間帯に残っている他の仮出勤は、確定と同時にまとめて取り消せます。</li>
           <li><strong>確認する</strong>：重複がある日はカレンダー上で⚠マークと赤枠になり、画面上部にも警告が出ます。</li>
         </ol>
       </details>
     </div>
   </section>
 
+  <!-- 業務内容の入力候補（過去の入力値を自動で追加） -->
+  <datalist id="workTypeList"></datalist>
+
   <div id="toast" class="sc-toast" role="status" aria-live="polite" hidden></div>
 
-  <script src="schedule.js?v=1"></script>
+  <script src="schedule.js?v=2"></script>
 </body>
 </html>

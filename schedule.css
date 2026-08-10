@@ -1,26 +1,38 @@
 /* ============================================================
-   シフト管理カレンダー — schedule.css  v1
+   シフト管理カレンダー — schedule.css  v2（ライトテーマ）
    ============================================================ */
 
 :root {
-  --sc-bg: #0d0d14;
-  --sc-surface: #1a1a2e;
-  --sc-surface-2: #12122a;
-  --sc-primary: #7c3aed;
-  --sc-primary-hover: #6d28d9;
-  --sc-text: #f1f5f9;
-  --sc-muted: #94a3b8;
-  --sc-border: #334155;
+  --sc-bg: #f5f7fb;
+  --sc-surface: #ffffff;
+  --sc-surface-2: #eef2f9;
+  --sc-primary: #4f46e5;
+  --sc-primary-hover: #4338ca;
+  --sc-text: #1e293b;
+  --sc-muted: #64748b;
+  --sc-border: #d7dfea;
   --sc-radius: 12px;
-  --sc-shadow: 0 4px 14px rgba(0, 0, 0, 0.5);
+  --sc-shadow: 0 2px 10px rgba(15, 23, 42, 0.08);
 
-  --sc-available: #22c55e;
-  --sc-off: #f43f5e;
-  --sc-confirmed: #38bdf8;
-  --sc-tentative: #f59e0b;
-  --sc-conflict: #ef4444;
-  --sc-sun: #fb7185;
-  --sc-sat: #60a5fa;
+  /* 稼働可能：やわらかい緑 */
+  --sc-available: #16a34a;
+  --sc-available-bg: #e8f8ee;
+  /* 休み希望：やわらかい赤 */
+  --sc-off: #e11d48;
+  --sc-off-bg: #fdeaee;
+  /* 確定：はっきりした青（最も目立たせる） */
+  --sc-confirmed: #1d4ed8;
+  --sc-confirmed-bg: #dce7ff;
+  --sc-confirmed-strong: #1e3a8a;
+  /* 仮出勤：オレンジ（確定と明確に区別） */
+  --sc-tentative: #d97706;
+  --sc-tentative-bg: #fff4e2;
+  /* 重複：赤 */
+  --sc-conflict: #dc2626;
+  --sc-conflict-bg: #fdecec;
+
+  --sc-sun: #e11d48;
+  --sc-sat: #2563eb;
 }
 
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
@@ -35,9 +47,9 @@
   -webkit-text-size-adjust: 100%;
 }
 
-/* ---- Header ---- */
+/* ---- ヘッダー ---- */
 .sc-header {
-  background: linear-gradient(135deg, #7c3aed 0%, #2563eb 100%);
+  background: linear-gradient(135deg, #4f46e5 0%, #2563eb 55%, #0ea5e9 100%);
   padding: 18px 16px 14px;
   text-align: center;
 }
@@ -49,22 +61,22 @@
   font-weight: 800;
   letter-spacing: 0.03em;
   color: #fff;
-  text-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
 }
 
 .sc-header-sub {
   margin-top: 4px;
   font-size: 0.76rem;
-  color: rgba(255, 255, 255, 0.85);
+  color: rgba(255, 255, 255, 0.92);
 }
 
 /* ---- 月ナビ ---- */
 .sc-monthnav {
-  background: var(--sc-surface-2);
+  background: var(--sc-surface);
   border-bottom: 1px solid var(--sc-border);
   position: sticky;
   top: 0;
   z-index: 30;
+  box-shadow: 0 1px 6px rgba(15, 23, 42, 0.06);
 }
 
 .sc-monthnav-inner {
@@ -79,7 +91,7 @@
 
 .sc-month-label {
   font-size: clamp(1.05rem, 3vw, 1.4rem);
-  font-weight: 700;
+  font-weight: 800;
   min-width: 8.5em;
   text-align: center;
 }
@@ -114,11 +126,11 @@
 .sc-btn-sm { padding: 5px 10px; font-size: 0.78rem; }
 
 .sc-btn-outline {
-  background: transparent;
+  background: #fff;
   border-color: var(--sc-border);
   color: var(--sc-text);
 }
-.sc-btn-outline:hover { background: rgba(255, 255, 255, 0.07); }
+.sc-btn-outline:hover { background: var(--sc-surface-2); }
 
 .sc-btn-ghost {
   background: transparent;
@@ -127,13 +139,17 @@
   padding: 6px 12px;
   font-size: 1rem;
 }
-.sc-btn-ghost:hover { background: rgba(255, 255, 255, 0.08); }
+.sc-btn-ghost:hover { background: var(--sc-surface-2); }
 
-.sc-btn-danger { color: #fca5a5; border-color: #7f1d1d; }
-.sc-btn-danger:hover { background: rgba(239, 68, 68, 0.14); }
+.sc-btn-danger { background: #fff; color: #b91c1c; border-color: #f0c2c2; }
+.sc-btn-danger:hover { background: var(--sc-conflict-bg); }
+
+/* 確定アクション（最も強い色） */
+.sc-btn-confirm { background: var(--sc-confirmed); color: #fff; }
+.sc-btn-confirm:hover { background: var(--sc-confirmed-strong); }
 
 .sc-input {
-  background: #0f0f22;
+  background: #fff;
   border: 1px solid var(--sc-border);
   border-radius: 8px;
   color: var(--sc-text);
@@ -145,8 +161,10 @@
 .sc-input:focus { outline: 2px solid var(--sc-primary); outline-offset: -1px; }
 .sc-input-sm { padding: 5px 8px; font-size: 0.8rem; }
 
+.sc-status-select { font-weight: 700; }
+
 .sc-field { display: flex; flex-direction: column; gap: 3px; }
-.sc-field-label { font-size: 0.72rem; color: var(--sc-muted); font-weight: 600; }
+.sc-field-label { font-size: 0.72rem; color: var(--sc-muted); font-weight: 700; }
 
 .sc-check {
   display: flex;
@@ -161,16 +179,16 @@
 
 .sc-hint { font-size: 0.72rem; color: var(--sc-muted); }
 
-/* ---- 重複バナー ---- */
+/* ---- 重複警告バナー ---- */
 .sc-conflict-banner {
-  background: rgba(239, 68, 68, 0.14);
-  border-bottom: 1px solid var(--sc-conflict);
-  color: #fecaca;
+  background: var(--sc-conflict-bg);
+  border-bottom: 2px solid var(--sc-conflict);
+  color: #991b1b;
   padding: 8px 16px;
   font-size: 0.82rem;
 }
 .sc-conflict-banner-inner { max-width: 1180px; margin: 0 auto; }
-.sc-conflict-banner strong { color: #fff; }
+.sc-conflict-banner strong { color: #b91c1c; }
 .sc-conflict-list { margin-top: 4px; padding-left: 1.1em; font-size: 0.78rem; }
 
 /* ---- レイアウト ---- */
@@ -179,7 +197,7 @@
   margin: 0 auto;
   padding: 14px 16px;
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 330px;
+  grid-template-columns: minmax(0, 1fr) 340px;
   gap: 16px;
   align-items: start;
 }
@@ -194,6 +212,7 @@
   border-radius: var(--sc-radius);
   padding: 10px 12px;
   margin-bottom: 12px;
+  box-shadow: var(--sc-shadow);
 }
 
 .sc-toolbar-group { display: flex; flex-direction: column; gap: 5px; flex: 1 1 260px; }
@@ -202,7 +221,7 @@
 .sc-paint-tabs { display: flex; flex-wrap: wrap; gap: 5px; }
 
 .sc-paint-tab {
-  background: transparent;
+  background: #fff;
   border: 1px solid var(--sc-border);
   border-radius: 999px;
   color: var(--sc-muted);
@@ -213,7 +232,7 @@
   cursor: pointer;
   transition: all 0.15s;
 }
-.sc-paint-tab:hover { background: rgba(255, 255, 255, 0.06); color: var(--sc-text); }
+.sc-paint-tab:hover { background: var(--sc-surface-2); color: var(--sc-text); }
 .sc-paint-tab.active {
   background: var(--sc-primary);
   border-color: var(--sc-primary);
@@ -251,7 +270,7 @@
   background: var(--sc-surface);
   border: 1px solid var(--sc-border);
   border-radius: 9px;
-  min-height: 92px;
+  min-height: 98px;
   padding: 4px 5px 5px;
   text-align: left;
   font-family: inherit;
@@ -261,31 +280,81 @@
   flex-direction: column;
   gap: 2px;
   overflow: hidden;
-  transition: border-color 0.12s, background 0.12s;
+  transition: border-color 0.12s, background 0.12s, box-shadow 0.12s;
 }
 .sc-cell:hover { border-color: var(--sc-primary); }
 .sc-cell:focus-visible { outline: 2px solid var(--sc-primary); outline-offset: 1px; }
 
-.sc-cell-out { opacity: 0.32; }
-.sc-cell-past { background: #14141f; }
-.sc-cell-today { box-shadow: inset 0 0 0 2px var(--sc-primary); }
-.sc-cell-selected { border-color: #fff; box-shadow: inset 0 0 0 2px #fff; }
+.sc-cell-out { opacity: 0.42; }
+.sc-cell-past { background: #f1f4f9; }
 
-.sc-cell-available { background: linear-gradient(180deg, rgba(34, 197, 94, 0.20), rgba(34, 197, 94, 0.06)); }
-.sc-cell-off { background: linear-gradient(180deg, rgba(244, 63, 94, 0.20), rgba(244, 63, 94, 0.06)); }
-.sc-cell-conflict { border-color: var(--sc-conflict); box-shadow: inset 0 0 0 2px var(--sc-conflict); }
+/* 希望（予定が入っていない日の色） */
+.sc-cell-available { background: var(--sc-available-bg); border-color: #b6e6c8; }
+.sc-cell-off { background: var(--sc-off-bg); border-color: #f6c3ce; }
+
+/* 仮出勤がある日 */
+.sc-cell-tentative {
+  background: var(--sc-tentative-bg);
+  border: 2px dashed var(--sc-tentative);
+}
+
+/* 確定がある日 — 最も目立つ扱い（下端の帯は擬似要素。選択枠と打ち消し合わない） */
+.sc-cell-confirmed {
+  background: var(--sc-confirmed-bg);
+  border: 2px solid var(--sc-confirmed);
+}
+.sc-cell-confirmed .sc-daynum { color: var(--sc-confirmed-strong); }
+.sc-cell-confirmed::after,
+.sc-cell-conflict::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 4px;
+  background: var(--sc-confirmed);
+}
+
+/* 重複・今日・選択（強い順に後ろ） */
+.sc-cell-conflict {
+  background: var(--sc-conflict-bg);
+  border: 2px solid var(--sc-conflict);
+}
+.sc-cell-conflict::after { background: var(--sc-conflict); }
+.sc-cell-today { outline: 2px solid var(--sc-primary); outline-offset: -1px; }
+.sc-cell-selected { box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.45); }
 
 .sc-cell-head { display: flex; align-items: center; gap: 4px; }
 
-.sc-daynum { font-size: 0.92rem; font-weight: 700; line-height: 1.2; }
+.sc-daynum { font-size: 0.94rem; font-weight: 800; line-height: 1.2; }
 .sc-daynum-sun { color: var(--sc-sun); }
 .sc-daynum-sat { color: var(--sc-sat); }
 .sc-daynum-holiday { color: var(--sc-sun); }
 
-.sc-cell-marks { margin-left: auto; display: flex; gap: 2px; align-items: center; font-size: 0.72rem; }
+.sc-cell-marks { margin-left: auto; display: flex; gap: 3px; align-items: center; font-size: 0.72rem; }
 .sc-mark-available { color: var(--sc-available); font-weight: 800; }
 .sc-mark-off { color: var(--sc-off); font-weight: 800; }
 .sc-mark-conflict { color: var(--sc-conflict); font-weight: 800; }
+
+/* カレンダー右上の「確定 / 仮」バッジ */
+.sc-mark-confirmed {
+  background: var(--sc-confirmed);
+  color: #fff;
+  font-size: 0.6rem;
+  font-weight: 800;
+  border-radius: 4px;
+  padding: 1px 5px;
+  letter-spacing: 0.04em;
+}
+.sc-mark-tentative {
+  background: #fff;
+  color: var(--sc-tentative);
+  border: 1px solid var(--sc-tentative);
+  font-size: 0.6rem;
+  font-weight: 800;
+  border-radius: 4px;
+  padding: 0 4px;
+}
 
 .sc-holiday-name {
   font-size: 0.6rem;
@@ -299,8 +368,8 @@
 .sc-cell-jobs { display: flex; flex-direction: column; gap: 2px; margin-top: 1px; }
 
 .sc-job-pill {
-  font-size: 0.62rem;
-  line-height: 1.35;
+  font-size: 0.64rem;
+  line-height: 1.4;
   border-radius: 4px;
   padding: 1px 4px;
   overflow: hidden;
@@ -309,18 +378,32 @@
   border-left: 3px solid transparent;
 }
 .sc-job-pill-confirmed {
-  background: rgba(56, 189, 248, 0.18);
-  border-left-color: var(--sc-confirmed);
-  color: #bae6fd;
+  background: var(--sc-confirmed);
+  border-left-color: var(--sc-confirmed-strong);
+  color: #fff;
+  font-weight: 700;
 }
 .sc-job-pill-tentative {
-  background: rgba(245, 158, 11, 0.18);
-  border-left-color: var(--sc-tentative);
-  color: #fde68a;
+  background: #fff;
+  border: 1px dashed var(--sc-tentative);
+  border-left: 3px solid var(--sc-tentative);
+  color: #92400e;
+  font-weight: 600;
 }
-.sc-job-pill-conflict { box-shadow: inset 0 0 0 1px var(--sc-conflict); }
+.sc-job-pill-conflict { box-shadow: 0 0 0 1.5px var(--sc-conflict); }
 
-.sc-job-more { font-size: 0.6rem; color: var(--sc-muted); }
+.sc-pill-mark {
+  background: var(--sc-tentative);
+  color: #fff;
+  border-radius: 3px;
+  padding: 0 3px;
+  margin-right: 2px;
+  font-size: 0.56rem;
+  font-weight: 800;
+}
+
+.sc-job-more { font-size: 0.6rem; color: var(--sc-muted); font-weight: 600; }
+.sc-more-mobile { display: none; }
 
 /* ---- 凡例・集計 ---- */
 .sc-legend {
@@ -343,13 +426,13 @@
   padding: 0 5px;
   border-radius: 5px;
   font-size: 0.66rem;
-  font-weight: 700;
+  font-weight: 800;
 }
-.sc-chip-available { background: rgba(34, 197, 94, 0.25); color: var(--sc-available); }
-.sc-chip-off { background: rgba(244, 63, 94, 0.25); color: var(--sc-off); }
-.sc-chip-confirmed { background: rgba(56, 189, 248, 0.22); color: var(--sc-confirmed); }
-.sc-chip-tentative { background: rgba(245, 158, 11, 0.22); color: var(--sc-tentative); }
-.sc-chip-conflict { background: rgba(239, 68, 68, 0.25); color: var(--sc-conflict); }
+.sc-chip-available { background: var(--sc-available-bg); color: var(--sc-available); border: 1px solid #b6e6c8; }
+.sc-chip-off { background: var(--sc-off-bg); color: var(--sc-off); border: 1px solid #f6c3ce; }
+.sc-chip-confirmed { background: var(--sc-confirmed); color: #fff; }
+.sc-chip-tentative { background: #fff; color: var(--sc-tentative); border: 1px dashed var(--sc-tentative); }
+.sc-chip-conflict { background: var(--sc-conflict-bg); color: var(--sc-conflict); border: 1px solid var(--sc-conflict); }
 
 .sc-stats {
   display: flex;
@@ -363,11 +446,20 @@
   border: 1px solid var(--sc-border);
   border-radius: 9px;
   padding: 7px 12px;
-  min-width: 96px;
+  min-width: 104px;
+  box-shadow: var(--sc-shadow);
 }
-.sc-stat-label { display: block; font-size: 0.68rem; color: var(--sc-muted); }
-.sc-stat-value { font-size: 1.1rem; font-weight: 800; }
+.sc-stat-label { display: block; font-size: 0.68rem; color: var(--sc-muted); font-weight: 600; }
+.sc-stat-value { font-size: 1.15rem; font-weight: 800; }
 .sc-stat-unit { font-size: 0.7rem; font-weight: 600; color: var(--sc-muted); margin-left: 2px; }
+
+.sc-stat-confirmed {
+  background: var(--sc-confirmed-bg);
+  border-color: var(--sc-confirmed);
+}
+.sc-stat-confirmed .sc-stat-value { color: var(--sc-confirmed-strong); }
+.sc-stat-tentative { background: var(--sc-tentative-bg); border-color: var(--sc-tentative); }
+.sc-stat-tentative .sc-stat-value { color: #92400e; }
 
 /* ---- サイドパネル ---- */
 .sc-side { position: sticky; top: 58px; }
@@ -379,6 +471,7 @@
   padding: 12px;
   max-height: calc(100vh - 74px);
   overflow-y: auto;
+  box-shadow: var(--sc-shadow);
 }
 
 .sc-side-empty { color: var(--sc-muted); font-size: 0.84rem; text-align: center; padding: 24px 0; }
@@ -398,7 +491,7 @@
 
 .sc-wish-btn {
   flex: 1;
-  background: transparent;
+  background: #fff;
   border: 1px solid var(--sc-border);
   border-radius: 8px;
   color: var(--sc-muted);
@@ -409,53 +502,87 @@
   cursor: pointer;
   transition: all 0.15s;
 }
-.sc-wish-btn:hover { background: rgba(255, 255, 255, 0.06); }
+.sc-wish-btn:hover { background: var(--sc-surface-2); }
 .sc-wish-btn.active-available {
-  background: rgba(34, 197, 94, 0.2);
+  background: var(--sc-available-bg);
   border-color: var(--sc-available);
-  color: var(--sc-available);
+  color: #15803d;
 }
 .sc-wish-btn.active-off {
-  background: rgba(244, 63, 94, 0.2);
+  background: var(--sc-off-bg);
   border-color: var(--sc-off);
-  color: var(--sc-off);
+  color: #be123c;
 }
 .sc-wish-btn.active-none {
-  background: rgba(255, 255, 255, 0.1);
+  background: var(--sc-surface-2);
   border-color: var(--sc-muted);
   color: var(--sc-text);
 }
 
 /* 予定カード */
 .sc-job-card {
-  background: var(--sc-surface-2);
+  background: #fff;
   border: 1px solid var(--sc-border);
-  border-left: 4px solid var(--sc-confirmed);
+  border-left: 5px solid var(--sc-confirmed);
   border-radius: 8px;
-  padding: 7px 9px;
+  padding: 8px 10px;
   margin-bottom: 6px;
 }
-.sc-job-card-tentative { border-left-color: var(--sc-tentative); }
-.sc-job-card-conflict { border-color: var(--sc-conflict); background: rgba(239, 68, 68, 0.1); }
+.sc-job-card-confirmed {
+  background: var(--sc-confirmed-bg);
+  border-color: #b7cdfb;
+  border-left-color: var(--sc-confirmed);
+}
+.sc-job-card-tentative {
+  background: var(--sc-tentative-bg);
+  border: 1px dashed var(--sc-tentative);
+  border-left: 5px solid var(--sc-tentative);
+}
+.sc-job-card-conflict { border-color: var(--sc-conflict); background: var(--sc-conflict-bg); }
 
 .sc-job-card-top { display: flex; align-items: baseline; gap: 6px; flex-wrap: wrap; }
-.sc-job-time { font-size: 0.8rem; font-weight: 800; color: var(--sc-confirmed); font-variant-numeric: tabular-nums; }
-.sc-job-card-tentative .sc-job-time { color: var(--sc-tentative); }
-.sc-job-title { font-size: 0.88rem; font-weight: 700; word-break: break-word; }
-.sc-job-status {
-  font-size: 0.62rem;
-  font-weight: 700;
-  border-radius: 4px;
-  padding: 1px 5px;
-  background: rgba(56, 189, 248, 0.2);
-  color: var(--sc-confirmed);
+.sc-job-time {
+  font-size: 0.86rem;
+  font-weight: 800;
+  color: var(--sc-confirmed-strong);
+  font-variant-numeric: tabular-nums;
 }
-.sc-job-card-tentative .sc-job-status { background: rgba(245, 158, 11, 0.2); color: var(--sc-tentative); }
-.sc-job-meta { font-size: 0.72rem; color: var(--sc-muted); word-break: break-word; }
-.sc-job-warn { font-size: 0.72rem; color: #fca5a5; margin-top: 3px; font-weight: 600; }
-.sc-job-actions { display: flex; gap: 5px; margin-top: 5px; }
+.sc-job-card-tentative .sc-job-time { color: #92400e; }
+.sc-job-title { font-size: 0.9rem; font-weight: 700; word-break: break-word; }
+
+.sc-job-status {
+  font-size: 0.66rem;
+  font-weight: 800;
+  border-radius: 4px;
+  padding: 1px 6px;
+  background: var(--sc-confirmed);
+  color: #fff;
+  letter-spacing: 0.04em;
+}
+.sc-job-card-tentative .sc-job-status {
+  background: #fff;
+  color: var(--sc-tentative);
+  border: 1px solid var(--sc-tentative);
+}
+
+.sc-job-meta { font-size: 0.74rem; color: var(--sc-muted); word-break: break-word; }
+.sc-job-warn { font-size: 0.74rem; color: #b91c1c; margin-top: 3px; font-weight: 700; }
+.sc-job-actions { display: flex; gap: 5px; margin-top: 6px; flex-wrap: wrap; }
 
 .sc-empty-note { font-size: 0.78rem; color: var(--sc-muted); }
+
+/* 業務内容タグ */
+.sc-worktype-tag {
+  display: inline-block;
+  background: #ede9fe;
+  color: #5b21b6;
+  border: 1px solid #d6cdfa;
+  border-radius: 999px;
+  padding: 0 8px;
+  font-size: 0.7rem;
+  font-weight: 700;
+  white-space: nowrap;
+}
 
 /* フォーム */
 .sc-form { display: flex; flex-direction: column; gap: 8px; }
@@ -468,14 +595,20 @@
   line-height: 1.5;
 }
 .sc-alert-danger {
-  background: rgba(239, 68, 68, 0.14);
+  background: var(--sc-conflict-bg);
   border: 1px solid var(--sc-conflict);
-  color: #fecaca;
+  color: #991b1b;
 }
 .sc-alert-warn {
-  background: rgba(245, 158, 11, 0.14);
+  background: var(--sc-tentative-bg);
   border: 1px solid var(--sc-tentative);
-  color: #fde68a;
+  color: #92400e;
+}
+.sc-alert-confirm {
+  background: var(--sc-confirmed-bg);
+  border: 1px solid var(--sc-confirmed);
+  color: var(--sc-confirmed-strong);
+  margin-bottom: 8px;
 }
 .sc-alert-title { font-weight: 800; display: block; margin-bottom: 2px; }
 .sc-alert ul { margin: 3px 0 0 1.1em; }
@@ -484,12 +617,28 @@
 .sc-form-actions .sc-btn { flex: 1; }
 
 /* ---- セクション ---- */
-.sc-section { border-top: 1px solid var(--sc-border); }
+.sc-section { border-top: 1px solid var(--sc-border); background: var(--sc-surface); }
+.sc-section:nth-of-type(even) { background: var(--sc-bg); }
 .sc-section-inner { max-width: 1180px; margin: 0 auto; padding: 16px; }
 
-.sc-section-head { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; }
+.sc-section-head { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; flex-wrap: wrap; }
 .sc-section-title { font-size: 1rem; font-weight: 800; }
-.sc-section-count { font-size: 0.78rem; color: var(--sc-muted); }
+.sc-section-count { font-size: 0.78rem; color: var(--sc-muted); font-weight: 600; }
+
+.sc-filter-tabs { display: flex; gap: 4px; margin-left: auto; }
+.sc-filter-tab {
+  background: #fff;
+  border: 1px solid var(--sc-border);
+  border-radius: 999px;
+  color: var(--sc-muted);
+  padding: 4px 12px;
+  font-size: 0.76rem;
+  font-weight: 700;
+  font-family: inherit;
+  cursor: pointer;
+}
+.sc-filter-tab:hover { background: var(--sc-surface-2); }
+.sc-filter-tab.active { background: var(--sc-primary); border-color: var(--sc-primary); color: #fff; }
 
 .sc-export-opts {
   display: flex;
@@ -498,11 +647,11 @@
   align-items: flex-end;
   margin-bottom: 10px;
 }
-.sc-export-opts .sc-field { min-width: 190px; }
+.sc-export-opts .sc-field { min-width: 200px; }
 
 .sc-textarea {
   width: 100%;
-  background: #0f0f22;
+  background: #fff;
   border: 1px solid var(--sc-border);
   border-radius: var(--sc-radius);
   color: var(--sc-text);
@@ -523,22 +672,53 @@
   display: flex;
   align-items: baseline;
   gap: 10px;
-  background: var(--sc-surface);
+  background: #fff;
   border: 1px solid var(--sc-border);
-  border-left: 4px solid var(--sc-confirmed);
+  border-left: 5px solid var(--sc-confirmed);
   border-radius: 8px;
-  padding: 7px 10px;
+  padding: 8px 10px;
   font-size: 0.84rem;
   flex-wrap: wrap;
   cursor: pointer;
 }
-.sc-joblist-row:hover { border-color: var(--sc-primary); }
-.sc-joblist-row-tentative { border-left-color: var(--sc-tentative); }
-.sc-joblist-row-conflict { border-color: var(--sc-conflict); }
+.sc-joblist-row:hover { border-color: var(--sc-primary); background: var(--sc-surface-2); }
+.sc-joblist-row-confirmed { background: var(--sc-confirmed-bg); border-color: #b7cdfb; border-left-color: var(--sc-confirmed); }
+.sc-joblist-row-tentative { background: #fff; border: 1px dashed var(--sc-tentative); border-left: 5px solid var(--sc-tentative); }
+.sc-joblist-row-conflict { border-color: var(--sc-conflict); background: var(--sc-conflict-bg); }
+
+.sc-joblist-badge {
+  font-size: 0.68rem;
+  font-weight: 800;
+  border-radius: 4px;
+  padding: 1px 7px;
+  letter-spacing: 0.04em;
+  flex-shrink: 0;
+}
+.sc-badge-confirmed { background: var(--sc-confirmed); color: #fff; }
+.sc-badge-tentative { background: #fff; color: var(--sc-tentative); border: 1px solid var(--sc-tentative); }
+
 .sc-joblist-date { font-weight: 800; min-width: 6.5em; font-variant-numeric: tabular-nums; }
-.sc-joblist-time { color: var(--sc-muted); font-variant-numeric: tabular-nums; min-width: 8.5em; }
-.sc-joblist-title { font-weight: 600; }
+.sc-joblist-time { color: #475569; font-variant-numeric: tabular-nums; min-width: 8.5em; font-weight: 600; }
+.sc-joblist-title { font-weight: 700; }
 .sc-joblist-meta { color: var(--sc-muted); font-size: 0.76rem; }
+.sc-joblist-warn { color: #b91c1c; font-size: 0.76rem; font-weight: 800; }
+
+/* 業務内容別の内訳 */
+.sc-worktype-summary { margin-top: 10px; }
+.sc-worktype-title { font-size: 0.72rem; color: var(--sc-muted); font-weight: 700; margin-bottom: 4px; }
+.sc-worktype-row { display: flex; flex-wrap: wrap; gap: 8px; }
+.sc-worktype-stat {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  background: #fff;
+  border: 1px solid var(--sc-border);
+  border-radius: 999px;
+  padding: 3px 10px 3px 4px;
+  font-size: 0.76rem;
+  font-weight: 700;
+  color: var(--sc-text);
+}
 
 /* 設定 */
 .sc-settings { display: flex; flex-wrap: wrap; gap: 12px; margin-bottom: 12px; }
@@ -559,19 +739,19 @@
   left: 50%;
   bottom: 24px;
   transform: translateX(-50%);
-  background: #111827;
-  border: 1px solid var(--sc-primary);
+  background: #1e293b;
+  color: #fff;
   border-radius: 999px;
   padding: 9px 18px;
   font-size: 0.84rem;
   font-weight: 600;
-  box-shadow: var(--sc-shadow);
+  box-shadow: 0 6px 20px rgba(15, 23, 42, 0.28);
   z-index: 100;
   animation: sc-toast-in 0.18s ease-out;
   max-width: 90vw;
   text-align: center;
 }
-.sc-toast-error { border-color: var(--sc-conflict); color: #fecaca; }
+.sc-toast-error { background: #b91c1c; }
 
 @keyframes sc-toast-in {
   from { opacity: 0; transform: translate(-50%, 10px); }
@@ -591,17 +771,27 @@
   .sc-btn-ghost { padding: 6px 6px; }
   .sc-jump-label { display: none; }
   .sc-jump .sc-input-sm { width: auto; max-width: 108px; }
-  .sc-cell { min-height: 74px; padding: 3px 3px 4px; }
-  .sc-daynum { font-size: 0.82rem; }
+  .sc-cell { min-height: 84px; padding: 3px 3px 5px; }
+  .sc-daynum { font-size: 0.84rem; }
   .sc-holiday-name { display: none; }
-  .sc-job-pill { font-size: 0.56rem; }
+  .sc-cell-marks { gap: 2px; }
+  .sc-mark-confirmed, .sc-mark-tentative { font-size: 0.56rem; padding: 0 3px; }
+  /* 狭い画面では先頭2件までにして、つぶれた文字が並ばないようにする */
+  .sc-job-pill { font-size: 0.55rem; padding: 0 3px; border-left-width: 2px; }
+  .sc-job-pill:nth-child(n+3) { display: none; }
+  .sc-pill-mark { font-size: 0.5rem; padding: 0 2px; }
+  .sc-more-desktop { display: none; }
+  .sc-more-mobile { display: block; font-size: 0.55rem; }
   .sc-calendar, .sc-weekdays { gap: 2px; }
   .sc-form-row { grid-template-columns: 1fr; }
   .sc-joblist-date { min-width: 5.5em; }
+  .sc-filter-tabs { margin-left: 0; width: 100%; }
+  .sc-filter-tab { flex: 1; }
 }
 
 @media print {
-  .sc-body { background: #fff; color: #000; }
+  .sc-body { background: #fff; }
   .sc-monthnav, .sc-toolbar, .sc-side, .sc-export-actions, .sc-data-actions, .sc-help { display: none; }
-  .sc-cell { border-color: #999; min-height: 80px; }
+  .sc-cell { min-height: 80px; }
+  .sc-cell-confirmed { background: #dce7ff !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
 }
