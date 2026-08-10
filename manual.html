@@ -9,7 +9,7 @@
   <link rel="manifest" href="manifest.webmanifest">
   <link rel="icon" href="icon.svg" type="image/svg+xml">
   <link rel="apple-touch-icon" href="icon-192.png">
-  <link rel="stylesheet" href="manual.css?v=66">
+  <link rel="stylesheet" href="manual.css?v=67">
 </head>
 <body class="tm-body">
 
@@ -202,7 +202,9 @@
         <span class="tm-trip-total">合計：<b id="teTotal">0</b> 円</span>
       </div>
       <p id="teMsg" class="tm-sync-status" aria-live="polite"></p>
-      <div class="tm-dialog-actions">
+      <div class="tm-dialog-actions tm-trip-editactions">
+        <button type="button" id="teDeleteBtn" class="tm-btn tm-btn-danger-outline">&#128465; この記録を削除</button>
+        <span class="tm-trip-editactions-sp"></span>
         <button type="button" id="teCancelBtn2" class="tm-btn tm-btn-outline">キャンセル</button>
         <button type="button" id="teSaveBtn" class="tm-btn tm-btn-primary">&#10003; 更新する</button>
       </div>
@@ -902,6 +904,6 @@
   </dialog>
 
   <script src="vendor/xlsx.full.min.js"></script>
-  <script src="manual.js?v=78"></script>
+  <script src="manual.js?v=79"></script>
 </body>
 </html>

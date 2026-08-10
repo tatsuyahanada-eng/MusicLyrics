@@ -1522,6 +1522,17 @@ textarea.tm-ff-input { width: 100%; resize: vertical; min-height: 88px; }
 .tm-trip-table tfoot td { font-weight: bold; border-top: 2px solid var(--tm-line-strong); }
 .tm-trip-table .tm-trip-total-cell { color: #22c55e; }
 .tm-trip-empty { color: var(--tm-muted); padding: 16px 4px; font-size: 13px; }
+/* 一覧の日付：クリックで編集できることが分かる見た目 */
+.tm-trip-datebtn {
+  background: none; border: none; padding: 0; cursor: pointer;
+  font: inherit; color: var(--tm-green);
+  text-decoration: underline; text-underline-offset: 3px;
+  text-decoration-color: rgba(57, 255, 20, 0.5);
+}
+.tm-trip-datebtn:hover { color: #b8ff8f; text-decoration-color: var(--tm-green); }
+/* 編集ポップアップの操作列（削除は左、更新は右） */
+.tm-trip-editactions { flex-wrap: wrap; }
+.tm-trip-editactions-sp { flex: 1 1 auto; }
 .tm-trip-ops { display: flex; gap: 6px; }
 @media (max-width: 560px) { .tm-trip-grid { grid-template-columns: 1fr; } }
 

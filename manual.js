@@ -3129,6 +3129,18 @@
     { const c = $('#teCancelBtn'); if (c) c.addEventListener('click', () => tripEditDialog.close()); }
     { const c = $('#teCancelBtn2'); if (c) c.addEventListener('click', () => tripEditDialog.close()); }
     { const s = $('#teSaveBtn'); if (s) s.addEventListener('click', teSave); }
+    { const d = $('#teDeleteBtn'); if (d) d.addEventListener('click', () => {
+      const id = tripEditingId;
+      if (!id) return;
+      askConfirm('この交通費の記録を削除しますか？', async () => {
+        try {
+          await apiCall('trip_delete', { method: 'POST', body: { id } });
+          tripEditingId = '';
+          tripEditDialog.close();
+          tripSearch(); // 履歴ポップアップの一覧を更新
+        } catch (ex) { teMsg('削除に失敗：' + ex.message, true); }
+      }, '削除する');
+    }); }
     { const b = $('#teCompanyBtn'); if (b) b.addEventListener('click', () => { if ($('#teStart')) $('#teStart').value = travelOrigin; }); }
     { const b = $('#teAddDestBtn'); if (b) b.addEventListener('click', () => tripAppendDest('', teDestBox())); }
     { const b = $('#teMapBtn'); if (b) b.addEventListener('click', () => {
@@ -3194,7 +3206,7 @@
       const km = Number(r.one_way_km) || 0;
       const eff = km * (r.round_trip ? 2 : 1);
       return `<tr>
-        <td>${esc(r.trip_date || '')}</td>
+        <td><button class="tm-trip-datebtn" data-tedit="${esc(r.id)}" type="button" title="クリックで編集">${esc(r.trip_date || '')}</button></td>
         ${isAdmin ? `<td>${esc(r.display_name || r.username || '')}</td>` : ''}
         <td>${esc(r.case_name || '')}</td>
         <td>${esc(tripRoute(r))}</td>
