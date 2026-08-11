@@ -446,11 +446,15 @@ if ($action === 'config') {
   $invOn = false; // 在庫管理の表示ON/OFF（管理者が切替・全端末共有）。既定はOFF（非表示）。
   $tripOn = true; // 交通費精算の表示ON/OFF（管理者が切替・全端末共有）。既定はON。
   $tripPos = 999; // TOPの大項目一覧での「交通費精算」の並び順（大きいほど後ろ）
+  $logoOn = true; // ヘッダーロゴの表示ON/OFF（管理者が切替・全端末共有）。既定はON。
+  $logoUrl = 'logo-default.png'; // ヘッダーロゴの画像URL。既定は同梱のロゴ画像。
   if ($connected) {
     try { $aiOn = (cbc_setting_get(cbc_pdo(), 'ai_enabled', '1') !== '0'); } catch (Throwable $e) {}
     try { $invOn = (cbc_setting_get(cbc_pdo(), 'inv_enabled', '0') === '1'); } catch (Throwable $e) {}
     try { $tripOn = (cbc_setting_get(cbc_pdo(), 'trip_enabled', '1') !== '0'); } catch (Throwable $e) {}
     try { $tripPos = (int)cbc_setting_get(cbc_pdo(), 'trip_pos', '999'); } catch (Throwable $e) {}
+    try { $logoOn = (cbc_setting_get(cbc_pdo(), 'logo_enabled', '1') !== '0'); } catch (Throwable $e) {}
+    try { $logoUrl = cbc_setting_get(cbc_pdo(), 'logo_url', 'logo-default.png'); } catch (Throwable $e) {}
   }
   ok(array(
     'dbConnected' => $connected,
@@ -462,6 +466,8 @@ if ($action === 'config') {
     'invOn'       => $invOn,
     'tripOn'      => $tripOn,
     'tripPos'     => $tripPos,
+    'logoOn'      => $logoOn,
+    'logoUrl'     => $logoUrl,
     'uploads'     => true,
     'driver'      => defined('DB_DRIVER') ? DB_DRIVER : 'mysql',
     'error'       => $connected ? null : $err,
@@ -955,6 +961,26 @@ switch ($action) {
     $on = !empty($d['on']);
     cbc_setting_set($pdo, 'inv_enabled', $on ? '1' : '0');
     ok(array('invOn' => $on));
+  }
+
+  case 'logo_set_enabled': {
+    // ヘッダーロゴの表示ON/OFFを切り替え（全端末共有・管理者のみ）
+    require_admin_session($pdo);
+    $d = body_json();
+    $on = !empty($d['on']);
+    cbc_setting_set($pdo, 'logo_enabled', $on ? '1' : '0');
+    ok(array('logoOn' => $on));
+  }
+
+  case 'logo_set_url': {
+    // ヘッダーロゴの画像を入れ替え（事前に action=upload でアップロード済みのURLを指定。全端末共有・管理者のみ）
+    require_admin_session($pdo);
+    $d = body_json();
+    $url = trim((string)(isset($d['url']) ? $d['url'] : ''));
+    if ($url === '') fail('url は必須です');
+    $url = mb_substr($url, 0, 500);
+    cbc_setting_set($pdo, 'logo_url', $url);
+    ok(array('logoUrl' => $url));
   }
 
   case 'ai_summarize': {

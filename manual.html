@@ -9,17 +9,20 @@
   <link rel="manifest" href="manifest.webmanifest">
   <link rel="icon" href="icon.svg" type="image/svg+xml">
   <link rel="apple-touch-icon" href="icon-192.png">
-  <link rel="stylesheet" href="manual.css?v=73">
+  <link rel="stylesheet" href="manual.css?v=74">
 </head>
 <body class="tm-body">
 
   <!-- ===== Header (HUD) ===== -->
   <header class="tm-header">
     <div class="tm-header-brand">
-      <span class="tm-header-logo">CASE&#8202;BY&#8202;CASE</span>
-      <span class="tm-header-sub">"CASE&#215;GUIDE" 作業ナビゲーション・システム
-        <span id="connChip" class="tm-connchip" title="データの共有状態"></span></span>
-      <span id="sessionName" class="tm-sessionname" hidden title="ログイン中のユーザー"></span>
+      <img id="brandLogo" class="tm-header-logoimg" src="" alt="ロゴ" hidden>
+      <div class="tm-header-brandtext">
+        <span class="tm-header-logo">CASE&#8202;BY&#8202;CASE</span>
+        <span class="tm-header-sub">"CASE&#215;GUIDE" 作業ナビゲーション・システム
+          <span id="connChip" class="tm-connchip" title="データの共有状態"></span></span>
+        <span id="sessionName" class="tm-sessionname" hidden title="ログイン中のユーザー"></span>
+      </div>
     </div>
     <nav class="tm-header-nav">
       <button id="searchBtn" class="tm-navbtn tm-searchbtn" type="button" title="キーワードで検索">
@@ -532,6 +535,23 @@
           <span id="tripToggleHint" class="tm-ai-setting-hint">「◯◯オンサイト」の一覧に入口を表示します。オンサイトの大項目が無いときは、大項目一覧（TOP）にタイルを表示します。</span>
         </div>
 
+        <!-- ===== ヘッダーロゴのON/OFF・画像入れ替え（全端末共有・管理者のみ） ===== -->
+        <div class="tm-ai-setting">
+          <label class="tm-ai-toggle">
+            <input type="checkbox" id="logoToggle">
+            <span class="tm-ai-switch" aria-hidden="true"><span class="tm-ai-knob"></span></span>
+            <span id="logoState" class="tm-ai-state">OFF</span>
+            <span class="tm-ai-toggle-label">&#127970; ヘッダーにロゴ画像を表示する</span>
+          </label>
+          <span class="tm-ai-setting-hint">タイトル「CASE BY CASE」の左に、小さくロゴを表示します。</span>
+          <div class="tm-logo-row">
+            <img id="logoPreview" class="tm-logo-preview" src="" alt="" hidden>
+            <button id="logoChangeBtn" class="tm-btn tm-btn-outline tm-btn-sm" type="button">&#128247; ロゴ画像を選ぶ（入れ替え）</button>
+            <input id="logoFile" type="file" accept="image/png,image/jpeg,image/gif,image/webp" hidden>
+          </div>
+          <span id="logoMsg" class="tm-ai-setting-hint" aria-live="polite"></span>
+        </div>
+
         <!-- ===== Data sync (server DB) ===== -->
         <details id="syncPanel" class="tm-sync">
           <summary class="tm-sync-summary">
@@ -1032,6 +1052,6 @@
   </dialog>
 
   <script src="vendor/xlsx.full.min.js"></script>
-  <script src="manual.js?v=85"></script>
+  <script src="manual.js?v=86"></script>
 </body>
 </html>

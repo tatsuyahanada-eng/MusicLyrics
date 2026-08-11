@@ -65,7 +65,9 @@
   background: linear-gradient(180deg, rgba(9, 24, 36, 0.9), rgba(9, 24, 36, 0.4));
   backdrop-filter: blur(4px);
 }
-.tm-header-brand { display: flex; flex-direction: column; gap: 2px; }
+.tm-header-brand { display: flex; flex-direction: row; align-items: center; gap: 10px; }
+.tm-header-brandtext { display: flex; flex-direction: column; gap: 2px; }
+.tm-header-logoimg { height: clamp(28px, 6vw, 40px); width: auto; max-width: 140px; object-fit: contain; flex: 0 0 auto; }
 .tm-header-logo {
   font-family: var(--tm-mono);
   font-weight: 700;
@@ -940,6 +942,12 @@ body.tm-dragging .tm-sortrow { cursor: grabbing; }
 .tm-ai-state.is-on { color: #06210f; background: #22c55e; border-color: #22c55e; }
 .tm-ai-toggle-label { font-size: 13px; color: var(--tm-text); font-weight: 700; }
 .tm-ai-setting-hint { font-size: 11px; color: var(--tm-muted); flex-basis: 100%; line-height: 1.6; }
+/* ヘッダーロゴ設定：プレビュー＋画像選択 */
+.tm-logo-row { display: flex; align-items: center; gap: 10px; flex-basis: 100%; margin-top: 2px; }
+.tm-logo-preview {
+  height: 36px; width: auto; max-width: 120px; object-fit: contain;
+  padding: 4px 8px; border-radius: 6px; background: var(--tm-panel-solid); border: 1px solid var(--tm-line);
+}
 
 /* ---------- Buttons ---------- */
 .tm-btn {

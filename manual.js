@@ -784,6 +784,57 @@
     updateSessionUI();
   }); }
 
+  /* ---------- ヘッダーロゴ（表示ON/OFF・画像の入れ替え。全端末共有・管理者のみ） ---------- */
+  // ヘッダー左上の実際の画像表示に反映する
+  function applyBrandLogo() {
+    const img = $('#brandLogo'); if (!img) return;
+    if (logoOn && logoUrl) { img.src = logoUrl; img.hidden = false; } else { img.hidden = true; }
+  }
+  // 修正画面のロゴON/OFFトグルと、現在の画像プレビューの表示を更新
+  function updateLogoToggleUI() {
+    const chk = $('#logoToggle'), state = $('#logoState');
+    if (chk) chk.checked = logoOn;
+    if (state) { state.textContent = logoOn ? 'ON' : 'OFF'; state.classList.toggle('is-on', logoOn); }
+    const pv = $('#logoPreview');
+    if (pv) { if (logoUrl) { pv.src = logoUrl; pv.hidden = false; } else { pv.hidden = true; } }
+  }
+  { const chk = $('#logoToggle'); if (chk) chk.addEventListener('change', async () => {
+    const want = chk.checked;
+    logoOn = want;
+    try {
+      await apiCall('logo_set_enabled', { method: 'POST', body: { on: want } });
+      applyBrandLogo();
+    } catch (e) {
+      logoOn = !want; chk.checked = logoOn;
+      const m = $('#logoMsg'); if (m) { m.textContent = 'ロゴ表示設定の保存に失敗：' + e.message; m.style.color = 'var(--tm-danger)'; }
+    }
+    updateLogoToggleUI();
+  }); }
+  { const b = $('#logoChangeBtn'); const f = $('#logoFile'); if (b && f) b.addEventListener('click', () => f.click()); }
+  { const f = $('#logoFile'); if (f) f.addEventListener('change', async () => {
+    const file = f.files[0]; if (!file) return;
+    const m = $('#logoMsg');
+    if (m) { m.style.color = ''; m.textContent = 'アップロード中…'; }
+    try {
+      const fd = new FormData();
+      fd.append('file', file);
+      const headers = {};
+      const tok = apiToken(); if (tok) headers['X-Api-Token'] = tok;
+      const res = await fetch(`${API}?action=upload`, { method: 'POST', headers, body: fd });
+      const data = await res.json();
+      if (!res.ok || data.ok === false) throw new Error(data.error || ('HTTP ' + res.status));
+      if (!data.is_image) throw new Error('画像ファイルを選んでください');
+      await apiCall('logo_set_url', { method: 'POST', body: { url: data.url } });
+      logoUrl = data.url;
+      logoOn = true; // 画像を選んだら、そのまま表示ONにする
+      applyBrandLogo();
+      updateLogoToggleUI();
+      if (m) m.textContent = 'ロゴ画像を切り替えました';
+    } catch (e) {
+      if (m) { m.style.color = 'var(--tm-danger)'; m.textContent = 'アップロードに失敗：' + e.message; }
+    } finally { f.value = ''; }
+  }); }
+
   if (aiSummaryDialog) {
     aiSummaryDialog.addEventListener('close', () => { aiOpen = false; syncTrap(); });
     const cl = $('#aiSummaryClose'); if (cl) cl.addEventListener('click', () => aiSummaryDialog.close());
@@ -2530,6 +2581,8 @@
   let tripPos = 999;             // TOPの大項目一覧での「交通費精算」タイルの並び順
   let hasMaps = false;           // サーバーに Google マップのキーが設定済みか（交通費の距離計算）
   let travelOrigin = '東京都台東区台東2-1-1'; // 交通費の起点（サーバー設定で上書き）
+  let logoOn = false;            // 管理者による ヘッダーロゴ表示ON/OFF（全端末共有）
+  let logoUrl = '';              // ヘッダーロゴの画像URL（全端末共有）
   let dbError = null;
   let authRequired = false;      // Basic認証等でログインが必要（401）→ 中身を出さない
 
@@ -2777,10 +2830,14 @@
       if (cfg.tripPos != null) tripPos = parseInt(cfg.tripPos, 10) || 0;
       hasMaps = !!cfg.hasMaps;                // Google マップのキー有無（交通費の距離計算）
       if (cfg.travelOrigin) travelOrigin = cfg.travelOrigin;
+      logoOn = !!cfg.logoOn;                  // ヘッダーロゴの表示ON/OFF（既定OFF）
+      logoUrl = cfg.logoUrl || '';            // ヘッダーロゴの画像URL
       dbError = cfg.error || null;
       updateAiToggleUI();
       updateInvToggleUI();
       updateTripToggleUI();
+      updateLogoToggleUI();
+      applyBrandLogo();
       // DB接続が一時的な「接続数オーバー(1040)」で失敗しているだけなら、
       // 少し待って数回だけ自動リトライする（アクセス集中時に怖いエラー画面を出さない）。
       if (!dbConnected && dbError && /too many connections|max_connections|max_user_connections/i.test(dbError) && retry < 3) {
