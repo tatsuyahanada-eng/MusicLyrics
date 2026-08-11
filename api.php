@@ -247,8 +247,9 @@ function cbc_trip_costs($d) {
   if ($other < 0) $other = 0;
 
   if ($mode === 'train') {
-    // 電車は距離・ガソリン代・高速代・駐車場代を使わない
-    $oneWay = 0; $round = 0; $gas = 0; $toll = 0; $park = 0;
+    // 電車は距離・ガソリン代・高速代・駐車場代を使わない。
+    // round（往復）は、電車では「運賃を往復ぶんで入力したか」のフラグとして、そのまま保持する。
+    $oneWay = 0; $gas = 0; $toll = 0; $park = 0;
     $tollLines = array(); $parkLines = array();
   } else {
     // 車は運賃を使わない

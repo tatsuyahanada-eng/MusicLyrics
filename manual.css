@@ -1512,6 +1512,11 @@ textarea.tm-ff-input { width: 100%; resize: vertical; min-height: 88px; }
 .tm-trip-costblock { margin-top: 2px; }
 .tm-trip-costsum { margin-left: 10px; font-size: 11px; color: var(--tm-muted); font-weight: normal; }
 .tm-trip-costsum b { color: var(--tm-green); font-family: var(--tm-mono); }
+.tm-trip-fareroundlbl {
+  display: inline-flex; align-items: center; gap: 5px; margin-left: 10px;
+  font-size: 12px; font-weight: normal; color: var(--tm-text); cursor: pointer;
+}
+.tm-trip-fareroundlbl input { width: auto; accent-color: var(--tm-green); }
 .tm-trip-costrows { display: flex; flex-direction: column; gap: 6px; margin-bottom: 8px; }
 .tm-trip-costrow { display: flex; gap: 8px; align-items: center; }
 .tm-trip-costrow .tm-trip-cost-amt { width: 110px; flex: 0 0 auto; text-align: right; padding: 6px 8px; }

@@ -3042,6 +3042,8 @@
     ai.value = (amount === 0 || amount) ? amount : '';
     ni.value = note || '';
     ni.placeholder = c.ph;
+    // 運賃のメモ欄は、出発駅・到着駅から自動入力する対象にする（すでに値がある行＝読み込んだ記録は対象外）
+    if (c.key === 'fare') ni.dataset.auto = note ? '0' : '1';
     box.appendChild(row);
     costUpdateRows(prefix, c);
   }
@@ -3092,7 +3094,11 @@
     TRIP_COSTS.forEach((c) => {
       const box = costBox(prefix, c);
       if (box) {
-        box.addEventListener('input', recalc);
+        box.addEventListener('input', (e) => {
+          // 運賃のメモを手で書き換えたら、以後は経路の自動入力の対象から外す
+          if (c.key === 'fare' && e.target.classList.contains('tm-trip-cost-note')) e.target.dataset.auto = '0';
+          recalc();
+        });
         box.addEventListener('click', (e) => {
           const del = e.target.closest('.tm-trip-destdel');
           if (del && box.children.length > 1) { del.closest('.tm-trip-costrow').remove(); costUpdateRows(prefix, c); recalc(); }
@@ -3132,6 +3138,40 @@
     if (g) g.textContent = gas.toLocaleString();
     if (f) f.textContent = costSum('trip', COST_FARE).toLocaleString();
     if (t) t.textContent = total.toLocaleString();
+  }
+  /* ---- 電車の運賃：出発駅・到着駅から自動で経路メモを入れ、往復チェックで金額を自動計算 ---- */
+  // prefix は 'trip'（登録フォーム）/ 'te'（編集ポップアップ）
+  function tripFareRouteText(prefix) {
+    const start = tstr(prefix + 'StartSt').trim();
+    const stations = tripGetDests($('#' + prefix + 'Stations'));
+    return [start].concat(stations).filter(Boolean).join('→');
+  }
+  // 運賃1行目のメモ欄に、出発駅→到着駅の経路を自動で入れる（手で書き換えた後は上書きしない）
+  function tripFareNoteSync(prefix) {
+    const box = costBox(prefix, COST_FARE); if (!box) return;
+    const row = box.firstElementChild; if (!row) return;
+    const note = row.querySelector('.tm-trip-cost-note'); if (!note || note.dataset.auto === '0') return;
+    let text = tripFareRouteText(prefix);
+    if (text && tchk(prefix + 'FareRound')) text += ' 往復';
+    note.value = text;
+    note.dataset.auto = '1';
+  }
+  // 「往復」チェックのON/OFFで、運賃1行目の金額を片道の2倍／片道に自動で入れ替える
+  function tripFareRoundToggle(prefix) {
+    const box = costBox(prefix, COST_FARE); if (!box) return;
+    const row = box.firstElementChild; if (!row) return;
+    const amt = row.querySelector('.tm-trip-cost-amt'); if (!amt) return;
+    const cur = parseInt(amt.value, 10) || 0;
+    if (tchk(prefix + 'FareRound')) {
+      amt.dataset.oneway = String(cur); // 元の片道運賃を覚えておく（チェックを外したときに戻すため）
+      if (cur > 0) amt.value = cur * 2;
+    } else {
+      const oneway = (amt.dataset.oneway != null) ? parseInt(amt.dataset.oneway, 10) : Math.round(cur / 2);
+      amt.value = oneway || '';
+      delete amt.dataset.oneway;
+    }
+    tripFareNoteSync(prefix);
+    if (prefix === 'trip') tripRecalc(); else teRecalc();
   }
   function todayISO() { const d = new Date(); return new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().slice(0, 10); }
   // 手入力の日付を YYYY-MM-DD に正規化（2026/8/1・2026.08.01・2026年8月1日 なども受け付ける）
@@ -3192,6 +3232,7 @@
     if ($('#tripRate')) $('#tripRate').value = '18';
     TRIP_COSTS.forEach((c) => costSetRows('trip', c, []));
     if ($('#tripRound')) $('#tripRound').checked = true;
+    if ($('#tripFareRound')) $('#tripFareRound').checked = false;
     const sb = $('#tripSaveBtn'); if (sb) sb.innerHTML = '&#43; この内容で登録';
     tripRecalc(); tripMsg('');
   }
@@ -3287,7 +3328,7 @@
       origin: (train ? tstr('tripStartSt') : tstr('tripStart')).trim(),
       destination: dests.join('\n'),
       one_way_km: train ? 0 : tval('tripKm'),
-      round_trip: (!train && tchk('tripRound')) ? 1 : 0,
+      round_trip: train ? (tchk('tripFareRound') ? 1 : 0) : (tchk('tripRound') ? 1 : 0),
       gas_rate: Math.round(tval('tripRate')),
       fare_items: train ? costGetRows('trip', COST_FARE) : [],
       toll_items: train ? [] : costGetRows('trip', COST_TOLL),
@@ -3338,7 +3379,8 @@
     tripSetDests(train ? [''] : places, teDestBox());
     tripSetDests(train ? places : [''], teStationBox());
     if ($('#teKm')) $('#teKm').value = (rec.one_way_km != null ? rec.one_way_km : 0);
-    if ($('#teRound')) $('#teRound').checked = !!rec.round_trip;
+    if ($('#teRound')) $('#teRound').checked = !train && !!rec.round_trip;
+    if ($('#teFareRound')) $('#teFareRound').checked = train && !!rec.round_trip;
     if ($('#teRate')) $('#teRate').value = (rec.gas_rate != null ? rec.gas_rate : 18);
     costSetRows('te', COST_FARE, tripLinesOf(rec, 'fare', rec.fare_cost));
     costSetRows('te', COST_TOLL, tripLinesOf(rec, 'toll', rec.toll_cost));
@@ -3367,7 +3409,7 @@
       origin: (train ? tstr('teStartSt') : tstr('teStart')).trim(),
       destination: dests.join('\n'),
       one_way_km: train ? 0 : tval('teKm'),
-      round_trip: (!train && tchk('teRound')) ? 1 : 0,
+      round_trip: train ? (tchk('teFareRound') ? 1 : 0) : (tchk('teRound') ? 1 : 0),
       gas_rate: Math.round(tval('teRate')),
       fare_items: train ? costGetRows('te', COST_FARE) : [],
       toll_items: train ? [] : costGetRows('te', COST_TOLL),
@@ -3419,12 +3461,16 @@
       if (!from) { teMsg('出発駅を入力してください', true); return; }
       if (!st.length) { teMsg('到着駅を1つ以上入力してください', true); return; }
       window.open(tripYahooUrl(from, st), '_blank', 'noopener');
+      tripFareNoteSync('te');
       teMsg('Yahoo!路線情報を別タブで開きました。運賃を確認して「運賃」に入力してください。');
     }); }
     [teDestBox(), teStationBox()].forEach((box) => { if (box) box.addEventListener('click', (e) => {
       const del = e.target.closest('.tm-trip-destdel');
       if (del && box.children.length > 1) { del.closest('.tm-trip-destrow').remove(); tripUpdateDestNos(box); }
     }); });
+    { const s = $('#teStartSt'); if (s) s.addEventListener('input', () => tripFareNoteSync('te')); }
+    { const box = teStationBox(); if (box) box.addEventListener('input', () => tripFareNoteSync('te')); }
+    { const r = $('#teFareRound'); if (r) r.addEventListener('change', () => tripFareRoundToggle('te')); }
     document.querySelectorAll('input[name="teMode"]').forEach((r) => r.addEventListener('change', teRecalc));
     ['teKm', 'teRate'].forEach((id) => { const el = $('#' + id); if (el) el.addEventListener('input', teRecalc); });
     costWire('te', teRecalc);
@@ -3598,12 +3644,16 @@
     if (!from) { tripMsg('出発駅を入力してください', true); return; }
     if (!st.length) { tripMsg('到着駅を1つ以上入力してください', true); return; }
     window.open(tripYahooUrl(from, st), '_blank', 'noopener');
+    tripFareNoteSync('trip');
     tripMsg('Yahoo!路線情報を別タブで開きました。運賃を確認して「運賃」に入力してください。');
   }); }
   [$('#tripDests'), $('#tripStations')].forEach((box) => { if (box) box.addEventListener('click', (e) => {
     const del = e.target.closest('.tm-trip-destdel');
     if (del && box.children.length > 1) { del.closest('.tm-trip-destrow').remove(); tripUpdateDestNos(box); }
   }); });
+  { const s = $('#tripStartSt'); if (s) s.addEventListener('input', () => tripFareNoteSync('trip')); }
+  { const box = $('#tripStations'); if (box) box.addEventListener('input', () => tripFareNoteSync('trip')); }
+  { const r = $('#tripFareRound'); if (r) r.addEventListener('change', () => tripFareRoundToggle('trip')); }
   document.querySelectorAll('input[name="tripMode"]').forEach((r) => r.addEventListener('change', tripRecalc));
   { const b = $('#tripSaveBtn'); if (b) b.addEventListener('click', tripSave); }
   { const b = $('#tripResetBtn'); if (b) b.addEventListener('click', tripResetForm); }

@@ -9,7 +9,7 @@
   <link rel="manifest" href="manifest.webmanifest">
   <link rel="icon" href="icon.svg" type="image/svg+xml">
   <link rel="apple-touch-icon" href="icon-192.png">
-  <link rel="stylesheet" href="manual.css?v=72">
+  <link rel="stylesheet" href="manual.css?v=73">
 </head>
 <body class="tm-body">
 
@@ -244,7 +244,9 @@
           </div>
 
           <div class="tm-field tm-trip-wide tm-trip-costblock">
-            <span class="tm-field-label">運賃（複数可）<span class="tm-trip-costsum">小計 <b id="teFareSum">0</b> 円</span></span>
+            <span class="tm-field-label">運賃（複数可）
+              <label class="tm-trip-roundlbl tm-trip-fareroundlbl"><input type="checkbox" id="teFareRound"> 往復（片道運賃から自動計算）</label>
+              <span class="tm-trip-costsum">小計 <b id="teFareSum">0</b> 円</span></span>
             <div id="teFareRows" class="tm-trip-costrows"></div>
             <button id="teFareAdd" class="tm-btn tm-trip-accentbtn tm-btn-sm" type="button">&#43; 運賃を追加</button>
           </div>
@@ -426,7 +428,9 @@
               </div>
 
               <div class="tm-field tm-trip-wide tm-trip-costblock">
-                <span class="tm-field-label">運賃（複数可）<span class="tm-trip-costsum">小計 <b id="tripFareSum">0</b> 円</span></span>
+                <span class="tm-field-label">運賃（複数可）
+                  <label class="tm-trip-roundlbl tm-trip-fareroundlbl"><input type="checkbox" id="tripFareRound"> 往復（片道運賃から自動計算）</label>
+                  <span class="tm-trip-costsum">小計 <b id="tripFareSum">0</b> 円</span></span>
                 <div id="tripFareRows" class="tm-trip-costrows"></div>
                 <button id="tripFareAdd" class="tm-btn tm-trip-accentbtn tm-btn-sm" type="button">&#43; 運賃を追加</button>
               </div>
@@ -1028,6 +1032,6 @@
   </dialog>
 
   <script src="vendor/xlsx.full.min.js"></script>
-  <script src="manual.js?v=84"></script>
+  <script src="manual.js?v=85"></script>
 </body>
 </html>
