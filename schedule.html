@@ -4,17 +4,14 @@
   <meta charset="UTF-8">
   <meta http-equiv="Cache-Control" content="no-store">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>シフト管理カレンダー</title>
-  <link rel="stylesheet" href="schedule.css?v=3">
+  <title>Task Scheduler</title>
+  <link rel="stylesheet" href="schedule.css?v=4">
 </head>
 <body class="sc-body">
 
   <header class="sc-header">
     <div class="sc-header-inner">
-      <h1 class="sc-header-title">📅 シフト管理カレンダー</h1>
-      <p class="sc-header-sub">
-        休み希望・稼働可能日の申請 → 確定入力までを1画面で。ダブルブッキングは自動で検知します。
-      </p>
+      <h1 class="sc-header-title">Task Scheduler</h1>
     </div>
   </header>
 
@@ -77,6 +74,7 @@
       <div id="calendar" class="sc-calendar" role="grid" aria-label="カレンダー"></div>
 
       <ul class="sc-legend">
+        <li><span class="sc-chip sc-chip-empty">未定</span> まだ決めていない日</li>
         <li><span class="sc-chip sc-chip-available">◯</span> 稼働可能</li>
         <li><span class="sc-chip sc-chip-off">✕</span> 休み希望</li>
         <li><span class="sc-chip sc-chip-confirmed">確定</span> 確定した仕事</li>
@@ -272,6 +270,6 @@
 
   <div id="toast" class="sc-toast" role="status" aria-live="polite" hidden></div>
 
-  <script src="schedule.js?v=3"></script>
+  <script src="schedule.js?v=4"></script>
 </body>
 </html>

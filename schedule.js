@@ -16,6 +16,12 @@ const WORK_TYPE_PRESETS = [
   '現場作業', '設置・工事', '点検・保守', '訪問対応', '打ち合わせ', '研修', '事務作業', 'その他',
 ];
 
+/** 案件名の選択肢。これ以外は「フリー」を選んで自由入力する */
+const PROJECT_PRESETS = [
+  'リテイルオンサイト', 'JCOM', 'JT', '自社案件', 'くらしのマーケット', 'ミツモア',
+];
+const PROJECT_FREE = '__free__';
+
 /* ------------------------------------------------------------
    日付ユーティリティ
    ------------------------------------------------------------ */
@@ -233,6 +239,9 @@ function relation(a, b, buffer) {
   const A = jobRange(a);
   const B = jobRange(b);
   if (A.s < B.e && B.s < A.e) return 'overlap';
+  // 終日予定には開始・終了の境目がないため、移動・準備時間は判定しない。
+  // （そうしないと、隣り合う日の終日予定どうしが誤って「間隔不足」になる）
+  if (a.allDay || b.allDay) return null;
   if (buffer > 0 && A.s < B.e + buffer && B.s < A.e + buffer) return 'buffer';
   return null;
 }
@@ -337,9 +346,13 @@ function renderCalendar() {
     const hasConfirmed = dayJobs.some((j) => j.status !== 'tentative');
     const hasTentative = dayJobs.some((j) => j.status === 'tentative');
 
+    // 希望も予定も入っていない、これからの日（＝まだ決まっていない日）
+    const isEmpty = inMonth && key >= today && !wish && !dayJobs.length;
+
     const classes = ['sc-cell'];
     if (!inMonth) classes.push('sc-cell-out');
     if (key < today) classes.push('sc-cell-past');
+    if (isEmpty) classes.push('sc-cell-empty');
     if (key === today) classes.push('sc-cell-today');
     if (key === view.selected) classes.push('sc-cell-selected');
     if (wish === WISH_AVAILABLE) classes.push('sc-cell-available');
@@ -359,6 +372,7 @@ function renderCalendar() {
     else if (hasTentative) marks.push('<span class="sc-mark-tentative">仮</span>');
     if (wish === WISH_AVAILABLE && !dayJobs.length) marks.push('<span class="sc-mark-available">◯</span>');
     if (wish === WISH_OFF) marks.push('<span class="sc-mark-off">✕</span>');
+    if (isEmpty) marks.push('<span class="sc-mark-empty">未定</span>');
     if (hasConflict) marks.push('<span class="sc-mark-conflict">⚠</span>');
 
     const pills = dayJobs.slice(0, 3).map((j) => {
@@ -378,6 +392,7 @@ function renderCalendar() {
     const label = `${date.getMonth() + 1}月${date.getDate()}日 ${WD[dow]}曜日`
       + (hol ? ` ${hol}` : '')
       + (wish === WISH_AVAILABLE ? ' 稼働可能' : wish === WISH_OFF ? ' 休み希望' : '')
+      + (isEmpty ? ' 未定' : '')
       + (hasConfirmed ? ' 確定あり' : hasTentative ? ' 仮出勤あり' : '')
       + (dayJobs.length ? ` 予定${dayJobs.length}件` : '')
       + (hasConflict ? ' 重複あり' : '');
@@ -469,8 +484,19 @@ function renderSidePanel() {
       </div>` : ''}
       <form id="jobForm" class="sc-form">
         <label class="sc-field">
-          <span class="sc-field-label">案件名・現場名 <span aria-hidden="true">*</span></span>
-          <input id="fTitle" class="sc-input" type="text" value="${escapeHtml(f.title)}" placeholder="例）○○ホール 音響" required autocomplete="off">
+          <span class="sc-field-label">案件名 <span aria-hidden="true">*</span></span>
+          <select id="fTitle" class="sc-input">
+            <option value="" ${f.titleSel === '' ? 'selected' : ''}>選択してください</option>
+            ${PROJECT_PRESETS.map((p) =>
+              `<option value="${escapeHtml(p)}" ${f.titleSel === p ? 'selected' : ''}>${escapeHtml(p)}</option>`).join('')}
+            <option value="${PROJECT_FREE}" ${f.titleSel === PROJECT_FREE ? 'selected' : ''}>フリー（自由入力）</option>
+          </select>
+        </label>
+
+        <label class="sc-field" id="titleFreeRow" ${f.titleSel === PROJECT_FREE ? '' : 'hidden'}>
+          <span class="sc-field-label">案件名を入力 <span aria-hidden="true">*</span></span>
+          <input id="fTitleFree" class="sc-input" type="text" value="${escapeHtml(f.titleFree)}"
+            placeholder="例）○○ホール 音響" autocomplete="off">
         </label>
 
         <label class="sc-field">
@@ -952,15 +978,18 @@ function googleCalendarUrl(job) {
 
 function blankForm() {
   return {
-    title: '', workType: '', status: 'confirmed', allDay: false,
+    titleSel: '', titleFree: '', workType: '', status: 'confirmed', allDay: false,
     start: state.settings.defStart, end: state.settings.defEnd,
     client: '', place: '', note: '',
   };
 }
 
 function formFromJob(job) {
+  const title = job.title || '';
+  const preset = PROJECT_PRESETS.includes(title);
   return {
-    title: job.title || '',
+    titleSel: title ? (preset ? title : PROJECT_FREE) : '',
+    titleFree: preset ? '' : title,
     workType: job.workType || '',
     status: job.status || 'confirmed',
     allDay: !!job.allDay,
@@ -975,7 +1004,8 @@ function formFromJob(job) {
 function readForm() {
   if (!$('jobForm')) return null;
   return {
-    title: $('fTitle').value,
+    titleSel: $('fTitle').value,
+    titleFree: $('fTitleFree').value,
     workType: $('fWorkType').value,
     status: $('fStatus').value,
     allDay: $('fAllDay').checked,
@@ -995,6 +1025,11 @@ function refreshWorkTypeOptions() {
   if (dl) dl.innerHTML = all.map((v) => `<option value="${escapeHtml(v)}"></option>`).join('');
 }
 
+/** 選択中の案件名（フリーなら自由入力の内容） */
+function formTitle(f) {
+  return f.titleSel === PROJECT_FREE ? f.titleFree.trim() : f.titleSel;
+}
+
 /** フォームの現在値から仮の予定オブジェクトを作る */
 function draftJob() {
   const f = view.form || blankForm();
@@ -1004,7 +1039,7 @@ function draftJob() {
     allDay: !!f.allDay,
     start: f.start || state.settings.defStart,
     end: f.end || state.settings.defEnd,
-    title: f.title.trim(),
+    title: formTitle(f),
     workType: f.workType.trim(),
     client: f.client.trim(),
     place: f.place.trim(),
@@ -1090,9 +1125,14 @@ function submitJob(ev) {
   view.form = readForm();
 
   const draft = draftJob();
+  if (!view.form.titleSel) {
+    toast('案件名を選択してください', true);
+    $('fTitle').focus();
+    return;
+  }
   if (!draft.title) {
     toast('案件名を入力してください', true);
-    $('fTitle').focus();
+    $('fTitleFree').focus();
     return;
   }
   if (draft.status === 'confirmed' && !draft.workType) {
@@ -1516,6 +1556,15 @@ function bindEvents() {
       view.form = readForm();
       const row = $('timeRow');
       if (row) row.hidden = ev.target.checked;
+      updateFormAlert();
+      return;
+    }
+    // 「フリー」を選んだときだけ自由入力欄を出す
+    if (ev.target.id === 'fTitle') {
+      view.form = readForm();
+      const row = $('titleFreeRow');
+      if (row) row.hidden = ev.target.value !== PROJECT_FREE;
+      if (ev.target.value === PROJECT_FREE) $('fTitleFree').focus();
       updateFormAlert();
     }
   });

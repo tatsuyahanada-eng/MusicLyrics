@@ -17,9 +17,13 @@
   /* 稼働可能：やわらかい緑 */
   --sc-available: #16a34a;
   --sc-available-bg: #e8f8ee;
-  /* 休み希望：やわらかい赤 */
-  --sc-off: #e11d48;
-  --sc-off-bg: #fdeaee;
+  /* 休み希望：やわらかい赤（きつくならない程度にはっきりと） */
+  --sc-off: #d92548;
+  --sc-off-bg: #fcdde3;
+  --sc-off-border: #f0a3b3;
+  /* 未定（希望も予定もない日） */
+  --sc-empty-bg: #eceff5;
+  --sc-empty-border: #c8d1de;
   /* 確定：はっきりした青（最も目立たせる） */
   --sc-confirmed: #1d4ed8;
   --sc-confirmed-bg: #dce7ff;
@@ -50,23 +54,16 @@
 /* ---- ヘッダー ---- */
 .sc-header {
   background: linear-gradient(135deg, #4f46e5 0%, #2563eb 55%, #0ea5e9 100%);
-  padding: 18px 16px 14px;
-  text-align: center;
+  padding: 8px 16px;
 }
 
 .sc-header-inner { max-width: 1180px; margin: 0 auto; }
 
 .sc-header-title {
-  font-size: clamp(1.3rem, 4vw, 2rem);
-  font-weight: 800;
-  letter-spacing: 0.03em;
+  font-size: 1rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
   color: #fff;
-}
-
-.sc-header-sub {
-  margin-top: 4px;
-  font-size: 0.76rem;
-  color: rgba(255, 255, 255, 0.92);
 }
 
 /* ---- 月ナビ ---- */
@@ -288,9 +285,31 @@
 .sc-cell-out { opacity: 0.42; }
 .sc-cell-past { background: #f1f4f9; }
 
+/* まだ何も決まっていない日 */
+.sc-cell-empty {
+  background: var(--sc-empty-bg);
+  border-color: var(--sc-empty-border);
+  border-style: dashed;
+}
+.sc-cell-empty .sc-daynum { color: #7b8598; }
+
 /* 希望（予定が入っていない日の色） */
 .sc-cell-available { background: var(--sc-available-bg); border-color: #b6e6c8; }
-.sc-cell-off { background: var(--sc-off-bg); border-color: #f6c3ce; }
+.sc-cell-off {
+  background: var(--sc-off-bg);
+  border-color: var(--sc-off-border);
+}
+.sc-cell-off .sc-daynum { color: var(--sc-off); }
+/* 左端の帯は擬似要素で描く（選択枠の box-shadow と打ち消し合わないように） */
+.sc-cell-off::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 4px;
+  background: var(--sc-off);
+}
 
 /* 仮出勤がある日 */
 .sc-cell-tentative {
@@ -335,6 +354,15 @@
 .sc-mark-available { color: var(--sc-available); font-weight: 800; }
 .sc-mark-off { color: var(--sc-off); font-weight: 800; }
 .sc-mark-conflict { color: var(--sc-conflict); font-weight: 800; }
+.sc-mark-empty {
+  background: #fff;
+  color: #7b8598;
+  border: 1px dashed var(--sc-empty-border);
+  font-size: 0.58rem;
+  font-weight: 700;
+  border-radius: 4px;
+  padding: 0 4px;
+}
 
 /* カレンダー右上の「確定 / 仮」バッジ */
 .sc-mark-confirmed {
@@ -429,7 +457,8 @@
   font-weight: 800;
 }
 .sc-chip-available { background: var(--sc-available-bg); color: var(--sc-available); border: 1px solid #b6e6c8; }
-.sc-chip-off { background: var(--sc-off-bg); color: var(--sc-off); border: 1px solid #f6c3ce; }
+.sc-chip-off { background: var(--sc-off-bg); color: var(--sc-off); border: 1px solid var(--sc-off-border); }
+.sc-chip-empty { background: var(--sc-empty-bg); color: #7b8598; border: 1px dashed var(--sc-empty-border); }
 .sc-chip-confirmed { background: var(--sc-confirmed); color: #fff; }
 .sc-chip-tentative { background: #fff; color: var(--sc-tentative); border: 1px dashed var(--sc-tentative); }
 .sc-chip-conflict { background: var(--sc-conflict-bg); color: var(--sc-conflict); border: 1px solid var(--sc-conflict); }
