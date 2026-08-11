@@ -309,6 +309,7 @@ function renderAll() {
   renderConflictBanner();
   renderExport();
   renderJobList();
+  renderIcsPreview();
 }
 
 function renderMonthNav() {
@@ -414,6 +415,7 @@ function renderSidePanel() {
     if (conflicts.has(j.id)) cls.push('sc-job-card-conflict');
     const time = j.allDay ? '終日' : `${j.start}〜${j.end}`;
     const meta = [j.client, j.place].filter(Boolean).map(escapeHtml).join(' / ');
+    const gcalUrl = googleCalendarUrl(j);
     const others = findConflicts(j, null);
     const warn = others.length
       ? `<p class="sc-job-warn">⚠ ${others.map((c) => (c.type === 'overlap' ? '時間が重複' : '移動時間が不足') + '：' + formatDate(c.job.date) + ' ' + escapeHtml(c.job.title || '(無題)')).join(' / ')}</p>`
@@ -430,6 +432,7 @@ function renderSidePanel() {
       ${warn}
       <div class="sc-job-actions">
         ${tentative ? `<button type="button" class="sc-btn sc-btn-sm sc-btn-confirm" data-confirm="${j.id}">✓ 確定にする</button>` : ''}
+        ${gcalUrl ? `<a class="sc-btn sc-btn-sm sc-btn-outline" href="${escapeHtml(gcalUrl)}" target="_blank" rel="noopener">📆 追加</a>` : ''}
         <button type="button" class="sc-btn sc-btn-sm sc-btn-outline" data-edit="${j.id}">編集</button>
         <button type="button" class="sc-btn sc-btn-sm sc-btn-outline sc-btn-danger" data-del="${j.id}">削除</button>
       </div>
@@ -741,6 +744,209 @@ function buildJobsText() {
 }
 
 /* ------------------------------------------------------------
+   Googleカレンダー連携（iCalendar / .ics の書き出し）
+   ------------------------------------------------------------ */
+
+/** RFC 5545 のテキスト値エスケープ */
+function icsEscape(value) {
+  return String(value == null ? '' : value)
+    .replace(/\\/g, '\\\\')
+    .replace(/;/g, '\\;')
+    .replace(/,/g, '\\,')
+    .replace(/\r?\n/g, '\\n');
+}
+
+function utf8Len(ch) {
+  const c = ch.codePointAt(0);
+  if (c < 0x80) return 1;
+  if (c < 0x800) return 2;
+  if (c < 0x10000) return 3;
+  return 4;
+}
+
+/**
+ * 1行を75オクテット以内に折り返す（RFC 5545）。
+ * 日本語が途中で壊れないよう、バイト数で数えつつ文字単位で分割する。
+ */
+function foldIcsLine(line) {
+  const parts = [];
+  let cur = '';
+  let bytes = 0;
+  let limit = 75;
+  for (const ch of line) {
+    const n = utf8Len(ch);
+    if (bytes + n > limit) {
+      parts.push(cur);
+      cur = '';
+      bytes = 0;
+      limit = 74;   // 継続行は先頭の空白1文字ぶんを差し引く
+    }
+    cur += ch;
+    bytes += n;
+  }
+  parts.push(cur);
+  return parts[0] + parts.slice(1).map((s) => '\r\n ' + s).join('');
+}
+
+function icsDate(dateKey) { return dateKey.replace(/-/g, ''); }
+
+/** 'YYYY-MM-DD' + 分 → 'YYYYMMDDTHHMMSS'（タイムゾーン指定なし＝取り込み先の時刻として扱われる） */
+function icsLocalDateTime(dateKey, minutes) {
+  const day = addDays(fromKey(dateKey), Math.floor(minutes / 1440));
+  const m = ((minutes % 1440) + 1440) % 1440;
+  return icsDate(toKey(day)) + 'T' + pad2(Math.floor(m / 60)) + pad2(m % 60) + '00';
+}
+
+function icsStamp() {
+  const d = new Date();
+  return d.getUTCFullYear() + pad2(d.getUTCMonth() + 1) + pad2(d.getUTCDate()) + 'T'
+    + pad2(d.getUTCHours()) + pad2(d.getUTCMinutes()) + pad2(d.getUTCSeconds()) + 'Z';
+}
+
+/** 書き出し対象の予定 */
+function icsTargetJobs() {
+  const scope = $('icsScope').value;
+  const monthKeys = monthDayKeys();
+  const today = todayKey();
+  return state.jobs.filter((j) => {
+    if (scope === 'month-confirmed') return monthKeys.includes(j.date) && j.status !== 'tentative';
+    if (scope === 'month-all') return monthKeys.includes(j.date);
+    if (scope === 'future-confirmed') return j.date >= today && j.status !== 'tentative';
+    return true;
+  }).sort((a, b) => jobRange(a).s - jobRange(b).s);
+}
+
+function icsSummary(job, prefix) {
+  const tentative = job.status === 'tentative';
+  return (prefix ? prefix : '') + (tentative ? '【仮】' : '') + (job.title || '(無題)');
+}
+
+/** 予定の配列から .ics 本文を組み立てる */
+function buildIcs(jobs, prefix) {
+  const stamp = icsStamp();
+  const lines = [
+    'BEGIN:VCALENDAR',
+    'VERSION:2.0',
+    'PRODID:-//shift-calendar//JP',
+    'CALSCALE:GREGORIAN',
+    'METHOD:PUBLISH',
+    'X-WR-CALNAME:' + icsEscape('シフト管理カレンダー'),
+  ];
+
+  jobs.forEach((job) => {
+    // 日時を先に組み立て、作れない予定は VEVENT ごと飛ばす
+    // （途中で抜けると閉じタグのないファイルになり、取り込みが丸ごと失敗するため）
+    const timeLines = [];
+    if (job.allDay) {
+      timeLines.push('DTSTART;VALUE=DATE:' + icsDate(job.date));
+      timeLines.push('DTEND;VALUE=DATE:' + icsDate(toKey(addDays(fromKey(job.date), 1))));
+    } else {
+      const s = toMinutes(job.start);
+      let e = toMinutes(job.end);
+      if (s === null || e === null) return;
+      if (e <= s) e += 1440;   // 日をまたぐ勤務
+      timeLines.push('DTSTART:' + icsLocalDateTime(job.date, s));
+      timeLines.push('DTEND:' + icsLocalDateTime(job.date, e));
+    }
+
+    const desc = [
+      job.workType ? '業務内容: ' + job.workType : '',
+      job.client ? '依頼元: ' + job.client : '',
+      job.note ? 'メモ: ' + job.note : '',
+      job.status === 'tentative' ? '※ 未確定（仮出勤）' : '',
+    ].filter(Boolean).join('\n');
+
+    lines.push('BEGIN:VEVENT');
+    lines.push('UID:' + job.id + '@shift-calendar');
+    lines.push('DTSTAMP:' + stamp);
+    lines.push('SEQUENCE:' + (Number(job.rev) || 0));
+    timeLines.forEach((l) => lines.push(l));
+    lines.push('SUMMARY:' + icsEscape(icsSummary(job, prefix)));
+    if (desc) lines.push('DESCRIPTION:' + icsEscape(desc));
+    if (job.place) lines.push('LOCATION:' + icsEscape(job.place));
+    if (job.workType) lines.push('CATEGORIES:' + icsEscape(job.workType));
+    lines.push('STATUS:' + (job.status === 'tentative' ? 'TENTATIVE' : 'CONFIRMED'));
+    lines.push('END:VEVENT');
+  });
+
+  lines.push('END:VCALENDAR');
+  return lines.map(foldIcsLine).join('\r\n') + '\r\n';
+}
+
+function renderIcsPreview() {
+  const jobs = icsTargetJobs();
+  const prefix = $('icsPrefix').value.trim();
+  const nTentative = jobs.filter((j) => j.status === 'tentative').length;
+
+  $('icsCount').textContent = jobs.length
+    ? `${jobs.length}件（うち仮出勤${nTentative}件）` : '対象なし';
+  $('downloadIcs').disabled = jobs.length === 0;
+
+  if (!jobs.length) {
+    $('icsPreview').innerHTML = '<p class="sc-empty-note">対象の予定がありません。区分や対象範囲をご確認ください。</p>';
+    return;
+  }
+
+  const rows = jobs.slice(0, 12).map((j) => {
+    const time = j.allDay ? '終日' : `${j.start}〜${j.end}`;
+    return `<li><span class="sc-ics-date">${formatDate(j.date)}</span>` +
+      `<span class="sc-ics-time">${escapeHtml(time)}</span>` +
+      `<span>${escapeHtml(icsSummary(j, prefix))}</span></li>`;
+  }).join('');
+
+  $('icsPreview').innerHTML =
+    `<p class="sc-worktype-title">取り込まれる予定</p><ul class="sc-ics-list">${rows}` +
+    (jobs.length > 12 ? `<li class="sc-empty-note">ほか ${jobs.length - 12}件</li>` : '') + '</ul>';
+}
+
+function downloadIcs() {
+  const jobs = icsTargetJobs();
+  if (!jobs.length) { toast('対象の予定がありません', true); return; }
+
+  const text = buildIcs(jobs, $('icsPrefix').value.trim());
+  const blob = new Blob([text], { type: 'text/calendar;charset=utf-8' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  const scope = $('icsScope').value;
+  a.href = url;
+  a.download = scope.startsWith('month')
+    ? `shift-${view.year}-${pad2(view.month + 1)}.ics`
+    : `shift-${todayKey()}.ics`;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+  toast(`${jobs.length}件を書き出しました。Googleカレンダーの設定→インポートから取り込めます`);
+}
+
+/** 1件だけGoogleカレンダーに追加するURL（スマホでも使える） */
+function googleCalendarUrl(job) {
+  let dates;
+  if (job.allDay) {
+    dates = icsDate(job.date) + '/' + icsDate(toKey(addDays(fromKey(job.date), 1)));
+  } else {
+    const s = toMinutes(job.start);
+    let e = toMinutes(job.end);
+    if (s === null || e === null) return null;
+    if (e <= s) e += 1440;
+    dates = icsLocalDateTime(job.date, s) + '/' + icsLocalDateTime(job.date, e);
+  }
+  const details = [
+    job.workType ? '業務内容: ' + job.workType : '',
+    job.client ? '依頼元: ' + job.client : '',
+    job.note ? 'メモ: ' + job.note : '',
+    job.status === 'tentative' ? '※ 未確定（仮出勤）' : '',
+  ].filter(Boolean).join('\n');
+
+  return 'https://calendar.google.com/calendar/render?action=TEMPLATE'
+    + '&text=' + encodeURIComponent(icsSummary(job, ''))
+    + '&dates=' + dates
+    + '&ctz=Asia/Tokyo'
+    + (details ? '&details=' + encodeURIComponent(details) : '')
+    + (job.place ? '&location=' + encodeURIComponent(job.place) : '');
+}
+
+/* ------------------------------------------------------------
    入力フォーム
    ------------------------------------------------------------ */
 
@@ -914,10 +1120,13 @@ function submitJob(ev) {
   if (view.editingId) {
     const idx = state.jobs.findIndex((j) => j.id === view.editingId);
     if (idx >= 0) {
-      state.jobs[idx] = Object.assign({}, state.jobs[idx], draft, { id: view.editingId });
+      const prev = state.jobs[idx];
+      state.jobs[idx] = Object.assign({}, prev, draft, { id: view.editingId });
       if (draft.status === 'confirmed' && state.jobs[idx].confirmedAt == null) {
         state.jobs[idx].confirmedAt = new Date().toISOString();
       }
+      // 取り込み済みのGoogleカレンダー側を更新できるよう版数を上げる
+      state.jobs[idx].rev = (Number(prev.rev) || 0) + 1;
     }
     toast(wasConfirming ? '確定しました' : '予定を更新しました');
   } else {
@@ -1355,6 +1564,11 @@ function bindEvents() {
     window.location.href = 'mailto:?subject=' + encodeURIComponent(subject)
       + '&body=' + encodeURIComponent(elExportText.value);
   });
+
+  // Googleカレンダー用ファイル
+  $('icsScope').addEventListener('change', renderIcsPreview);
+  $('icsPrefix').addEventListener('input', renderIcsPreview);
+  $('downloadIcs').addEventListener('click', downloadIcs);
 
   $('copyJobs').addEventListener('click', async () => {
     const ok = await copyText(buildJobsText());

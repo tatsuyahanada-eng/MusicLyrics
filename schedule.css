@@ -720,6 +720,24 @@
   color: var(--sc-text);
 }
 
+/* Googleカレンダー連携 */
+.sc-ics-preview { margin-bottom: 4px; }
+.sc-ics-list {
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  max-height: 220px;
+  overflow-y: auto;
+  background: #fff;
+  border: 1px solid var(--sc-border);
+  border-radius: var(--sc-radius);
+  padding: 8px 12px;
+}
+.sc-ics-list li { display: flex; gap: 10px; font-size: 0.82rem; flex-wrap: wrap; }
+.sc-ics-date { font-weight: 800; min-width: 6.5em; font-variant-numeric: tabular-nums; }
+.sc-ics-time { color: var(--sc-muted); min-width: 8.5em; font-variant-numeric: tabular-nums; }
+
 /* 設定 */
 .sc-settings { display: flex; flex-wrap: wrap; gap: 12px; margin-bottom: 12px; }
 .sc-settings .sc-field { min-width: 180px; }

@@ -5,7 +5,7 @@
   <meta http-equiv="Cache-Control" content="no-store">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>シフト管理カレンダー</title>
-  <link rel="stylesheet" href="schedule.css?v=2">
+  <link rel="stylesheet" href="schedule.css?v=3">
 </head>
 <body class="sc-body">
 
@@ -161,6 +161,55 @@
     </div>
   </section>
 
+  <!-- Googleカレンダーへの一括登録 -->
+  <section class="sc-section">
+    <div class="sc-section-inner">
+      <div class="sc-section-head">
+        <h3 class="sc-section-title">📆 Googleカレンダーに一括登録</h3>
+        <span id="icsCount" class="sc-section-count"></span>
+      </div>
+
+      <div class="sc-export-opts">
+        <label class="sc-field">
+          <span class="sc-field-label">対象</span>
+          <select id="icsScope" class="sc-input sc-input-sm">
+            <option value="month-confirmed">表示中の月の確定のみ</option>
+            <option value="month-all">表示中の月すべて（仮出勤を含む）</option>
+            <option value="future-confirmed">今日以降の確定すべて</option>
+            <option value="all">全期間すべて（仮出勤を含む）</option>
+          </select>
+        </label>
+        <label class="sc-field">
+          <span class="sc-field-label">予定名の先頭につける文字（任意）</span>
+          <input id="icsPrefix" class="sc-input sc-input-sm" type="text" placeholder="例）【仕事】" autocomplete="off">
+        </label>
+      </div>
+
+      <div id="icsPreview" class="sc-ics-preview"></div>
+
+      <div class="sc-export-actions">
+        <button id="downloadIcs" class="sc-btn">⬇️ ファイル（.ics）を作成</button>
+      </div>
+
+      <details class="sc-help">
+        <summary>Googleカレンダーへの取り込み手順（PCのブラウザで行います）</summary>
+        <ol class="sc-help-list">
+          <li>上の「ファイル（.ics）を作成」を押して、ファイルを保存します。</li>
+          <li>PCで <a href="https://calendar.google.com/" target="_blank" rel="noopener">Googleカレンダー</a> を開き、
+            右上の⚙️から「設定」を選びます。</li>
+          <li>左メニューの「インポート / エクスポート」を開きます。</li>
+          <li>保存した .ics ファイルを選び、<strong>登録先のカレンダー</strong>を選んで「インポート」を押します。</li>
+          <li>「◯個の予定をインポートしました」と出れば完了です。</li>
+        </ol>
+        <p class="sc-note">
+          仕事用のカレンダーを新しく作って、そこに取り込むと管理しやすくなります。
+          同じ予定を編集して取り込み直した場合は、新しく増えるのではなく既存の予定が更新されます。
+          個別に1件だけ登録したいときは、予定カードの「📆 追加」からスマホでも登録できます。
+        </p>
+      </details>
+    </div>
+  </section>
+
   <!-- 設定・データ -->
   <section class="sc-section">
     <div class="sc-section-inner">
@@ -223,6 +272,6 @@
 
   <div id="toast" class="sc-toast" role="status" aria-live="polite" hidden></div>
 
-  <script src="schedule.js?v=2"></script>
+  <script src="schedule.js?v=3"></script>
 </body>
 </html>
