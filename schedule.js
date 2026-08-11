@@ -203,12 +203,13 @@ function isValidJob(j) {
     && typeof j.date === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(j.date);
 }
 
-function saveState() {
+function saveState(skipSync) {
   try {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
   } catch (err) {
     toast('保存に失敗しました（ブラウザの設定をご確認ください）', true);
   }
+  if (!skipSync && typeof scheduleSyncPush === 'function') scheduleSyncPush();
 }
 
 function newId() {
@@ -770,6 +771,261 @@ function buildJobsText() {
 }
 
 /* ------------------------------------------------------------
+   端末間の同期（サーバの sync.php に保存）
+   ------------------------------------------------------------ */
+
+const SYNC_KEY_STORE = 'ms-schedule-sync-v1';
+
+/** 同期の設定は端末ごとの設定なので、予定データとは別に保存する */
+let sync = { url: 'sync.php', key: '', auto: true, rev: 0, lastAt: null };
+let syncTimer = null;
+let syncBusy = false;
+
+function loadSyncConfig() {
+  try {
+    const raw = localStorage.getItem(SYNC_KEY_STORE);
+    if (raw) sync = Object.assign(sync, JSON.parse(raw) || {});
+  } catch (err) { /* 既定値のまま */ }
+}
+
+function saveSyncConfig() {
+  try {
+    localStorage.setItem(SYNC_KEY_STORE, JSON.stringify(sync));
+  } catch (err) { /* 保存できなくても動作は続ける */ }
+}
+
+function syncConfigured() {
+  return !!(sync.url && sync.key && sync.key.trim().length >= 12);
+}
+
+function setSyncStatus(text, kind) {
+  const el = $('syncStatus');
+  if (!el) return;
+  el.textContent = text;
+  el.className = 'sc-sync-status' + (kind ? ' sc-sync-' + kind : '');
+}
+
+function syncTimeLabel(iso) {
+  if (!iso) return '';
+  const d = new Date(iso);
+  if (isNaN(d.getTime())) return '';
+  return `${d.getMonth() + 1}/${d.getDate()} ${pad2(d.getHours())}:${pad2(d.getMinutes())}`;
+}
+
+/** サーバに送る中身（同期設定そのものは送らない） */
+function syncPayload() {
+  return {
+    version: 1,
+    settings: {
+      bufferMin: state.settings.bufferMin,
+      defStart: state.settings.defStart,
+      defEnd: state.settings.defEnd,
+      senderName: state.settings.senderName,
+    },
+    wishes: state.wishes,
+    jobs: state.jobs,
+  };
+}
+
+/** キーの順番や、PHP側で空の連想配列が [] になる違いを吸収して比べる */
+function stableStringify(value) {
+  if (Array.isArray(value)) return '[' + value.map(stableStringify).join(',') + ']';
+  if (value && typeof value === 'object') {
+    return '{' + Object.keys(value).sort()
+      .map((k) => JSON.stringify(k) + ':' + stableStringify(value[k])).join(',') + '}';
+  }
+  return JSON.stringify(value === undefined ? null : value);
+}
+
+function syncFingerprint(data) {
+  const wishes = (data && data.wishes && !Array.isArray(data.wishes)) ? data.wishes : {};
+  const jobs = (Array.isArray(data && data.jobs) ? data.jobs : []).slice()
+    .sort((a, b) => String(a && a.id).localeCompare(String(b && b.id)));
+  return stableStringify({ wishes, jobs, settings: (data && data.settings) || {} });
+}
+
+function applySyncedData(data) {
+  if (!data || typeof data !== 'object') return false;
+  state.wishes = (data.wishes && typeof data.wishes === 'object' && !Array.isArray(data.wishes))
+    ? data.wishes : {};
+  state.jobs = Array.isArray(data.jobs) ? data.jobs.filter(isValidJob) : [];
+  state.settings = Object.assign(state.settings, data.settings || {});
+  view.editingId = null;
+  view.confirming = false;
+  view.form = blankForm();
+  saveState(true);   // 取り込んだ直後に送り返さない
+  syncSettingsInputs();
+  refreshWorkTypeOptions();
+  renderAll();
+  return true;
+}
+
+function syncEndpoint(params) {
+  const base = sync.url.trim();
+  const sep = base.indexOf('?') >= 0 ? '&' : '?';
+  return base + sep + params;
+}
+
+/** サーバから取り込む。silent=true なら変化がないとき何も表示しない */
+async function syncPull(silent) {
+  if (!syncConfigured()) { if (!silent) toast('URLと合言葉を入力してください', true); return; }
+  if (syncBusy) return;
+  syncBusy = true;
+  setSyncStatus('取り込み中…', 'busy');
+  try {
+    const res = await fetch(syncEndpoint('key=' + encodeURIComponent(sync.key)), { cache: 'no-store' });
+    const json = await res.json();
+    if (!res.ok || !json.ok) throw new Error(json.error || ('通信エラー（' + res.status + '）'));
+
+    if (json.rev === 0 || !json.data) {
+      setSyncStatus('サーバにまだデータがありません', 'warn');
+      if (!silent) toast('サーバにはまだ保存されていません。「この端末の内容を送る」で登録できます');
+      sync.rev = 0;
+      saveSyncConfig();
+      return;
+    }
+
+    const same = syncFingerprint(json.data) === syncFingerprint(syncPayload());
+    if (same) {
+      sync.rev = json.rev;
+      sync.lastAt = new Date().toISOString();
+      saveSyncConfig();
+      setSyncStatus('最新の状態です（' + syncTimeLabel(sync.lastAt) + '）', 'ok');
+      if (!silent) toast('すでに最新の状態です');
+      return;
+    }
+
+    // この端末にまだ何も入っていなければ、確認せずそのまま取り込む
+    //（新しい端末で最初に取り込むとき、置き換えの確認を出す意味がないため）
+    const localEmpty = state.jobs.length === 0 && Object.keys(state.wishes).length === 0;
+
+    // 中身が違う場合、黙って上書きすると入力が消えるので確認する
+    if (!localEmpty) {
+      const localCount = state.jobs.length;
+      const serverCount = Array.isArray(json.data.jobs) ? json.data.jobs.length : 0;
+      const msg = `サーバに保存されている内容を取り込みます。\n\n`
+        + `サーバ　：予定${serverCount}件（最終保存 ${syncTimeLabel(json.updatedAt) || '不明'}）\n`
+        + `この端末：予定${localCount}件\n\n`
+        + `取り込むと、この端末の内容はサーバの内容に置き換わります。よろしいですか？`;
+      if (!confirm(msg)) {
+        setSyncStatus('取り込みを見送りました', 'warn');
+        return;
+      }
+    }
+
+    applySyncedData(json.data);
+    sync.rev = json.rev;
+    sync.lastAt = new Date().toISOString();
+    saveSyncConfig();
+    setSyncStatus('取り込みました（' + syncTimeLabel(sync.lastAt) + '）', 'ok');
+    toast('サーバの内容を取り込みました');
+  } catch (err) {
+    setSyncStatus('取り込めませんでした：' + err.message, 'error');
+    if (!silent) toast('取り込めませんでした：' + err.message, true);
+  } finally {
+    syncBusy = false;
+  }
+}
+
+/** サーバへ保存する */
+async function syncPush(silent, force) {
+  if (!syncConfigured()) { if (!silent) toast('URLと合言葉を入力してください', true); return; }
+  if (syncBusy) return;
+  syncBusy = true;
+  setSyncStatus('保存中…', 'busy');
+  try {
+    const res = await fetch(sync.url.trim(), {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ key: sync.key, baseRev: sync.rev, force: !!force, data: syncPayload() }),
+    });
+    const json = await res.json();
+
+    if (res.status === 409) {
+      // 別の端末が先に保存していた
+      const serverCount = Array.isArray(json.data && json.data.jobs) ? json.data.jobs.length : 0;
+      const msg = `別の端末で先に保存されています。どちらを残しますか？\n\n`
+        + `OK　　　：サーバの内容を取り込む（予定${serverCount}件・最終保存 ${syncTimeLabel(json.updatedAt) || '不明'}）\n`
+        + `キャンセル：この端末の内容で上書きする（予定${state.jobs.length}件）`;
+      if (confirm(msg)) {
+        applySyncedData(json.data);
+        sync.rev = json.rev;
+        sync.lastAt = new Date().toISOString();
+        saveSyncConfig();
+        setSyncStatus('サーバの内容を取り込みました', 'ok');
+        toast('サーバの内容を取り込みました');
+      } else {
+        sync.rev = json.rev;
+        syncBusy = false;
+        await syncPush(silent, true);
+        return;
+      }
+      return;
+    }
+
+    if (!res.ok || !json.ok) throw new Error(json.error || ('通信エラー（' + res.status + '）'));
+
+    sync.rev = json.rev;
+    sync.lastAt = new Date().toISOString();
+    saveSyncConfig();
+    setSyncStatus('保存しました（' + syncTimeLabel(sync.lastAt) + '）', 'ok');
+    if (!silent) toast('サーバに保存しました');
+  } catch (err) {
+    setSyncStatus('保存できませんでした：' + err.message, 'error');
+    if (!silent) toast('保存できませんでした：' + err.message, true);
+  } finally {
+    syncBusy = false;
+  }
+}
+
+/** 変更のたびに呼ばれる。まとめて少し遅らせて送る */
+function scheduleSyncPush() {
+  if (!sync.auto || !syncConfigured()) return;
+  clearTimeout(syncTimer);
+  setSyncStatus('変更あり（まもなく保存します）', 'busy');
+  syncTimer = setTimeout(() => { syncPush(true); }, 1500);
+}
+
+async function syncTest() {
+  if (!syncConfigured()) { toast('URLと合言葉（12文字以上）を入力してください', true); return; }
+  setSyncStatus('確認中…', 'busy');
+  try {
+    const res = await fetch(syncEndpoint('action=ping&key=' + encodeURIComponent(sync.key)), { cache: 'no-store' });
+    const json = await res.json();
+    if (!res.ok || !json.ok) throw new Error(json.error || ('通信エラー（' + res.status + '）'));
+    const label = json.rev === 0
+      ? 'つながりました（サーバにはまだデータがありません）'
+      : `つながりました（予定${json.jobs}件・最終保存 ${syncTimeLabel(json.updatedAt) || '不明'}）`;
+    setSyncStatus(label, 'ok');
+    toast(label);
+  } catch (err) {
+    setSyncStatus('つながりません：' + err.message, 'error');
+    toast('つながりません：' + err.message, true);
+  }
+}
+
+function generateSyncKey() {
+  const chars = 'abcdefghijkmnpqrstuvwxyz23456789';
+  const buf = new Uint8Array(16);
+  (window.crypto || window.msCrypto).getRandomValues(buf);
+  let out = '';
+  for (let i = 0; i < buf.length; i++) {
+    if (i > 0 && i % 4 === 0) out += '-';
+    out += chars[buf[i] % chars.length];
+  }
+  return out;
+}
+
+function syncSyncInputs() {
+  $('syncUrl').value = sync.url || '';
+  $('syncKey').value = sync.key || '';
+  $('syncAuto').checked = !!sync.auto;
+  if (!syncConfigured()) setSyncStatus('未設定', '');
+  else if (sync.lastAt) setSyncStatus('前回の同期 ' + syncTimeLabel(sync.lastAt), '');
+  else setSyncStatus('設定済み（未同期）', '');
+}
+
+/* ------------------------------------------------------------
    Googleカレンダー連携（iCalendar / .ics の書き出し）
    ------------------------------------------------------------ */
 
@@ -1052,6 +1308,19 @@ function draftJob() {
 function updateFormAlert() {
   const alertBox = $('formAlert');
   if (!alertBox || !view.selected) return;
+
+  // まだ案件名を選んでいない＝入力を始めていない状態では判定しない。
+  // （日付を選んだだけで、既定の時刻と既存予定を突き合わせた警告が出てしまうため）
+  if (!view.editingId && !(view.form && view.form.titleSel)) {
+    alertBox.innerHTML = '';
+    view.ack = false;
+    const btn0 = $('fSubmit');
+    if (btn0) {
+      btn0.disabled = false;
+      btn0.textContent = submitLabel(false);
+    }
+    return;
+  }
 
   const draft = draftJob();
   const conflicts = findConflicts(draft, view.editingId);
@@ -1639,23 +1908,80 @@ function bindEvents() {
     saveState();
   });
 
+  // 端末間の同期
+  $('syncUrl').addEventListener('input', () => {
+    sync.url = $('syncUrl').value.trim();
+    saveSyncConfig();
+    syncSyncInputs();
+  });
+  $('syncKey').addEventListener('input', () => {
+    sync.key = $('syncKey').value.trim();
+    sync.rev = 0;            // 合言葉を変えたら別の保存先になる
+    saveSyncConfig();
+    syncSyncInputs();
+  });
+  $('syncAuto').addEventListener('change', () => {
+    sync.auto = $('syncAuto').checked;
+    saveSyncConfig();
+  });
+  $('genKey').addEventListener('click', () => {
+    if (sync.key && !confirm('新しい合言葉を作ると、いまの合言葉で保存した内容とはつながらなくなります。よろしいですか？')) return;
+    sync.key = generateSyncKey();
+    sync.rev = 0;
+    saveSyncConfig();
+    syncSyncInputs();
+    toast('合言葉を作りました。他の端末にも同じものを入力してください');
+  });
+  $('syncTest').addEventListener('click', syncTest);
+  $('syncPushBtn').addEventListener('click', () => syncPush(false));
+  $('syncPullBtn').addEventListener('click', () => syncPull(false));
+
+  // 別の端末で変更されている可能性があるので、画面に戻ってきたら取り込む
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible' && sync.auto && syncConfigured()) syncPull(true);
+  });
+
   $('exportJson').addEventListener('click', exportJson);
   $('importJson').addEventListener('change', (ev) => {
     const file = ev.target.files && ev.target.files[0];
     if (file) importJson(file);
     ev.target.value = '';
   });
-  $('resetAll').addEventListener('click', () => {
-    if (!confirm('保存されているすべての希望・予定を削除します。元に戻せません。よろしいですか？')) return;
+  $('resetAll').addEventListener('click', async () => {
+    if (!confirm('この端末に保存されているすべての希望・予定を削除します。元に戻せません。よろしいですか？')) return;
     if (!confirm('本当に削除してよろしいですか？')) return;
+
+    // 同期している場合、黙って空を送ると他の端末の予定まで消えてしまう
+    let alsoServer = false;
+    if (syncConfigured()) {
+      alsoServer = confirm('共有しているサーバのデータも削除しますか？\n\n'
+        + 'OK　　　：サーバのデータも削除する（他の端末からも消えます）\n'
+        + 'キャンセル：この端末だけ削除する（サーバのデータは残す）');
+    }
+
     state = defaultState();
     view.selected = null;
     view.editingId = null;
+    view.confirming = false;
     view.form = blankForm();
-    saveState();
+    saveState(true);
     syncSettingsInputs();
+    refreshWorkTypeOptions();
     renderAll();
-    toast('すべてのデータを削除しました');
+
+    if (alsoServer) {
+      try {
+        await fetch(syncEndpoint('key=' + encodeURIComponent(sync.key)), { method: 'DELETE' });
+        sync.rev = 0;
+        saveSyncConfig();
+        setSyncStatus('サーバのデータも削除しました', 'warn');
+      } catch (err) {
+        toast('サーバのデータを削除できませんでした：' + err.message, true);
+      }
+    } else if (syncConfigured()) {
+      setSyncStatus('この端末のみ削除しました（サーバは変更していません）', 'warn');
+    }
+    toast('この端末のデータを削除しました');
   });
 
   // キーボード操作
@@ -1684,11 +2010,16 @@ function init() {
   elToast = $('toast');
 
   loadState();
+  loadSyncConfig();
   syncSettingsInputs();
+  syncSyncInputs();
   refreshWorkTypeOptions();
   view.form = blankForm();
   bindEvents();
   renderAll();
+
+  // 起動時に、他の端末で更新されていないか確認する
+  if (sync.auto && syncConfigured()) syncPull(true);
 }
 
 document.addEventListener('DOMContentLoaded', init);

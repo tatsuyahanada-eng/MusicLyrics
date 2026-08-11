@@ -1,2 +1,5 @@
 MusicLyrics/
 *.zip
+
+# 同期データの保存先（サーバ上で自動生成される）
+schedule-data/

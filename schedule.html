@@ -5,7 +5,7 @@
   <meta http-equiv="Cache-Control" content="no-store">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Task Scheduler</title>
-  <link rel="stylesheet" href="schedule.css?v=4">
+  <link rel="stylesheet" href="schedule.css?v=5">
 </head>
 <body class="sc-body">
 
@@ -208,6 +208,56 @@
     </div>
   </section>
 
+  <!-- 端末間の同期 -->
+  <section class="sc-section">
+    <div class="sc-section-inner">
+      <div class="sc-section-head">
+        <h3 class="sc-section-title">🔄 端末間でデータを共有</h3>
+        <span id="syncStatus" class="sc-sync-status">未設定</span>
+      </div>
+
+      <div class="sc-export-opts">
+        <label class="sc-field">
+          <span class="sc-field-label">保存先のURL（sync.php の場所）</span>
+          <input id="syncUrl" class="sc-input sc-input-sm" type="text" placeholder="sync.php" autocomplete="off">
+        </label>
+        <label class="sc-field">
+          <span class="sc-field-label">合言葉（PC・スマホで同じもの）</span>
+          <input id="syncKey" class="sc-input sc-input-sm" type="text" placeholder="12文字以上" autocomplete="off" spellcheck="false">
+        </label>
+        <button id="genKey" class="sc-btn sc-btn-sm sc-btn-outline" type="button">合言葉を作る</button>
+        <label class="sc-check">
+          <input id="syncAuto" type="checkbox" checked>
+          <span>自動で同期する</span>
+        </label>
+      </div>
+
+      <div class="sc-export-actions">
+        <button id="syncTest" class="sc-btn sc-btn-outline">接続テスト</button>
+        <button id="syncPushBtn" class="sc-btn">⬆️ この端末の内容を送る</button>
+        <button id="syncPullBtn" class="sc-btn sc-btn-outline">⬇️ 保存されている内容を取り込む</button>
+      </div>
+
+      <details class="sc-help">
+        <summary>設定のしかた</summary>
+        <ol class="sc-help-list">
+          <li><strong>sync.php をアップロード</strong>：schedule.html と同じフォルダに置きます。
+            データを入れるフォルダは初回に自動で作られます。</li>
+          <li><strong>合言葉を決める</strong>：PCでこの画面を開き、「合言葉を作る」を押します。
+            自動で作られた文字列をメモしてください。</li>
+          <li><strong>スマホでも同じ合言葉を入れる</strong>：スマホで同じページを開き、
+            同じ合言葉を入力して「⬇️ 保存されている内容を取り込む」を押します。</li>
+          <li>以降は、変更するたびに自動で保存され、ページを開いたときに自動で取り込まれます。</li>
+        </ol>
+        <p class="sc-note">
+          合言葉を知っている人だけがデータを読み書きできます。長い合言葉のままお使いください。
+          さらに厳重にする場合は、フォルダごと Basic 認証（.htaccess）で保護してください。設定例は下の
+          「設定とデータ」の説明に記載しています。
+        </p>
+      </details>
+    </div>
+  </section>
+
   <!-- 設定・データ -->
   <section class="sc-section">
     <div class="sc-section-inner">
@@ -245,9 +295,30 @@
         <button id="resetAll" class="sc-btn sc-btn-sm sc-btn-outline sc-btn-danger">🗑 全データ削除</button>
       </div>
       <p class="sc-note">
-        データはこのブラウザ内（localStorage）にのみ保存されます。別の端末やブラウザには引き継がれないため、
-        大切な予定はバックアップ保存をおすすめします。
+        データはこのブラウザ内に保存されます。上の「端末間でデータを共有」を設定すると、サーバ経由で
+        他の端末にも反映されます。設定していない場合は端末ごとに別々のデータになるため、
+        バックアップ保存をおすすめします。
       </p>
+
+      <details class="sc-help">
+        <summary>他の人に見られないようにする（Basic認証の設定例）</summary>
+        <p class="sc-note">
+          このツールを置いたフォルダに <code>.htaccess</code> と <code>.htpasswd</code> を作ると、
+          開くときにIDとパスワードを求められるようになります。多くのレンタルサーバでは、
+          管理画面に「アクセス制限」「Basic認証」といった設定項目が用意されているので、
+          そちらを使うのが簡単です。手動で設定する場合は次のようにします。
+        </p>
+        <p class="sc-note"><strong>.htaccess</strong>（ツールと同じフォルダに置く）</p>
+        <pre class="sc-code">AuthType Basic
+AuthName "Task Scheduler"
+AuthUserFile /home/ユーザー名/www/schedule/.htpasswd
+Require valid-user</pre>
+        <p class="sc-note">
+          <code>AuthUserFile</code> には <code>.htpasswd</code> の<strong>サーバ上の絶対パス</strong>を書きます
+          （パスはご利用のサーバの管理画面で確認できます）。
+          <code>.htpasswd</code> はサーバの管理画面や「.htpasswd 作成」で検索できる生成ツールで作れます。
+        </p>
+      </details>
 
       <details class="sc-help">
         <summary>使い方</summary>
@@ -270,6 +341,6 @@
 
   <div id="toast" class="sc-toast" role="status" aria-live="polite" hidden></div>
 
-  <script src="schedule.js?v=4"></script>
+  <script src="schedule.js?v=5"></script>
 </body>
 </html>
