@@ -182,7 +182,8 @@ const view = {
   year: now.getFullYear(),
   month: now.getMonth(),   // 0-11
   selected: null,          // 'YYYY-MM-DD'
-  paint: null,             // null | 'available' | 'off' | 'clear'
+  paint: null,             // null | 'available' | 'off' | 'clear' | 'multi'
+  multi: new Set(),        // まとめて登録する日（'YYYY-MM-DD'）
   editingId: null,
   confirming: false,       // 仮出勤 → 確定 への切り替え中
   jobFilter: 'all',        // 予定一覧の絞り込み
@@ -191,6 +192,7 @@ const view = {
 };
 
 let painting = false;
+let paintAdd = true;      // 複数日モードでドラッグ中に追加するか解除するか
 const paintTouched = new Set();
 
 function loadState() {
@@ -452,6 +454,7 @@ function renderCalendar() {
     if (!inMonth) classes.push('sc-cell-out');
     if (key < today) classes.push('sc-cell-past');
     if (isEmpty) classes.push('sc-cell-empty');
+    if (view.multi.has(key)) classes.push('sc-cell-multi');
     if (key === today) classes.push('sc-cell-today');
     if (key === view.selected) classes.push('sc-cell-selected');
     if (wish === WISH_AVAILABLE) classes.push('sc-cell-available');
@@ -471,6 +474,7 @@ function renderCalendar() {
     else if (hasTentative) marks.push('<span class="sc-mark-tentative">仮</span>');
     if (wish === WISH_AVAILABLE && !dayJobs.length) marks.push('<span class="sc-mark-available">◯</span>');
     if (wish === WISH_OFF) marks.push('<span class="sc-mark-off">✕</span>');
+    if (view.multi.has(key)) marks.push('<span class="sc-mark-multi">✓</span>');
     if (isEmpty) marks.push('<span class="sc-mark-empty">未定</span>');
     if (hasConflict) marks.push('<span class="sc-mark-conflict">⚠</span>');
 
@@ -510,73 +514,13 @@ function renderCalendar() {
   elCalendar.innerHTML = cells.join('');
 }
 
-function renderSidePanel() {
-  const key = view.selected;
-  if (!key) {
-    elSidePanel.innerHTML = '<p class="sc-side-empty">カレンダーの日付を選択してください。</p>';
-    return;
-  }
 
-  const hol = holidayName(key);
-  const wish = state.wishes[key] || null;
-  const conflicts = conflictingJobIds();
-  const dayJobs = jobsOn(key);
-
-  const cards = dayJobs.map((j) => {
-    const tentative = j.status === 'tentative';
-    const cls = ['sc-job-card'];
-    cls.push(tentative ? 'sc-job-card-tentative' : 'sc-job-card-confirmed');
-    if (conflicts.has(j.id)) cls.push('sc-job-card-conflict');
-    const time = j.allDay ? '終日' : `${j.start}〜${j.end}`;
-    const meta = [j.client, j.place].filter(Boolean).map(escapeHtml).join(' / ');
-    const gcalUrl = googleCalendarUrl(j);
-    const others = findConflicts(j, null);
-    const warn = others.length
-      ? `<p class="sc-job-warn">⚠ ${others.map((c) => (c.type === 'overlap' ? '時間が重複' : '移動時間が不足') + '：' + formatDate(c.job.date) + ' ' + escapeHtml(c.job.title || '(無題)')).join(' / ')}</p>`
-      : '';
-    return `<div class="${cls.join(' ')}">
-      <div class="sc-job-card-top">
-        <span class="sc-job-status">${tentative ? '仮出勤' : '確定'}</span>
-        <span class="sc-job-time">${escapeHtml(time)}</span>
-        <span class="sc-job-title">${escapeHtml(j.title || '(無題)')}</span>
-      </div>
-      ${j.workType ? `<p class="sc-job-meta"><span class="sc-worktype-tag">${escapeHtml(j.workType)}</span></p>` : ''}
-      ${meta ? `<p class="sc-job-meta">${meta}</p>` : ''}
-      ${j.note ? `<p class="sc-job-meta">📝 ${escapeHtml(j.note)}</p>` : ''}
-      ${warn}
-      <div class="sc-job-actions">
-        ${tentative ? `<button type="button" class="sc-btn sc-btn-sm sc-btn-confirm" data-confirm="${j.id}">✓ 確定にする</button>` : ''}
-        ${gcalUrl ? `<a class="sc-btn sc-btn-sm sc-btn-outline" href="${escapeHtml(gcalUrl)}" target="_blank" rel="noopener">📆 追加</a>` : ''}
-        <button type="button" class="sc-btn sc-btn-sm sc-btn-outline" data-edit="${j.id}">編集</button>
-        <button type="button" class="sc-btn sc-btn-sm sc-btn-outline sc-btn-danger" data-del="${j.id}">削除</button>
-      </div>
-    </div>`;
-  }).join('');
-
-  const f = view.form || blankForm();
-
-  elSidePanel.innerHTML = `
-    <div>
-      <p class="sc-side-date">${formatDate(key, 'long')}</p>
-      <p class="sc-side-date-sub">${hol ? '🎌 ' + escapeHtml(hol) : ''}${key < todayKey() ? ' （過去の日付）' : ''}</p>
-    </div>
-
+/** 予定の入力フォーム（単日・複数日で共用） */
+function jobFormHtml(f) {
+  return `
     <div class="sc-side-block">
-      <p class="sc-side-block-title">この日の希望</p>
-      <div class="sc-wish-row">
-        <button type="button" class="sc-wish-btn ${wish === WISH_AVAILABLE ? 'active-available' : ''}" data-wish="available">◯ 稼働可</button>
-        <button type="button" class="sc-wish-btn ${wish === WISH_OFF ? 'active-off' : ''}" data-wish="off">✕ 休み希望</button>
-        <button type="button" class="sc-wish-btn ${!wish ? 'active-none' : ''}" data-wish="none">− 未定</button>
-      </div>
-    </div>
-
-    <div class="sc-side-block">
-      <p class="sc-side-block-title">この日の予定（${dayJobs.length}件）</p>
-      ${cards || '<p class="sc-empty-note">まだ予定はありません。</p>'}
-    </div>
-
-    <div class="sc-side-block">
-      <p class="sc-side-block-title">${view.confirming ? '仮出勤を確定にする' : view.editingId ? '予定を編集' : '予定を追加'}</p>
+      <p class="sc-side-block-title">${view.paint === 'multi' ? `選んだ ${view.multi.size} 日にまとめて追加`
+        : view.confirming ? '仮出勤を確定にする' : view.editingId ? '予定を編集' : '予定を追加'}</p>
       ${view.confirming ? `<div class="sc-alert sc-alert-confirm">
         <span class="sc-alert-title">✓ 確定内容の確認</span>
         どの案件・どの業務で確定したのか、時間とあわせて確認してから「この内容で確定する」を押してください。
@@ -652,7 +596,128 @@ function renderSidePanel() {
           ${view.editingId ? '<button type="button" id="fCancel" class="sc-btn sc-btn-outline">中止</button>' : ''}
         </div>
       </form>
+    </div>`;
+}
+
+/** 複数日をまとめて扱うときのパネル */
+function renderMultiPanel() {
+  const dates = Array.from(view.multi).sort();
+  const f = view.form || blankForm();
+
+  if (!dates.length) {
+    elSidePanel.innerHTML = `
+      <p class="sc-side-date">複数日をまとめて登録</p>
+      <p class="sc-side-date-sub">カレンダーの日付をクリックして選んでください（ドラッグで連続選択）。</p>
+      <p class="sc-side-empty">まだ選ばれていません。</p>`;
+    return;
+  }
+
+  const chips = dates.map((d) =>
+    `<button type="button" class="sc-date-chip" data-unpick="${d}" title="外す">${formatDate(d)} <span aria-hidden="true">×</span></button>`
+  ).join('');
+
+  const withJobs = dates.filter((d) => jobsOn(d).length);
+  const offDays = dates.filter((d) => (state.wishes[d] || null) === WISH_OFF);
+
+  elSidePanel.innerHTML = `
+    <div>
+      <p class="sc-side-date">${dates.length}日を選択中</p>
+      <p class="sc-side-date-sub">同じ内容の予定を、まとめて登録できます。</p>
     </div>
+
+    <div class="sc-side-block">
+      <div class="sc-chip-row">${chips}</div>
+      <button type="button" id="multiClear" class="sc-btn sc-btn-sm sc-btn-outline" style="margin-top:6px">選択をすべて解除</button>
+    </div>
+
+    <div class="sc-side-block">
+      <p class="sc-side-block-title">選んだ日の希望をまとめて設定</p>
+      <div class="sc-wish-row">
+        <button type="button" class="sc-wish-btn" data-multiwish="available">◯ 稼働可</button>
+        <button type="button" class="sc-wish-btn" data-multiwish="off">✕ 休み希望</button>
+        <button type="button" class="sc-wish-btn" data-multiwish="none">− 未定</button>
+      </div>
+    </div>
+
+    ${(withJobs.length || offDays.length) ? `<div class="sc-side-block">
+      ${withJobs.length ? `<p class="sc-job-meta">・すでに予定がある日：${withJobs.map((d) => formatDate(d)).join('、')}</p>` : ''}
+      ${offDays.length ? `<p class="sc-job-meta">・休み希望の日：${offDays.map((d) => formatDate(d)).join('、')}</p>` : ''}
+    </div>` : ''}
+
+    ${jobFormHtml(f)}
+  `;
+
+  updateFormAlert();
+}
+
+function renderSidePanel() {
+  if (view.paint === 'multi') { renderMultiPanel(); return; }
+
+  const key = view.selected;
+  if (!key) {
+    elSidePanel.innerHTML = '<p class="sc-side-empty">カレンダーの日付を選択してください。</p>';
+    return;
+  }
+
+  const hol = holidayName(key);
+  const wish = state.wishes[key] || null;
+  const conflicts = conflictingJobIds();
+  const dayJobs = jobsOn(key);
+
+  const cards = dayJobs.map((j) => {
+    const tentative = j.status === 'tentative';
+    const cls = ['sc-job-card'];
+    cls.push(tentative ? 'sc-job-card-tentative' : 'sc-job-card-confirmed');
+    if (conflicts.has(j.id)) cls.push('sc-job-card-conflict');
+    const time = j.allDay ? '終日' : `${j.start}〜${j.end}`;
+    const meta = [j.client, j.place].filter(Boolean).map(escapeHtml).join(' / ');
+    const gcalUrl = googleCalendarUrl(j);
+    const others = findConflicts(j, null);
+    const warn = others.length
+      ? `<p class="sc-job-warn">⚠ ${others.map((c) => (c.type === 'overlap' ? '時間が重複' : '移動時間が不足') + '：' + formatDate(c.job.date) + ' ' + escapeHtml(c.job.title || '(無題)')).join(' / ')}</p>`
+      : '';
+    return `<div class="${cls.join(' ')}">
+      <div class="sc-job-card-top">
+        <span class="sc-job-status">${tentative ? '仮出勤' : '確定'}</span>
+        <span class="sc-job-time">${escapeHtml(time)}</span>
+        <span class="sc-job-title">${escapeHtml(j.title || '(無題)')}</span>
+      </div>
+      ${j.workType ? `<p class="sc-job-meta"><span class="sc-worktype-tag">${escapeHtml(j.workType)}</span></p>` : ''}
+      ${meta ? `<p class="sc-job-meta">${meta}</p>` : ''}
+      ${j.note ? `<p class="sc-job-meta">📝 ${escapeHtml(j.note)}</p>` : ''}
+      ${warn}
+      <div class="sc-job-actions">
+        ${tentative ? `<button type="button" class="sc-btn sc-btn-sm sc-btn-confirm" data-confirm="${j.id}">✓ 確定にする</button>` : ''}
+        ${gcalUrl ? `<a class="sc-btn sc-btn-sm sc-btn-outline" href="${escapeHtml(gcalUrl)}" target="_blank" rel="noopener">📆 追加</a>` : ''}
+        <button type="button" class="sc-btn sc-btn-sm sc-btn-outline" data-edit="${j.id}">編集</button>
+        <button type="button" class="sc-btn sc-btn-sm sc-btn-outline sc-btn-danger" data-del="${j.id}">削除</button>
+      </div>
+    </div>`;
+  }).join('');
+
+  const f = view.form || blankForm();
+
+  elSidePanel.innerHTML = `
+    <div>
+      <p class="sc-side-date">${formatDate(key, 'long')}</p>
+      <p class="sc-side-date-sub">${hol ? '🎌 ' + escapeHtml(hol) : ''}${key < todayKey() ? ' （過去の日付）' : ''}</p>
+    </div>
+
+    <div class="sc-side-block">
+      <p class="sc-side-block-title">この日の希望</p>
+      <div class="sc-wish-row">
+        <button type="button" class="sc-wish-btn ${wish === WISH_AVAILABLE ? 'active-available' : ''}" data-wish="available">◯ 稼働可</button>
+        <button type="button" class="sc-wish-btn ${wish === WISH_OFF ? 'active-off' : ''}" data-wish="off">✕ 休み希望</button>
+        <button type="button" class="sc-wish-btn ${!wish ? 'active-none' : ''}" data-wish="none">− 未定</button>
+      </div>
+    </div>
+
+    <div class="sc-side-block">
+      <p class="sc-side-block-title">この日の予定（${dayJobs.length}件）</p>
+      ${cards || '<p class="sc-empty-note">まだ予定はありません。</p>'}
+    </div>
+
+    ${jobFormHtml(f)}
   `;
 
   updateFormAlert();
@@ -1391,7 +1456,9 @@ function draftJob() {
 /** 重複・注意事項を再計算して警告欄だけを更新（入力中のフォーカスを維持） */
 function updateFormAlert() {
   const alertBox = $('formAlert');
-  if (!alertBox || !view.selected) return;
+  if (!alertBox) return;
+  if (view.paint === 'multi') { updateMultiFormAlert(alertBox); return; }
+  if (!view.selected) return;
 
   // まだ案件名を選んでいない＝入力を始めていない状態では判定しない。
   // （日付を選んだだけで、既定の時刻と既存予定を突き合わせた警告が出てしまうため）
@@ -1466,16 +1533,110 @@ function updateFormAlert() {
   }
 }
 
+/** 選んだ日それぞれについて、登録しようとしている内容の重複を調べる */
+function multiConflicts() {
+  const f = view.form || blankForm();
+  if (!f.titleSel) return [];
+  return Array.from(view.multi).sort().map((date) => {
+    const draft = Object.assign(draftJob(), { id: '__draft__', date: date });
+    return { date: date, conflicts: findConflicts(draft, null) };
+  }).filter((r) => r.conflicts.length);
+}
+
+function updateMultiFormAlert(alertBox) {
+  const f = view.form || blankForm();
+  let html = '';
+
+  if (!f.titleSel) {
+    alertBox.innerHTML = '';
+    view.ack = false;
+  } else {
+    const found = multiConflicts();
+    if (found.length) {
+      const items = found.map((r) => {
+        const names = r.conflicts.map((c) => escapeHtml(c.job.title || '(無題)')
+          + (c.type === 'overlap' ? '（時間が重複）' : '（間隔が不足）')).join('、');
+        return `<li>${formatDate(r.date)}：${names}</li>`;
+      }).join('');
+      html = `<div class="sc-alert sc-alert-danger">
+        <span class="sc-alert-title">⚠ ${found.length}日分が既存の予定と重なります</span>
+        <ul>${items}</ul>
+        <label class="sc-check" style="margin-top:6px;color:inherit">
+          <input id="fAck" type="checkbox" ${view.ack ? 'checked' : ''}>
+          <span>重複を承知のうえで登録する</span>
+        </label>
+      </div>`;
+    } else {
+      view.ack = false;
+    }
+    alertBox.innerHTML = html;
+  }
+
+  const btn = $('fSubmit');
+  if (btn) {
+    const needAck = html !== '';
+    btn.disabled = (needAck && !view.ack) || view.multi.size === 0;
+    btn.textContent = submitLabel(needAck);
+  }
+}
+
 /** 送信ボタンの文言（登録／更新／確定 × 重複の有無） */
 function submitLabel(hasConflict) {
+  if (view.paint === 'multi') {
+    const n = view.multi.size;
+    return hasConflict ? `重複を承知で ${n}日分を登録` : `${n}日分をまとめて登録`;
+  }
   if (view.confirming) return hasConflict ? '重複を承知で確定する' : 'この内容で確定する';
   if (view.editingId) return hasConflict ? '重複を承知で更新' : '更新する';
   return hasConflict ? '重複を承知で登録' : '登録する';
 }
 
+/** 選んだ日すべてに同じ内容の予定を作る */
+function submitMultiJobs() {
+  const base = draftJob();
+  const dates = Array.from(view.multi).sort();
+
+  if (!view.form.titleSel) { toast('案件名を選択してください', true); $('fTitle').focus(); return; }
+  if (!base.title) { toast('案件名を入力してください', true); $('fTitleFree').focus(); return; }
+  if (base.status === 'confirmed' && !base.workType) {
+    toast('確定にするには業務内容を入力してください', true);
+    $('fWorkType').focus();
+    return;
+  }
+  if (!base.allDay && (toMinutes(base.start) === null || toMinutes(base.end) === null)) {
+    toast('開始・終了時刻を入力してください', true);
+    return;
+  }
+  if (multiConflicts().length && !view.ack) {
+    updateFormAlert();
+    toast('重複しています。内容を確認してチェックを入れてください', true);
+    return;
+  }
+
+  const at = nowIso();
+  dates.forEach((date) => {
+    const job = Object.assign({}, base, {
+      id: newId(), date: date, createdAt: at, updatedAt: at,
+    });
+    if (job.status === 'confirmed') job.confirmedAt = at;
+    state.jobs.push(job);
+    if (state.wishes[date] === WISH_OFF) setWish(date, null, true);
+  });
+
+  view.multi.clear();
+  view.ack = false;
+  view.form = blankForm();
+  saveState();
+  refreshWorkTypeOptions();
+  renderAll();
+  toast(`${dates.length}日分を登録しました`);
+}
+
 function submitJob(ev) {
   ev.preventDefault();
   view.form = readForm();
+
+  if (view.paint === 'multi') { submitMultiJobs(); return; }
 
   const draft = draftJob();
   if (!view.form.titleSel) {
@@ -1788,6 +1949,10 @@ function bindEvents() {
       tab.classList.add('active');
       const v = tab.dataset.paint;
       view.paint = v === 'off-mode' ? null : v;
+      if (view.paint !== 'multi') view.multi.clear();
+      view.ack = false;
+      view.form = blankForm();
+      renderAll();
       $('paintHint').textContent = view.paint
         ? 'まとめて入力中です。ドラッグで一括設定、1日だけクリックするとその日の詳細も開きます。終わったら「選択のみ」に戻してください。'
         : '日付をクリックすると詳細パネルが開きます。まとめて入力を選ぶと、クリック（ドラッグ）で一括設定できます。';
@@ -1800,15 +1965,25 @@ function bindEvents() {
     const cell = ev.target.closest('.sc-cell');
     if (!cell) return;
     const key = cell.dataset.date;
-    if (view.paint) {
-      painting = true;
-      paintTouched.clear();
-      paintTouched.add(key);
-      applyPaint(key);
+    if (!view.paint) return;
+
+    painting = true;
+    paintTouched.clear();
+    paintTouched.add(key);
+
+    if (view.paint === 'multi') {
+      // 最初の1日で決めた向き（追加か解除か）に、ドラッグ中もそろえる
+      paintAdd = !view.multi.has(key);
+      if (paintAdd) view.multi.add(key); else view.multi.delete(key);
       renderCalendar();
-      renderStats();
-      renderExport();
+      renderSidePanel();
+      return;
     }
+
+    applyPaint(key);
+    renderCalendar();
+    renderStats();
+    renderExport();
   });
 
   elCalendar.addEventListener('pointerover', (ev) => {
@@ -1818,6 +1993,14 @@ function bindEvents() {
     const key = cell.dataset.date;
     if (paintTouched.has(key)) return;
     paintTouched.add(key);
+
+    if (view.paint === 'multi') {
+      if (paintAdd) view.multi.add(key); else view.multi.delete(key);
+      renderCalendar();
+      renderSidePanel();
+      return;
+    }
+
     applyPaint(key);
     renderCalendar();
   });
@@ -1825,6 +2008,7 @@ function bindEvents() {
   const endPaint = () => {
     if (!painting) return;
     painting = false;
+    if (view.paint === 'multi') { renderAll(); return; }
     // 1日だけ押したときは、その日を選んで詳細も開く。
     // （まとめて入力のままだと日付を選べず、予定を登録できないと誤解されるため）
     if (paintTouched.size === 1) {
@@ -1878,6 +2062,33 @@ function bindEvents() {
 
   // サイドパネル内の操作（委譲）
   elSidePanel.addEventListener('click', (ev) => {
+    const unpick = ev.target.closest('[data-unpick]');
+    if (unpick) {
+      view.multi.delete(unpick.dataset.unpick);
+      renderCalendar();
+      renderSidePanel();
+      return;
+    }
+
+    if (ev.target.id === 'multiClear') {
+      view.multi.clear();
+      renderCalendar();
+      renderSidePanel();
+      return;
+    }
+
+    const multiWish = ev.target.closest('[data-multiwish]');
+    if (multiWish) {
+      const v = multiWish.dataset.multiwish;
+      const dates = Array.from(view.multi);
+      if (!dates.length) return;
+      dates.forEach((d) => setWish(d, v === 'none' ? null : v, true));
+      saveState();
+      renderAll();
+      toast(`${dates.length}日を${v === 'available' ? '稼働可' : v === 'off' ? '休み希望' : '未定'}にしました`);
+      return;
+    }
+
     const wishBtn = ev.target.closest('[data-wish]');
     if (wishBtn && view.selected) {
       const v = wishBtn.dataset.wish;

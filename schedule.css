@@ -294,6 +294,7 @@
   transition: all 0.15s;
 }
 .sc-paint-tab:hover { background: var(--sc-surface-2); color: var(--sc-text); }
+.sc-paint-tab-multi { border-color: var(--sc-primary); color: var(--sc-primary); }
 .sc-paint-tab.active {
   background: var(--sc-primary);
   border-color: var(--sc-primary);
@@ -324,6 +325,20 @@
   display: grid;
   grid-template-columns: repeat(7, 1fr);
   gap: 4px;
+}
+
+/* 複数日をまとめて選んでいる日 */
+.sc-cell-multi {
+  outline: 3px solid var(--sc-primary);
+  outline-offset: -3px;
+}
+.sc-mark-multi {
+  background: var(--sc-primary);
+  color: #fff;
+  font-size: 0.6rem;
+  font-weight: 800;
+  border-radius: 4px;
+  padding: 0 5px;
 }
 
 /* まとめて入力中であることが分かるようにする */
@@ -588,6 +603,22 @@
 }
 
 .sc-wish-row { display: flex; gap: 5px; }
+
+/* 選択中の日付チップ */
+.sc-chip-row { display: flex; flex-wrap: wrap; gap: 5px; }
+.sc-date-chip {
+  background: var(--sc-confirmed-bg);
+  border: 1px solid var(--sc-confirmed);
+  border-radius: 999px;
+  color: var(--sc-confirmed-strong);
+  font-family: inherit;
+  font-size: 0.76rem;
+  font-weight: 700;
+  padding: 3px 10px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.sc-date-chip:hover { background: var(--sc-conflict-bg); border-color: var(--sc-conflict); color: #b91c1c; }
 
 .sc-wish-btn {
   flex: 1;

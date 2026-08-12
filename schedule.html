@@ -13,7 +13,7 @@
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="default">
   <meta name="apple-mobile-web-app-title" content="Scheduler">
-  <link rel="stylesheet" href="schedule.css?v=8">
+  <link rel="stylesheet" href="schedule.css?v=9">
 </head>
 <body class="sc-body">
 
@@ -70,6 +70,7 @@
             <button class="sc-paint-tab" data-paint="available" type="button">◯ 稼働可</button>
             <button class="sc-paint-tab" data-paint="off" type="button">✕ 休み希望</button>
             <button class="sc-paint-tab" data-paint="clear" type="button">− 未定に戻す</button>
+            <button class="sc-paint-tab sc-paint-tab-multi" data-paint="multi" type="button">☑ 複数日をまとめて</button>
           </div>
           <p id="paintHint" class="sc-hint">
             日付をクリックすると詳細パネルが開きます。まとめて入力を選ぶと、クリック（ドラッグ）で一括設定できます。
@@ -362,6 +363,6 @@ Require valid-user</pre>
 
   <div id="toast" class="sc-toast" role="status" aria-live="polite" hidden></div>
 
-  <script src="schedule.js?v=8"></script>
+  <script src="schedule.js?v=9"></script>
 </body>
 </html>
