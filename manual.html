@@ -9,7 +9,7 @@
   <link rel="manifest" href="manifest.webmanifest">
   <link rel="icon" href="icon.svg" type="image/svg+xml">
   <link rel="apple-touch-icon" href="icon-192.png">
-  <link rel="stylesheet" href="manual.css?v=78">
+  <link rel="stylesheet" href="manual.css?v=79">
 </head>
 <body class="tm-body">
 
@@ -907,10 +907,12 @@
         <ul>
           <li>見出しは行頭に「<code># </code>」を付けると項目が構造化され、AIも要点をつかみやすくなります（例：<code># 準備するもの</code>）</li>
           <li>手順は「<code>- </code>」の箇条書きや「1. 2. 3.」の番号付きで書くと、順序が伝わりやすくなります</li>
+          <li>特に大事な語句は「<code>**太字**</code>」で囲んでおくと、AIのまとめでも強調して表示されやすくなります</li>
           <li>製品名・型番は略さず、一度は正式名称で書いておくと、AIが取り違えにくくなります</li>
           <li>注意点や条件は文頭に「⚠️」「※」などの目印を付けると、AIも人も見落としにくくなります</li>
           <li>1項目1トピックにする（複数の作業を1つの項目に詰め込まない）と、検索も要約も精度が上がります</li>
         </ul>
+        <p class="tm-aisearch-tips-note">上の書き方は、項目の本文だけでなく「✨ AIによるまとめ」の表示にもそのまま使われます（見出し・箇条書き・太字が整形されて表示されます）。</p>
       </div>
       <div id="aiSearchSummary" class="tm-aisearch-summary" hidden>
         <div class="tm-aisearch-summary-head">&#10024; AIによるまとめ</div>
@@ -1087,6 +1089,6 @@
   </dialog>
 
   <script src="vendor/xlsx.full.min.js"></script>
-  <script src="manual.js?v=93"></script>
+  <script src="manual.js?v=94"></script>
 </body>
 </html>

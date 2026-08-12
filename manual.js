@@ -4366,9 +4366,8 @@
     // 在庫商品も検索対象にするため、サーバー接続時は最新を取得（ベストエフォート）
     if (serverMode() && invOn) { invFetch().then(() => { if (searchOpen) renderSearchResults(); }).catch(() => {}); }
   }
-  // 「AIによるまとめ」は一旦オフ（検索そのもの＝項目選択のAIだけを使う）。
-  // 再度使いたくなったら true に戻せば、下の呼び出しがそのまま復活する。
-  const AI_SEARCH_SUMMARY_ENABLED = false;
+  // 「AIによるまとめ」パネル（検索結果の上に、AIが根拠項目をもとに整理した回答を表示する）。
+  const AI_SEARCH_SUMMARY_ENABLED = true;
   // 参照チップ（AIによるまとめの根拠になった項目）を描画する
   function renderAiSummarySources(ids, results) {
     const sumSrc = $('#aiSearchSummarySources'); if (!sumSrc) return;
@@ -4389,6 +4388,9 @@
     const q = searchInput.value.trim();
     if (!q) { searchMetaEl.textContent = ''; searchResultsEl.innerHTML = '<div class="tm-sr-empty">質問やキーワードを入力してから「AIで探す」を押してください。</div>'; return; }
     if (!serverMode()) { searchResultsEl.innerHTML = '<div class="tm-sr-empty">AI検索はサーバー接続時のみ利用できます。</div>'; return; }
+    // 直前の入力で予約されたキーワード検索（デバウンス）がまだ残っていると、AIの結果を後から
+    // 上書きしてしまうことがあるため、AI検索を始める時点でキャンセルしておく。
+    clearTimeout(searchDebounce);
     const gen = ++aiSearchGen;
     searchMetaEl.textContent = 'AIが探しています…';
     searchResultsEl.innerHTML = '<div class="tm-sr-empty">&#10024; AIが関連する項目を探しています…</div>';
@@ -4440,7 +4442,7 @@
         apiCall('ai_search_summary', { method: 'POST', body: { q, ids: srcIds } }).then((sd) => {
           if (gen !== aiSearchGen) return; // 別の検索が始まっていれば無視
           if (sd.summary) {
-            sumBody.textContent = sd.summary;
+            sumBody.innerHTML = renderBody(sd.summary);
             renderAiSummarySources(srcIds, results);
             sumBox.hidden = false;
           } else {

@@ -913,6 +913,7 @@ body.tm-dragging .tm-sortrow { cursor: grabbing; }
 .tm-aisearch-tips code {
   font-family: var(--tm-mono); background: rgba(255,255,255,0.08); border-radius: 3px; padding: 0 4px;
 }
+.tm-aisearch-tips-note { margin: 8px 0 0 !important; color: var(--tm-muted) !important; font-weight: 400 !important; }
 .tm-aisearch-summary { margin: 0 2px 10px; }
 .tm-aisearch-summary-head {
   font-size: 12px; font-weight: 700; color: var(--tm-cyan); margin-bottom: 6px;
@@ -941,10 +942,21 @@ body.tm-dragging .tm-sortrow { cursor: grabbing; }
   background: rgba(255,255,255,0.08); border: 1px solid var(--tm-line);
 }
 .tm-ai-summary {
-  white-space: pre-wrap; line-height: 1.8; font-size: 14px; color: var(--tm-text);
+  line-height: 1.8; font-size: 14px; color: var(--tm-text);
   background: var(--tm-panel-solid); border: 1px solid var(--tm-line);
   border-radius: 8px; padding: 12px 14px; min-height: 60px; margin-bottom: 10px;
+  overflow-wrap: anywhere; word-break: break-word;
 }
+.tm-ai-summary p { margin: 0 0 9px; }
+.tm-ai-summary p:last-child { margin-bottom: 0; }
+.tm-ai-summary h3 {
+  font-size: 14px; color: var(--tm-cyan); letter-spacing: .5px;
+  margin: 10px 0 6px; border-bottom: 1px dashed var(--tm-line); padding-bottom: 3px;
+}
+.tm-ai-summary h3:first-child { margin-top: 0; }
+.tm-ai-summary ul { margin: 6px 0 9px; padding-left: 20px; list-style: disc; }
+.tm-ai-summary li { margin: 4px 0; }
+.tm-ai-summary strong { color: var(--tm-text); }
 .tm-ai-note { font-size: 11px; color: var(--tm-muted); margin: 0 0 6px; }
 
 /* 修正画面のAI ON/OFFトグル（スイッチ） */
