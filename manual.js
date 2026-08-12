@@ -9,6 +9,9 @@
 
   const STORAGE_KEY = 'treeManual.data.v1';
   const OPEN_KEY = 'treeManual.openNodes.v1';
+  // 各項目の「✨ AI要約」ボタンは無料枠のクォータ消費が大きいためオフ。
+  // 「AIで探す」（検索）は影響しない。復活させたい場合は true に戻す。
+  const AI_NODE_SUMMARY_ENABLED = false;
 
   /* ---------- utils ---------- */
   const $ = (sel, root = document) => root.querySelector(sel);
@@ -726,8 +729,8 @@
     if (state) { state.textContent = aiOn ? 'ON' : 'OFF'; state.classList.toggle('is-on', aiOn); }
     if (hint) {
       hint.textContent = hasGemini
-        ? 'サーバーにAPIキーが設定済みです。ONにすると各項目でAI要約・AIで探すが使えます。'
-        : 'サーバーにAPIキー（config.php の GEMINI_API_KEY）を設定すると使用可能になります。ONにしても、キー未設定のうちはAIボタンは表示されません。';
+        ? 'サーバーにAPIキーが設定済みです。ONにすると「AIで探す」（検索）が使えます。'
+        : 'サーバーにAPIキー（config.php の GEMINI_API_KEY）を設定すると使用可能になります。ONにしても、キー未設定のうちはAI検索は使えません。';
     }
   }
   { const chk = $('#aiToggle'); if (chk) chk.addEventListener('change', async () => {
@@ -1048,7 +1051,7 @@
             <h2 class="tm-current-title">${esc(curNode.title)}</h2>
           </div>
           <div class="tm-current-actions">
-            ${(aiEnabled && curNode.body && curNode.body.trim()) ? `<button class="tm-aibtn" data-aisummary="${curNode.id}" type="button" title="この項目をAIで要約">&#10024; AI要約</button>` : ''}
+            ${(AI_NODE_SUMMARY_ENABLED && aiEnabled && curNode.body && curNode.body.trim()) ? `<button class="tm-aibtn" data-aisummary="${curNode.id}" type="button" title="この項目をAIで要約">&#10024; AI要約</button>` : ''}
             ${hasFormFields(curNode.body) ? `<button class="tm-listbtn" data-listfields type="button" title="記入した内容を一覧で表示・コピー">&#128203; 記入内容を一覧</button>` : ''}
             <button class="tm-pinbtn ${isPinned(curNode.id) ? 'is-on' : ''}" data-pintoggle="${curNode.id}" type="button" title="TOP画面にピン留め">${isPinned(curNode.id) ? '&#9733; ピン留め中' : '&#9734; ピン留め'}</button>
             <button class="tm-editthis" data-editthis="${curNode.id}" type="button">&#9998; この項目を編集</button>
