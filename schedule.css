@@ -321,6 +321,13 @@
 .sc-vrow:last-child { border-bottom: 0; }
 .sc-vrow-sun { background: #fdf6f7; }
 .sc-vrow-sat { background: #f5f8fd; }
+/* 休み希望の日は行ごと赤くする（曜日の色より優先） */
+.sc-vrow-off {
+  background: var(--sc-off-bg);
+  border-bottom-color: var(--sc-off-border);
+}
+.sc-vrow-off .sc-vcell { border-left-color: var(--sc-off-border); }
+.sc-vrow-off .sc-vdate { border-right-color: var(--sc-off); }
 .sc-vrow-today { box-shadow: inset 0 0 0 2px var(--sc-primary); }
 
 /* 見出し行 */

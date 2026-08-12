@@ -607,6 +607,8 @@ function renderCalendar() {
     const rcls = ['sc-vrow'];
     if (dow === 0) rcls.push('sc-vrow-sun');
     if (dow === 6) rcls.push('sc-vrow-sat');
+    // 休み希望の日は、枠まで含めて行ごと赤くする
+    if (wish === WISH_OFF) rcls.push('sc-vrow-off');
     if (key === today) rcls.push('sc-vrow-today');
     rows.push(`<div class="${rcls.join(' ')}">${dateCell}${cells}</div>`);
   }
