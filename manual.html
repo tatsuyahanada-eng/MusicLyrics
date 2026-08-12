@@ -9,7 +9,7 @@
   <link rel="manifest" href="manifest.webmanifest">
   <link rel="icon" href="icon.svg" type="image/svg+xml">
   <link rel="apple-touch-icon" href="icon-192.png">
-  <link rel="stylesheet" href="manual.css?v=75">
+  <link rel="stylesheet" href="manual.css?v=76">
 </head>
 <body class="tm-body">
 
@@ -901,6 +901,21 @@
       <div id="aiSearchRow" class="tm-aisearch-row" hidden>
         <button type="button" id="aiSearchBtn" class="tm-btn tm-btn-ai tm-btn-sm">&#10024; AIで探す（意味で検索）</button>
         <span class="tm-aisearch-hint">キーワードが合わなくても、質問文からAIが関連項目を探します。</span>
+        <button type="button" id="aiTipsBtn" class="tm-aisearch-tipsbtn">&#128161; 入力のコツ</button>
+      </div>
+      <div id="aiTipsBox" class="tm-aisearch-tips" hidden>
+        <p>AIがまとめやすくなる書き方のコツ：</p>
+        <ul>
+          <li>見出しは行頭に「<code># </code>」を付けると項目が構造化され、AIも要点をつかみやすくなります（例：<code># 準備するもの</code>）</li>
+          <li>手順は「<code>- </code>」の箇条書きや「1. 2. 3.」の番号付きで書くと、順序が伝わりやすくなります</li>
+          <li>製品名・型番は略さず、一度は正式名称で書いておくと、AIが取り違えにくくなります</li>
+          <li>注意点や条件は文頭に「⚠️」「※」などの目印を付けると、AIも人も見落としにくくなります</li>
+          <li>1項目1トピックにする（複数の作業を1つの項目に詰め込まない）と、検索も要約も精度が上がります</li>
+        </ul>
+      </div>
+      <div id="aiSearchSummary" class="tm-aisearch-summary" hidden>
+        <div class="tm-aisearch-summary-head">&#10024; AIによるまとめ</div>
+        <div id="aiSearchSummaryBody" class="tm-ai-summary"></div>
       </div>
       <div id="searchMeta" class="tm-search-meta"></div>
       <div id="searchResults" class="tm-search-results"></div>
@@ -1071,6 +1086,6 @@
   </dialog>
 
   <script src="vendor/xlsx.full.min.js"></script>
-  <script src="manual.js?v=88"></script>
+  <script src="manual.js?v=89"></script>
 </body>
 </html>

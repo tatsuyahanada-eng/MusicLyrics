@@ -4354,6 +4354,8 @@
     searchInput.value = '';
     renderSearchResults();
     const aiRow = $('#aiSearchRow'); if (aiRow) aiRow.hidden = !aiEnabled; // AIキー未設定なら非表示
+    const tipsBox = $('#aiTipsBox'); if (tipsBox) tipsBox.hidden = true;
+    const sumBox = $('#aiSearchSummary'); if (sumBox) sumBox.hidden = true;
     searchDialog.showModal();
     syncTrap();
     setTimeout(() => searchInput.focus(), 30);
@@ -4367,6 +4369,8 @@
     if (!serverMode()) { searchResultsEl.innerHTML = '<div class="tm-sr-empty">AI検索はサーバー接続時のみ利用できます。</div>'; return; }
     searchMetaEl.textContent = 'AIが探しています…';
     searchResultsEl.innerHTML = '<div class="tm-sr-empty">&#10024; AIが関連する項目を探しています…</div>';
+    const sumBox = $('#aiSearchSummary'), sumBody = $('#aiSearchSummaryBody');
+    if (sumBox) sumBox.hidden = true;
     try {
       // ツリーが手元で少し古いままだと、AIが見つけた項目をこの端末で解決できず結果が消えてしまうことがあるため、
       // AI検索と並行して最新のツリーを取り直しておく（結果表示自体はサーバーが返す情報を優先して使う）。
@@ -4374,6 +4378,7 @@
         apiCall('ai_search', { method: 'POST', body: { q } }),
         reloadFromServer().catch(() => {}),
       ]);
+      if (d.summary && sumBox && sumBody) { sumBody.textContent = d.summary; sumBox.hidden = false; }
       const results = (d.results || []).map((r) => {
         // まず手元のツリーで解決を試みる（ロック解除状態やクリック時の遷移先の特定に必要）。
         // 見つからなくても、サーバーが返した title/path でそのまま一覧には表示する。
@@ -4408,6 +4413,7 @@
     }
   }
   { const aib = $('#aiSearchBtn'); if (aib) aib.addEventListener('click', runAiSearch); }
+  { const tb = $('#aiTipsBtn'), tbox = $('#aiTipsBox'); if (tb && tbox) tb.addEventListener('click', () => { tbox.hidden = !tbox.hidden; }); }
   let searchDebounce = null;
   searchInput.addEventListener('input', () => {
     clearTimeout(searchDebounce);

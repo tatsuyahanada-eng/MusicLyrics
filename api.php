@@ -174,10 +174,13 @@ function cbc_gemini_call($model, $bodyJson) {
   return array($code, $resp, '');
 }
 
-/* Google Gemini 呼び出し（APIキーはサーバー内のみ）。$jsonMode=true でJSON応答を要求。
-   モデル名の違い（廃止・改名）を吸収するため、候補モデルを順に試し、成功したモデルを記憶する。 */
-function cbc_gemini($pdo, $prompt, $jsonMode = false, $maxTokens = 1024) {
-  if (GEMINI_API_KEY === '') fail('AI機能が未設定です（config.php に GEMINI_API_KEY を設定してください）', 400);
+/* Google Gemini 呼び出しの本体（失敗しても exit しない版）。$jsonMode=true でJSON応答を要求。
+   モデル名の違い（廃止・改名）を吸収するため、候補モデルを順に試し、成功したモデルを記憶する。
+   戻り値: array($text, $errMsg, $httpCodeForFail)
+     成功時: $text=応答文字列, $errMsg=null
+     失敗時: $text=null, $errMsg=エラー文言（ヒント込み）, $httpCodeForFail=呼び出し側がfail()に渡すべきHTTPコード */
+function cbc_gemini_soft($pdo, $prompt, $jsonMode = false, $maxTokens = 1024) {
+  if (GEMINI_API_KEY === '') return array(null, 'AI機能が未設定です（config.php に GEMINI_API_KEY を設定してください）', 400);
   $payload = array(
     'contents' => array(array('parts' => array(array('text' => $prompt)))),
     'generationConfig' => array('temperature' => 0.2, 'maxOutputTokens' => (int)$maxTokens),
@@ -197,7 +200,7 @@ function cbc_gemini($pdo, $prompt, $jsonMode = false, $maxTokens = 1024) {
   $lastMsg = '';
   foreach ($candidates as $model) {
     list($code, $resp, $neterr) = cbc_gemini_call($model, $bodyJson);
-    if ($neterr !== '') fail('AIサーバーに接続できません: ' . $neterr, 502); // 通信自体の失敗は打ち切り
+    if ($neterr !== '') return array(null, 'AIサーバーに接続できません: ' . $neterr, 502); // 通信自体の失敗は打ち切り
     $data = json_decode($resp, true);
     if ($code >= 200 && $code < 300 && is_array($data)) {
       cbc_setting_set($pdo, 'gemini_model_ok', $model); // 使えたモデルを記憶（次回から直接）
@@ -205,7 +208,7 @@ function cbc_gemini($pdo, $prompt, $jsonMode = false, $maxTokens = 1024) {
       if (isset($data['candidates'][0]['content']['parts']) && is_array($data['candidates'][0]['content']['parts'])) {
         foreach ($data['candidates'][0]['content']['parts'] as $p) { if (isset($p['text'])) $text .= $p['text']; }
       }
-      return $text;
+      return array($text, null, 200);
     }
     $lastMsg = (is_array($data) && isset($data['error']['message'])) ? $data['error']['message'] : ('HTTP ' . $code);
     // モデルが無い/未対応/廃止のときだけ次の候補へ。それ以外（キー不正・権限・課金等）は即エラー。
@@ -217,10 +220,16 @@ function cbc_gemini($pdo, $prompt, $jsonMode = false, $maxTokens = 1024) {
       } elseif (preg_match('/API key not valid|API_KEY_INVALID|PERMISSION_DENIED|permission/i', $lastMsg)) {
         $hint = "\n【対処】APIキーが正しくないか権限がありません。config.php の GEMINI_API_KEY を再確認してください。";
       }
-      fail('AI呼び出しに失敗しました: ' . $lastMsg . $hint, ($code === 429 ? 429 : 502));
+      return array(null, 'AI呼び出しに失敗しました: ' . $lastMsg . $hint, ($code === 429 ? 429 : 502));
     }
   }
-  fail('利用可能なGeminiモデルが見つかりませんでした。config.php の GEMINI_MODEL をご確認ください（例: gemini-2.5-flash）。詳細: ' . $lastMsg, 502);
+  return array(null, '利用可能なGeminiモデルが見つかりませんでした。config.php の GEMINI_MODEL をご確認ください（例: gemini-2.5-flash）。詳細: ' . $lastMsg, 502);
+}
+/* cbc_gemini_soft のラッパー。失敗したら即エラー応答して終了する（要約・検索の主機能で使用）。 */
+function cbc_gemini($pdo, $prompt, $jsonMode = false, $maxTokens = 1024) {
+  list($text, $err, $code) = cbc_gemini_soft($pdo, $prompt, $jsonMode, $maxTokens);
+  if ($err !== null) fail($err, $code);
+  return $text;
 }
 function now_ms() { return (int) round(microtime(true) * 1000); }
 
@@ -1169,7 +1178,25 @@ switch ($action) {
         );
       }
     }
-    ok(array('results' => $results));
+    // AIが意味で見つけた候補（上位いくつか）の本文をもとに、質問への回答をAIがまとめる（任意・失敗しても検索結果自体は返す）。
+    // キーワード一致だけのときは「AIが理解して答えた」わけではないため、まとめの生成はしない。
+    $summary = null;
+    if ($results && $results[0]['source'] === 'ai') {
+      $top = array_slice($results, 0, 4);
+      $secLines = array();
+      foreach ($top as $r) {
+        $full = mb_substr($plainBody[$r['id']], 0, 1200);
+        $secLines[] = '=== ' . implode(' > ', $r['path']) . " ===\n" . $full;
+      }
+      $sumPrompt = "あなたは社内作業マニュアルのアシスタントです。利用者の質問に対して、下記の関連項目の内容だけを根拠に、"
+        . "実際の手順や要点をわかりやすく日本語でまとめて回答してください（400字程度目安）。"
+        . "複数項目にまたがる場合は関連が深い順に整理し、該当する項目名（見出し）にも触れてください。"
+        . "関連項目に書かれていないことは推測で補わないでください。\n\n"
+        . "【質問】" . $query . "\n\n【関連項目の内容】\n" . implode("\n\n", $secLines);
+      list($sumText, $sumErr) = cbc_gemini_soft($pdo, $sumPrompt, false, 700);
+      if ($sumErr === null && trim((string)$sumText) !== '') $summary = trim($sumText);
+    }
+    ok(array('results' => $results, 'summary' => $summary));
   }
 
   case 'login': {
