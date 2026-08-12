@@ -793,59 +793,47 @@ function monthDayKeys() {
   return keys;
 }
 
-function availableDayKeys() {
-  const mode = $('excludeMode').value;          // 'both' | 'confirmed' | 'none'
-  const includeUndecided = $('includeUndecided').checked;
+function listedDayKeys() {
+  const target = $('listTarget').value;             // 'off' = 休み希望日 / 'available' = 稼働可能日
+  const excludeBooked = $('excludeBooked').checked;
   return monthDayKeys().filter((key) => {
     const w = state.wishes[key] || null;
-    if (w === WISH_OFF) return false;
-    if (w !== WISH_AVAILABLE && !includeUndecided) return false;
-    const js = jobsOn(key);
-    if (mode === 'both' && js.length) return false;
-    if (mode === 'confirmed' && js.some((j) => j.status !== 'tentative')) return false;
+    if (target === 'off') return w === WISH_OFF;
+    if (w !== WISH_AVAILABLE) return false;
+    if (excludeBooked && jobsOn(key).length) return false;
     return true;
   });
 }
 
-function buildExportText() {
-  const keys = availableDayKeys();
+function buildListText() {
+  const keys = listedDayKeys();
+  const target = $('listTarget').value;
   const format = $('exportFormat').value;
-  const sender = $('senderName').value.trim();
+  const name = target === 'off' ? '休み希望日' : '稼働可能日';
   const title = `${view.year}年${view.month + 1}月`;
 
   if (!keys.length) {
-    return `${title}の稼働可能日は登録されていません。\nカレンダーで「◯ 稼働可」を設定してください。`;
+    return target === 'off'
+      ? `${title}の休み希望日は登録されていません。\nカレンダーで「✕ 休み希望」を設定してください。`
+      : `${title}の稼働可能日は登録されていません。\nカレンダーで「◯ 稼働可」を設定してください。`;
   }
 
-  const bullets = keys.map((k) => '・' + formatDate(k)).join('\n');
-
-  if (format === 'bullet') return bullets;
   if (format === 'inline') return keys.map((k) => formatDate(k)).join('、');
   if (format === 'dayonly') return keys.map((k) => Number(k.slice(8))).join('、') + '日';
 
-  const lines = [];
-  lines.push('お世話になっております。' + (sender ? sender + 'です。' : ''));
-  lines.push('');
-  lines.push(`${title}の稼働可能日をご連絡いたします。`);
-  lines.push('');
-  lines.push(`■ 稼働可能日（全${keys.length}日）`);
-  lines.push(bullets);
-  lines.push('');
-  lines.push('※上記以外の日は対応が難しい状況です。');
-  lines.push('※ご依頼が確定しましたら、ご一報いただけますと幸いです。');
-  lines.push('');
-  lines.push('何卒よろしくお願いいたします。');
-  if (sender) {
-    lines.push('');
-    lines.push(sender);
-  }
-  return lines.join('\n');
+  return [`${title} ${name}（全${keys.length}日）`, '']
+    .concat(keys.map((k) => '・' + formatDate(k)))
+    .join('\n');
 }
 
 function renderExport() {
-  const keys = availableDayKeys();
-  elAvailCount.textContent = `${view.year}年${view.month + 1}月：${keys.length}日`;
-  elExportText.value = buildExportText();
+  const target = $('listTarget').value;
+  // 「予定が入っている日は除く」は稼働可能日のときだけ意味がある
+  $('excludeBookedWrap').hidden = target !== 'available';
+  const keys = listedDayKeys();
+  const name = target === 'off' ? '休み希望' : '稼働可能';
+  $('availCount').textContent = `${view.year}年${view.month + 1}月の${name}：${keys.length}日`;
+  elExportText.value = buildListText();
 }
 
 function buildJobsText() {
@@ -1743,7 +1731,6 @@ function syncSettingsInputs() {
   $('bufferMin').value = String(state.settings.bufferMin);
   $('defStart').value = state.settings.defStart;
   $('defEnd').value = state.settings.defEnd;
-  $('senderName').value = state.settings.senderName || '';
 }
 
 /* ------------------------------------------------------------
@@ -1970,25 +1957,14 @@ function bindEvents() {
     });
   });
 
-  // 稼働可能日の書き出し
-  ['exportFormat', 'excludeMode', 'includeUndecided'].forEach((id) => {
+  // 休み希望日の一覧
+  ['listTarget', 'exportFormat', 'excludeBooked'].forEach((id) => {
     $(id).addEventListener('change', renderExport);
-  });
-  $('senderName').addEventListener('input', () => {
-    state.settings.senderName = $('senderName').value;
-    saveState();
-    renderExport();
   });
 
   $('copyExport').addEventListener('click', async () => {
     const ok = await copyText(elExportText.value);
-    toast(ok ? 'コピーしました。メールに貼り付けてください' : 'コピーできませんでした。手動で選択してください', !ok);
-  });
-
-  $('mailtoExport').addEventListener('click', () => {
-    const subject = `【稼働可能日のご連絡】${view.year}年${view.month + 1}月`;
-    window.location.href = 'mailto:?subject=' + encodeURIComponent(subject)
-      + '&body=' + encodeURIComponent(elExportText.value);
+    toast(ok ? 'コピーしました' : 'コピーできませんでした。手動で選択してください', !ok);
   });
 
   // Googleカレンダー用ファイル
