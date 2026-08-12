@@ -175,7 +175,7 @@ FTPソフトで、`uploads/` フォルダのパーミッションを **705（必
 2. **config.php に記入**：
    ```php
    define('GEMINI_API_KEY', 'AIza…');            // 取得したキー
-   define('GEMINI_MODEL',   'gemini-2.0-flash');  // 使うモデル（例: gemini-2.0-flash / gemini-2.5-flash）
+   define('GEMINI_MODEL',   'gemini-2.5-flash');  // 使うモデル（例: gemini-2.5-flash / gemini-flash-latest）
    ```
 3. アプリを開き直すと、上部「検索」内に **「✨ AIで探す」**、項目の右上に **「✨ AI要約」** が表示されます。
 
@@ -187,10 +187,11 @@ FTPソフトで、`uploads/` フォルダのパーミッションを **705（必
 - サーバー（PHP）から **外部へのHTTPS通信（`curl` など）** が必要です。ロリポップは既定で利用できます。
 - 利用はGeminiの**無料枠／従量課金**の対象です（お使いのGoogleアカウントの契約に従います）。
 - AIの回答は自動生成のため、**最終的な正確さは元の項目でご確認ください**。
-- **モデル名エラー**（`... is not found for API version v1beta ...`）が出る場合は、指定モデルが
-  そのキーで使えない状態です。`GEMINI_MODEL` を `gemini-2.0-flash` などに変更してください。
-  なお本アプリは、使えないモデルのときは自動で他の候補（2.0-flash 等）を試し、成功したモデルを
-  記憶して次回から使います。
+- **モデル名エラー**（`... is not found for API version v1beta ...` や `... is no longer available ...`）
+  が出る場合は、指定モデルがそのキーで使えない（廃止された）状態です。`GEMINI_MODEL` を
+  `gemini-2.5-flash` などに変更してください。なお本アプリは、使えない／廃止されたモデルのときは
+  自動で他の候補（2.5-flash 等）を試し、成功したモデルを記憶して次回から直接使います
+  （Googleが将来モデルを廃止しても、次にAIを使ったときに自動で切り替わります）。
 
 ## サーバー移行（別のレンタルサーバーへの引っ越し）手順
 

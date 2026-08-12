@@ -21,7 +21,7 @@ if (!defined('UPLOAD_URL'))       define('UPLOAD_URL', 'uploads');
 if (!defined('UPLOAD_MAX_BYTES')) define('UPLOAD_MAX_BYTES', 5 * 1024 * 1024);
 if (!defined('BACKUP_DIR'))       define('BACKUP_DIR', __DIR__ . '/backups'); // 自動バックアップ（完全バックアップJSON）の保存先
 if (!defined('GEMINI_API_KEY'))   define('GEMINI_API_KEY', '');
-if (!defined('GEMINI_MODEL'))     define('GEMINI_MODEL', 'gemini-1.5-flash');
+if (!defined('GEMINI_MODEL'))     define('GEMINI_MODEL', 'gemini-2.5-flash');
 if (!defined('GOOGLE_MAPS_API_KEY')) define('GOOGLE_MAPS_API_KEY', '');
 if (!defined('TRAVEL_ORIGIN'))    define('TRAVEL_ORIGIN', '東京都台東区台東2-1-1'); // 交通費の起点（日本リテイル）
 
@@ -165,10 +165,11 @@ function cbc_gemini($pdo, $prompt, $jsonMode = false, $maxTokens = 1024) {
   if ($jsonMode) $payload['generationConfig']['responseMimeType'] = 'application/json';
   $bodyJson = json_encode($payload, JSON_UNESCAPED_UNICODE);
 
-  // 候補モデル: 前回成功したもの → config指定 → 現行の既定候補（重複除去）
+  // 候補モデル: 前回成功したもの → config指定 → 現行の既定候補（重複除去）。
+  // 「latest」系のエイリアスも入れておくと、個別モデルが廃止されても自動で追従しやすい。
   $candidates = array();
   foreach (array(cbc_setting_get($pdo, 'gemini_model_ok', ''), GEMINI_MODEL,
-    'gemini-2.0-flash', 'gemini-2.5-flash', 'gemini-flash-latest', 'gemini-1.5-flash') as $m) {
+    'gemini-2.5-flash', 'gemini-flash-latest', 'gemini-2.0-flash', 'gemini-1.5-flash') as $m) {
     $m = trim((string)$m);
     if ($m !== '' && !in_array($m, $candidates, true)) $candidates[] = $m;
   }
@@ -187,8 +188,9 @@ function cbc_gemini($pdo, $prompt, $jsonMode = false, $maxTokens = 1024) {
       return $text;
     }
     $lastMsg = (is_array($data) && isset($data['error']['message'])) ? $data['error']['message'] : ('HTTP ' . $code);
-    // モデルが無い/未対応のときだけ次の候補へ。それ以外（キー不正・権限・課金等）は即エラー。
-    if (!preg_match('/not found|not supported|unknown|does not exist|unsupported/i', $lastMsg)) {
+    // モデルが無い/未対応/廃止のときだけ次の候補へ。それ以外（キー不正・権限・課金等）は即エラー。
+    // Googleのモデル廃止メッセージは "not found" 系だけでなく "is no longer available" 系も来るため、両方を拾う。
+    if (!preg_match('/not found|not supported|unknown|does not exist|unsupported|no longer available|deprecated|has been removed|is retired/i', $lastMsg)) {
       $hint = '';
       if (preg_match('/quota|billing|free_tier|limit:\s*0|RESOURCE_EXHAUSTED/i', $lastMsg)) {
         $hint = "\n【対処】Googleの無料枠が0/上限超過です。Google AI Studio の「課金」でプロジェクトにお支払い情報を設定すると解消します（Flashは低額）。";
@@ -198,7 +200,7 @@ function cbc_gemini($pdo, $prompt, $jsonMode = false, $maxTokens = 1024) {
       fail('AI呼び出しに失敗しました: ' . $lastMsg . $hint, ($code === 429 ? 429 : 502));
     }
   }
-  fail('利用可能なGeminiモデルが見つかりませんでした。config.php の GEMINI_MODEL をご確認ください（例: gemini-2.0-flash）。詳細: ' . $lastMsg, 502);
+  fail('利用可能なGeminiモデルが見つかりませんでした。config.php の GEMINI_MODEL をご確認ください（例: gemini-2.5-flash）。詳細: ' . $lastMsg, 502);
 }
 function now_ms() { return (int) round(microtime(true) * 1000); }
 
