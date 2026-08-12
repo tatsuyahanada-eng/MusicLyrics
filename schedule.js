@@ -1744,7 +1744,7 @@ function moveMonth(delta) {
   renderAll();
 }
 
-function selectDate(key) {
+function selectDate(key, opts) {
   view.selected = key;
   view.editingId = null;
   view.confirming = false;
@@ -1758,7 +1758,8 @@ function selectDate(key) {
   renderAll();
 
   // 1カラム表示のときは詳細パネルが画面外になるため送る
-  if (window.innerWidth <= 900) {
+  // （まとめて入力中は、続けて塗れるようにその場へとどまる）
+  if (!(opts && opts.noScroll) && window.innerWidth <= 900) {
     elSidePanel.scrollIntoView({ behavior: 'smooth', block: 'start' });
   }
 }
@@ -1788,8 +1789,9 @@ function bindEvents() {
       const v = tab.dataset.paint;
       view.paint = v === 'off-mode' ? null : v;
       $('paintHint').textContent = view.paint
-        ? 'カレンダーをクリック（ドラッグ）すると、まとめて設定できます。'
+        ? 'まとめて入力中です。ドラッグで一括設定、1日だけクリックするとその日の詳細も開きます。終わったら「選択のみ」に戻してください。'
         : '日付をクリックすると詳細パネルが開きます。まとめて入力を選ぶと、クリック（ドラッグ）で一括設定できます。';
+      document.querySelector('.sc-calendar').classList.toggle('sc-calendar-painting', !!view.paint);
     });
   });
 
@@ -1823,7 +1825,13 @@ function bindEvents() {
   const endPaint = () => {
     if (!painting) return;
     painting = false;
-    renderAll();
+    // 1日だけ押したときは、その日を選んで詳細も開く。
+    // （まとめて入力のままだと日付を選べず、予定を登録できないと誤解されるため）
+    if (paintTouched.size === 1) {
+      selectDate(Array.from(paintTouched)[0], { noScroll: true });
+    } else {
+      renderAll();
+    }
   };
   window.addEventListener('pointerup', endPaint);
   window.addEventListener('pointercancel', endPaint);

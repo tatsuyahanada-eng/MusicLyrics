@@ -326,6 +326,13 @@
   gap: 4px;
 }
 
+/* まとめて入力中であることが分かるようにする */
+.sc-calendar-painting {
+  outline: 2px dashed var(--sc-primary);
+  outline-offset: 6px;
+  border-radius: 4px;
+}
+
 .sc-cell {
   position: relative;
   background: var(--sc-surface);
