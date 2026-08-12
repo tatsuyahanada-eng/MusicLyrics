@@ -22,13 +22,18 @@ const PROJECT_PRESETS = [
 ];
 const PROJECT_FREE = '__free__';
 
-/** 1日を分ける時間帯（縦型カレンダーの列） */
+/**
+ * 1日を分ける時間帯（縦型カレンダーの列）
+ *   start / end … その枠の標準の時間。見出しと入力の初期値に使う。
+ *   from  / to  … その枠に含める範囲。標準より早い開始（AMの8:00、夜間の17:30）も
+ *                 その枠に入るよう、標準時間より広くとってある。
+ */
 const SLOTS = [
-  { id: 'early', name: '早朝', start: '05:00', end: '08:00' },
-  { id: 'am',    name: 'AM',   start: '08:00', end: '12:00' },
-  { id: 'p1',    name: 'P1',   start: '12:00', end: '15:00' },
-  { id: 'p2',    name: 'P2',   start: '15:00', end: '18:00' },
-  { id: 'night', name: '夜間', start: '18:00', end: '22:00' },
+  { id: 'early', name: '早朝', start: '05:00', end: '08:00', from: '00:00', to: '08:00' },
+  { id: 'am',    name: 'AM',   start: '09:00', end: '12:00', from: '08:00', to: '12:00' },
+  { id: 'p1',    name: 'P1',   start: '12:00', end: '15:00', from: '12:00', to: '15:00' },
+  { id: 'p2',    name: 'P2',   start: '15:00', end: '18:00', from: '15:00', to: '17:30' },
+  { id: 'night', name: '夜間', start: '18:00', end: '23:00', from: '17:30', to: '24:00' },
 ];
 
 function slotById(id) {
@@ -36,19 +41,68 @@ function slotById(id) {
   return null;
 }
 
+/** 予定とその枠が重なっている分数 */
+function slotOverlapMinutes(job, slot) {
+  if (job.allDay) return 1440;
+  const s = toMinutes(job.start);
+  let e = toMinutes(job.end);
+  if (s === null || e === null) return 0;
+  if (e <= s) e += 1440;   // 日をまたぐ勤務
+  const ss = toMinutes(slot.from);
+  const se = toMinutes(slot.to);
+  const today = Math.min(e, se) - Math.max(s, ss);
+  const nextDay = Math.min(e, se + 1440) - Math.max(s, ss + 1440);
+  return Math.max(0, today) + Math.max(0, nextDay);
+}
+
+/** 端に少し掛かるだけの予定は、その枠には出さない（30分以内） */
+const SLOT_EDGE_MINUTES = 30;
+
 /** 予定が掛かっている時間帯のID一覧（終日はすべての枠） */
 function jobSlots(job) {
   if (job.allDay) return SLOTS.map((s) => s.id);
   const s = toMinutes(job.start);
-  let e = toMinutes(job.end);
-  if (s === null || e === null) return [];
-  if (e <= s) e += 1440;   // 日をまたぐ勤務
   return SLOTS.filter((slot) => {
-    const ss = toMinutes(slot.start);
-    const se = toMinutes(slot.end);
-    // 日をまたぐ場合は翌日ぶんも見る
-    return (s < se && ss < e) || (s < se + 1440 && ss + 1440 < e);
+    const ov = slotOverlapMinutes(job, slot);
+    if (ov <= 0) return false;
+    // その枠の中で始まる予定は、短くても必ず出す（夜間の17:30開始など）
+    const startsHere = s !== null && s >= toMinutes(slot.from) && s < toMinutes(slot.to);
+    return startsHere || ov > SLOT_EDGE_MINUTES;
   }).map((slot) => slot.id);
+}
+
+/** その予定の“主”の枠＝開始時刻が入る枠（夜勤なら夜間が主で、翌朝は続き扱い） */
+function primarySlotId(job) {
+  const s = toMinutes(job.start);
+  if (s !== null) {
+    const found = SLOTS.filter((slot) => s >= toMinutes(slot.from) && s < toMinutes(slot.to));
+    if (found.length) return found[0].id;
+  }
+  // 開始時刻が取れないときは、いちばん長く掛かっている枠にする
+  let best = null;
+  let bestOverlap = 0;
+  SLOTS.forEach((slot) => {
+    const ov = slotOverlapMinutes(job, slot);
+    if (ov > bestOverlap) { bestOverlap = ov; best = slot.id; }
+  });
+  return best;
+}
+
+/** '08:00' → '8:00' */
+function shortTime(hhmm) {
+  return String(hhmm || '').replace(/^0/, '');
+}
+
+/**
+ * 標準の開始時刻との違い。
+ * 早い開始（AMの8:00、夜間の17:30）を見分けられるようにする。
+ */
+function startDiff(job, slot) {
+  if (!slot || job.allDay) return null;
+  const s = toMinutes(job.start);
+  const std = toMinutes(slot.start);
+  if (s === null || std === null || s === std) return null;
+  return { kind: s < std ? 'early' : 'late', label: shortTime(job.start) };
 }
 
 /** その日・その枠に掛かっている予定 */
@@ -520,11 +574,24 @@ function renderCalendar() {
       if (view.selected === key && view.slot === slot.id) cls.push('sc-vcell-selected');
 
       const inner = list.map((j) => {
+        const isPrimary = j.allDay || primarySlotId(j) === slot.id;
+        const diff = isPrimary ? startDiff(j, slot) : null;
+        const cls = ['sc-vpill'];
+        cls.push(j.status === 'tentative' ? 'sc-vpill-tentative' : 'sc-vpill-confirmed');
+        if (!isPrimary) cls.push('sc-vpill-cont');       // 前の枠から続いている
+        if (diff) cls.push('sc-vpill-' + diff.kind);
+
         const tag = j.status === 'tentative' ? '<span class="sc-vpill-mark">仮</span>' : '';
+        const time = diff
+          ? `<span class="sc-vtime sc-vtime-${diff.kind}">${diff.kind === 'early' ? '◀' : ''}${escapeHtml(diff.label)}</span>`
+          : '';
         const tip = [formatDate(j.date), j.allDay ? '終日' : j.start + '〜' + j.end,
-          j.title, j.workType, j.client, j.place].filter(Boolean).join(' / ');
-        return `<span class="sc-vpill ${j.status === 'tentative' ? 'sc-vpill-tentative' : 'sc-vpill-confirmed'}"`
-          + ` title="${escapeHtml(tip)}">${tag}${escapeHtml(j.title || '(無題)')}</span>`;
+          j.title, j.workType, j.client, j.place].filter(Boolean).join(' / ')
+          + (diff ? `（この枠の標準 ${slot.start} より${diff.kind === 'early' ? '早い' : '遅い'}開始）` : '')
+          + (isPrimary ? '' : '（前の枠から続いています）');
+
+        return `<span class="${cls.join(' ')}" title="${escapeHtml(tip)}">`
+          + `${tag}${time}${escapeHtml(j.title || '(無題)')}</span>`;
       }).join('');
 
       const label = `${view.month + 1}月${d}日 ${slot.name}`

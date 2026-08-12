@@ -13,7 +13,7 @@
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="default">
   <meta name="apple-mobile-web-app-title" content="Scheduler">
-  <link rel="stylesheet" href="schedule.css?v=10">
+  <link rel="stylesheet" href="schedule.css?v=11">
 </head>
 <body class="sc-body">
 
@@ -94,6 +94,8 @@
         <li><span class="sc-chip sc-chip-off">✕</span> 休み希望</li>
         <li><span class="sc-chip sc-chip-confirmed">確定</span> 確定した仕事（枠が青）</li>
         <li><span class="sc-chip sc-chip-tentative">仮</span> 仮出勤（枠がオレンジ）</li>
+        <li><span class="sc-chip sc-chip-early">◀8:00</span> 枠の標準より早い開始</li>
+        <li><span class="sc-chip sc-chip-cont">続き</span> 前の枠から続いている予定</li>
         <li><span class="sc-chip sc-chip-conflict">⚠</span> 重複あり</li>
       </ul>
 
@@ -344,6 +346,6 @@ Require valid-user</pre>
 
   <div id="toast" class="sc-toast" role="status" aria-live="polite" hidden></div>
 
-  <script src="schedule.js?v=10"></script>
+  <script src="schedule.js?v=11"></script>
 </body>
 </html>

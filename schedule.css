@@ -454,6 +454,37 @@
   font-size: 0.56rem;
 }
 
+/* 標準の開始時刻と違うときに出す時刻 */
+.sc-vtime {
+  display: inline-block;
+  border-radius: 3px;
+  padding: 0 3px;
+  margin-right: 3px;
+  font-size: 0.58rem;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+}
+/* 標準より早い開始（AMの8:00、夜間の17:30 など）— はっきり目立たせる */
+.sc-vtime-early { background: #fde68a; color: #7c2d12; }
+.sc-vpill-confirmed .sc-vtime-early { background: #fbbf24; color: #4a2506; }
+/* 標準より遅い開始 */
+.sc-vtime-late { background: rgba(255, 255, 255, 0.35); color: inherit; }
+.sc-vpill-tentative .sc-vtime-late { background: var(--sc-surface-2); }
+
+/* 早い開始の予定は左端にも印を出す */
+.sc-vpill-early { box-shadow: inset 3px 0 0 #d97706; padding-left: 6px; }
+
+/* 前の枠から続いている予定は控えめに */
+.sc-vpill-cont {
+  opacity: 0.5;
+  font-weight: 600;
+}
+.sc-vpill-cont.sc-vpill-confirmed {
+  background: transparent;
+  color: var(--sc-confirmed-strong);
+  border: 1px dashed var(--sc-confirmed);
+}
+
 .sc-slot-badge {
   background: var(--sc-primary);
   color: #fff;
@@ -492,6 +523,8 @@
 .sc-chip-confirmed { background: var(--sc-confirmed); color: #fff; }
 .sc-chip-tentative { background: #fff; color: var(--sc-tentative); border: 1px dashed var(--sc-tentative); }
 .sc-chip-conflict { background: var(--sc-conflict-bg); color: var(--sc-conflict); border: 1px solid var(--sc-conflict); }
+.sc-chip-early { background: #fbbf24; color: #4a2506; }
+.sc-chip-cont { background: transparent; color: var(--sc-confirmed-strong); border: 1px dashed var(--sc-confirmed); opacity: 0.7; }
 
 .sc-stats {
   display: flex;
