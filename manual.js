@@ -4363,6 +4363,9 @@
     // 在庫商品も検索対象にするため、サーバー接続時は最新を取得（ベストエフォート）
     if (serverMode() && invOn) { invFetch().then(() => { if (searchOpen) renderSearchResults(); }).catch(() => {}); }
   }
+  // 「AIによるまとめ」は一旦オフ（検索そのもの＝項目選択のAIだけを使う）。
+  // 再度使いたくなったら true に戻せば、下の呼び出しがそのまま復活する。
+  const AI_SEARCH_SUMMARY_ENABLED = false;
   // 参照チップ（AIによるまとめの根拠になった項目）を描画する
   function renderAiSummarySources(ids, results) {
     const sumSrc = $('#aiSearchSummarySources'); if (!sumSrc) return;
@@ -4426,7 +4429,7 @@
         </button>`;
       }).join('');
       // AIが意味で見つけたときだけ、続けてまとめを取りに行く（一覧はもう表示済みなので、ここで待たせない）。
-      if (aiCount && results[0].source === 'ai' && sumBox && sumBody) {
+      if (AI_SEARCH_SUMMARY_ENABLED && aiCount && results[0].source === 'ai' && sumBox && sumBody) {
         sumBody.textContent = '';
         sumBody.innerHTML = '<span class="tm-sr-loading">&#10024; AIがまとめを作成中…</span>';
         sumBox.hidden = false;
