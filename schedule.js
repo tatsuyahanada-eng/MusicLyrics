@@ -154,12 +154,24 @@ function holidayName(key) {
    状態
    ------------------------------------------------------------ */
 
+/** 端末間で突き合わせるときの基準時刻 */
+function nowIso() { return new Date().toISOString(); }
+
+/** 更新時刻を持たない古いデータ用（必ず新しい入力に負ける） */
+const EPOCH0 = '1970-01-01T00:00:00.000Z';
+
+/** 削除の記録を残しておく期間（これを過ぎたら捨てる） */
+const TOMBSTONE_DAYS = 180;
+
 function defaultState() {
   return {
-    version: 1,
+    version: 2,
     settings: { bufferMin: 30, defStart: '09:00', defEnd: '18:00', senderName: '' },
-    wishes: {},   // 'YYYY-MM-DD' → 'available' | 'off'
-    jobs: [],     // { id, date, allDay, start, end, title, workType, client, place, note, status }
+    settingsAt: EPOCH0,
+    wishes: {},      // 'YYYY-MM-DD' → 'available' | 'off'
+    wishMeta: {},    // 'YYYY-MM-DD' → 更新時刻（未定に戻した日も記録する）
+    jobs: [],        // { id, date, allDay, start, end, title, workType, ..., updatedAt }
+    tombstones: [],  // [{ id, updatedAt }] 削除した予定の記録
   };
 }
 
@@ -187,15 +199,101 @@ function loadState() {
     if (!raw) return;
     const parsed = JSON.parse(raw);
     if (!parsed || typeof parsed !== 'object') return;
-    state = {
-      version: 1,
-      settings: Object.assign(defaultState().settings, parsed.settings || {}),
-      wishes: parsed.wishes && typeof parsed.wishes === 'object' ? parsed.wishes : {},
-      jobs: Array.isArray(parsed.jobs) ? parsed.jobs.filter(isValidJob) : [],
-    };
+    state = normalizeState(parsed);
   } catch (err) {
     console.warn('保存データの読み込みに失敗しました', err);
   }
+}
+
+/** 保存データ・受信データを、突き合わせできる形にそろえる（古い形式の移行も兼ねる） */
+function normalizeState(parsed) {
+  const base = defaultState();
+  if (!parsed || typeof parsed !== 'object') return base;
+
+  const plainMap = (v) => (v && typeof v === 'object' && !Array.isArray(v)) ? v : {};
+
+  const wishes = plainMap(parsed.wishes);
+  const wishMeta = plainMap(parsed.wishMeta);
+  // 更新時刻のない古いデータは、いちばん古い時刻として扱う
+  Object.keys(wishes).forEach((k) => { if (!wishMeta[k]) wishMeta[k] = EPOCH0; });
+
+  const jobs = (Array.isArray(parsed.jobs) ? parsed.jobs : []).filter(isValidJob).map((j) => {
+    const job = Object.assign({}, j);
+    if (!job.updatedAt) job.updatedAt = job.confirmedAt || job.createdAt || EPOCH0;
+    return job;
+  });
+
+  const limit = new Date(Date.now() - TOMBSTONE_DAYS * 86400000).toISOString();
+  const tombstones = (Array.isArray(parsed.tombstones) ? parsed.tombstones : [])
+    .filter((t) => t && typeof t.id === 'string')
+    .map((t) => ({ id: t.id, updatedAt: t.updatedAt || EPOCH0 }))
+    .filter((t) => t.updatedAt >= limit);
+
+  return {
+    version: 2,
+    settings: Object.assign(base.settings, plainMap(parsed.settings)),
+    settingsAt: parsed.settingsAt || EPOCH0,
+    wishes: wishes,
+    wishMeta: wishMeta,
+    jobs: jobs,
+    tombstones: tombstones,
+  };
+}
+
+/**
+ * 2つの状態を1件ずつ突き合わせて統合する。
+ * 予定・希望それぞれについて更新時刻が新しいほうを採用するため、
+ * どちらか一方の入力だけが消えることはない。
+ */
+function mergeStates(a, b) {
+  const left = normalizeState(a);
+  const right = normalizeState(b);
+  const out = defaultState();
+
+  /* ---- 削除の記録（新しいほうを残す） ---- */
+  const tombs = new Map();
+  left.tombstones.concat(right.tombstones).forEach((t) => {
+    const cur = tombs.get(t.id);
+    if (!cur || t.updatedAt > cur.updatedAt) tombs.set(t.id, t);
+  });
+
+  /* ---- 予定（同じIDは更新時刻が新しいほうを採用） ---- */
+  const jobs = new Map();
+  left.jobs.concat(right.jobs).forEach((j) => {
+    const cur = jobs.get(j.id);
+    // 同時刻なら片方だけが持つ内容を失わないよう、先に入ったものを残す
+    if (!cur || j.updatedAt > cur.updatedAt) jobs.set(j.id, j);
+  });
+
+  // 削除の記録より後に編集されていれば、その予定は生き残る
+  tombs.forEach((t, id) => {
+    const job = jobs.get(id);
+    if (job && job.updatedAt > t.updatedAt) tombs.delete(id);
+    else jobs.delete(id);
+  });
+
+  out.jobs = Array.from(jobs.values());
+  out.tombstones = Array.from(tombs.values());
+
+  /* ---- 希望（未定に戻した記録も含めて突き合わせる） ---- */
+  const dates = new Set(Object.keys(left.wishMeta).concat(Object.keys(right.wishMeta)));
+  dates.forEach((d) => {
+    const lt = left.wishMeta[d] || '';
+    const rt = right.wishMeta[d] || '';
+    let winner;
+    if (lt > rt) winner = left;
+    else if (rt > lt) winner = right;
+    else winner = left.wishes[d] ? left : right;   // 同時刻なら値がある側を優先する
+    out.wishMeta[d] = lt > rt ? lt : rt;
+    if (winner.wishes[d]) out.wishes[d] = winner.wishes[d];
+  });
+
+  /* ---- 設定（新しいほうをまとめて採用） ---- */
+  const newer = left.settingsAt >= right.settingsAt ? left : right;
+  out.settings = Object.assign(out.settings, newer.settings);
+  out.settingsAt = newer.settingsAt;
+
+  return out;
 }
 
 function isValidJob(j) {
@@ -778,8 +876,11 @@ const SYNC_KEY_STORE = 'ms-schedule-sync-v1';
 
 /** 同期の設定は端末ごとの設定なので、予定データとは別に保存する */
 let sync = { url: 'sync.php', key: '', auto: true, rev: 0, lastAt: null };
+let installPrompt = null;   // 「アプリとして追加」用
 let syncTimer = null;
+let syncPoll = null;
 let syncBusy = false;
+let syncPending = false;
 
 function loadSyncConfig() {
   try {
@@ -800,9 +901,24 @@ function syncConfigured() {
 
 function setSyncStatus(text, kind) {
   const el = $('syncStatus');
-  if (!el) return;
-  el.textContent = text;
-  el.className = 'sc-sync-status' + (kind ? ' sc-sync-' + kind : '');
+  if (el) {
+    el.textContent = text;
+    el.className = 'sc-sync-status' + (kind ? ' sc-sync-' + kind : '');
+  }
+
+  // メニューバーには短い状態だけ出す
+  const badge = $('syncBadge');
+  if (badge) {
+    const label = !syncConfigured() ? '同期オフ'
+      : kind === 'ok' ? '同期済み ' + syncTimeLabel(sync.lastAt)
+      : kind === 'busy' ? '同期中…'
+      : kind === 'error' ? '同期エラー'
+      : '未同期';
+    badge.textContent = label;
+    badge.title = text;
+    badge.className = 'sc-header-badge' + (kind === 'ok' ? ' sc-badge-ok'
+      : kind === 'busy' ? ' sc-badge-busy' : kind === 'error' ? ' sc-badge-error' : '');
+  }
 }
 
 function syncTimeLabel(iso) {
@@ -815,15 +931,18 @@ function syncTimeLabel(iso) {
 /** サーバに送る中身（同期設定そのものは送らない） */
 function syncPayload() {
   return {
-    version: 1,
+    version: 2,
     settings: {
       bufferMin: state.settings.bufferMin,
       defStart: state.settings.defStart,
       defEnd: state.settings.defEnd,
       senderName: state.settings.senderName,
     },
+    settingsAt: state.settingsAt,
     wishes: state.wishes,
+    wishMeta: state.wishMeta,
     jobs: state.jobs,
+    tombstones: state.tombstones,
   };
 }
 
@@ -846,10 +965,7 @@ function syncFingerprint(data) {
 
 function applySyncedData(data) {
   if (!data || typeof data !== 'object') return false;
-  state.wishes = (data.wishes && typeof data.wishes === 'object' && !Array.isArray(data.wishes))
-    ? data.wishes : {};
-  state.jobs = Array.isArray(data.jobs) ? data.jobs.filter(isValidJob) : [];
-  state.settings = Object.assign(state.settings, data.settings || {});
+  state = normalizeState(data);
   view.editingId = null;
   view.confirming = false;
   view.form = blankForm();
@@ -866,124 +982,104 @@ function syncEndpoint(params) {
   return base + sep + params;
 }
 
-/** サーバから取り込む。silent=true なら変化がないとき何も表示しない */
-async function syncPull(silent) {
-  if (!syncConfigured()) { if (!silent) toast('URLと合言葉を入力してください', true); return; }
-  if (syncBusy) return;
+/**
+ * サーバの内容とこの端末の内容を突き合わせて、両方を残した状態にそろえる。
+ * 1件ずつ新しいほうを採用するので、確認を挟まなくても入力が消えない。
+ */
+async function syncNow(silent, attempt) {
+  if (!syncConfigured()) {
+    if (!silent) toast('URLと合言葉（12文字以上）を入力してください', true);
+    return false;
+  }
+  if (syncBusy) { syncPending = true; return false; }
   syncBusy = true;
-  setSyncStatus('取り込み中…', 'busy');
+  const tries = attempt || 1;
+  if (!silent || tries === 1) setSyncStatus('同期中…', 'busy');
+
   try {
     const res = await fetch(syncEndpoint('key=' + encodeURIComponent(sync.key)), { cache: 'no-store' });
-    const json = await res.json();
-    if (!res.ok || !json.ok) throw new Error(json.error || ('通信エラー（' + res.status + '）'));
+    const got = await res.json();
+    if (!res.ok || !got.ok) throw new Error(got.error || ('通信エラー（' + res.status + '）'));
 
-    if (json.rev === 0 || !json.data) {
-      setSyncStatus('サーバにまだデータがありません', 'warn');
-      if (!silent) toast('サーバにはまだ保存されていません。「この端末の内容を送る」で登録できます');
-      sync.rev = 0;
-      saveSyncConfig();
-      return;
+    const before = syncFingerprint(syncPayload());
+    const serverData = got.data || null;
+    const merged = serverData ? mergeStates(syncPayload(), serverData) : normalizeState(syncPayload());
+    const mergedPayload = {
+      version: 2,
+      settings: merged.settings, settingsAt: merged.settingsAt,
+      wishes: merged.wishes, wishMeta: merged.wishMeta,
+      jobs: merged.jobs, tombstones: merged.tombstones,
+    };
+
+    // この端末に足りない分があれば取り込む（確認は不要。消えるものはない）
+    const localChanged = syncFingerprint(mergedPayload) !== before;
+    if (localChanged) {
+      state = normalizeState(mergedPayload);
+      view.editingId = null;
+      view.confirming = false;
+      view.form = blankForm();
+      saveState(true);
+      syncSettingsInputs();
+      refreshWorkTypeOptions();
+      renderAll();
     }
 
-    const same = syncFingerprint(json.data) === syncFingerprint(syncPayload());
-    if (same) {
-      sync.rev = json.rev;
-      sync.lastAt = new Date().toISOString();
-      saveSyncConfig();
-      setSyncStatus('最新の状態です（' + syncTimeLabel(sync.lastAt) + '）', 'ok');
-      if (!silent) toast('すでに最新の状態です');
-      return;
-    }
-
-    // この端末にまだ何も入っていなければ、確認せずそのまま取り込む
-    //（新しい端末で最初に取り込むとき、置き換えの確認を出す意味がないため）
-    const localEmpty = state.jobs.length === 0 && Object.keys(state.wishes).length === 0;
-
-    // 中身が違う場合、黙って上書きすると入力が消えるので確認する
-    if (!localEmpty) {
-      const localCount = state.jobs.length;
-      const serverCount = Array.isArray(json.data.jobs) ? json.data.jobs.length : 0;
-      const msg = `サーバに保存されている内容を取り込みます。\n\n`
-        + `サーバ　：予定${serverCount}件（最終保存 ${syncTimeLabel(json.updatedAt) || '不明'}）\n`
-        + `この端末：予定${localCount}件\n\n`
-        + `取り込むと、この端末の内容はサーバの内容に置き換わります。よろしいですか？`;
-      if (!confirm(msg)) {
-        setSyncStatus('取り込みを見送りました', 'warn');
-        return;
-      }
-    }
-
-    applySyncedData(json.data);
-    sync.rev = json.rev;
-    sync.lastAt = new Date().toISOString();
-    saveSyncConfig();
-    setSyncStatus('取り込みました（' + syncTimeLabel(sync.lastAt) + '）', 'ok');
-    toast('サーバの内容を取り込みました');
-  } catch (err) {
-    setSyncStatus('取り込めませんでした：' + err.message, 'error');
-    if (!silent) toast('取り込めませんでした：' + err.message, true);
-  } finally {
-    syncBusy = false;
-  }
-}
-
-/** サーバへ保存する */
-async function syncPush(silent, force) {
-  if (!syncConfigured()) { if (!silent) toast('URLと合言葉を入力してください', true); return; }
-  if (syncBusy) return;
-  syncBusy = true;
-  setSyncStatus('保存中…', 'busy');
-  try {
-    const res = await fetch(sync.url.trim(), {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ key: sync.key, baseRev: sync.rev, force: !!force, data: syncPayload() }),
-    });
-    const json = await res.json();
-
-    if (res.status === 409) {
-      // 別の端末が先に保存していた
-      const serverCount = Array.isArray(json.data && json.data.jobs) ? json.data.jobs.length : 0;
-      const msg = `別の端末で先に保存されています。どちらを残しますか？\n\n`
-        + `OK　　　：サーバの内容を取り込む（予定${serverCount}件・最終保存 ${syncTimeLabel(json.updatedAt) || '不明'}）\n`
-        + `キャンセル：この端末の内容で上書きする（予定${state.jobs.length}件）`;
-      if (confirm(msg)) {
-        applySyncedData(json.data);
-        sync.rev = json.rev;
-        sync.lastAt = new Date().toISOString();
-        saveSyncConfig();
-        setSyncStatus('サーバの内容を取り込みました', 'ok');
-        toast('サーバの内容を取り込みました');
-      } else {
-        sync.rev = json.rev;
+    // サーバに足りない分があれば送る
+    const serverChanged = !serverData || syncFingerprint(mergedPayload) !== syncFingerprint(serverData);
+    if (serverChanged) {
+      const put = await fetch(sync.url.trim(), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ key: sync.key, baseRev: got.rev, data: mergedPayload }),
+      });
+      if (put.status === 409) {
+        // 送っている間に他の端末が保存した。取り直してもう一度突き合わせる
         syncBusy = false;
-        await syncPush(silent, true);
-        return;
+        if (tries < 4) return syncNow(silent, tries + 1);
+        throw new Error('他の端末の更新と重なりました。もう一度お試しください');
       }
-      return;
+      const saved = await put.json();
+      if (!put.ok || !saved.ok) throw new Error(saved.error || ('通信エラー（' + put.status + '）'));
+      sync.rev = saved.rev;
+    } else {
+      sync.rev = got.rev;
     }
 
-    if (!res.ok || !json.ok) throw new Error(json.error || ('通信エラー（' + res.status + '）'));
-
-    sync.rev = json.rev;
-    sync.lastAt = new Date().toISOString();
+    sync.lastAt = nowIso();
     saveSyncConfig();
-    setSyncStatus('保存しました（' + syncTimeLabel(sync.lastAt) + '）', 'ok');
-    if (!silent) toast('サーバに保存しました');
+
+    const label = localChanged
+      ? '同期しました（' + syncTimeLabel(sync.lastAt) + '）'
+      : '最新の状態です（' + syncTimeLabel(sync.lastAt) + '）';
+    setSyncStatus(label, 'ok');
+    if (!silent) toast(localChanged ? '同期しました' : 'すでに最新の状態です');
+
+    if (syncPending) { syncPending = false; syncBusy = false; return syncNow(true, 1); }
+    return true;
   } catch (err) {
-    setSyncStatus('保存できませんでした：' + err.message, 'error');
-    if (!silent) toast('保存できませんでした：' + err.message, true);
+    setSyncStatus('同期できません：' + err.message, 'error');
+    if (!silent) toast('同期できません：' + err.message, true);
+    return false;
   } finally {
     syncBusy = false;
   }
 }
 
-/** 変更のたびに呼ばれる。まとめて少し遅らせて送る */
+/** 変更のたびに呼ばれる。まとめて少し遅らせて同期する */
 function scheduleSyncPush() {
   if (!sync.auto || !syncConfigured()) return;
   clearTimeout(syncTimer);
-  setSyncStatus('変更あり（まもなく保存します）', 'busy');
-  syncTimer = setTimeout(() => { syncPush(true); }, 1500);
+  setSyncStatus('変更あり（まもなく同期します）', 'busy');
+  syncTimer = setTimeout(() => { syncNow(true); }, 1200);
+}
+
+/** 画面を開いている間、一定間隔で他の端末の変更を拾う */
+function startSyncPolling() {
+  clearInterval(syncPoll);
+  if (!sync.auto || !syncConfigured()) return;
+  syncPoll = setInterval(() => {
+    if (document.visibilityState === 'visible' && !syncBusy) syncNow(true);
+  }, 45000);
 }
 
 async function syncTest() {
@@ -995,7 +1091,7 @@ async function syncTest() {
     if (!res.ok || !json.ok) throw new Error(json.error || ('通信エラー（' + res.status + '）'));
     const label = json.rev === 0
       ? 'つながりました（サーバにはまだデータがありません）'
-      : `つながりました（予定${json.jobs}件・最終保存 ${syncTimeLabel(json.updatedAt) || '不明'}）`;
+      : 'つながりました（予定' + json.jobs + '件・最終保存 ' + (syncTimeLabel(json.updatedAt) || '不明') + '）';
     setSyncStatus(label, 'ok');
     toast(label);
   } catch (err) {
@@ -1430,7 +1526,7 @@ function submitJob(ev) {
     const idx = state.jobs.findIndex((j) => j.id === view.editingId);
     if (idx >= 0) {
       const prev = state.jobs[idx];
-      state.jobs[idx] = Object.assign({}, prev, draft, { id: view.editingId });
+      state.jobs[idx] = Object.assign({}, prev, draft, { id: view.editingId, updatedAt: nowIso() });
       if (draft.status === 'confirmed' && state.jobs[idx].confirmedAt == null) {
         state.jobs[idx].confirmedAt = new Date().toISOString();
       }
@@ -1440,7 +1536,8 @@ function submitJob(ev) {
     toast(wasConfirming ? '確定しました' : '予定を更新しました');
   } else {
     draft.id = newId();
-    draft.createdAt = new Date().toISOString();
+    draft.createdAt = nowIso();
+    draft.updatedAt = draft.createdAt;
     if (draft.status === 'confirmed') draft.confirmedAt = draft.createdAt;
     state.jobs.push(draft);
     savedId = draft.id;
@@ -1478,7 +1575,7 @@ function cleanupTentatives(confirmedId) {
   if (!confirm(`確定した予定と重なっている仮出勤が ${leftovers.length}件 あります。\n\n${names}\n\nこれらを取り消しますか？（「キャンセル」で残します）`)) return;
 
   const ids = new Set(leftovers.map((j) => j.id));
-  state.jobs = state.jobs.filter((j) => !ids.has(j.id));
+  removeJobs(ids);
   saveState();
   toast(`仮出勤 ${ids.size}件 を取り消しました`);
 }
@@ -1520,7 +1617,7 @@ function deleteJob(id) {
   const job = state.jobs.find((j) => j.id === id);
   if (!job) return;
   if (!confirm(`「${job.title || '(無題)'}」（${formatDate(job.date, 'long')}）を削除します。よろしいですか？`)) return;
-  state.jobs = state.jobs.filter((j) => j.id !== id);
+  removeJobs(new Set([id]));
   if (view.editingId === id) {
     view.editingId = null;
     view.confirming = false;
@@ -1535,10 +1632,21 @@ function deleteJob(id) {
    希望日の設定
    ------------------------------------------------------------ */
 
-function setWish(dateKey, wish) {
+/** 予定を消す。他の端末にも削除が伝わるよう記録を残す */
+function removeJobs(ids) {
+  const at = nowIso();
+  state.jobs = state.jobs.filter((j) => !ids.has(j.id));
+  ids.forEach((id) => {
+    state.tombstones = state.tombstones.filter((t) => t.id !== id);
+    state.tombstones.push({ id: id, updatedAt: at });
+  });
+}
+
+function setWish(dateKey, wish, skipSave) {
   if (!wish) delete state.wishes[dateKey];
   else state.wishes[dateKey] = wish;
-  saveState();
+  state.wishMeta[dateKey] = nowIso();   // 未定に戻した場合も記録を残す
+  if (!skipSave) saveState();
 }
 
 function applyPaint(dateKey) {
@@ -1745,7 +1853,7 @@ function bindEvents() {
     monthDayKeys().forEach((key) => {
       const d = fromKey(key);
       if (d.getDay() !== 0 && d.getDay() !== 6 && !holidayName(key)) {
-        state.wishes[key] = WISH_AVAILABLE;
+        setWish(key, WISH_AVAILABLE, true);
       }
     });
     saveState();
@@ -1757,7 +1865,7 @@ function bindEvents() {
     monthDayKeys().forEach((key) => {
       const d = fromKey(key);
       if (d.getDay() === 0 || d.getDay() === 6 || holidayName(key)) {
-        state.wishes[key] = WISH_OFF;
+        setWish(key, WISH_OFF, true);
       }
     });
     saveState();
@@ -1767,7 +1875,7 @@ function bindEvents() {
 
   $('quickClear').addEventListener('click', () => {
     if (!confirm(`${view.year}年${view.month + 1}月の希望（稼働可・休み希望）をすべて消します。予定は残ります。よろしいですか？`)) return;
-    monthDayKeys().forEach((key) => { delete state.wishes[key]; });
+    monthDayKeys().forEach((key) => { setWish(key, null, true); });
     saveState();
     renderAll();
     toast('今月の希望をクリアしました');
@@ -1909,20 +2017,32 @@ function bindEvents() {
   });
 
   // 端末間の同期
+  // 入力し終えたら、そのまま同期を始める（設定直後に待たされないように）
+  let syncSetupTimer = null;
+  const syncAfterSetup = () => {
+    clearTimeout(syncSetupTimer);
+    startSyncPolling();
+    if (!sync.auto || !syncConfigured()) return;
+    syncSetupTimer = setTimeout(() => syncNow(true), 800);
+  };
+
   $('syncUrl').addEventListener('input', () => {
     sync.url = $('syncUrl').value.trim();
     saveSyncConfig();
     syncSyncInputs();
+    syncAfterSetup();
   });
   $('syncKey').addEventListener('input', () => {
     sync.key = $('syncKey').value.trim();
     sync.rev = 0;            // 合言葉を変えたら別の保存先になる
     saveSyncConfig();
     syncSyncInputs();
+    syncAfterSetup();
   });
   $('syncAuto').addEventListener('change', () => {
     sync.auto = $('syncAuto').checked;
     saveSyncConfig();
+    startSyncPolling();
   });
   $('genKey').addEventListener('click', () => {
     if (sync.key && !confirm('新しい合言葉を作ると、いまの合言葉で保存した内容とはつながらなくなります。よろしいですか？')) return;
@@ -1933,12 +2053,14 @@ function bindEvents() {
     toast('合言葉を作りました。他の端末にも同じものを入力してください');
   });
   $('syncTest').addEventListener('click', syncTest);
-  $('syncPushBtn').addEventListener('click', () => syncPush(false));
-  $('syncPullBtn').addEventListener('click', () => syncPull(false));
+  $('syncNowBtn').addEventListener('click', () => syncNow(false));
 
-  // 別の端末で変更されている可能性があるので、画面に戻ってきたら取り込む
+  // 別の端末で変更されている可能性があるので、画面に戻ってきたら同期する
   document.addEventListener('visibilitychange', () => {
-    if (document.visibilityState === 'visible' && sync.auto && syncConfigured()) syncPull(true);
+    if (document.visibilityState === 'visible' && sync.auto && syncConfigured()) syncNow(true);
+  });
+  window.addEventListener('online', () => {
+    if (sync.auto && syncConfigured()) syncNow(true);
   });
 
   $('exportJson').addEventListener('click', exportJson);
@@ -1984,6 +2106,68 @@ function bindEvents() {
     toast('この端末のデータを削除しました');
   });
 
+  // メニューバー
+  const SECTIONS = ['calendar', 'mail', 'list', 'gcal', 'sync', 'settings'];
+  let menuLock = 0;   // 押した直後は、スクロール中の判定で上書きしない
+
+  const setActiveMenu = (name) => {
+    document.querySelectorAll('.sc-menu-item').forEach((item) => {
+      item.classList.toggle('active', item.dataset.jump === name);
+    });
+  };
+
+  document.querySelectorAll('.sc-menu-item').forEach((item) => {
+    item.addEventListener('click', () => {
+      const target = $('sec-' + item.dataset.jump);
+      if (!target) return;
+      setActiveMenu(item.dataset.jump);
+      menuLock = Date.now() + 1000;
+      target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    });
+  });
+
+  // いま見ている場所をメニューに反映する
+  const markActiveSection = () => {
+    if (Date.now() < menuLock) return;
+    const doc = document.documentElement;
+    const atBottom = window.innerHeight + window.scrollY >= doc.scrollHeight - 4;
+    let current = SECTIONS[0];
+    SECTIONS.forEach((name) => {
+      const el = $('sec-' + name);
+      if (!el) return;
+      const top = el.getBoundingClientRect().top;
+      // 最下部では、画面に見えている一番下の見出しを現在地とする
+      if (atBottom ? top < window.innerHeight : top <= 140) current = name;
+    });
+    setActiveMenu(current);
+  };
+  let scrollTick = false;
+  window.addEventListener('scroll', () => {
+    if (scrollTick) return;
+    scrollTick = true;
+    requestAnimationFrame(() => { markActiveSection(); scrollTick = false; });
+  }, { passive: true });
+  markActiveSection();
+
+  // ホーム画面・デスクトップへの追加（PWA）
+  window.addEventListener('beforeinstallprompt', (ev) => {
+    ev.preventDefault();
+    installPrompt = ev;
+    $('installBtn').hidden = false;
+  });
+  $('installBtn').addEventListener('click', async () => {
+    if (!installPrompt) return;
+    installPrompt.prompt();
+    const res = await installPrompt.userChoice;
+    installPrompt = null;
+    $('installBtn').hidden = true;
+    if (res && res.outcome === 'accepted') toast('アプリとして追加しました');
+  });
+  window.addEventListener('appinstalled', () => {
+    installPrompt = null;
+    $('installBtn').hidden = true;
+  });
+
   // キーボード操作
   document.addEventListener('keydown', (ev) => {
     if (ev.target.matches('input, textarea, select')) return;
@@ -2019,7 +2203,13 @@ function init() {
   renderAll();
 
   // 起動時に、他の端末で更新されていないか確認する
-  if (sync.auto && syncConfigured()) syncPull(true);
+  if (sync.auto && syncConfigured()) syncNow(true);
+  startSyncPolling();
+
+  // アプリとして追加できるようにする（file:// で開いた場合は動かないので黙って見送る）
+  if ('serviceWorker' in navigator && location.protocol.indexOf('http') === 0) {
+    navigator.serviceWorker.register('sw.js').catch(() => {});
+  }
 }
 
 document.addEventListener('DOMContentLoaded', init);

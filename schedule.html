@@ -5,13 +5,38 @@
   <meta http-equiv="Cache-Control" content="no-store">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Task Scheduler</title>
-  <link rel="stylesheet" href="schedule.css?v=5">
+  <meta name="description" content="休み希望・稼働可能日の申請から、仮出勤・確定の管理までを1画面で行う業務スケジューラー">
+  <meta name="theme-color" content="#1d4ed8">
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="icon" href="icons/favicon-32.png" sizes="32x32">
+  <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <meta name="apple-mobile-web-app-title" content="Scheduler">
+  <link rel="stylesheet" href="schedule.css?v=6">
 </head>
 <body class="sc-body">
 
   <header class="sc-header">
     <div class="sc-header-inner">
-      <h1 class="sc-header-title">Task Scheduler</h1>
+      <h1 class="sc-header-title">
+        <img class="sc-header-logo" src="icons/favicon-32.png" width="20" height="20" alt="">
+        Task Scheduler
+      </h1>
+
+      <nav class="sc-menu" aria-label="メニュー">
+        <button class="sc-menu-item" data-jump="calendar" type="button">カレンダー</button>
+        <button class="sc-menu-item" data-jump="mail" type="button">稼働可能日を送る</button>
+        <button class="sc-menu-item" data-jump="list" type="button">予定一覧</button>
+        <button class="sc-menu-item" data-jump="gcal" type="button">Googleカレンダー</button>
+        <button class="sc-menu-item" data-jump="sync" type="button">同期</button>
+        <button class="sc-menu-item" data-jump="settings" type="button">設定</button>
+      </nav>
+
+      <div class="sc-header-right">
+        <span id="syncBadge" class="sc-header-badge" title="同期の状態">—</span>
+        <button id="installBtn" class="sc-header-install" type="button" hidden>アプリとして追加</button>
+      </div>
     </div>
   </header>
 
@@ -32,7 +57,7 @@
   <!-- 重複警告バナー -->
   <div id="conflictBanner" class="sc-conflict-banner" hidden role="alert"></div>
 
-  <main class="sc-main">
+  <main class="sc-main" id="sec-calendar">
 
     <!-- 左：カレンダー -->
     <section class="sc-calendar-col">
@@ -97,7 +122,7 @@
   <section class="sc-section">
     <div class="sc-section-inner">
       <div class="sc-section-head">
-        <h3 class="sc-section-title">📤 稼働可能日をメールで送る</h3>
+        <h3 class="sc-section-title" id="sec-mail">📤 稼働可能日をメールで送る</h3>
         <span id="availCount" class="sc-section-count"></span>
       </div>
 
@@ -143,7 +168,7 @@
   <section class="sc-section">
     <div class="sc-section-inner">
       <div class="sc-section-head">
-        <h3 class="sc-section-title">🗂 今月の予定一覧</h3>
+        <h3 class="sc-section-title" id="sec-list">🗂 今月の予定一覧</h3>
         <span id="jobCount" class="sc-section-count"></span>
         <div class="sc-filter-tabs" role="group" aria-label="表示の絞り込み">
           <button class="sc-filter-tab active" data-filter="all" type="button">すべて</button>
@@ -163,7 +188,7 @@
   <section class="sc-section">
     <div class="sc-section-inner">
       <div class="sc-section-head">
-        <h3 class="sc-section-title">📆 Googleカレンダーに一括登録</h3>
+        <h3 class="sc-section-title" id="sec-gcal">📆 Googleカレンダーに一括登録</h3>
         <span id="icsCount" class="sc-section-count"></span>
       </div>
 
@@ -212,7 +237,7 @@
   <section class="sc-section">
     <div class="sc-section-inner">
       <div class="sc-section-head">
-        <h3 class="sc-section-title">🔄 端末間でデータを共有</h3>
+        <h3 class="sc-section-title" id="sec-sync">🔄 端末間でデータを共有</h3>
         <span id="syncStatus" class="sc-sync-status">未設定</span>
       </div>
 
@@ -233,10 +258,13 @@
       </div>
 
       <div class="sc-export-actions">
+        <button id="syncNowBtn" class="sc-btn">🔄 今すぐ同期</button>
         <button id="syncTest" class="sc-btn sc-btn-outline">接続テスト</button>
-        <button id="syncPushBtn" class="sc-btn">⬆️ この端末の内容を送る</button>
-        <button id="syncPullBtn" class="sc-btn sc-btn-outline">⬇️ 保存されている内容を取り込む</button>
       </div>
+      <p class="sc-note">
+        同期は「送る」「取り込む」ではなく、両方の内容を突き合わせて<strong>1件ずつ新しいほうを残します</strong>。
+        PCとスマホで別々に登録しても、どちらの予定も消えません。削除した予定は他の端末からも消えます。
+      </p>
 
       <details class="sc-help">
         <summary>設定のしかた</summary>
@@ -262,7 +290,7 @@
   <section class="sc-section">
     <div class="sc-section-inner">
       <div class="sc-section-head">
-        <h3 class="sc-section-title">⚙️ 設定とデータ</h3>
+        <h3 class="sc-section-title" id="sec-settings">⚙️ 設定とデータ</h3>
       </div>
 
       <div class="sc-settings">
@@ -341,6 +369,6 @@ Require valid-user</pre>
 
   <div id="toast" class="sc-toast" role="status" aria-live="polite" hidden></div>
 
-  <script src="schedule.js?v=5"></script>
+  <script src="schedule.js?v=6"></script>
 </body>
 </html>
