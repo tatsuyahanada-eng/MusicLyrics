@@ -110,6 +110,24 @@
     </div>
   </dialog>
 
+  <!-- ===== 自動バックアップの履歴（管理者） ===== -->
+  <dialog id="backupHistDialog" class="tm-dialog tm-search-dialog">
+    <div class="tm-dialog-form">
+      <div class="tm-search-head">
+        <span class="tm-search-ico">&#128194;</span>
+        <h2 class="tm-updates-title">自動バックアップの履歴</h2>
+        <button type="button" id="backupHistClose" class="tm-btn tm-btn-outline tm-search-closebtn">閉じる</button>
+      </div>
+      <p class="tm-users-hint">毎日<b>12時以降</b>に誰かがアプリを開くと、その日の完全バックアップが自動で1件作成されます（同じ日は上書きしません）。
+        保存先はサーバーの <code>backups/</code> フォルダで、パスワードハッシュ等を含むため直接アクセスはできません。</p>
+      <div class="tm-dialog-actions" style="margin-bottom:10px;">
+        <button type="button" id="backupHistRefresh" class="tm-btn tm-btn-outline">&#8635; 一覧を更新</button>
+      </div>
+      <div id="backupHistWrap" class="tm-trip-tablewrap"></div>
+      <p id="backupHistMsg" class="tm-sync-status" aria-live="polite"></p>
+    </div>
+  </dialog>
+
   <!-- ===== パスワード変更（本人） ===== -->
   <dialog id="pwDialog" class="tm-dialog">
     <form id="pwForm" class="tm-dialog-form" method="dialog">
@@ -491,6 +509,7 @@
           <button id="backupExportBtn" class="tm-btn tm-btn-outline" type="button" title="色・文字サイズ・入力欄・ユーザー権限も含めて、まるごとバックアップ（JSON）">&#128190; 完全バックアップ</button>
           <button id="backupImportBtn" class="tm-btn tm-btn-outline" type="button" title="完全バックアップ（JSON）から、まるごと復元">&#8635; バックアップ復元</button>
           <input id="backupFile" type="file" accept="application/json,.json" hidden>
+          <button id="backupHistBtn" class="tm-btn tm-btn-outline" type="button" title="毎日12時以降の自動バックアップの一覧・削除">&#128194; バックアップ履歴</button>
           <button id="invEditBtn" class="tm-btn tm-btn-outline" type="button">&#128230; 在庫を修正（管理者）</button>
           <button id="usersBtn" class="tm-btn tm-btn-outline" type="button" hidden>&#128101; ユーザー権限</button>
           <button id="resetBtn" class="tm-btn tm-btn-danger-outline" type="button">初期化</button>
@@ -1052,6 +1071,6 @@
   </dialog>
 
   <script src="vendor/xlsx.full.min.js"></script>
-  <script src="manual.js?v=86"></script>
+  <script src="manual.js?v=87"></script>
 </body>
 </html>

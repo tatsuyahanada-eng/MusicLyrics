@@ -19,6 +19,7 @@ if (!defined('ADMIN_PW'))         define('ADMIN_PW', 'Welsys1234');
 if (!defined('UPLOAD_DIR'))       define('UPLOAD_DIR', __DIR__ . '/uploads');
 if (!defined('UPLOAD_URL'))       define('UPLOAD_URL', 'uploads');
 if (!defined('UPLOAD_MAX_BYTES')) define('UPLOAD_MAX_BYTES', 5 * 1024 * 1024);
+if (!defined('BACKUP_DIR'))       define('BACKUP_DIR', __DIR__ . '/backups'); // 自動バックアップ（完全バックアップJSON）の保存先
 if (!defined('GEMINI_API_KEY'))   define('GEMINI_API_KEY', '');
 if (!defined('GEMINI_MODEL'))     define('GEMINI_MODEL', 'gemini-1.5-flash');
 if (!defined('GOOGLE_MAPS_API_KEY')) define('GOOGLE_MAPS_API_KEY', '');
@@ -64,6 +65,63 @@ function cbc_setting_set($pdo, $k, $v) {
   try { $pdo->prepare('DELETE FROM app_settings WHERE k = ?')->execute(array($k));
     $pdo->prepare('INSERT INTO app_settings (k, v) VALUES (?, ?)')->execute(array($k, $v)); }
   catch (Throwable $e) { /* 保存失敗は致命ではない */ }
+}
+
+/* ---------- 完全バックアップ（手動エクスポート／自動バックアップ 共通） ---------- */
+// 色・文字サイズ・入力欄（本文HTML）・ユーザー権限（パスワードハッシュ含む）・
+// 在庫・交通費・設定を、無加工でそのまま書き出す。
+function cbc_build_backup_array($pdo) {
+  $nodes    = $pdo->query('SELECT id, parent_id, sort_order, title, body, created_by, updated_by, updated_at, created_at, lock_hash FROM nodes ORDER BY parent_id, sort_order, created_at')->fetchAll();
+  $users    = $pdo->query('SELECT username, display_name, pass_hash, is_admin, allowed, created_at, updated_at FROM users ORDER BY username')->fetchAll();
+  $invItems = $pdo->query('SELECT id, name, model, qty, note, sort_order, created_at, updated_at FROM inv_items ORDER BY sort_order, created_at')->fetchAll();
+  $invLogs  = $pdo->query('SELECT id, item_id, action, qty, balance, person, note, created_at FROM inv_logs ORDER BY created_at, id')->fetchAll();
+  $trips    = array();
+  try {
+    $trips = $pdo->query('SELECT id, username, display_name, trip_date, case_name, mode, origin, destination, one_way_km, round_trip, gas_rate, gas_cost, fare_cost, toll_cost, parking_cost, other_cost, total, cost_details, note, created_at, updated_at FROM trips ORDER BY trip_date, created_at')->fetchAll();
+  } catch (Throwable $e) { /* trips 未作成でも致命ではない */ }
+  $settings = $pdo->query('SELECT k, v FROM app_settings')->fetchAll();
+  return array(
+    'app'         => 'case-by-case',
+    'version'     => 1,
+    'exported_at' => now_ms(),
+    'nodes'       => $nodes,
+    'users'       => $users,
+    'inv_items'   => $invItems,
+    'inv_logs'    => $invLogs,
+    'trips'       => $trips,
+    'settings'    => $settings,
+  );
+}
+
+/* ---------- 自動バックアップ（毎日正午をすぎた最初のアクセスで、完全バックアップを backups/ に保存） ---------- */
+function cbc_backup_filename($ymd) { return 'backup-' . $ymd . '.json'; }
+function cbc_backup_path($ymd) { return rtrim(BACKUP_DIR, '/') . '/' . cbc_backup_filename($ymd); }
+// 今日ぶんの自動バックアップがまだ無く、正午（サーバー時刻）を過ぎていれば作成する。
+// アクセスのたびに呼ばれる想定のため、通常は file_exists のチェックのみで即戻る（軽量）。
+// 失敗してもアプリの動作に影響させない（ベストエフォート）。
+function cbc_maybe_auto_backup($pdo) {
+  try {
+    if ((int)date('G') < 12) return; // 正午（12時）より前は対象外
+    $ymd = date('Y-m-d');
+    $path = cbc_backup_path($ymd);
+    if (file_exists($path)) return;
+    if (!is_dir(BACKUP_DIR)) @mkdir(BACKUP_DIR, 0775, true);
+    // 複数リクエストがほぼ同時に条件を満たしても二重作成しないよう、簡易ロックする
+    $lockPath = rtrim(BACKUP_DIR, '/') . '/.lock';
+    $fh = @fopen($lockPath, 'c');
+    if (!$fh) return;
+    if (!flock($fh, LOCK_EX | LOCK_NB)) { fclose($fh); return; }
+    try {
+      if (!file_exists($path)) {
+        $data = cbc_build_backup_array($pdo);
+        $data['auto'] = true;
+        @file_put_contents($path, json_encode($data, JSON_UNESCAPED_UNICODE), LOCK_EX);
+      }
+    } catch (Throwable $e) {
+    }
+    flock($fh, LOCK_UN);
+    fclose($fh);
+  } catch (Throwable $e) { /* 自動バックアップの失敗はアプリ動作に影響させない */ }
 }
 
 /* 1モデルに対して1回だけ generateContent を呼ぶ。戻り値: array(httpCode, responseBody, networkError) */
@@ -455,6 +513,8 @@ if ($action === 'config') {
     try { $tripPos = (int)cbc_setting_get(cbc_pdo(), 'trip_pos', '999'); } catch (Throwable $e) {}
     try { $logoOn = (cbc_setting_get(cbc_pdo(), 'logo_enabled', '1') !== '0'); } catch (Throwable $e) {}
     try { $logoUrl = cbc_setting_get(cbc_pdo(), 'logo_url', 'logo-default.png'); } catch (Throwable $e) {}
+    // 毎日正午をすぎた最初のアクセスで、完全バックアップを自動作成する（通常は file_exists のみで即戻る軽量チェック）
+    try { cbc_maybe_auto_backup(cbc_pdo()); } catch (Throwable $e) {}
   }
   ok(array(
     'dbConnected' => $connected,
@@ -1161,23 +1221,9 @@ switch ($action) {
 
   case 'backup_export': {
     // 完全バックアップ（管理者のみ）。本文HTML（色・サイズ・入力欄）・ロック・
-    // ユーザー権限（パスワードハッシュ含む）・在庫・設定を、無加工でそのまま書き出す。
+    // ユーザー権限（パスワードハッシュ含む）・在庫・交通費・設定を、無加工でそのまま書き出す。
     require_admin_session($pdo);
-    $nodes    = $pdo->query('SELECT id, parent_id, sort_order, title, body, created_by, updated_by, updated_at, created_at, lock_hash FROM nodes ORDER BY parent_id, sort_order, created_at')->fetchAll();
-    $users    = $pdo->query('SELECT username, display_name, pass_hash, is_admin, allowed, created_at, updated_at FROM users ORDER BY username')->fetchAll();
-    $invItems = $pdo->query('SELECT id, name, model, qty, note, sort_order, created_at, updated_at FROM inv_items ORDER BY sort_order, created_at')->fetchAll();
-    $invLogs  = $pdo->query('SELECT id, item_id, action, qty, balance, person, note, created_at FROM inv_logs ORDER BY created_at, id')->fetchAll();
-    $settings = $pdo->query('SELECT k, v FROM app_settings')->fetchAll();
-    ok(array('backup' => array(
-      'app'         => 'case-by-case',
-      'version'     => 1,
-      'exported_at' => now_ms(),
-      'nodes'       => $nodes,
-      'users'       => $users,
-      'inv_items'   => $invItems,
-      'inv_logs'    => $invLogs,
-      'settings'    => $settings,
-    )));
+    ok(array('backup' => cbc_build_backup_array($pdo)));
   }
 
   case 'backup_import': {
@@ -1249,6 +1295,40 @@ switch ($action) {
             isset($lg['created_at']) ? (int)$lg['created_at'] : $ts));
         }
       }
+      // ---- trips（交通費）----
+      if (isset($b['trips']) && is_array($b['trips'])) {
+        $pdo->exec('DELETE FROM trips');
+        $it2 = $pdo->prepare('INSERT INTO trips (id, username, display_name, trip_date, case_name, mode, origin, destination, one_way_km, round_trip, gas_rate, gas_cost, fare_cost, toll_cost, parking_cost, other_cost, total, cost_details, note, created_at, updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)');
+        foreach ($b['trips'] as $t) {
+          if (empty($t['id'])) continue;
+          $costDetails = isset($t['cost_details'])
+            ? (is_array($t['cost_details']) ? json_encode($t['cost_details'], JSON_UNESCAPED_UNICODE) : $t['cost_details'])
+            : null;
+          $it2->execute(array(
+            $t['id'],
+            isset($t['username']) ? $t['username'] : null,
+            isset($t['display_name']) ? $t['display_name'] : null,
+            isset($t['trip_date']) ? $t['trip_date'] : null,
+            isset($t['case_name']) ? $t['case_name'] : null,
+            (isset($t['mode']) && $t['mode'] === 'train') ? 'train' : 'car',
+            isset($t['origin']) ? $t['origin'] : null,
+            isset($t['destination']) ? $t['destination'] : null,
+            isset($t['one_way_km']) ? (float)$t['one_way_km'] : 0,
+            !empty($t['round_trip']) ? 1 : 0,
+            isset($t['gas_rate']) ? (int)$t['gas_rate'] : 18,
+            isset($t['gas_cost']) ? (int)$t['gas_cost'] : 0,
+            isset($t['fare_cost']) ? (int)$t['fare_cost'] : 0,
+            isset($t['toll_cost']) ? (int)$t['toll_cost'] : 0,
+            isset($t['parking_cost']) ? (int)$t['parking_cost'] : 0,
+            isset($t['other_cost']) ? (int)$t['other_cost'] : 0,
+            isset($t['total']) ? (int)$t['total'] : 0,
+            $costDetails,
+            isset($t['note']) ? $t['note'] : null,
+            isset($t['created_at']) ? (int)$t['created_at'] : $ts,
+            isset($t['updated_at']) ? (int)$t['updated_at'] : $ts,
+          ));
+        }
+      }
       // ---- settings（ピン留め・AI/在庫トグル等）----
       if (isset($b['settings']) && is_array($b['settings'])) {
         $pdo->exec('DELETE FROM app_settings');
@@ -1267,6 +1347,51 @@ switch ($action) {
       'nodes' => count($b['nodes']),
       'users' => (isset($b['users']) && is_array($b['users'])) ? count($b['users']) : 0,
     ));
+  }
+
+  case 'backup_list': {
+    // 自動バックアップの一覧（管理者のみ）。修正画面の「バックアップの状況」に表示する。
+    require_admin_session($pdo);
+    $out = array();
+    if (is_dir(BACKUP_DIR)) {
+      foreach (scandir(BACKUP_DIR) as $f) {
+        if (!preg_match('/^backup-(\d{4}-\d{2}-\d{2})\.json$/', $f, $m)) continue;
+        $path = rtrim(BACKUP_DIR, '/') . '/' . $f;
+        $out[] = array(
+          'name'       => $f,
+          'date'       => $m[1],
+          'size'       => (int) @filesize($path),
+          'created_at' => ((int) @filemtime($path)) * 1000,
+        );
+      }
+    }
+    usort($out, function ($a, $b) { return strcmp($b['date'], $a['date']); }); // 新しい順
+    ok(array('items' => $out));
+  }
+
+  case 'backup_get': {
+    // 保存済みの自動バックアップを1件、内容ごと取得（ダウンロード用。管理者のみ）
+    require_admin_session($pdo);
+    $d = body_json();
+    $name = trim((string)(isset($d['name']) ? $d['name'] : ''));
+    if (!preg_match('/^backup-\d{4}-\d{2}-\d{2}\.json$/', $name)) fail('不正なファイル名です');
+    $path = rtrim(BACKUP_DIR, '/') . '/' . $name;
+    if (!is_file($path)) fail('ファイルが見つかりません', 404);
+    $json = @file_get_contents($path);
+    $data = ($json !== false) ? json_decode($json, true) : null;
+    if (!is_array($data)) fail('バックアップの読み込みに失敗しました', 500);
+    ok(array('backup' => $data));
+  }
+
+  case 'backup_delete': {
+    // 保存済みの自動バックアップを1件削除（管理者のみ）
+    require_admin_session($pdo);
+    $d = body_json();
+    $name = trim((string)(isset($d['name']) ? $d['name'] : ''));
+    if (!preg_match('/^backup-\d{4}-\d{2}-\d{2}\.json$/', $name)) fail('不正なファイル名です');
+    $path = rtrim(BACKUP_DIR, '/') . '/' . $name;
+    if (is_file($path)) @unlink($path);
+    ok();
   }
 
   case 'trip_distance': {

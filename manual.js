@@ -2502,6 +2502,81 @@
     reader.readAsText(f);
   });
 
+  /* ---------- 自動バックアップの履歴（管理者ダイアログ） ---------- */
+  const backupHistDialog = $('#backupHistDialog');
+  function backupHistMsg(m, isErr) { const el = $('#backupHistMsg'); if (el) { el.textContent = m || ''; el.style.color = isErr ? 'var(--tm-danger)' : ''; } }
+  function fmtBytes(n) {
+    n = Number(n) || 0;
+    if (n < 1024) return n + ' B';
+    if (n < 1024 * 1024) return (n / 1024).toFixed(1) + ' KB';
+    return (n / 1024 / 1024).toFixed(1) + ' MB';
+  }
+  async function refreshBackupHist() {
+    const wrap = $('#backupHistWrap'); if (!wrap) return;
+    wrap.innerHTML = '<div class="tm-trip-empty">読み込み中…</div>';
+    try {
+      const d = await apiCall('backup_list');
+      const items = d.items || [];
+      if (!items.length) { wrap.innerHTML = '<div class="tm-trip-empty">自動バックアップはまだありません（12時以降にアクセスがあると作成されます）。</div>'; return; }
+      const rows = items.map((it) => {
+        const dt = new Date(it.created_at);
+        const created = isNaN(dt.getTime()) ? '' : dt.toLocaleString('ja-JP');
+        return `<tr>
+          <td>${esc(it.date)}</td>
+          <td>${esc(created)}</td>
+          <td class="num">${esc(fmtBytes(it.size))}</td>
+          <td><div class="tm-trip-ops">
+            <button class="tm-btn tm-btn-outline tm-btn-sm" data-bdl="${esc(it.name)}" type="button">&#8681; ダウンロード</button>
+            <button class="tm-btn tm-btn-danger-outline tm-btn-sm" data-bdel="${esc(it.name)}" type="button">削除</button>
+          </div></td>
+        </tr>`;
+      }).join('');
+      wrap.innerHTML = `<table class="tm-trip-table">
+        <thead><tr><th>日付</th><th>作成日時</th><th class="num">サイズ</th><th>操作</th></tr></thead>
+        <tbody>${rows}</tbody>
+      </table>`;
+    } catch (e) { wrap.innerHTML = `<div class="tm-trip-empty">読み込みに失敗：${esc(e.message)}</div>`; }
+  }
+  async function openBackupHist() {
+    if (!backupHistDialog || !(session && session.isAdmin)) return;
+    backupHistMsg('');
+    await refreshBackupHist();
+    backupHistDialog.showModal();
+    syncTrap();
+  }
+  { const b = $('#backupHistBtn'); if (b) b.addEventListener('click', openBackupHist); }
+  if (backupHistDialog) {
+    backupHistDialog.addEventListener('close', () => { syncTrap(); });
+    { const c = $('#backupHistClose'); if (c) c.addEventListener('click', () => backupHistDialog.close()); }
+    { const r = $('#backupHistRefresh'); if (r) r.addEventListener('click', refreshBackupHist); }
+    { const wrap = $('#backupHistWrap'); if (wrap) wrap.addEventListener('click', async (e) => {
+      const dl = e.target.closest('[data-bdl]');
+      if (dl) {
+        const name = dl.dataset.bdl;
+        backupHistMsg('ダウンロード準備中…');
+        try {
+          const d = await apiCall('backup_get', { method: 'POST', body: { name } });
+          const backup = d.backup || d;
+          const blob = new Blob([JSON.stringify(backup, null, 2)], { type: 'application/json;charset=utf-8' });
+          const url = URL.createObjectURL(blob);
+          const a = document.createElement('a');
+          a.href = url; a.download = name; a.click();
+          URL.revokeObjectURL(url);
+          backupHistMsg('ダウンロードしました');
+        } catch (ex) { backupHistMsg('ダウンロードに失敗：' + ex.message, true); }
+        return;
+      }
+      const del = e.target.closest('[data-bdel]');
+      if (del) {
+        const name = del.dataset.bdel;
+        askConfirm(`この自動バックアップ（${name}）を削除しますか？元に戻せません。`, async () => {
+          try { await apiCall('backup_delete', { method: 'POST', body: { name } }); await refreshBackupHist(); backupHistMsg('削除しました'); }
+          catch (ex) { backupHistMsg('削除に失敗：' + ex.message, true); }
+        }, '削除する');
+      }
+    }); }
+  }
+
   const xlsxDialog = $('#xlsxDialog');
   const xlsxFile = $('#xlsxFile');
   let xlsxParsed = null;
