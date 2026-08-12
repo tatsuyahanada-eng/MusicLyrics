@@ -154,7 +154,8 @@ function cbc_gemini_call($model, $bodyJson) {
       CURLOPT_HTTPHEADER => array('Content-Type: application/json'),
       CURLOPT_POSTFIELDS => $bodyJson,
       CURLOPT_RETURNTRANSFER => true,
-      CURLOPT_TIMEOUT => 30,
+      CURLOPT_CONNECTTIMEOUT => 10,
+      CURLOPT_TIMEOUT => 40, // レンタルサーバーからの回線がやや遅くても、生成完了まで待てるように余裕を持たせる
     ));
     $resp = curl_exec($ch);
     $code = (int)curl_getinfo($ch, CURLINFO_HTTP_CODE);
@@ -165,7 +166,7 @@ function cbc_gemini_call($model, $bodyJson) {
   }
   $ctx = stream_context_create(array('http' => array(
     'method' => 'POST', 'header' => "Content-Type: application/json\r\n",
-    'content' => $bodyJson, 'timeout' => 30, 'ignore_errors' => true,
+    'content' => $bodyJson, 'timeout' => 40, 'ignore_errors' => true,
   )));
   $resp = @file_get_contents($url, false, $ctx);
   if ($resp === false) return array(0, '', 'サーバーの外部通信設定をご確認ください');
@@ -199,8 +200,22 @@ function cbc_gemini_soft($pdo, $prompt, $jsonMode = false, $maxTokens = 1024) {
 
   $lastMsg = '';
   foreach ($candidates as $model) {
-    list($code, $resp, $neterr) = cbc_gemini_call($model, $bodyJson);
-    if ($neterr !== '') return array(null, 'AIサーバーに接続できません: ' . $neterr, 502); // 通信自体の失敗は打ち切り
+    // タイムアウト等の通信断は一時的なことが多いため、同じモデルにもう一度だけ試してから諦める
+    // （モデル名を変えても同じ通信経路を使うため、次の候補に移っても解決しないことが多い）。
+    $neterr = '';
+    for ($attempt = 0; $attempt < 2; $attempt++) {
+      list($code, $resp, $neterr) = cbc_gemini_call($model, $bodyJson);
+      if ($neterr === '') break;
+      usleep(400000); // 400ms待ってからリトライ
+    }
+    if ($neterr !== '') {
+      // 2回試しても通信できなかった場合。一時的な混雑のこともあるが、繰り返す場合はサーバー側の
+      // 外部通信（サーバーからGoogleのAPIへのHTTPS通信）が制限されている可能性がある。
+      $hint = "\n【対処】再試行しても解消しない場合は、サーバーから外部（generativelanguage.googleapis.com）への"
+        . "HTTPS通信がファイアウォール等でブロックされていないか、レンタルサーバーの管理画面や"
+        . "サポートにご確認ください。";
+      return array(null, 'AIサーバーに接続できません: ' . $neterr . $hint, 502);
+    }
     $data = json_decode($resp, true);
     if ($code >= 200 && $code < 300 && is_array($data)) {
       cbc_setting_set($pdo, 'gemini_model_ok', $model); // 使えたモデルを記憶（次回から直接）
@@ -1075,7 +1090,8 @@ switch ($action) {
   }
 
   case 'ai_summarize': {
-    // 指定項目の本文を AI で要約
+    // 指定項目の本文を AI で要約。通信の再試行を待てるよう、PHP側の実行時間上限も一時的に緩める。
+    if (function_exists('set_time_limit')) @set_time_limit(120);
     $s = require_login($pdo);
     $d = body_json();
     $id = isset($d['id']) ? $d['id'] : '';
@@ -1104,6 +1120,8 @@ switch ($action) {
   case 'ai_search': {
     // 自然文の質問に最も関連する項目を AI が選ぶ（意味で探す）。
     // AIが0件だった場合は、キーワードの部分一致で補う（検索そのものが空振りにならないように）。
+    // 項目選択→まとめ生成と最大2回AIを呼ぶ（それぞれ通信の再試行もあり得る）ため、実行時間上限も一時的に緩める。
+    if (function_exists('set_time_limit')) @set_time_limit(220);
     $s = require_login($pdo);
     $d = body_json();
     $query = isset($d['q']) ? trim($d['q']) : '';
@@ -1126,9 +1144,13 @@ switch ($action) {
       $pathTitles[$r['id']] = $path;
       $plainBody[$r['id']] = cbc_html_to_plain($r['body']);
     }
+    // 項目数が多いプロジェクトでは、プロンプトが大きくなるほどAI応答が遅くなり通信タイムアウトの原因にもなるため、
+    // 合計文字数の目安を超えないよう、各項目のスニペット長を自動で縮める（項目が少なければ従来どおり十分な長さを使う）。
+    $snippetLen = 400;
+    if (count($rows) > 50) $snippetLen = max(120, (int) floor(20000 / count($rows)));
     $lines = array();
     foreach ($rows as $r) {
-      $snippet = mb_substr($plainBody[$r['id']], 0, 400);
+      $snippet = mb_substr($plainBody[$r['id']], 0, $snippetLen);
       $snippet = str_replace(array("\r", "\n"), ' ', $snippet);
       $lines[] = '- id:' . $r['id'] . ' | 見出し:' . implode(' > ', $pathTitles[$r['id']]) . ' | 内容:' . $snippet;
     }
@@ -1180,23 +1202,31 @@ switch ($action) {
     }
     // AIが意味で見つけた候補（上位いくつか）の本文をもとに、質問への回答をAIがまとめる（任意・失敗しても検索結果自体は返す）。
     // キーワード一致だけのときは「AIが理解して答えた」わけではないため、まとめの生成はしない。
-    $summary = null;
+    // 利用者は「今まさに作業に困っていて手順を知りたい」状態を想定し、実際の手順を省略せず具体的に示すことを優先する。
+    $summary = null; $summarySourceIds = array();
     if ($results && $results[0]['source'] === 'ai') {
-      $top = array_slice($results, 0, 4);
+      // 項目を絞るほど、まとめの焦点がぼやけず精度が上がるため、関連度上位3件だけを根拠にする
+      // （代わりに1件あたりの参照量を増やし、手順を省略しにくくする）。
+      $top = array_slice($results, 0, 3);
       $secLines = array();
       foreach ($top as $r) {
-        $full = mb_substr($plainBody[$r['id']], 0, 1200);
-        $secLines[] = '=== ' . implode(' > ', $r['path']) . " ===\n" . $full;
+        $full = mb_substr($plainBody[$r['id']], 0, 2000);
+        $secLines[] = '【項目名】' . implode(' > ', $r['path']) . "\n【内容】\n" . $full;
       }
-      $sumPrompt = "あなたは社内作業マニュアルのアシスタントです。利用者の質問に対して、下記の関連項目の内容だけを根拠に、"
-        . "実際の手順や要点をわかりやすく日本語でまとめて回答してください（400字程度目安）。"
-        . "複数項目にまたがる場合は関連が深い順に整理し、該当する項目名（見出し）にも触れてください。"
-        . "関連項目に書かれていないことは推測で補わないでください。\n\n"
-        . "【質問】" . $query . "\n\n【関連項目の内容】\n" . implode("\n\n", $secLines);
-      list($sumText, $sumErr) = cbc_gemini_soft($pdo, $sumPrompt, false, 700);
-      if ($sumErr === null && trim((string)$sumText) !== '') $summary = trim($sumText);
+      $sumPrompt = "あなたは社内作業マニュアルのアシスタントです。利用者は今まさに作業で困っており、今すぐ実際の手順を知りたいと考えています。\n"
+        . "下記【関連項目】の内容だけを根拠に、質問に対する実際の手順・対処法を、省略せずできるだけ具体的に日本語でまとめて回答してください（600字程度まで使ってよい）。\n"
+        . "・関連項目に手順が書かれている場合は、番号付き手順（1. 2. 3. …）でそのまま示してください。\n"
+        . "・複数の項目にまたがる場合は、関連が深い項目から順に、【項目名】をそのまま明記しながら整理してください（例：「『◯◯ > △△』には次の手順があります」）。\n"
+        . "・関連項目に書かれていないことは、絶対に推測や一般論で補わないでください。関連項目だけでは質問に答えられない場合は、"
+        . "その旨とどの項目に何が書かれているかを正直に述べてください。\n\n"
+        . "【質問】" . $query . "\n\n【関連項目】\n" . implode("\n\n", $secLines);
+      list($sumText, $sumErr) = cbc_gemini_soft($pdo, $sumPrompt, false, 1200);
+      if ($sumErr === null && trim((string)$sumText) !== '') {
+        $summary = trim($sumText);
+        foreach ($top as $r) $summarySourceIds[] = $r['id'];
+      }
     }
-    ok(array('results' => $results, 'summary' => $summary));
+    ok(array('results' => $results, 'summary' => $summary, 'summarySourceIds' => $summarySourceIds));
   }
 
   case 'login': {

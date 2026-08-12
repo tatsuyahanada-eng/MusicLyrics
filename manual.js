@@ -4369,7 +4369,7 @@
     if (!serverMode()) { searchResultsEl.innerHTML = '<div class="tm-sr-empty">AI検索はサーバー接続時のみ利用できます。</div>'; return; }
     searchMetaEl.textContent = 'AIが探しています…';
     searchResultsEl.innerHTML = '<div class="tm-sr-empty">&#10024; AIが関連する項目を探しています…</div>';
-    const sumBox = $('#aiSearchSummary'), sumBody = $('#aiSearchSummaryBody');
+    const sumBox = $('#aiSearchSummary'), sumBody = $('#aiSearchSummaryBody'), sumSrc = $('#aiSearchSummarySources');
     if (sumBox) sumBox.hidden = true;
     try {
       // ツリーが手元で少し古いままだと、AIが見つけた項目をこの端末で解決できず結果が消えてしまうことがあるため、
@@ -4378,7 +4378,6 @@
         apiCall('ai_search', { method: 'POST', body: { q } }),
         reloadFromServer().catch(() => {}),
       ]);
-      if (d.summary && sumBox && sumBody) { sumBody.textContent = d.summary; sumBox.hidden = false; }
       const results = (d.results || []).map((r) => {
         // まず手元のツリーで解決を試みる（ロック解除状態やクリック時の遷移先の特定に必要）。
         // 見つからなくても、サーバーが返した title/path でそのまま一覧には表示する。
@@ -4391,6 +4390,24 @@
           pathTitles, idPath: path ? path.map((n) => n.id) : null, locked, source: r.source || 'ai' };
       });
       searchResultData = results;
+      // AIによるまとめ：どの登録項目を根拠にしたか（サーバーが返した summarySourceIds）を、
+      // クリックで開けるチップとして本文の下に示す。困ったときにそのまま元の手順へ辿れるようにするため。
+      if (d.summary && sumBox && sumBody) {
+        sumBody.textContent = d.summary;
+        if (sumSrc) {
+          const srcIds = d.summarySourceIds || [];
+          const chips = srcIds.map((id) => {
+            const idx = results.findIndex((r) => r.id === id);
+            if (idx < 0) return '';
+            const r = results[idx];
+            return `<button class="tm-aisearch-srcchip" data-idx="${idx}" type="button">
+              <span class="tm-aisearch-srcchip-num">${idx + 1}</span>${esc(r.title)}${r.locked ? '&#128274;' : ''}
+            </button>`;
+          }).join('');
+          sumSrc.innerHTML = chips;
+        }
+        sumBox.hidden = false;
+      }
       const aiCount = results.filter((r) => r.source === 'ai').length;
       const kwCount = results.length - aiCount;
       searchMetaEl.innerHTML = kwCount
@@ -4419,15 +4436,24 @@
     clearTimeout(searchDebounce);
     searchDebounce = setTimeout(renderSearchResults, 110);
   });
-  searchResultsEl.addEventListener('click', (e) => {
-    const el = e.target.closest('.tm-sr-item');
-    if (!el) return;
-    const r = searchResultData[parseInt(el.dataset.idx, 10)];
+  // 検索結果の一覧、AIまとめの「参照した項目」チップ、どちらも同じ searchResultData を参照するため共通化
+  function openSearchResultByIdx(idx) {
+    const r = searchResultData[idx];
     if (!r) return;
     if (r.kind === 'inv') { closeSearchThen(() => openInventory()); return; }
     if (!r.idPath) { searchMetaEl.textContent = 'この項目は現在この端末では開けません（権限が変更されたか、削除された可能性があります）。'; return; }
     gotoNodePath(r.idPath);
+  }
+  searchResultsEl.addEventListener('click', (e) => {
+    const el = e.target.closest('.tm-sr-item');
+    if (!el) return;
+    openSearchResultByIdx(parseInt(el.dataset.idx, 10));
   });
+  { const ss = $('#aiSearchSummarySources'); if (ss) ss.addEventListener('click', (e) => {
+    const el = e.target.closest('.tm-aisearch-srcchip');
+    if (!el) return;
+    openSearchResultByIdx(parseInt(el.dataset.idx, 10));
+  }); }
   function closeSearchThen(after) {
     searchOpen = false;
     if (searchDialog.open) searchDialog.close();
