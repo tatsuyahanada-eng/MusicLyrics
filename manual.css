@@ -1750,6 +1750,7 @@ textarea.tm-ff-input { width: 100%; resize: vertical; min-height: 88px; }
 .tm-sr-mark { background: rgba(255, 207, 63, 0.28); color: var(--tm-warn); border-radius: 2px; padding: 0 1px; }
 .tm-sr-tag { font-family: var(--tm-mono); font-size: 10px; padding: 1px 6px; border-radius: 8px; border: 1px solid var(--tm-line); color: var(--tm-muted); margin-left: 6px; }
 .tm-sr-empty { padding: 22px 8px; text-align: center; color: var(--tm-muted); font-size: 13px; }
+.tm-sr-loading { color: var(--tm-muted); font-size: 13px; }
 
 /* 在庫: 管理者編集モード */
 .tm-inv-adminbar {

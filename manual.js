@@ -4265,6 +4265,7 @@
   const searchResultsEl = $('#searchResults');
   const searchMetaEl = $('#searchMeta');
   let searchResultData = [];
+  let aiSearchGen = 0; // まとめの後追い取得が、後から実行された新しい検索の結果を上書きしないためのガード
 
   // 一致部分を <mark> で強調（エスケープ済み）
   function highlightHtml(text, q) {
@@ -4362,15 +4363,32 @@
     // 在庫商品も検索対象にするため、サーバー接続時は最新を取得（ベストエフォート）
     if (serverMode() && invOn) { invFetch().then(() => { if (searchOpen) renderSearchResults(); }).catch(() => {}); }
   }
-  // AIで探す（意味検索）。質問文から関連項目をAIが選ぶ（該当なしのときはキーワード一致で補う）。
+  // 参照チップ（AIによるまとめの根拠になった項目）を描画する
+  function renderAiSummarySources(ids, results) {
+    const sumSrc = $('#aiSearchSummarySources'); if (!sumSrc) return;
+    const chips = (ids || []).map((id) => {
+      const idx = results.findIndex((r) => r.id === id);
+      if (idx < 0) return '';
+      const r = results[idx];
+      return `<button class="tm-aisearch-srcchip" data-idx="${idx}" type="button">
+        <span class="tm-aisearch-srcchip-num">${idx + 1}</span>${esc(r.title)}${r.locked ? '&#128274;' : ''}
+      </button>`;
+    }).join('');
+    sumSrc.innerHTML = chips;
+  }
+  // AIで探す（意味検索）。まず項目一覧だけを取りに行きすぐ表示し（出力が短く速い）、
+  // AIが意味で見つけていれば、続けてその内容をもとにした「まとめ」を別リクエストで追いかけて取得する。
+  // 一覧を待たせずに出すことと、まとめ生成の失敗が一覧の表示を巻き込まないことの両方を狙っている。
   async function runAiSearch() {
     const q = searchInput.value.trim();
     if (!q) { searchMetaEl.textContent = ''; searchResultsEl.innerHTML = '<div class="tm-sr-empty">質問やキーワードを入力してから「AIで探す」を押してください。</div>'; return; }
     if (!serverMode()) { searchResultsEl.innerHTML = '<div class="tm-sr-empty">AI検索はサーバー接続時のみ利用できます。</div>'; return; }
+    const gen = ++aiSearchGen;
     searchMetaEl.textContent = 'AIが探しています…';
     searchResultsEl.innerHTML = '<div class="tm-sr-empty">&#10024; AIが関連する項目を探しています…</div>';
     const sumBox = $('#aiSearchSummary'), sumBody = $('#aiSearchSummaryBody'), sumSrc = $('#aiSearchSummarySources');
     if (sumBox) sumBox.hidden = true;
+    if (sumSrc) sumSrc.innerHTML = '';
     try {
       // ツリーが手元で少し古いままだと、AIが見つけた項目をこの端末で解決できず結果が消えてしまうことがあるため、
       // AI検索と並行して最新のツリーを取り直しておく（結果表示自体はサーバーが返す情報を優先して使う）。
@@ -4378,6 +4396,7 @@
         apiCall('ai_search', { method: 'POST', body: { q } }),
         reloadFromServer().catch(() => {}),
       ]);
+      if (gen !== aiSearchGen) return; // その間に別の検索が始まっていれば、この結果は捨てる
       const results = (d.results || []).map((r) => {
         // まず手元のツリーで解決を試みる（ロック解除状態やクリック時の遷移先の特定に必要）。
         // 見つからなくても、サーバーが返した title/path でそのまま一覧には表示する。
@@ -4390,24 +4409,6 @@
           pathTitles, idPath: path ? path.map((n) => n.id) : null, locked, source: r.source || 'ai' };
       });
       searchResultData = results;
-      // AIによるまとめ：どの登録項目を根拠にしたか（サーバーが返した summarySourceIds）を、
-      // クリックで開けるチップとして本文の下に示す。困ったときにそのまま元の手順へ辿れるようにするため。
-      if (d.summary && sumBox && sumBody) {
-        sumBody.textContent = d.summary;
-        if (sumSrc) {
-          const srcIds = d.summarySourceIds || [];
-          const chips = srcIds.map((id) => {
-            const idx = results.findIndex((r) => r.id === id);
-            if (idx < 0) return '';
-            const r = results[idx];
-            return `<button class="tm-aisearch-srcchip" data-idx="${idx}" type="button">
-              <span class="tm-aisearch-srcchip-num">${idx + 1}</span>${esc(r.title)}${r.locked ? '&#128274;' : ''}
-            </button>`;
-          }).join('');
-          sumSrc.innerHTML = chips;
-        }
-        sumBox.hidden = false;
-      }
       const aiCount = results.filter((r) => r.source === 'ai').length;
       const kwCount = results.length - aiCount;
       searchMetaEl.innerHTML = kwCount
@@ -4424,6 +4425,23 @@
           ${r.reason ? `<div class="tm-sr-snippet">${esc(r.reason)}</div>` : ''}
         </button>`;
       }).join('');
+      // AIが意味で見つけたときだけ、続けてまとめを取りに行く（一覧はもう表示済みなので、ここで待たせない）。
+      if (aiCount && results[0].source === 'ai' && sumBox && sumBody) {
+        sumBody.textContent = '';
+        sumBody.innerHTML = '<span class="tm-sr-loading">&#10024; AIがまとめを作成中…</span>';
+        sumBox.hidden = false;
+        const srcIds = results.slice(0, 3).map((r) => r.id);
+        apiCall('ai_search_summary', { method: 'POST', body: { q, ids: srcIds } }).then((sd) => {
+          if (gen !== aiSearchGen) return; // 別の検索が始まっていれば無視
+          if (sd.summary) {
+            sumBody.textContent = sd.summary;
+            renderAiSummarySources(srcIds, results);
+            sumBox.hidden = false;
+          } else {
+            sumBox.hidden = true;
+          }
+        }).catch(() => { if (gen === aiSearchGen && sumBox) sumBox.hidden = true; });
+      }
     } catch (e) {
       searchMetaEl.textContent = '';
       searchResultsEl.innerHTML = `<div class="tm-sr-empty">AI検索に失敗しました：${esc(e.message)}</div>`;

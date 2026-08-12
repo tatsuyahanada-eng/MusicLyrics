@@ -1142,10 +1142,10 @@ switch ($action) {
   }
 
   case 'ai_search': {
-    // 自然文の質問に最も関連する項目を AI が選び、同時にその内容をもとにした回答（まとめ）も1回のAI呼び出しで作る
-    // （意味で探す）。以前は「項目選択」→「まとめ生成」の2回AIを呼んでいたが、1回にまとめることで体感速度を上げている。
-    // AIが0件だった場合は、キーワードの部分一致で補う（検索そのものが空振りにならないように）。
-    if (function_exists('set_time_limit')) @set_time_limit(120);
+    // 自然文の質問に最も関連する項目をAIが選ぶ（意味で探す）。ここでは項目選択だけを行い、
+    // 一覧をすぐ返す（出力が短いぶん応答が速い）。まとめ文は別リクエスト（ai_search_summary）で取得する
+    // ——理由は下記参照。AIが0件だった場合は、キーワードの部分一致で補う（検索が空振りにならないように）。
+    if (function_exists('set_time_limit')) @set_time_limit(90);
     $s = require_login($pdo);
     $d = body_json();
     $query = isset($d['q']) ? trim($d['q']) : '';
@@ -1169,9 +1169,8 @@ switch ($action) {
       $plainBody[$r['id']] = cbc_html_to_plain($r['body']);
     }
     $terms = cbc_search_terms($query);
-    // 項目数が多いプロジェクトでは、全項目をそのままAIに渡すとプロンプトが大きくなり、応答が遅くなる
-    // （タイムアウトの一因にもなる）。そこで簡易キーワード一致（AI不要・一瞬で終わる）で先に当たりを付け、
-    // 候補を絞ってからAIに渡す。絞った分、1件あたりの内容量を増やせるので、まとめの精度もむしろ上がる。
+    // 項目数が多いプロジェクトでは、全項目をそのままAIに渡すとプロンプトが大きくなり、応答が遅くなる。
+    // そこで簡易キーワード一致（AI不要・一瞬で終わる）で先に当たりを付け、候補を絞ってからAIに渡す。
     $candidateRows = $rows;
     if (count($rows) > 60) {
       $scored = array();
@@ -1183,30 +1182,26 @@ switch ($action) {
       $candidateRows = array();
       foreach (array_slice($scored, 0, 60) as $sc) $candidateRows[] = $sc['row'];
     }
-    // 応答速度を優先し、1件あたりの内容量は必要十分な範囲に抑える
-    // （多すぎる入力は処理に時間がかかり、まとめの生成が長くなるほど体感速度も落ちるため）。
-    $snippetLen = (count($rows) > 60) ? 600 : 700;
+    // 項目選択の出力は id と短い理由だけなので、内容は「どれが関連しそうか」を判断できる短さで十分
+    // （まとめに使う本文全体は、選ばれた項目だけを対象に ai_search_summary で別途取得する）。
+    $snippetLen = (count($rows) > 60) ? 300 : 350;
     $lines = array();
     foreach ($candidateRows as $r) {
       $snippet = mb_substr($plainBody[$r['id']], 0, $snippetLen);
       $snippet = str_replace(array("\r", "\n"), ' ', $snippet);
       $lines[] = '- id:' . $r['id'] . ' | 見出し:' . implode(' > ', $pathTitles[$r['id']]) . ' | 内容:' . $snippet;
     }
-    $prompt = "あなたは社内作業マニュアルの検索アシスタントです。利用者は今まさに作業で困っており、人に話しかけるような自然な言い方"
-      . "（会話文・言い換え・省略・多少の誤字を含む）で質問します。今すぐ実際の手順を知りたいと考えています。\n"
-      . "下の【項目一覧】から、質問の意図・同義語・関連する製品名/型番/略称・言い換えも考慮して、関連度が高い順に最大6件選んでください"
-      . "（文字が完全一致していなくても、意味や文脈が関連していれば積極的に候補に含めてください。完全に無関係なときのみ空にしてください）。\n"
-      . "さらに、選んだ項目のうち特に関連が深いものの内容だけを根拠に、質問への回答（実際の手順・対処法）もまとめてください。\n\n"
-      . "出力は次のJSONオブジェクトのみ。他の文字列は一切出力しないこと。\n"
-      . "{\"summary\":\"質問への回答文（日本語、300〜500字程度を目安に、要点を絞って簡潔に。ただし関連項目に手順が書かれている場合は"
-      . "番号付き手順(1. 2. 3. …)を省略しないでそのまま示す。複数項目にまたがる場合は関連が深い項目から順に、見出し（項目名）を明記しながら整理する。"
-      . "一覧に書かれていないことは推測や一般論で絶対に補わない。一覧だけでは答えられない場合は正直にそう書く。該当が全く無ければ空の文字列にする）\",\n"
-      . "\"items\":[{\"id\":\"項目ID\",\"reason\":\"関連する理由（日本語40字以内）\"}]}\n\n"
+    $prompt = "あなたは社内作業マニュアルの検索アシスタントです。利用者は人に話しかけるような自然な言い方"
+      . "（会話文・言い換え・省略・多少の誤字を含む）で質問します。\n"
+      . "下の【項目一覧】から、質問の意図・同義語・関連する製品名/型番/略称・言い換えも考慮して、関連度が高い順に最大6件選び、"
+      . "JSON配列だけを出力してください。文字が完全一致していなくても、意味や文脈が関連していれば積極的に候補に含めてください。"
+      . "完全に無関係なときのみ空配列 [] にしてください。\n"
+      . "各要素は {\"id\":\"項目ID\",\"reason\":\"関連する理由（日本語40字以内）\"} の形式。JSON以外は一切出力しないこと。\n\n"
       . "【質問】" . $query . "\n\n【項目一覧】\n" . implode("\n", $lines);
-    $text = cbc_gemini($pdo, $prompt, true, 1800);
-    $obj = cbc_json_extract_search_obj($text);
+    $text = cbc_gemini($pdo, $prompt, true, 900);
+    $arr = cbc_json_extract_list($text);
     $results = array(); $seen = array();
-    foreach ($obj['items'] as $item) {
+    foreach ($arr as $item) {
       if (!is_array($item) || !isset($item['id']) || !isset($byId[$item['id']])) continue;
       $id = (string)$item['id'];
       if (isset($seen[$id])) continue;
@@ -1222,7 +1217,7 @@ switch ($action) {
       if (count($results) >= 6) break;
     }
     // AIが「該当なし」と判断した／応答をうまく解釈できなかったときは、単純な部分一致で補う
-    // （こちらは候補を絞らず全項目が対象。パーフィルタで漏れた項目でも、この最終フォールバックでは拾える）。
+    // （こちらは候補を絞らず全項目が対象。事前絞り込みで漏れた項目でも、この最終フォールバックでは拾える）。
     if (!$results) {
       $scored = array();
       foreach ($rows as $r) {
@@ -1240,14 +1235,65 @@ switch ($action) {
         );
       }
     }
-    // まとめ（summary）は、AIが意味で見つけたときだけ表示する。キーワード一致だけのときは
-    // 「AIが理解して答えた」わけではないため表示しない。参照チップは関連度上位3件を示す。
-    $summary = null; $summarySourceIds = array();
-    if ($results && $results[0]['source'] === 'ai' && $obj['summary']) {
-      $summary = $obj['summary'];
-      foreach (array_slice($results, 0, 3) as $r) $summarySourceIds[] = $r['id'];
+    ok(array('results' => $results));
+  }
+
+  case 'ai_search_summary': {
+    // 「AIで探す」で見つかった項目（上位いくつか）の内容をもとに、質問への回答をAIがまとめる。
+    // ai_search とは別リクエストにすることで、一覧はすぐ表示しつつ、まとめは追いかけて表示できる
+    // （体感速度優先）。また、まとめはJSONに埋め込まず素のテキストで生成するため、出力が長くなっても
+    // JSON構文が壊れて丸ごと消える（以前の一体型で起きていた不具合）ことがない。失敗しても null を返すだけ。
+    if (function_exists('set_time_limit')) @set_time_limit(90);
+    $s = require_login($pdo);
+    $d = body_json();
+    $query = isset($d['q']) ? trim($d['q']) : '';
+    $ids = (isset($d['ids']) && is_array($d['ids'])) ? array_values(array_map('strval', $d['ids'])) : array();
+    if ($query === '' || !$ids) ok(array('summary' => null));
+    $ids = array_slice($ids, 0, 3);
+    $ph = implode(',', array_fill(0, count($ids), '?'));
+    $st = $pdo->prepare("SELECT id, parent_id, title, body FROM nodes WHERE id IN ($ph)");
+    $st->execute($ids);
+    $found = $st->fetchAll();
+    if (!$s['is_admin']) {
+      $all = $pdo->query('SELECT id, parent_id FROM nodes')->fetchAll();
+      $vis = cbc_filter_allowed($all, cbc_user_allowed($pdo, $s['username']));
+      $visIds = array();
+      foreach ($vis as $v) $visIds[$v['id']] = true;
+      $found = array_values(array_filter($found, function ($r) use ($visIds) { return isset($visIds[$r['id']]); }));
     }
-    ok(array('results' => $results, 'summary' => $summary, 'summarySourceIds' => $summarySourceIds));
+    if (!$found) ok(array('summary' => null));
+    // 見出しパス（TOPからの階層）をたどるための材料
+    $allForPath = $pdo->query('SELECT id, parent_id, title FROM nodes')->fetchAll();
+    $byIdAll = array();
+    foreach ($allForPath as $r) $byIdAll[$r['id']] = $r;
+    $byFoundId = array();
+    foreach ($found as $r) $byFoundId[$r['id']] = $r;
+    $secLines = array();
+    foreach ($ids as $id) {
+      if (!isset($byFoundId[$id])) continue; // 権限外・削除済みはスキップ
+      $r = $byFoundId[$id];
+      $path = array(); $cur = isset($byIdAll[$id]) ? $byIdAll[$id] : null; $guard = 0;
+      while ($cur && $guard++ < 20) {
+        array_unshift($path, $cur['title']);
+        $pid = $cur['parent_id'];
+        $cur = ($pid !== null && $pid !== '' && isset($byIdAll[$pid])) ? $byIdAll[$pid] : null;
+      }
+      $full = mb_substr(cbc_html_to_plain($r['body']), 0, 2500);
+      $secLines[] = '【項目名】' . implode(' > ', $path) . "\n【内容】\n" . $full;
+    }
+    if (!$secLines) ok(array('summary' => null));
+    $prompt = "あなたは社内作業マニュアルのアシスタントです。利用者は今まさに作業で困っており、今すぐ実際の手順を知りたいと考えています。\n"
+      . "下記【関連項目】の内容だけを根拠に、質問に対する実際の手順・対処法を、省略せずできるだけ具体的に日本語でまとめて回答してください"
+      . "（400〜600字程度）。\n"
+      . "・関連項目に手順が書かれている場合は、番号付き手順（1. 2. 3. …）でそのまま示してください。\n"
+      . "・複数の項目にまたがる場合は、関連が深い項目から順に、【項目名】をそのまま明記しながら整理してください。\n"
+      . "・関連項目に書かれていないことは、絶対に推測や一般論で補わないでください。関連項目だけでは質問に答えられない場合は、"
+      . "その旨とどの項目に何が書かれているかを正直に述べてください。\n"
+      . "・記号や見出しでの装飾は不要です。回答の文章だけをそのまま出力してください（JSON化しないこと）。\n\n"
+      . "【質問】" . $query . "\n\n【関連項目】\n" . implode("\n\n", $secLines);
+    list($sumText, $sumErr) = cbc_gemini_soft($pdo, $prompt, false, 1400);
+    $summary = ($sumErr === null && trim((string)$sumText) !== '') ? trim($sumText) : null;
+    ok(array('summary' => $summary));
   }
 
   case 'login': {
