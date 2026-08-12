@@ -18,9 +18,43 @@ const WORK_TYPE_PRESETS = [
 
 /** 案件名の選択肢。これ以外は「フリー」を選んで自由入力する */
 const PROJECT_PRESETS = [
-  'リテイルオンサイト', 'JCOM', 'JT', '自社案件', 'くらしのマーケット', 'ミツモア',
+  'リテイルオンサイト', 'JCOM', 'JT', '自社案件', 'くらしのマーケット', 'ミツモア', 'OES入替',
 ];
 const PROJECT_FREE = '__free__';
+
+/** 1日を分ける時間帯（縦型カレンダーの列） */
+const SLOTS = [
+  { id: 'early', name: '早朝', start: '05:00', end: '08:00' },
+  { id: 'am',    name: 'AM',   start: '08:00', end: '12:00' },
+  { id: 'p1',    name: 'P1',   start: '12:00', end: '15:00' },
+  { id: 'p2',    name: 'P2',   start: '15:00', end: '18:00' },
+  { id: 'night', name: '夜間', start: '18:00', end: '22:00' },
+];
+
+function slotById(id) {
+  for (let i = 0; i < SLOTS.length; i++) if (SLOTS[i].id === id) return SLOTS[i];
+  return null;
+}
+
+/** 予定が掛かっている時間帯のID一覧（終日はすべての枠） */
+function jobSlots(job) {
+  if (job.allDay) return SLOTS.map((s) => s.id);
+  const s = toMinutes(job.start);
+  let e = toMinutes(job.end);
+  if (s === null || e === null) return [];
+  if (e <= s) e += 1440;   // 日をまたぐ勤務
+  return SLOTS.filter((slot) => {
+    const ss = toMinutes(slot.start);
+    const se = toMinutes(slot.end);
+    // 日をまたぐ場合は翌日ぶんも見る
+    return (s < se && ss < e) || (s < se + 1440 && ss + 1440 < e);
+  }).map((slot) => slot.id);
+}
+
+/** その日・その枠に掛かっている予定 */
+function jobsInSlot(dateKey, slotId) {
+  return jobsOn(dateKey).filter((j) => jobSlots(j).indexOf(slotId) >= 0);
+}
 
 /* ------------------------------------------------------------
    日付ユーティリティ
@@ -166,7 +200,7 @@ const TOMBSTONE_DAYS = 180;
 function defaultState() {
   return {
     version: 2,
-    settings: { bufferMin: 30, defStart: '09:00', defEnd: '18:00', senderName: '' },
+    settings: { bufferMin: 0, defStart: '09:00', defEnd: '18:00', senderName: '' },
     settingsAt: EPOCH0,
     wishes: {},      // 'YYYY-MM-DD' → 'available' | 'off'
     wishMeta: {},    // 'YYYY-MM-DD' → 更新時刻（未定に戻した日も記録する）
@@ -182,8 +216,9 @@ const view = {
   year: now.getFullYear(),
   month: now.getMonth(),   // 0-11
   selected: null,          // 'YYYY-MM-DD'
+  slot: null,              // 選択中の時間帯ID（日付ラベルを選んだときは null）
   paint: null,             // null | 'available' | 'off' | 'clear' | 'multi'
-  multi: new Set(),        // まとめて登録する日（'YYYY-MM-DD'）
+  multi: new Set(),        // まとめて登録する枠（'YYYY-MM-DD|slotId'）
   editingId: null,
   confirming: false,       // 仮出勤 → 確定 への切り替え中
   jobFilter: 'all',        // 予定一覧の絞り込み
@@ -429,91 +464,88 @@ function renderMonthNav() {
 
 function renderCalendar() {
   const conflicts = conflictingJobIds();
-  const first = new Date(view.year, view.month, 1);
-  const start = addDays(first, -first.getDay());
   const today = todayKey();
+  const total = daysInMonth(view.year, view.month);
 
-  const cells = [];
-  for (let i = 0; i < 42; i++) {
-    const date = addDays(start, i);
-    const key = toKey(date);
-    const inMonth = date.getMonth() === view.month;
+  const head = '<div class="sc-vrow sc-vhead">'
+    + '<div class="sc-vdate-head">日付</div>'
+    + SLOTS.map((s2) => `<div class="sc-vslot-head">${escapeHtml(s2.name)}`
+        + `<span class="sc-vslot-time">${s2.start}〜${s2.end}</span></div>`).join('')
+    + '</div>';
+
+  const rows = [];
+  for (let d = 1; d <= total; d++) {
+    const key = `${view.year}-${pad2(view.month + 1)}-${pad2(d)}`;
+    const date = fromKey(key);
     const dow = date.getDay();
     const hol = holidayName(key);
     const wish = state.wishes[key] || null;
     const dayJobs = jobsOn(key);
-    const hasConflict = dayJobs.some((j) => conflicts.has(j.id));
-
     const hasConfirmed = dayJobs.some((j) => j.status !== 'tentative');
     const hasTentative = dayJobs.some((j) => j.status === 'tentative');
+    const isEmpty = key >= today && !wish && !dayJobs.length;
 
-    // 希望も予定も入っていない、これからの日（＝まだ決まっていない日）
-    const isEmpty = inMonth && key >= today && !wish && !dayJobs.length;
-
-    const classes = ['sc-cell'];
-    if (!inMonth) classes.push('sc-cell-out');
-    if (key < today) classes.push('sc-cell-past');
-    if (isEmpty) classes.push('sc-cell-empty');
-    if (view.multi.has(key)) classes.push('sc-cell-multi');
-    if (key === today) classes.push('sc-cell-today');
-    if (key === view.selected) classes.push('sc-cell-selected');
-    if (wish === WISH_AVAILABLE) classes.push('sc-cell-available');
-    if (wish === WISH_OFF) classes.push('sc-cell-off');
-    // 確定がある日は希望の色より優先して塗る（一目で「入っている日」がわかるように）
-    if (hasConfirmed) classes.push('sc-cell-confirmed');
-    else if (hasTentative) classes.push('sc-cell-tentative');
-    if (hasConflict) classes.push('sc-cell-conflict');
-
-    let numClass = 'sc-daynum';
-    if (hol) numClass += ' sc-daynum-holiday';
-    else if (dow === 0) numClass += ' sc-daynum-sun';
-    else if (dow === 6) numClass += ' sc-daynum-sat';
+    const dcls = ['sc-vdate'];
+    if (key < today) dcls.push('sc-vdate-past');
+    if (key === today) dcls.push('sc-vdate-today');
+    if (dow === 0 || hol) dcls.push('sc-vdate-sun');
+    else if (dow === 6) dcls.push('sc-vdate-sat');
+    if (wish === WISH_AVAILABLE) dcls.push('sc-vdate-available');
+    if (wish === WISH_OFF) dcls.push('sc-vdate-off');
+    if (isEmpty) dcls.push('sc-vdate-empty');
+    if (!view.slot && key === view.selected) dcls.push('sc-vdate-selected');
 
     const marks = [];
-    if (hasConfirmed) marks.push('<span class="sc-mark-confirmed">確定</span>');
-    else if (hasTentative) marks.push('<span class="sc-mark-tentative">仮</span>');
-    if (wish === WISH_AVAILABLE && !dayJobs.length) marks.push('<span class="sc-mark-available">◯</span>');
+    if (wish === WISH_AVAILABLE) marks.push('<span class="sc-mark-available">◯</span>');
     if (wish === WISH_OFF) marks.push('<span class="sc-mark-off">✕</span>');
-    if (view.multi.has(key)) marks.push('<span class="sc-mark-multi">✓</span>');
     if (isEmpty) marks.push('<span class="sc-mark-empty">未定</span>');
-    if (hasConflict) marks.push('<span class="sc-mark-conflict">⚠</span>');
 
-    const pills = dayJobs.slice(0, 3).map((j) => {
-      const cls = ['sc-job-pill', j.status === 'tentative' ? 'sc-job-pill-tentative' : 'sc-job-pill-confirmed'];
-      if (conflicts.has(j.id)) cls.push('sc-job-pill-conflict');
-      const time = j.allDay ? '終日' : j.start;
-      const tip = [j.title, j.workType, j.client, j.place].filter(Boolean).join(' / ');
-      return `<span class="${cls.join(' ')}" title="${escapeHtml(tip)}">` +
-        `${j.status === 'tentative' ? '<span class="sc-pill-mark">仮</span>' : ''}` +
-        `${escapeHtml(time)} ${escapeHtml(j.title || '(無題)')}</span>`;
+    const dateCell = `<button type="button" class="${dcls.join(' ')}" data-date="${key}" data-role="date"`
+      + ` aria-label="${escapeHtml(`${view.month + 1}月${d}日 ${WD[dow]}曜日`)}">`
+      + `<span class="sc-vdate-num">${d}</span>`
+      + `<span class="sc-vdate-wd">${WD[dow]}</span>`
+      + `<span class="sc-vdate-marks">${marks.join('')}</span>`
+      + (hol ? `<span class="sc-vdate-hol">${escapeHtml(hol)}</span>` : '')
+      + `</button>`;
+
+    const cells = SLOTS.map((slot) => {
+      const list = jobsInSlot(key, slot.id);
+      const pick = key + '|' + slot.id;
+      const cls = ['sc-vcell'];
+      if (key < today) cls.push('sc-vcell-past');
+      if (list.some((j) => j.status !== 'tentative')) cls.push('sc-vcell-confirmed');
+      else if (list.length) cls.push('sc-vcell-tentative');
+      if (list.some((j) => conflicts.has(j.id))) cls.push('sc-vcell-conflict');
+      if (view.multi.has(pick)) cls.push('sc-vcell-multi');
+      if (view.selected === key && view.slot === slot.id) cls.push('sc-vcell-selected');
+
+      const inner = list.map((j) => {
+        const tag = j.status === 'tentative' ? '<span class="sc-vpill-mark">仮</span>' : '';
+        const tip = [formatDate(j.date), j.allDay ? '終日' : j.start + '〜' + j.end,
+          j.title, j.workType, j.client, j.place].filter(Boolean).join(' / ');
+        return `<span class="sc-vpill ${j.status === 'tentative' ? 'sc-vpill-tentative' : 'sc-vpill-confirmed'}"`
+          + ` title="${escapeHtml(tip)}">${tag}${escapeHtml(j.title || '(無題)')}</span>`;
+      }).join('');
+
+      const label = `${view.month + 1}月${d}日 ${slot.name}`
+        + (list.length ? ' ' + list.map((j) => j.title || '(無題)').join('、') : ' 空き');
+
+      return `<button type="button" class="${cls.join(' ')}" data-date="${key}" data-slot="${slot.id}"`
+        + ` data-pick="${pick}" aria-label="${escapeHtml(label)}">`
+        + `${inner || '<span class="sc-vcell-empty"></span>'}`
+        + (view.multi.has(pick) ? '<span class="sc-vcell-check">✓</span>' : '')
+        + `</button>`;
     }).join('');
-    // 画面幅で表示できる件数が変わるため、desktop（3件表示）と mobile（2件表示）で残数を出し分ける
-    const more =
-      (dayJobs.length > 3 ? `<span class="sc-job-more sc-more-desktop">ほか${dayJobs.length - 3}件</span>` : '') +
-      (dayJobs.length > 2 ? `<span class="sc-job-more sc-more-mobile">ほか${dayJobs.length - 2}件</span>` : '');
 
-    const label = `${date.getMonth() + 1}月${date.getDate()}日 ${WD[dow]}曜日`
-      + (hol ? ` ${hol}` : '')
-      + (wish === WISH_AVAILABLE ? ' 稼働可能' : wish === WISH_OFF ? ' 休み希望' : '')
-      + (isEmpty ? ' 未定' : '')
-      + (hasConfirmed ? ' 確定あり' : hasTentative ? ' 仮出勤あり' : '')
-      + (dayJobs.length ? ` 予定${dayJobs.length}件` : '')
-      + (hasConflict ? ' 重複あり' : '');
-
-    cells.push(
-      `<button type="button" class="${classes.join(' ')}" data-date="${key}" role="gridcell" aria-label="${escapeHtml(label)}">` +
-        `<span class="sc-cell-head">` +
-          `<span class="${numClass}">${date.getDate()}</span>` +
-          `<span class="sc-cell-marks">${marks.join('')}</span>` +
-        `</span>` +
-        (hol ? `<span class="sc-holiday-name">${escapeHtml(hol)}</span>` : '') +
-        `<span class="sc-cell-jobs">${pills}${more}</span>` +
-      `</button>`
-    );
+    const rcls = ['sc-vrow'];
+    if (dow === 0) rcls.push('sc-vrow-sun');
+    if (dow === 6) rcls.push('sc-vrow-sat');
+    if (key === today) rcls.push('sc-vrow-today');
+    rows.push(`<div class="${rcls.join(' ')}">${dateCell}${cells}</div>`);
   }
-  elCalendar.innerHTML = cells.join('');
-}
 
+  elCalendar.innerHTML = head + rows.join('');
+}
 
 /** 予定の入力フォーム（単日・複数日で共用） */
 function jobFormHtml(f) {
@@ -562,7 +594,9 @@ function jobFormHtml(f) {
           </label>
         </div>
 
-        <div class="sc-form-row" id="timeRow" ${f.allDay ? 'hidden' : ''}>
+        ${view.paint === 'multi' && !f.allDay
+          ? '<p class="sc-hint">時間はそれぞれの枠（早朝・AM・P1・P2・夜間）の時間で登録されます。</p>' : ''}
+        <div class="sc-form-row" id="timeRow" ${(f.allDay || view.paint === 'multi') ? 'hidden' : ''}>
           <label class="sc-field">
             <span class="sc-field-label">開始</span>
             <input id="fStart" class="sc-input" type="time" value="${escapeHtml(f.start)}">
@@ -599,30 +633,34 @@ function jobFormHtml(f) {
     </div>`;
 }
 
-/** 複数日をまとめて扱うときのパネル */
+/** 複数の枠をまとめて扱うときのパネル */
 function renderMultiPanel() {
-  const dates = Array.from(view.multi).sort();
+  const picks = Array.from(view.multi).sort();
   const f = view.form || blankForm();
 
-  if (!dates.length) {
+  if (!picks.length) {
     elSidePanel.innerHTML = `
-      <p class="sc-side-date">複数日をまとめて登録</p>
-      <p class="sc-side-date-sub">カレンダーの日付をクリックして選んでください（ドラッグで連続選択）。</p>
+      <p class="sc-side-date">まとめて登録</p>
+      <p class="sc-side-date-sub">カレンダーの枠をクリックして選んでください（ドラッグで連続選択）。</p>
       <p class="sc-side-empty">まだ選ばれていません。</p>`;
     return;
   }
 
-  const chips = dates.map((d) =>
-    `<button type="button" class="sc-date-chip" data-unpick="${d}" title="外す">${formatDate(d)} <span aria-hidden="true">×</span></button>`
-  ).join('');
+  const chips = picks.map((pk) => {
+    const [d, sid] = pk.split('|');
+    const sl = slotById(sid);
+    return `<button type="button" class="sc-date-chip" data-unpick="${pk}" title="外す">`
+      + `${formatDate(d)} ${escapeHtml(sl ? sl.name : '')} <span aria-hidden="true">×</span></button>`;
+  }).join('');
 
-  const withJobs = dates.filter((d) => jobsOn(d).length);
+  const dates = Array.from(new Set(picks.map((pk) => pk.split('|')[0]))).sort();
+  const busy = picks.filter((pk) => { const [d, sid] = pk.split('|'); return jobsInSlot(d, sid).length; });
   const offDays = dates.filter((d) => (state.wishes[d] || null) === WISH_OFF);
 
   elSidePanel.innerHTML = `
     <div>
-      <p class="sc-side-date">${dates.length}日を選択中</p>
-      <p class="sc-side-date-sub">同じ内容の予定を、まとめて登録できます。</p>
+      <p class="sc-side-date">${picks.length}枠を選択中</p>
+      <p class="sc-side-date-sub">${dates.length}日ぶん。各枠の時間で、同じ内容の予定をまとめて登録します。</p>
     </div>
 
     <div class="sc-side-block">
@@ -639,8 +677,8 @@ function renderMultiPanel() {
       </div>
     </div>
 
-    ${(withJobs.length || offDays.length) ? `<div class="sc-side-block">
-      ${withJobs.length ? `<p class="sc-job-meta">・すでに予定がある日：${withJobs.map((d) => formatDate(d)).join('、')}</p>` : ''}
+    ${(busy.length || offDays.length) ? `<div class="sc-side-block">
+      ${busy.length ? `<p class="sc-job-meta">・すでに予定がある枠：${busy.length}枠</p>` : ''}
       ${offDays.length ? `<p class="sc-job-meta">・休み希望の日：${offDays.map((d) => formatDate(d)).join('、')}</p>` : ''}
     </div>` : ''}
 
@@ -662,7 +700,8 @@ function renderSidePanel() {
   const hol = holidayName(key);
   const wish = state.wishes[key] || null;
   const conflicts = conflictingJobIds();
-  const dayJobs = jobsOn(key);
+  const slot = view.slot ? slotById(view.slot) : null;
+  const dayJobs = slot ? jobsInSlot(key, slot.id) : jobsOn(key);
 
   const cards = dayJobs.map((j) => {
     const tentative = j.status === 'tentative';
@@ -699,8 +738,8 @@ function renderSidePanel() {
 
   elSidePanel.innerHTML = `
     <div>
-      <p class="sc-side-date">${formatDate(key, 'long')}</p>
-      <p class="sc-side-date-sub">${hol ? '🎌 ' + escapeHtml(hol) : ''}${key < todayKey() ? ' （過去の日付）' : ''}</p>
+      <p class="sc-side-date">${formatDate(key, 'long')}${slot ? `　<span class="sc-slot-badge">${escapeHtml(slot.name)}</span>` : ''}</p>
+      <p class="sc-side-date-sub">${slot ? `${slot.start}〜${slot.end}　` : ''}${hol ? '🎌 ' + escapeHtml(hol) : ''}${key < todayKey() ? ' （過去の日付）' : ''}</p>
     </div>
 
     <div class="sc-side-block">
@@ -713,7 +752,7 @@ function renderSidePanel() {
     </div>
 
     <div class="sc-side-block">
-      <p class="sc-side-block-title">この日の予定（${dayJobs.length}件）</p>
+      <p class="sc-side-block-title">${slot ? `この枠の予定` : 'この日の予定'}（${dayJobs.length}件）</p>
       ${cards || '<p class="sc-empty-note">まだ予定はありません。</p>'}
     </div>
 
@@ -1382,9 +1421,11 @@ function googleCalendarUrl(job) {
    ------------------------------------------------------------ */
 
 function blankForm() {
+  const slot = view.slot ? slotById(view.slot) : null;
   return {
     titleSel: '', titleFree: '', workType: '', status: 'confirmed', allDay: false,
-    start: state.settings.defStart, end: state.settings.defEnd,
+    start: slot ? slot.start : state.settings.defStart,
+    end: slot ? slot.end : state.settings.defEnd,
     client: '', place: '', note: '',
   };
 }
@@ -1533,13 +1574,26 @@ function updateFormAlert() {
   }
 }
 
-/** 選んだ日それぞれについて、登録しようとしている内容の重複を調べる */
+/** 選んだ枠それぞれについて、登録しようとしている内容の重複を調べる */
+function multiDraft(pick) {
+  const [date, sid] = pick.split('|');
+  const slot = slotById(sid);
+  const base = draftJob();
+  return Object.assign(base, {
+    id: '__draft__', date: date,
+    start: base.allDay ? base.start : (slot ? slot.start : base.start),
+    end: base.allDay ? base.end : (slot ? slot.end : base.end),
+    slot: sid,
+  });
+}
+
 function multiConflicts() {
   const f = view.form || blankForm();
   if (!f.titleSel) return [];
-  return Array.from(view.multi).sort().map((date) => {
-    const draft = Object.assign(draftJob(), { id: '__draft__', date: date });
-    return { date: date, conflicts: findConflicts(draft, null) };
+  return Array.from(view.multi).sort().map((pick) => {
+    const [date, sid] = pick.split('|');
+    const slot = slotById(sid);
+    return { date: date, slotName: slot ? slot.name : '', conflicts: findConflicts(multiDraft(pick), null) };
   }).filter((r) => r.conflicts.length);
 }
 
@@ -1556,10 +1610,10 @@ function updateMultiFormAlert(alertBox) {
       const items = found.map((r) => {
         const names = r.conflicts.map((c) => escapeHtml(c.job.title || '(無題)')
           + (c.type === 'overlap' ? '（時間が重複）' : '（間隔が不足）')).join('、');
-        return `<li>${formatDate(r.date)}：${names}</li>`;
+        return `<li>${formatDate(r.date)} ${escapeHtml(r.slotName)}：${names}</li>`;
       }).join('');
       html = `<div class="sc-alert sc-alert-danger">
-        <span class="sc-alert-title">⚠ ${found.length}日分が既存の予定と重なります</span>
+        <span class="sc-alert-title">⚠ ${found.length}枠が既存の予定と重なります</span>
         <ul>${items}</ul>
         <label class="sc-check" style="margin-top:6px;color:inherit">
           <input id="fAck" type="checkbox" ${view.ack ? 'checked' : ''}>
@@ -1584,7 +1638,7 @@ function updateMultiFormAlert(alertBox) {
 function submitLabel(hasConflict) {
   if (view.paint === 'multi') {
     const n = view.multi.size;
-    return hasConflict ? `重複を承知で ${n}日分を登録` : `${n}日分をまとめて登録`;
+    return hasConflict ? `重複を承知で ${n}枠に登録` : `${n}枠にまとめて登録`;
   }
   if (view.confirming) return hasConflict ? '重複を承知で確定する' : 'この内容で確定する';
   if (view.editingId) return hasConflict ? '重複を承知で更新' : '更新する';
@@ -1594,7 +1648,7 @@ function submitLabel(hasConflict) {
 /** 選んだ日すべてに同じ内容の予定を作る */
 function submitMultiJobs() {
   const base = draftJob();
-  const dates = Array.from(view.multi).sort();
+  const picks = Array.from(view.multi).sort();
 
   if (!view.form.titleSel) { toast('案件名を選択してください', true); $('fTitle').focus(); return; }
   if (!base.title) { toast('案件名を入力してください', true); $('fTitleFree').focus(); return; }
@@ -1614,13 +1668,13 @@ function submitMultiJobs() {
   }
 
   const at = nowIso();
-  dates.forEach((date) => {
-    const job = Object.assign({}, base, {
-      id: newId(), date: date, createdAt: at, updatedAt: at,
+  picks.forEach((pick) => {
+    const job = Object.assign({}, multiDraft(pick), {
+      id: newId(), createdAt: at, updatedAt: at,
     });
     if (job.status === 'confirmed') job.confirmedAt = at;
     state.jobs.push(job);
-    if (state.wishes[date] === WISH_OFF) setWish(date, null, true);
+    if (state.wishes[job.date] === WISH_OFF) setWish(job.date, null, true);
   });
 
   view.multi.clear();
@@ -1629,7 +1683,7 @@ function submitMultiJobs() {
   saveState();
   refreshWorkTypeOptions();
   renderAll();
-  toast(`${dates.length}日分を登録しました`);
+  toast(`${picks.length}枠に登録しました`);
 }
 
 function submitJob(ev) {
@@ -1905,8 +1959,25 @@ function moveMonth(delta) {
   renderAll();
 }
 
+/** 「選択のみ」でドラッグしたときに、複数選択モードへ切り替える */
+function switchToMulti() {
+  view.paint = 'multi';
+  view.editingId = null;
+  view.confirming = false;
+  view.ack = false;
+  view.form = blankForm();
+  document.querySelectorAll('.sc-paint-tab').forEach((t) => {
+    t.classList.toggle('active', t.dataset.paint === 'multi');
+  });
+  const hint = $('paintHint');
+  if (hint) hint.textContent = 'まとめて登録中です。枠をクリックで追加・解除、ドラッグで連続選択できます。終わったら「選択のみ」に戻してください。';
+  const cal = document.querySelector('.sc-calendar');
+  if (cal) cal.classList.add('sc-calendar-painting');
+}
+
 function selectDate(key, opts) {
   view.selected = key;
+  view.slot = (opts && opts.slot) || null;
   view.editingId = null;
   view.confirming = false;
   view.ack = false;
@@ -1960,71 +2031,94 @@ function bindEvents() {
     });
   });
 
-  // カレンダー：クリック／ドラッグ塗り
+  // カレンダー：日付ラベル＝希望の設定、枠＝予定の登録
   elCalendar.addEventListener('pointerdown', (ev) => {
-    const cell = ev.target.closest('.sc-cell');
-    if (!cell) return;
-    const key = cell.dataset.date;
-    if (!view.paint) return;
+    const dateBtn = ev.target.closest('[data-role="date"]');
+    const cell = ev.target.closest('[data-pick]');
+    if (!dateBtn && !cell) return;
 
-    painting = true;
-    paintTouched.clear();
-    paintTouched.add(key);
+    // 希望の塗りは日付ラベルの列だけ
+    if (dateBtn && view.paint && view.paint !== 'multi') {
+      painting = true;
+      paintTouched.clear();
+      paintTouched.add(dateBtn.dataset.date);
+      applyPaint(dateBtn.dataset.date);
+      renderCalendar();
+      renderStats();
+      renderExport();
+      return;
+    }
 
-    if (view.paint === 'multi') {
-      // 最初の1日で決めた向き（追加か解除か）に、ドラッグ中もそろえる
-      paintAdd = !view.multi.has(key);
-      if (paintAdd) view.multi.add(key); else view.multi.delete(key);
+    if (cell && view.paint === 'multi') {
+      painting = true;
+      paintTouched.clear();
+      paintTouched.add(cell.dataset.pick);
+      paintAdd = !view.multi.has(cell.dataset.pick);
+      if (paintAdd) view.multi.add(cell.dataset.pick); else view.multi.delete(cell.dataset.pick);
       renderCalendar();
       renderSidePanel();
       return;
     }
 
-    applyPaint(key);
-    renderCalendar();
-    renderStats();
-    renderExport();
+    // 選択のみのときは、ドラッグでまとめて選べるようにする
+    if (cell && !view.paint) {
+      painting = true;
+      paintTouched.clear();
+      paintTouched.add(cell.dataset.pick);
+      paintAdd = true;
+    }
   });
 
   elCalendar.addEventListener('pointerover', (ev) => {
-    if (!painting || !view.paint) return;
-    const cell = ev.target.closest('.sc-cell');
-    if (!cell) return;
-    const key = cell.dataset.date;
-    if (paintTouched.has(key)) return;
-    paintTouched.add(key);
+    if (!painting) return;
 
-    if (view.paint === 'multi') {
-      if (paintAdd) view.multi.add(key); else view.multi.delete(key);
+    if (view.paint && view.paint !== 'multi') {
+      const dateBtn = ev.target.closest('[data-role="date"]');
+      if (!dateBtn || paintTouched.has(dateBtn.dataset.date)) return;
+      paintTouched.add(dateBtn.dataset.date);
+      applyPaint(dateBtn.dataset.date);
       renderCalendar();
-      renderSidePanel();
       return;
     }
 
-    applyPaint(key);
+    const cell = ev.target.closest('[data-pick]');
+    if (!cell || paintTouched.has(cell.dataset.pick)) return;
+    paintTouched.add(cell.dataset.pick);
+
+    if (view.paint === 'multi') {
+      if (paintAdd) view.multi.add(cell.dataset.pick); else view.multi.delete(cell.dataset.pick);
+    } else {
+      // 選択のみでドラッグしたときは、その場で複数選択に切り替える
+      if (view.paint !== 'multi') switchToMulti();
+      paintTouched.forEach((pk) => view.multi.add(pk));
+    }
     renderCalendar();
+    renderSidePanel();
   });
 
   const endPaint = () => {
     if (!painting) return;
     painting = false;
     if (view.paint === 'multi') { renderAll(); return; }
-    // 1日だけ押したときは、その日を選んで詳細も開く。
-    // （まとめて入力のままだと日付を選べず、予定を登録できないと誤解されるため）
-    if (paintTouched.size === 1) {
-      selectDate(Array.from(paintTouched)[0], { noScroll: true });
-    } else {
-      renderAll();
+    if (view.paint) {
+      // 希望を1日だけ押したときは、その日を選んで詳細も開く
+      if (paintTouched.size === 1) selectDate(Array.from(paintTouched)[0], { noScroll: true });
+      else renderAll();
+      return;
     }
+    // 選択のみ：1枠だけならその枠を選ぶ
+    if (paintTouched.size === 1) {
+      const [d, sid] = Array.from(paintTouched)[0].split('|');
+      selectDate(d, { slot: sid });
+    }
+    paintTouched.clear();
   };
   window.addEventListener('pointerup', endPaint);
   window.addEventListener('pointercancel', endPaint);
 
   elCalendar.addEventListener('click', (ev) => {
-    const cell = ev.target.closest('.sc-cell');
-    if (!cell) return;
-    if (view.paint) return;   // 塗りモード中は選択しない
-    selectDate(cell.dataset.date);
+    const dateBtn = ev.target.closest('[data-role="date"]');
+    if (dateBtn && !view.paint) { selectDate(dateBtn.dataset.date); return; }
   });
 
   // クイック設定
@@ -2080,7 +2174,8 @@ function bindEvents() {
     const multiWish = ev.target.closest('[data-multiwish]');
     if (multiWish) {
       const v = multiWish.dataset.multiwish;
-      const dates = Array.from(view.multi);
+      // view.multi は「日付|枠」なので、日付だけを取り出して重複を除く
+      const dates = Array.from(new Set(Array.from(view.multi).map((pk) => pk.split('|')[0])));
       if (!dates.length) return;
       dates.forEach((d) => setWish(d, v === 'none' ? null : v, true));
       saveState();
@@ -2302,7 +2397,7 @@ function bindEvents() {
   });
 
   // メニューバー
-  const SECTIONS = ['calendar', 'mail', 'list', 'gcal', 'sync', 'settings'];
+  const SECTIONS = ['calendar', 'mail', 'list', 'settings'];
   let menuLock = 0;   // 押した直後は、スクロール中の判定で上書きしない
 
   const setActiveMenu = (name) => {

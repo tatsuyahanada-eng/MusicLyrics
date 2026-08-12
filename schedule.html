@@ -13,7 +13,7 @@
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="default">
   <meta name="apple-mobile-web-app-title" content="Scheduler">
-  <link rel="stylesheet" href="schedule.css?v=9">
+  <link rel="stylesheet" href="schedule.css?v=10">
 </head>
 <body class="sc-body">
 
@@ -28,8 +28,6 @@
         <button class="sc-menu-item" data-jump="calendar" type="button">カレンダー</button>
         <button class="sc-menu-item" data-jump="mail" type="button">休み希望日</button>
         <button class="sc-menu-item" data-jump="list" type="button">予定一覧</button>
-        <button class="sc-menu-item" data-jump="gcal" type="button">Googleカレンダー</button>
-        <button class="sc-menu-item" data-jump="sync" type="button">同期</button>
         <button class="sc-menu-item" data-jump="settings" type="button">設定</button>
       </nav>
 
@@ -64,16 +62,17 @@
 
       <div class="sc-toolbar">
         <div class="sc-toolbar-group">
-          <span class="sc-toolbar-label">まとめて入力</span>
+          <span class="sc-toolbar-label">操作モード</span>
           <div class="sc-paint-tabs" role="group" aria-label="まとめて入力モード">
             <button class="sc-paint-tab active" data-paint="off-mode" type="button">選択のみ</button>
+            <button class="sc-paint-tab sc-paint-tab-multi" data-paint="multi" type="button">☑ まとめて登録</button>
             <button class="sc-paint-tab" data-paint="available" type="button">◯ 稼働可</button>
             <button class="sc-paint-tab" data-paint="off" type="button">✕ 休み希望</button>
             <button class="sc-paint-tab" data-paint="clear" type="button">− 未定に戻す</button>
-            <button class="sc-paint-tab sc-paint-tab-multi" data-paint="multi" type="button">☑ 複数日をまとめて</button>
           </div>
           <p id="paintHint" class="sc-hint">
-            日付をクリックすると詳細パネルが開きます。まとめて入力を選ぶと、クリック（ドラッグ）で一括設定できます。
+            枠（早朝・AM・P1・P2・夜間）をクリックすると、その枠の予定を登録できます。ドラッグすると複数の枠をまとめて選べます。
+            ◯稼働可・✕休み希望は、左端の日付をクリック（ドラッグ）して設定します。
           </p>
         </div>
 
@@ -87,24 +86,14 @@
         </div>
       </div>
 
-      <div class="sc-weekdays" aria-hidden="true">
-        <span class="sc-wd sc-wd-sun">日</span>
-        <span class="sc-wd">月</span>
-        <span class="sc-wd">火</span>
-        <span class="sc-wd">水</span>
-        <span class="sc-wd">木</span>
-        <span class="sc-wd">金</span>
-        <span class="sc-wd sc-wd-sat">土</span>
-      </div>
-
       <div id="calendar" class="sc-calendar" role="grid" aria-label="カレンダー"></div>
 
       <ul class="sc-legend">
         <li><span class="sc-chip sc-chip-empty">未定</span> まだ決めていない日</li>
         <li><span class="sc-chip sc-chip-available">◯</span> 稼働可能</li>
         <li><span class="sc-chip sc-chip-off">✕</span> 休み希望</li>
-        <li><span class="sc-chip sc-chip-confirmed">確定</span> 確定した仕事</li>
-        <li><span class="sc-chip sc-chip-tentative">仮</span> 仮出勤（未確定）</li>
+        <li><span class="sc-chip sc-chip-confirmed">確定</span> 確定した仕事（枠が青）</li>
+        <li><span class="sc-chip sc-chip-tentative">仮</span> 仮出勤（枠がオレンジ）</li>
         <li><span class="sc-chip sc-chip-conflict">⚠</span> 重複あり</li>
       </ul>
 
@@ -178,13 +167,17 @@
     </div>
   </section>
 
-  <!-- Googleカレンダーへの一括登録 -->
+  <!-- 設定・データ -->
   <section class="sc-section">
     <div class="sc-section-inner">
       <div class="sc-section-head">
-        <h3 class="sc-section-title" id="sec-gcal">📆 Googleカレンダーに一括登録</h3>
-        <span id="icsCount" class="sc-section-count"></span>
+        <h3 class="sc-section-title" id="sec-settings">⚙️ 設定とデータ</h3>
       </div>
+
+      <details class="sc-settings-block" id="gcalBlock">
+        <summary>📆 Googleカレンダーに一括登録</summary>
+
+      <p class="sc-settings-note"><span id="icsCount" class="sc-section-count"></span></p>
 
       <div class="sc-export-opts">
         <label class="sc-field">
@@ -224,16 +217,12 @@
           個別に1件だけ登録したいときは、予定カードの「📆 追加」からスマホでも登録できます。
         </p>
       </details>
-    </div>
-  </section>
+      </details>
 
-  <!-- 端末間の同期 -->
-  <section class="sc-section">
-    <div class="sc-section-inner">
-      <div class="sc-section-head">
-        <h3 class="sc-section-title" id="sec-sync">🔄 端末間でデータを共有</h3>
-        <span id="syncStatus" class="sc-sync-status">未設定</span>
-      </div>
+      <details class="sc-settings-block" id="syncBlock">
+        <summary>🔄 端末間でデータを共有</summary>
+
+      <p class="sc-settings-note"><span id="syncStatus" class="sc-sync-status">未設定</span></p>
 
       <div class="sc-export-opts">
         <label class="sc-field">
@@ -277,21 +266,13 @@
           「設定とデータ」の説明に記載しています。
         </p>
       </details>
-    </div>
-  </section>
-
-  <!-- 設定・データ -->
-  <section class="sc-section">
-    <div class="sc-section-inner">
-      <div class="sc-section-head">
-        <h3 class="sc-section-title" id="sec-settings">⚙️ 設定とデータ</h3>
-      </div>
+      </details>
 
       <div class="sc-settings">
         <label class="sc-field">
-          <span class="sc-field-label">移動・準備の余裕時間</span>
+          <span class="sc-field-label">移動・準備の余裕時間（枠が続く場合も警告したいとき）</span>
           <select id="bufferMin" class="sc-input sc-input-sm">
-            <option value="0">なし（時間が重なる時だけ警告）</option>
+            <option value="0">なし（時間が重なる時だけ警告）／既定</option>
             <option value="30">30分</option>
             <option value="60">60分</option>
             <option value="90">90分</option>
@@ -363,6 +344,6 @@ Require valid-user</pre>
 
   <div id="toast" class="sc-toast" role="status" aria-live="polite" hidden></div>
 
-  <script src="schedule.js?v=9"></script>
+  <script src="schedule.js?v=10"></script>
 </body>
 </html>
