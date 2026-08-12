@@ -902,6 +902,12 @@ body.tm-dragging .tm-sortrow { cursor: grabbing; }
   font-size: 10px; font-weight: 700; color: #06121a;
   background: linear-gradient(90deg, #2bd4d4, #9a7bff);
 }
+/* AIが意味では見つけられず、キーワードの部分一致で補った候補（区別できるよう控えめな配色） */
+.tm-sr-kwbadge {
+  display: inline-block; margin-right: 6px; padding: 1px 7px; border-radius: 10px;
+  font-size: 10px; font-weight: 700; color: var(--tm-muted);
+  background: rgba(255,255,255,0.08); border: 1px solid var(--tm-line);
+}
 .tm-ai-summary {
   white-space: pre-wrap; line-height: 1.8; font-size: 14px; color: var(--tm-text);
   background: var(--tm-panel-solid); border: 1px solid var(--tm-line);

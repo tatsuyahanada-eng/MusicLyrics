@@ -4360,7 +4360,7 @@
     // 在庫商品も検索対象にするため、サーバー接続時は最新を取得（ベストエフォート）
     if (serverMode() && invOn) { invFetch().then(() => { if (searchOpen) renderSearchResults(); }).catch(() => {}); }
   }
-  // AIで探す（意味検索）。質問文から関連項目をAIが選ぶ。
+  // AIで探す（意味検索）。質問文から関連項目をAIが選ぶ（該当なしのときはキーワード一致で補う）。
   async function runAiSearch() {
     const q = searchInput.value.trim();
     if (!q) { searchMetaEl.textContent = ''; searchResultsEl.innerHTML = '<div class="tm-sr-empty">質問やキーワードを入力してから「AIで探す」を押してください。</div>'; return; }
@@ -4368,22 +4368,36 @@
     searchMetaEl.textContent = 'AIが探しています…';
     searchResultsEl.innerHTML = '<div class="tm-sr-empty">&#10024; AIが関連する項目を探しています…</div>';
     try {
-      const d = await apiCall('ai_search', { method: 'POST', body: { q } });
+      // ツリーが手元で少し古いままだと、AIが見つけた項目をこの端末で解決できず結果が消えてしまうことがあるため、
+      // AI検索と並行して最新のツリーを取り直しておく（結果表示自体はサーバーが返す情報を優先して使う）。
+      const [d] = await Promise.all([
+        apiCall('ai_search', { method: 'POST', body: { q } }),
+        reloadFromServer().catch(() => {}),
+      ]);
       const results = (d.results || []).map((r) => {
+        // まず手元のツリーで解決を試みる（ロック解除状態やクリック時の遷移先の特定に必要）。
+        // 見つからなくても、サーバーが返した title/path でそのまま一覧には表示する。
         const path = findPath(r.id);
-        if (!path) return null;
-        const node = path[path.length - 1];
-        return { kind: 'node', id: r.id, title: node.title, reason: r.reason || '',
-          pathTitles: path.slice(0, -1).map((n) => n.title), idPath: path.map((n) => n.id), locked: isLocked(node) };
-      }).filter(Boolean);
+        const node = path ? path[path.length - 1] : null;
+        const pathTitles = path ? path.slice(0, -1).map((n) => n.title) : (r.path || []).slice(0, -1);
+        const title = node ? node.title : (r.title || (r.path && r.path[r.path.length - 1]) || '（項目名不明）');
+        const locked = node ? isLocked(node) : !!r.locked;
+        return { kind: 'node', id: r.id, title, reason: r.reason || '',
+          pathTitles, idPath: path ? path.map((n) => n.id) : null, locked, source: r.source || 'ai' };
+      });
       searchResultData = results;
-      searchMetaEl.innerHTML = `&#10024; AIの候補 ${results.length} 件`;
+      const aiCount = results.filter((r) => r.source === 'ai').length;
+      const kwCount = results.length - aiCount;
+      searchMetaEl.innerHTML = kwCount
+        ? `&#128269; キーワード一致 ${kwCount} 件（AIでは見つかりませんでした）`
+        : `&#10024; AIの候補 ${aiCount} 件`;
       if (!results.length) { searchResultsEl.innerHTML = '<div class="tm-sr-empty">関連する項目が見つかりませんでした。言い方を変えて再度お試しください。</div>'; return; }
       searchResultsEl.innerHTML = results.map((r, i) => {
         const pathHtml = '<span class="tm-sr-root">TOP</span>' +
           r.pathTitles.map((t) => `<span class="tm-sr-sep">&#8250;</span><span class="tm-sr-seg">${esc(t)}</span>`).join('');
+        const badge = (r.source === 'keyword') ? '<span class="tm-sr-kwbadge">&#128269; キーワード</span>' : '<span class="tm-sr-aibadge">&#10024; AI</span>';
         return `<button class="tm-sr-item" data-idx="${i}" type="button">
-          <div class="tm-sr-path"><span class="tm-sr-aibadge">&#10024; AI</span>${pathHtml}</div>
+          <div class="tm-sr-path">${badge}${pathHtml}</div>
           <div class="tm-sr-title">${esc(r.title)}${r.locked ? '<span class="tm-sr-tag">&#128274;</span>' : ''}</div>
           ${r.reason ? `<div class="tm-sr-snippet">${esc(r.reason)}</div>` : ''}
         </button>`;
@@ -4405,6 +4419,7 @@
     const r = searchResultData[parseInt(el.dataset.idx, 10)];
     if (!r) return;
     if (r.kind === 'inv') { closeSearchThen(() => openInventory()); return; }
+    if (!r.idPath) { searchMetaEl.textContent = 'この項目は現在この端末では開けません（権限が変更されたか、削除された可能性があります）。'; return; }
     gotoNodePath(r.idPath);
   });
   function closeSearchThen(after) {

@@ -55,6 +55,26 @@ function cbc_html_to_plain($html) {
   return trim($s);
 }
 
+/* 配列が「連番のリスト」かどうか（json_decodeしたJSON配列との区別に使う） */
+function cbc_is_list($arr) {
+  $i = 0;
+  foreach ($arr as $k => $v) { if ($k !== $i) return false; $i++; }
+  return true;
+}
+/* AIの応答テキストからJSON配列を取り出す。コードフェンス（```json ... ```）や
+   {"results":[...]} のような包装にもできるだけ対応する（モデルが指示を完全に守らない場合の保険）。 */
+function cbc_json_extract_list($text) {
+  $text = trim((string)$text);
+  if (preg_match('/```(?:json)?\s*(.*?)```/is', $text, $m)) $text = trim($m[1]);
+  $data = json_decode($text, true);
+  if (!is_array($data)) return array();
+  if (cbc_is_list($data)) return $data;
+  foreach (array('results', 'items', 'candidates', 'data') as $k) {
+    if (isset($data[$k]) && is_array($data[$k])) return $data[$k];
+  }
+  return array();
+}
+
 /* app_settings（キー/値）の読み書き（ピン留め・AIモデルのキャッシュ等に使用） */
 function cbc_setting_get($pdo, $k, $def = '') {
   try { $st = $pdo->prepare('SELECT v FROM app_settings WHERE k = ?'); $st->execute(array($k));
@@ -1073,17 +1093,20 @@ switch ($action) {
   }
 
   case 'ai_search': {
-    // 自然文の質問に最も関連する項目を AI が選ぶ（意味で探す）
+    // 自然文の質問に最も関連する項目を AI が選ぶ（意味で探す）。
+    // AIが0件だった場合は、キーワードの部分一致で補う（検索そのものが空振りにならないように）。
     $s = require_login($pdo);
     $d = body_json();
     $query = isset($d['q']) ? trim($d['q']) : '';
     if ($query === '') fail('検索語が必要です');
-    $rows = $pdo->query('SELECT id, parent_id, title, body FROM nodes')->fetchAll();
+    $rows = $pdo->query('SELECT id, parent_id, title, body, lock_hash FROM nodes')->fetchAll();
     if (!$s['is_admin']) $rows = cbc_filter_allowed($rows, cbc_user_allowed($pdo, $s['username'])); // 権限内のみ
     if (!$rows) ok(array('results' => array()));
     $byId = array();
     foreach ($rows as $r) $byId[$r['id']] = $r;
-    $lines = array();
+    // 各項目の見出しパス（TOPからの階層）とプレーンテキスト本文を先に用意し、
+    // AIへのプロンプトと、後述のキーワード一致フォールバックの両方で使い回す。
+    $pathTitles = array(); $plainBody = array();
     foreach ($rows as $r) {
       $path = array(); $cur = $r; $guard = 0;
       while ($cur && $guard++ < 20) {
@@ -1091,21 +1114,60 @@ switch ($action) {
         $pid = $cur['parent_id'];
         $cur = ($pid !== null && $pid !== '' && isset($byId[$pid])) ? $byId[$pid] : null;
       }
-      $snippet = mb_substr(cbc_html_to_plain($r['body']), 0, 160);
-      $snippet = str_replace(array("\r", "\n"), ' ', $snippet);
-      $lines[] = '- id:' . $r['id'] . ' | 見出し:' . implode(' > ', $path) . ' | 内容:' . $snippet;
+      $pathTitles[$r['id']] = $path;
+      $plainBody[$r['id']] = cbc_html_to_plain($r['body']);
     }
-    $prompt = "あなたは作業マニュアルの検索アシスタントです。ユーザーの質問に最も関連する項目を、下の一覧から関連度の高い順に最大5件選び、"
-      . "JSON配列だけを出力してください。各要素は {\"id\":\"項目ID\",\"reason\":\"関連する理由（日本語40字以内）\"} の形式。"
-      . "該当が無ければ [] を出力。JSON以外は一切出力しないこと。\n\n【質問】" . $query . "\n\n【項目一覧】\n" . implode("\n", $lines);
-    $text = cbc_gemini($pdo, $prompt, true, 1024);
-    $arr = json_decode($text, true);
-    if (!is_array($arr)) $arr = array();
-    $results = array();
+    $lines = array();
+    foreach ($rows as $r) {
+      $snippet = mb_substr($plainBody[$r['id']], 0, 400);
+      $snippet = str_replace(array("\r", "\n"), ' ', $snippet);
+      $lines[] = '- id:' . $r['id'] . ' | 見出し:' . implode(' > ', $pathTitles[$r['id']]) . ' | 内容:' . $snippet;
+    }
+    $prompt = "あなたは社内作業マニュアルの検索アシスタントです。利用者は人に話しかけるような自然な言い方（会話文・言い換え・省略・多少の誤字を含む）で質問します。\n"
+      . "下の【項目一覧】から、質問の意図・同義語・関連する製品名/型番/略称・言い換えも考慮して、関連度が高い順に最大8件選び、JSON配列だけを出力してください。\n"
+      . "文字が完全一致していなくても、意味や文脈が関連していれば積極的に候補に含めてください。完全に無関係なときのみ空配列 [] にしてください。\n"
+      . "各要素は {\"id\":\"項目ID\",\"reason\":\"関連する理由（日本語40字以内）\"} の形式。JSON以外は一切出力しないこと。\n\n"
+      . "【質問】" . $query . "\n\n【項目一覧】\n" . implode("\n", $lines);
+    $text = cbc_gemini($pdo, $prompt, true, 2048);
+    $arr = cbc_json_extract_list($text);
+    $results = array(); $seen = array();
     foreach ($arr as $item) {
       if (!is_array($item) || !isset($item['id']) || !isset($byId[$item['id']])) continue;
-      $results[] = array('id' => (string)$item['id'], 'reason' => isset($item['reason']) ? (string)$item['reason'] : '');
-      if (count($results) >= 5) break;
+      $id = (string)$item['id'];
+      if (isset($seen[$id])) continue;
+      $seen[$id] = true;
+      $results[] = array(
+        'id' => $id,
+        'reason' => isset($item['reason']) ? (string)$item['reason'] : '',
+        'title' => $byId[$id]['title'],
+        'path' => $pathTitles[$id],
+        'locked' => !empty($byId[$id]['lock_hash']),
+        'source' => 'ai',
+      );
+      if (count($results) >= 8) break;
+    }
+    // AIが「該当なし」と判断した／応答をうまく解釈できなかったときは、単純な部分一致で補う。
+    // 日本語は空白区切りが無いため、英数字の並び（製品名・型番など）と、それ以外（漢字・かな等）の
+    // 連続部分を、それぞれ別の単語として切り出す（簡易的な部分一致用の単語分割）。
+    if (!$results) {
+      preg_match_all('/[A-Za-z0-9]+|[^\x00-\x7F\s、。，,　]+/u', $query, $tm);
+      $terms = $tm[0];
+      $scored = array();
+      foreach ($rows as $r) {
+        $hay = mb_strtolower(implode(' ', $pathTitles[$r['id']]) . ' ' . $plainBody[$r['id']]);
+        $score = 0;
+        foreach ($terms as $t) { if ($t !== '' && mb_strpos($hay, mb_strtolower($t)) !== false) $score++; }
+        if ($score > 0) $scored[] = array('id' => $r['id'], 'score' => $score);
+      }
+      usort($scored, function ($a, $b) { return $b['score'] - $a['score']; });
+      foreach (array_slice($scored, 0, 8) as $sc) {
+        $id = $sc['id'];
+        $results[] = array(
+          'id' => $id, 'reason' => 'キーワードが一致しました',
+          'title' => $byId[$id]['title'], 'path' => $pathTitles[$id],
+          'locked' => !empty($byId[$id]['lock_hash']), 'source' => 'keyword',
+        );
+      }
     }
     ok(array('results' => $results));
   }
