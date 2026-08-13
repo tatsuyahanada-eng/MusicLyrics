@@ -271,6 +271,7 @@ const view = {
   month: now.getMonth(),   // 0-11
   selected: null,          // 'YYYY-MM-DD'
   slot: null,              // 選択中の時間帯ID（日付ラベルを選んだときは null）
+  formOpen: false,         // 登録フォームを開いているか（ダブルクリックで開く）
   paint: null,             // null | 'available' | 'off' | 'clear' | 'multi'
   multi: new Set(),        // まとめて登録する枠（'YYYY-MM-DD|slotId'）
   editingId: null,
@@ -282,6 +283,9 @@ const view = {
 
 let painting = false;
 let paintAdd = true;      // 複数日モードでドラッグ中に追加するか解除するか
+let lastTapKey = null;    // ダブルクリック／ダブルタップの判定用
+let lastTapAt = 0;
+const DOUBLE_TAP_MS = 450;
 const paintTouched = new Set();
 
 function loadState() {
@@ -828,7 +832,13 @@ function renderSidePanel() {
       ${cards || '<p class="sc-empty-note">まだ予定はありません。</p>'}
     </div>
 
-    ${jobFormHtml(f)}
+    ${view.formOpen ? jobFormHtml(f) : `
+    <div class="sc-side-block">
+      <button type="button" id="openForm" class="sc-btn sc-btn-block">＋ ${slot ? 'この枠' : 'この日'}に予定を登録</button>
+      <p class="sc-hint" style="margin-top:6px">
+        枠をダブルクリック（スマホはダブルタップ）でも、この画面を開けます。
+      </p>
+    </div>`}
   `;
 
   updateFormAlert();
@@ -1862,6 +1872,7 @@ function startConfirm(id) {
   view.selected = job.date;
   view.editingId = id;
   view.confirming = true;
+  view.formOpen = true;
   view.ack = false;
   view.form = Object.assign(formFromJob(job), { status: 'confirmed' });
   const d = fromKey(job.date);
@@ -1878,6 +1889,7 @@ function startEdit(id) {
   view.selected = job.date;
   view.editingId = id;
   view.confirming = false;
+  view.formOpen = true;
   view.ack = false;
   view.form = formFromJob(job);
   const d = fromKey(job.date);
@@ -2050,6 +2062,7 @@ function switchToMulti() {
 function selectDate(key, opts) {
   view.selected = key;
   view.slot = (opts && opts.slot) || null;
+  view.formOpen = !!(opts && opts.openForm);
   view.editingId = null;
   view.confirming = false;
   view.ack = false;
@@ -2062,8 +2075,8 @@ function selectDate(key, opts) {
   renderAll();
 
   // 1カラム表示のときは詳細パネルが画面外になるため送る
-  // （まとめて入力中は、続けて塗れるようにその場へとどまる）
-  if (!(opts && opts.noScroll) && window.innerWidth <= 900) {
+  // （選んだだけの時は動かさない。登録フォームを開いたときだけ送る）
+  if (view.formOpen && !(opts && opts.noScroll) && window.innerWidth <= 900) {
     elSidePanel.scrollIntoView({ behavior: 'smooth', block: 'start' });
   }
 }
@@ -2178,10 +2191,20 @@ function bindEvents() {
       else renderAll();
       return;
     }
-    // 選択のみ：1枠だけならその枠を選ぶ
+    // 選択のみ：1枠だけならその枠を選ぶ。
+    // 続けてもう一度押した（ダブルクリック／ダブルタップ）ときだけ登録フォームを開く。
     if (paintTouched.size === 1) {
-      const [d, sid] = Array.from(paintTouched)[0].split('|');
-      selectDate(d, { slot: sid });
+      const pick = Array.from(paintTouched)[0];
+      const now = Date.now();
+      const isDouble = lastTapKey === pick && (now - lastTapAt) < DOUBLE_TAP_MS;
+      lastTapKey = pick;
+      lastTapAt = now;
+      const [d, sid] = pick.split('|');
+      selectDate(d, { slot: sid, openForm: isDouble });
+      if (isDouble) {
+        const el = $('fTitle');
+        if (el) el.focus();
+      }
     }
     paintTouched.clear();
   };
@@ -2190,7 +2213,13 @@ function bindEvents() {
 
   elCalendar.addEventListener('click', (ev) => {
     const dateBtn = ev.target.closest('[data-role="date"]');
-    if (dateBtn && !view.paint) { selectDate(dateBtn.dataset.date); return; }
+    if (!dateBtn || view.paint) return;
+    const key = 'date|' + dateBtn.dataset.date;
+    const now = Date.now();
+    const isDouble = lastTapKey === key && (now - lastTapAt) < DOUBLE_TAP_MS;
+    lastTapKey = key;
+    lastTapAt = now;
+    selectDate(dateBtn.dataset.date, { openForm: isDouble });
   });
 
   // クイック設定
@@ -2269,6 +2298,16 @@ function bindEvents() {
       return;
     }
 
+    if (ev.target.id === 'openForm') {
+      view.formOpen = true;
+      view.form = blankForm();
+      renderSidePanel();
+      const el = $('fTitle');
+      if (el) el.focus();
+      if (window.innerWidth <= 900) elSidePanel.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      return;
+    }
+
     const confirmBtn = ev.target.closest('[data-confirm]');
     if (confirmBtn) { startConfirm(confirmBtn.dataset.confirm); return; }
 
@@ -2281,6 +2320,7 @@ function bindEvents() {
     if (ev.target.id === 'fCancel') {
       view.editingId = null;
       view.confirming = false;
+      view.formOpen = false;
       view.ack = false;
       view.form = blankForm();
       renderSidePanel();

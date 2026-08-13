@@ -185,6 +185,7 @@
 .sc-btn:disabled { opacity: 0.45; cursor: not-allowed; }
 
 .sc-btn-sm { padding: 5px 10px; font-size: 0.78rem; }
+.sc-btn-block { width: 100%; padding: 11px 14px; font-size: 0.9rem; }
 
 .sc-btn-outline {
   background: #fff;
@@ -375,6 +376,7 @@
   text-align: left;
   min-height: 42px;
 }
+.sc-vdate { touch-action: manipulation; }
 .sc-vdate:hover { background: var(--sc-surface-2); }
 .sc-vdate-num { font-size: 0.96rem; font-weight: 800; line-height: 1; }
 .sc-vdate-wd { font-size: 0.7rem; font-weight: 700; color: var(--sc-muted); }
@@ -414,6 +416,7 @@
   overflow: hidden;
   transition: background 0.1s;
 }
+.sc-vcell { touch-action: manipulation; }
 .sc-vcell:hover { background: rgba(30, 64, 175, 0.08); }
 .sc-vcell:focus-visible { outline: 2px solid var(--sc-primary); outline-offset: -2px; }
 .sc-vcell-past { background: rgba(0, 0, 0, 0.03); }
