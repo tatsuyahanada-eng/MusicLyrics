@@ -845,10 +845,16 @@
   }); }
 
   /* ---------- ヘッダーロゴ（表示ON/OFF・画像の入れ替え。全端末共有・管理者のみ） ---------- */
-  // ヘッダー左上の実際の画像表示に反映する
+  // ヘッダー左上と、ログイン画面の実際の画像表示に反映する
   function applyBrandLogo() {
     const img = $('#brandLogo'); if (!img) return;
     if (logoOn && logoUrl) { img.src = logoUrl; img.hidden = false; } else { img.hidden = true; }
+    // ログイン画面：ロゴが設定されていればそれを表示し、未設定時は汎用アイコンで代替する
+    const lImg = $('#loginLogo'), lFallback = $('#loginLogoFallback');
+    if (lImg && lFallback) {
+      if (logoOn && logoUrl) { lImg.src = logoUrl; lImg.hidden = false; lFallback.hidden = true; }
+      else { lImg.hidden = true; lFallback.hidden = false; }
+    }
   }
   // 修正画面のロゴON/OFFトグルと、現在の画像プレビューの表示を更新
   function updateLogoToggleUI() {

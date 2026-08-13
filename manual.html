@@ -9,7 +9,7 @@
   <link rel="manifest" href="manifest.webmanifest">
   <link rel="icon" href="icon.svg" type="image/svg+xml">
   <link rel="apple-touch-icon" href="icon-192.png">
-  <link rel="stylesheet" href="manual.css?v=81">
+  <link rel="stylesheet" href="manual.css?v=82">
 </head>
 <body class="tm-body">
 
@@ -66,14 +66,15 @@
   <!-- ===== アプリ内ログイン（IDごとの閲覧権限） ===== -->
   <div id="appLogin" class="tm-authgate" hidden>
     <div class="tm-authgate-box">
-      <div class="tm-authgate-ico">&#128100;</div>
-      <h2 class="tm-authgate-title">ログイン</h2>
-      <p class="tm-authgate-msg">ID とパスワードを入力してください。<br>権限に応じて、閲覧できるページが表示されます。</p>
+      <img id="loginLogo" class="tm-authgate-logoimg" src="" alt="Welsys" hidden>
+      <div id="loginLogoFallback" class="tm-authgate-ico">&#128100;</div>
+      <h2 class="tm-authgate-title">Login</h2>
+      <p class="tm-authgate-msg">IDとパスワードを入力してください。<br>権限に応じて、<br>閲覧できるページが変わります。</p>
       <form id="appLoginForm" class="tm-login-form">
         <input id="loginId" class="tm-input" type="text" autocomplete="username" placeholder="ID" required>
         <input id="loginPw" class="tm-input" type="password" autocomplete="current-password" placeholder="パスワード" required>
         <p id="loginError" class="tm-dialog-err" aria-live="polite"></p>
-        <button type="submit" class="tm-btn tm-btn-primary">ログイン</button>
+        <button type="submit" class="tm-btn tm-btn-primary">Login</button>
       </form>
     </div>
   </div>
@@ -1110,6 +1111,6 @@
   </dialog>
 
   <script src="vendor/xlsx.full.min.js"></script>
-  <script src="manual.js?v=97"></script>
+  <script src="manual.js?v=98"></script>
 </body>
 </html>
