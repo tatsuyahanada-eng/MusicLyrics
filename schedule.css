@@ -998,9 +998,66 @@
   .sc-filter-tab { flex: 1; }
 }
 
+/* 印刷／PDF出力のときだけ出す見出し（画面上は非表示） */
+.sc-print-header { display: none; }
+
+@page {
+  size: A4 landscape;
+  margin: 7mm 6mm;
+}
+
 @media print {
-  .sc-body { background: #fff; }
-  .sc-monthnav, .sc-toolbar, .sc-side, .sc-export-actions, .sc-data-actions, .sc-help { display: none; }
-  .sc-cell { min-height: 80px; }
-  .sc-cell-confirmed { background: #dce7ff !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
+
+  html, body { height: auto; }
+  .sc-body { background: #fff; font-size: 9px; }
+
+  /* カレンダー以外は印刷しない（印刷ボタン自体も含む） */
+  .sc-header, .sc-monthnav, #conflictBanner, .sc-toolbar,
+  .sc-side, .sc-stats, .sc-section, .sc-toast { display: none !important; }
+
+  .sc-print-header {
+    display: block;
+    font-size: 12px;
+    font-weight: 800;
+    margin: 0 0 2px;
+    color: #000;
+  }
+
+  .sc-main {
+    display: block;
+    max-width: none;
+    padding: 0;
+    margin: 0;
+  }
+  .sc-calendar-col { width: 100%; }
+
+  .sc-calendar {
+    border: 1px solid #999;
+    box-shadow: none;
+    break-inside: auto;
+  }
+  .sc-vhead { position: static; box-shadow: none; }
+  .sc-vrow { break-inside: avoid; page-break-inside: avoid; border-bottom-color: #ccc; }
+  .sc-vdate, .sc-vcell { border-color: #ccc; min-height: 13.5px; padding: 0px 3px; }
+  .sc-vdate { padding: 0px 4px; }
+  .sc-vdate-num { font-size: 8px; }
+  .sc-vdate-wd { font-size: 6.5px; }
+  .sc-vdate-hol { display: none; }
+  .sc-vslot-head, .sc-vdate-head { font-size: 7px; padding: 1.5px 2px; }
+  .sc-vslot-time { font-size: 5.5px; }
+  .sc-vpill { font-size: 6px; padding: 0 2px; line-height: 1.2; }
+  .sc-vtime { font-size: 5.5px; padding: 0 1px; }
+  .sc-vpill-mark { font-size: 5px; padding: 0 1px; }
+
+  .sc-legend {
+    margin-top: 3px;
+    font-size: 6.5px;
+    color: #333;
+    gap: 5px;
+  }
+  .sc-chip { height: 10px; font-size: 5.5px; }
+
+  /* リンク・カーソル関連の見た目は印刷で意味を持たないため無効化 */
+  .sc-vcell, .sc-vdate { cursor: default; }
 }

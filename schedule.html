@@ -13,7 +13,7 @@
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="default">
   <meta name="apple-mobile-web-app-title" content="Scheduler">
-  <link rel="stylesheet" href="schedule.css?v=14">
+  <link rel="stylesheet" href="schedule.css?v=15">
 </head>
 <body class="sc-body">
 
@@ -84,7 +84,18 @@
             <button id="quickClear" class="sc-btn sc-btn-sm sc-btn-outline sc-btn-danger" type="button">希望をクリア</button>
           </div>
         </div>
+
+        <div class="sc-toolbar-group">
+          <span class="sc-toolbar-label">出力</span>
+          <div class="sc-quick-row">
+            <button id="printPdfBtn" class="sc-btn sc-btn-sm sc-btn-outline" type="button">🖨 PDFで出力</button>
+          </div>
+          <p class="sc-hint">表示中の月（1日〜末日）を、この画面のまま印刷・PDF保存します。</p>
+        </div>
       </div>
+
+      <!-- 印刷／PDF出力のときだけ表示する見出し -->
+      <div id="printHeader" class="sc-print-header"></div>
 
       <div id="calendar" class="sc-calendar" role="grid" aria-label="カレンダー"></div>
 
@@ -346,6 +357,6 @@ Require valid-user</pre>
 
   <div id="toast" class="sc-toast" role="status" aria-live="polite" hidden></div>
 
-  <script src="schedule.js?v=14"></script>
+  <script src="schedule.js?v=15"></script>
 </body>
 </html>

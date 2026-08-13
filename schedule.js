@@ -2551,6 +2551,12 @@ function bindEvents() {
   }, { passive: true });
   markActiveSection();
 
+  // PDF出力（印刷ダイアログの「PDFに保存」を利用）
+  window.addEventListener('beforeprint', () => {
+    $('printHeader').textContent = `${view.year}年${view.month + 1}月 スケジュール`;
+  });
+  $('printPdfBtn').addEventListener('click', () => window.print());
+
   // ホーム画面・デスクトップへの追加（PWA）
   window.addEventListener('beforeinstallprompt', (ev) => {
     ev.preventDefault();
