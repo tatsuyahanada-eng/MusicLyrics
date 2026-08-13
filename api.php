@@ -434,6 +434,36 @@ function cbc_vec_dot($a, $b) {
   return $s;
 }
 
+/* 質問文のベクトルを使い回す。同じ質問（前後の空白と大文字小文字の違いは無視）で再検索したときは
+   Googleへの問い合わせを丸ごと省けるので、その1回分の通信時間が無くなる。
+   戻り値: 正規化済みベクトル、または null */
+function cbc_qvec_get($pdo, $query) {
+  try {
+    $st = $pdo->prepare('SELECT vec FROM query_vectors WHERE q_hash = ?');
+    $st->execute(array(hash('sha256', mb_strtolower(trim($query)))));
+    $v = $st->fetchColumn();
+    if ($v === false || $v === null || $v === '') return null;
+    $arr = cbc_vec_unpack($v);
+    return $arr ? $arr : null;
+  } catch (Throwable $e) { return null; }
+}
+function cbc_qvec_put($pdo, $query, $vec) {
+  try {
+    $h = hash('sha256', mb_strtolower(trim($query)));
+    $pdo->prepare('DELETE FROM query_vectors WHERE q_hash = ?')->execute(array($h));
+    $pdo->prepare('INSERT INTO query_vectors (q_hash, vec, created_at) VALUES (?,?,?)')
+        ->execute(array($h, cbc_vec_pack($vec), now_ms()));
+    // 増えすぎないよう、古いものから間引く（たまにだけ実行して普段は負荷をかけない）
+    if (mt_rand(1, 20) === 1) {
+      $cnt = (int)$pdo->query('SELECT COUNT(*) FROM query_vectors')->fetchColumn();
+      if ($cnt > 500) {
+        $keep = $pdo->query('SELECT created_at FROM query_vectors ORDER BY created_at DESC LIMIT 1 OFFSET 300')->fetchColumn();
+        if ($keep !== false) $pdo->prepare('DELETE FROM query_vectors WHERE created_at < ?')->execute(array((int)$keep));
+      }
+    }
+  } catch (Throwable $e) { /* 使い回しは高速化のためのものなので、失敗しても検索は続行する */ }
+}
+
 /* 索引に入れる文章。見出しの階層も含めると「どの文脈の項目か」が反映され、精度が上がる。 */
 function cbc_index_text($pathTitles, $body) {
   $head = implode(' > ', $pathTitles);
@@ -443,10 +473,8 @@ function cbc_index_text($pathTitles, $body) {
 }
 function cbc_index_hash($text) { return hash('sha256', $text); }
 
-/* 全項目について、索引が未作成／本文が変わって古くなったものを洗い出す。
-   戻り値: array($allRows, $pathTitles, $staleIds) */
-function cbc_index_scan($pdo) {
-  $rows = $pdo->query('SELECT id, parent_id, title, body FROM nodes')->fetchAll();
+/* 見出しパス（TOPからの階層）を組み立てる。本文は使わないので、検索時は本文を読み込まなくてよい。 */
+function cbc_path_titles($rows) {
   $byId = array();
   foreach ($rows as $r) $byId[$r['id']] = $r;
   $pathTitles = array();
@@ -459,16 +487,25 @@ function cbc_index_scan($pdo) {
     }
     $pathTitles[$r['id']] = $path;
   }
-  $have = array();
+  return $pathTitles;
+}
+
+/* 索引の作り直しが必要な項目のID一覧。
+   項目を保存・削除・復元したときに、その項目の索引を捨てる作りにしてあるため、
+   「索引が無い＝作り直しが必要」と単純に判定できる（本文の読み込みもハッシュ計算も不要）。
+   検索のたびに全項目の本文を処理する必要がなくなり、項目数が増えても検索が重くならない。 */
+function cbc_index_stale_ids($pdo) {
   try {
-    foreach ($pdo->query('SELECT node_id, text_hash FROM node_vectors') as $v) $have[$v['node_id']] = $v['text_hash'];
-  } catch (Throwable $e) { $have = array(); }
-  $stale = array();
-  foreach ($rows as $r) {
-    $h = cbc_index_hash(cbc_index_text($pathTitles[$r['id']], $r['body']));
-    if (!isset($have[$r['id']]) || $have[$r['id']] !== $h) $stale[] = $r['id'];
+    $st = $pdo->query('SELECT n.id FROM nodes n LEFT JOIN node_vectors v ON v.node_id = n.id WHERE v.node_id IS NULL');
+    $out = array();
+    foreach ($st as $r) $out[] = $r['id'];
+    return $out;
+  } catch (Throwable $e) {
+    // 索引テーブルがまだ無い等。全件を対象として扱う。
+    $out = array();
+    foreach ($pdo->query('SELECT id FROM nodes') as $r) $out[] = $r['id'];
+    return $out;
   }
-  return array($rows, $pathTitles, $stale);
 }
 
 /* 指定した項目の索引を作り直す（まとめて最大 $limit 件）。戻り値: array($done, $errMsg) */
@@ -488,13 +525,15 @@ function cbc_index_build($pdo, $rows, $pathTitles, $ids, $limit = 50) {
   if ($err !== null) return array(0, $err);
   $now = now_ms();
   $del = $pdo->prepare('DELETE FROM node_vectors WHERE node_id = ?');
-  $ins = $pdo->prepare('INSERT INTO node_vectors (node_id, text_hash, dim, vec, updated_at) VALUES (?,?,?,?,?)');
+  // 整形済みテキストも一緒に保存しておく。検索時の語句一致はこれを使うので、
+  // 毎回 本文のHTML除去をやり直さずに済む。
+  $ins = $pdo->prepare('INSERT INTO node_vectors (node_id, text_hash, dim, vec, text, updated_at) VALUES (?,?,?,?,?,?)');
   $done = 0;
   foreach ($useIds as $i => $id) {
     if (!isset($vecs[$i]) || !$vecs[$i]) continue;
     $v = cbc_vec_normalize($vecs[$i]); // 保存時に正規化しておき、検索時は内積だけで済ませる
     $del->execute(array($id));
-    $ins->execute(array($id, cbc_index_hash($texts[$i]), count($v), cbc_vec_pack($v), $now));
+    $ins->execute(array($id, cbc_index_hash($texts[$i]), count($v), cbc_vec_pack($v), $texts[$i], $now));
     $done++;
   }
   return array($done, null);
@@ -899,6 +938,10 @@ switch ($action) {
       $up = $pdo->prepare('UPDATE nodes SET title = ?, body = ?, updated_by = COALESCE(?, updated_by), updated_at = ? WHERE id = ?');
       $up->execute(array($title, isset($d['body']) ? $d['body'] : '', $who, $ua, $d['id']));
     }
+    // 本文が変わった可能性があるので、この項目のAI検索用の索引を捨てる。
+    // 「索引が無い＝作り直しが必要」と扱えるようになり、検索のたびに全項目の本文を
+    // 読み直してハッシュ比較する必要がなくなる（項目数が増えても検索が重くならない）。
+    try { $pdo->prepare('DELETE FROM node_vectors WHERE node_id = ?')->execute(array($d['id'])); } catch (Throwable $e) {}
     ok();
   }
 
@@ -1054,6 +1097,8 @@ switch ($action) {
     $ts = now_ms();
     $pdo->beginTransaction();
     $pdo->exec('DELETE FROM nodes');
+    // 中身が総入れ替えになるので、AI検索の索引も破棄する（作り直しの対象になる）
+    try { $pdo->exec('DELETE FROM node_vectors'); } catch (Throwable $e) {}
     $ins = $pdo->prepare('INSERT INTO nodes (id, parent_id, sort_order, title, body, created_by, updated_by, updated_at, created_at) VALUES (?,?,?,?,?,?,?,?,?)');
     foreach ($d['nodes'] as $n) {
       $cb = isset($n['created_by']) && $n['created_by'] !== '' ? $n['created_by'] : (isset($n['updated_by']) && $n['updated_by'] !== '' ? $n['updated_by'] : null);
@@ -1386,8 +1431,9 @@ switch ($action) {
     // 索引（意味検索用のベクトル）の作成状況。修正画面に進捗を出すために使う。
     $s = require_login($pdo);
     if (!$s['is_admin']) fail('管理者のみ実行できます', 403);
-    list($rows, $pathTitles, $stale) = cbc_index_scan($pdo);
-    ok(array('total' => count($rows), 'stale' => count($stale), 'indexed' => count($rows) - count($stale)));
+    $total = (int)$pdo->query('SELECT COUNT(*) FROM nodes')->fetchColumn();
+    $stale = cbc_index_stale_ids($pdo);
+    ok(array('total' => $total, 'stale' => count($stale), 'indexed' => $total - count($stale)));
   }
 
   case 'ai_index_build': {
@@ -1398,11 +1444,15 @@ switch ($action) {
     if (!$s['is_admin']) fail('管理者のみ実行できます', 403);
     $d = body_json();
     $limit = isset($d['limit']) ? max(1, min(100, (int)$d['limit'])) : 50;
-    list($rows, $pathTitles, $stale) = cbc_index_scan($pdo);
-    if (!$stale) ok(array('done' => 0, 'remaining' => 0, 'total' => count($rows)));
+    $stale = cbc_index_stale_ids($pdo);
+    $total = (int)$pdo->query('SELECT COUNT(*) FROM nodes')->fetchColumn();
+    if (!$stale) ok(array('done' => 0, 'remaining' => 0, 'total' => $total));
+    // 作り直す項目の本文だけを読み込む（全件の本文を読む必要はない）
+    $rows = $pdo->query('SELECT id, parent_id, title, body FROM nodes')->fetchAll();
+    $pathTitles = cbc_path_titles($rows);
     list($done, $err) = cbc_index_build($pdo, $rows, $pathTitles, $stale, $limit);
     if ($err !== null) fail($err, 502);
-    ok(array('done' => $done, 'remaining' => max(0, count($stale) - $done), 'total' => count($rows)));
+    ok(array('done' => $done, 'remaining' => max(0, count($stale) - $done), 'total' => $total));
   }
 
   case 'ai_search': {
@@ -1419,25 +1469,53 @@ switch ($action) {
     $query = isset($d['q']) ? trim($d['q']) : '';
     if ($query === '') fail('検索語が必要です');
 
-    list($rows, $pathTitles, $stale) = cbc_index_scan($pdo);
+    // 本文（body）はここでは読み込まない。項目数が多いと本文の総量が数百KBになり、
+    // 取得とHTML除去だけで時間を使ってしまうため。見出しの組み立てに必要な列だけを読む。
+    $rows = $pdo->query('SELECT id, parent_id, title, lock_hash FROM nodes')->fetchAll();
     if (!$rows) ok(array('results' => array(), 'mode' => 'empty'));
+    $pathTitles = cbc_path_titles($rows);
     // 権限で見えない項目は最初から除外する
     $visible = $s['is_admin'] ? $rows : cbc_filter_allowed($rows, cbc_user_allowed($pdo, $s['username']));
     if (!$visible) ok(array('results' => array(), 'mode' => 'empty'));
     $lockById = array();
-    foreach ($pdo->query('SELECT id, lock_hash FROM nodes') as $lr) $lockById[$lr['id']] = $lr['lock_hash'];
+    foreach ($rows as $r) $lockById[$r['id']] = $r['lock_hash'];
 
+    $stale = cbc_index_stale_ids($pdo);
     // 編集直後など、古くなった索引がわずかならこの場で作り直す（通常は0〜1件なので体感に影響しない）。
     // 大量に未作成のとき（初回導入時など）はここでは作らず、キーワード検索で結果を出しつつ
     // 「索引を作ってください」と伝える。検索を待たせないための割り切り。
     $needIndex = false;
     if ($stale) {
       if (count($stale) <= 20) {
-        list($bd, $berr) = cbc_index_build($pdo, $rows, $pathTitles, $stale, 20);
+        $full = $pdo->query('SELECT id, parent_id, title, body FROM nodes')->fetchAll();
+        list($bd, $berr) = cbc_index_build($pdo, $full, cbc_path_titles($full), $stale, 20);
         if ($berr !== null) $needIndex = true;
       } else {
         $needIndex = true;
       }
+    }
+
+    // 照合に使う本文は、索引を作ったときの整形済みテキストを使い回す（HTML除去をやり直さない）。
+    // 索引がまだ無い項目のぶんだけ、本文を読んで補う。
+    $plainById = array();
+    try {
+      foreach ($pdo->query('SELECT node_id, text FROM node_vectors') as $tv) $plainById[$tv['node_id']] = $tv['text'];
+    } catch (Throwable $e) { $plainById = array(); }
+    $missing = array();
+    foreach ($visible as $r) { if (!isset($plainById[$r['id']])) $missing[] = $r['id']; }
+    if ($missing) {
+      $chunk = array_slice($missing, 0, 500);
+      $ph = implode(',', array_fill(0, count($chunk), '?'));
+      $q2 = $pdo->prepare("SELECT id, body FROM nodes WHERE id IN ($ph)");
+      $q2->execute($chunk);
+      $fetched = array();
+      foreach ($q2 as $mr) { $plainById[$mr['id']] = cbc_html_to_plain($mr['body']); $fetched[] = $mr['id']; }
+      // 以前のバージョンで作られた索引には整形済みテキストが入っていない。作り直し（再ベクトル化）は
+      // 不要なので、ここで読んだ内容だけを書き戻しておく。次回以降は本文を読まずに済む。
+      try {
+        $bf = $pdo->prepare('UPDATE node_vectors SET text = ? WHERE node_id = ? AND text IS NULL');
+        foreach ($fetched as $fid) $bf->execute(array($plainById[$fid], $fid));
+      } catch (Throwable $e) { /* 補完できなくても検索は成立する */ }
     }
 
     // キーワードのスコア（0〜1に正規化）。ここはAI不要で一瞬。
@@ -1445,11 +1523,12 @@ switch ($action) {
     $kw = array();
     $kwMax = 0;
     foreach ($visible as $r) {
-      $hay = mb_strtolower(implode(' ', $pathTitles[$r['id']]) . ' ' . cbc_html_to_plain($r['body']));
-      $sc = cbc_keyword_score($terms, $hay);
+      $head = implode(' ', $pathTitles[$r['id']]);
+      $headLow = mb_strtolower($head);
+      $body = isset($plainById[$r['id']]) ? $plainById[$r['id']] : '';
+      $sc = cbc_keyword_score($terms, mb_strtolower($head . ' ' . $body));
       // 見出しに含まれる語は本文より重みを大きくする（タイトル一致は意図に近いことが多い）
-      $headHay = mb_strtolower(implode(' ', $pathTitles[$r['id']]));
-      $sc += cbc_keyword_score($terms, $headHay);
+      $sc += cbc_keyword_score($terms, $headLow);
       $kw[$r['id']] = $sc;
       if ($sc > $kwMax) $kwMax = $sc;
     }
@@ -1459,9 +1538,17 @@ switch ($action) {
     $mode = 'keyword';
     $embedErr = null;
     if (!$needIndex) {
-      list($qvecs, $qerr) = cbc_embed_texts($pdo, array($query), 'RETRIEVAL_QUERY');
-      if ($qerr === null && !empty($qvecs[0])) {
-        $qv = cbc_vec_normalize($qvecs[0]);
+      // 同じ質問を一度でも検索していれば、AIへの問い合わせを省いてそのぶん速くなる
+      $qv = cbc_qvec_get($pdo, $query);
+      $qerr = null;
+      if ($qv === null) {
+        list($qvecs, $qerr) = cbc_embed_texts($pdo, array($query), 'RETRIEVAL_QUERY');
+        if ($qerr === null && !empty($qvecs[0])) {
+          $qv = cbc_vec_normalize($qvecs[0]);
+          cbc_qvec_put($pdo, $query, $qv);
+        }
+      }
+      if ($qv !== null) {
         $st = $pdo->query('SELECT node_id, vec FROM node_vectors');
         foreach ($st as $v) {
           if (!isset($kw[$v['node_id']])) continue; // 権限外・削除済み
@@ -1749,6 +1836,8 @@ switch ($action) {
     try {
       // ---- nodes ----
       $pdo->exec('DELETE FROM nodes');
+      // 中身が総入れ替えになるので、AI検索の索引も破棄する（作り直しの対象になる）
+      try { $pdo->exec('DELETE FROM node_vectors'); } catch (Throwable $e) {}
       $ins = $pdo->prepare('INSERT INTO nodes (id, parent_id, sort_order, title, body, created_by, updated_by, updated_at, created_at, lock_hash) VALUES (?,?,?,?,?,?,?,?,?,?)');
       foreach ($b['nodes'] as $n) {
         $ins->execute(array(

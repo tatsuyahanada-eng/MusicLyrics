@@ -4479,12 +4479,11 @@
     const askBox = $('#aiSearchAsk');
     if (askBox) askBox.hidden = true;
     try {
-      // ツリーが手元で少し古いままだと、見つけた項目をこの端末で解決できず結果が消えてしまうことがあるため、
-      // 検索と並行して最新のツリーを取り直しておく（結果表示自体はサーバーが返す情報を優先して使う）。
-      const [d] = await Promise.all([
-        apiCall('ai_search', { method: 'POST', body: { q } }),
-        reloadFromServer().catch(() => {}),
-      ]);
+      // 一覧の表示に必要な情報（項目名・階層・ロック有無）はサーバーが返してくれるので、
+      // ツリー全体の取り直しは【待たない】。ツリーは項目数が増えると数百KBになり、
+      // これを待つと検索結果が出るまでの体感がそのぶん遅くなるため。
+      // 取り直しは裏で走らせ、届いたらクリック時の遷移先だけ解決し直す。
+      const d = await apiCall('ai_search', { method: 'POST', body: { q } });
       if (gen !== aiSearchGen) return; // その間に別の検索が始まっていれば、この結果は捨てる
       const results = (d.results || []).map((r) => {
         // まず手元のツリーで解決を試みる（ロック解除状態やクリック時の遷移先の特定に必要）。
@@ -4546,6 +4545,15 @@
           }
         }).catch(() => { if (gen === aiSearchGen && sumBox) sumBox.hidden = true; });
       }
+      // 裏でツリーを最新化し、届いたらクリック時の遷移先を解決し直す（表示はもう出ているので待たせない）
+      reloadFromServer().then(() => {
+        if (gen !== aiSearchGen) return;
+        searchResultData.forEach((r) => {
+          if (r.kind !== 'node' || r.idPath) return;
+          const p = findPath(r.id);
+          if (p) { r.idPath = p.map((n) => n.id); r.locked = isLocked(p[p.length - 1]); }
+        });
+      }).catch(() => {});
     } catch (e) {
       searchMetaEl.textContent = '';
       searchResultsEl.innerHTML = `<div class="tm-sr-empty">AI検索に失敗しました：${esc(e.message)}</div>`;
@@ -4559,10 +4567,21 @@
     searchDebounce = setTimeout(renderSearchResults, 110);
   });
   // 検索結果の一覧、AIまとめの「参照した項目」チップ、どちらも同じ searchResultData を参照するため共通化
-  function openSearchResultByIdx(idx) {
+  async function openSearchResultByIdx(idx) {
     const r = searchResultData[idx];
     if (!r) return;
     if (r.kind === 'inv') { closeSearchThen(() => openInventory()); return; }
+    // AI検索の一覧はツリーの取得を待たずに表示しているため、押した時点でまだ遷移先が
+    // 分かっていないことがある。その場合はここで解決を試み、それでも駄目なら取り直してから再挑戦する。
+    if (!r.idPath) {
+      let p = findPath(r.id);
+      if (!p) {
+        searchMetaEl.textContent = '開いています…';
+        try { await reloadFromServer(); } catch (_) {}
+        p = findPath(r.id);
+      }
+      if (p) { r.idPath = p.map((n) => n.id); r.locked = isLocked(p[p.length - 1]); }
+    }
     if (!r.idPath) { searchMetaEl.textContent = 'この項目は現在この端末では開けません（権限が変更されたか、削除された可能性があります）。'; return; }
     gotoNodePath(r.idPath);
   }

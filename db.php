@@ -8,7 +8,7 @@
 
 /* スキーマのバージョン。テーブル定義（列の追加など）を変えたら必ず上げる。
    これが変わると、各サーバーで初回アクセス時に一度だけ初期化/マイグレーションが走る。 */
-if (!defined('CBC_SCHEMA_VERSION')) define('CBC_SCHEMA_VERSION', '2026-08-13-vectors1');
+if (!defined('CBC_SCHEMA_VERSION')) define('CBC_SCHEMA_VERSION', '2026-08-13-vectors2');
 
 // 接続だけを1回試みる（スキーマ初期化はしない）。
 function cbc_connect_once($driver, $opts) {
@@ -138,6 +138,7 @@ function cbc_init_schema($pdo, $driver) {
   cbc_init_auth($pdo, $driver);
   cbc_init_trips($pdo, $driver);
   cbc_init_vectors($pdo, $driver);
+  cbc_init_qvectors($pdo, $driver);
 }
 
 /* 交通費（オンサイト案件の移動費）記録。ユーザーごとに登録し、管理者が月別/ユーザー別に集計。 */
@@ -280,6 +281,7 @@ function cbc_init_vectors($pdo, $driver) {
         text_hash  VARCHAR(64)  NOT NULL,
         dim        INT          NOT NULL DEFAULT 0,
         vec        MEDIUMTEXT   NULL,
+        text       MEDIUMTEXT   NULL,
         updated_at BIGINT       NOT NULL DEFAULT 0
       ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci"
     );
@@ -290,7 +292,46 @@ function cbc_init_vectors($pdo, $driver) {
         text_hash  VARCHAR(64) NOT NULL,
         dim        INTEGER     NOT NULL DEFAULT 0,
         vec        TEXT        NULL,
+        text       TEXT        NULL,
         updated_at BIGINT      NOT NULL DEFAULT 0
+      )"
+    );
+  }
+  // すでに node_vectors がある環境向け：後から追加した text 列を足す
+  // （索引作成時の整形済みテキストを持たせ、検索のたびに本文のHTML除去をやり直さないため）
+  try {
+    if ($driver === 'sqlite') {
+      $cols = array();
+      foreach ($pdo->query("PRAGMA table_info(node_vectors)")->fetchAll() as $r) $cols[] = strtolower($r['name']);
+    } else {
+      $sql = "SELECT COLUMN_NAME AS c FROM information_schema.columns WHERE table_name = 'node_vectors'";
+      if ($driver === 'mysql') $sql .= " AND table_schema = DATABASE()";
+      $cols = array();
+      foreach ($pdo->query($sql)->fetchAll() as $r) $cols[] = strtolower($r['c']);
+    }
+    if ($cols && !in_array('text', $cols, true)) {
+      $pdo->exec("ALTER TABLE node_vectors ADD COLUMN text " . ($driver === 'mysql' ? 'MEDIUMTEXT' : 'TEXT') . " NULL");
+    }
+  } catch (Throwable $e) { /* 追加できなくても致命ではない（本文から都度作る動作に戻るだけ） */ }
+}
+
+/* 質問文のベクトルの使い回し用。同じ質問で再検索したときにAIへの問い合わせを省ける
+   （キャッシュが効くと、その1回分の通信時間がまるごと無くなる）。 */
+function cbc_init_qvectors($pdo, $driver) {
+  if ($driver === 'mysql') {
+    $pdo->exec(
+      "CREATE TABLE IF NOT EXISTS query_vectors (
+        q_hash     VARCHAR(64) NOT NULL PRIMARY KEY,
+        vec        MEDIUMTEXT  NULL,
+        created_at BIGINT      NOT NULL DEFAULT 0
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci"
+    );
+  } else { // sqlite / pgsql
+    $pdo->exec(
+      "CREATE TABLE IF NOT EXISTS query_vectors (
+        q_hash     VARCHAR(64) NOT NULL PRIMARY KEY,
+        vec        TEXT        NULL,
+        created_at BIGINT      NOT NULL DEFAULT 0
       )"
     );
   }
