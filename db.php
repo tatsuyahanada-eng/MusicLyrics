@@ -8,7 +8,7 @@
 
 /* スキーマのバージョン。テーブル定義（列の追加など）を変えたら必ず上げる。
    これが変わると、各サーバーで初回アクセス時に一度だけ初期化/マイグレーションが走る。 */
-if (!defined('CBC_SCHEMA_VERSION')) define('CBC_SCHEMA_VERSION', '2026-08-10-trips5');
+if (!defined('CBC_SCHEMA_VERSION')) define('CBC_SCHEMA_VERSION', '2026-08-13-vectors1');
 
 // 接続だけを1回試みる（スキーマ初期化はしない）。
 function cbc_connect_once($driver, $opts) {
@@ -137,6 +137,7 @@ function cbc_init_schema($pdo, $driver) {
   cbc_init_settings($pdo, $driver);
   cbc_init_auth($pdo, $driver);
   cbc_init_trips($pdo, $driver);
+  cbc_init_vectors($pdo, $driver);
 }
 
 /* 交通費（オンサイト案件の移動費）記録。ユーザーごとに登録し、管理者が月別/ユーザー別に集計。 */
@@ -266,6 +267,33 @@ function cbc_init_auth($pdo, $driver) {
       expires_at BIGINT       NOT NULL DEFAULT 0
     )$eng"
   );
+}
+
+/* AI検索（意味で探す）用の索引。各項目の文章をGeminiで数値ベクトル（埋め込み）に変換して保存する。
+   検索のたびに全項目をAIへ送る必要がなくなり、質問だけをベクトル化してサーバー内の計算で照合できる
+   （＝速い・AIの利用回数が少ない）。text_hash は元の文章のハッシュで、変わったときだけ作り直す。 */
+function cbc_init_vectors($pdo, $driver) {
+  if ($driver === 'mysql') {
+    $pdo->exec(
+      "CREATE TABLE IF NOT EXISTS node_vectors (
+        node_id    VARCHAR(40)  NOT NULL PRIMARY KEY,
+        text_hash  VARCHAR(64)  NOT NULL,
+        dim        INT          NOT NULL DEFAULT 0,
+        vec        MEDIUMTEXT   NULL,
+        updated_at BIGINT       NOT NULL DEFAULT 0
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci"
+    );
+  } else { // sqlite / pgsql
+    $pdo->exec(
+      "CREATE TABLE IF NOT EXISTS node_vectors (
+        node_id    VARCHAR(40) NOT NULL PRIMARY KEY,
+        text_hash  VARCHAR(64) NOT NULL,
+        dim        INTEGER     NOT NULL DEFAULT 0,
+        vec        TEXT        NULL,
+        updated_at BIGINT      NOT NULL DEFAULT 0
+      )"
+    );
+  }
 }
 
 /* アプリ共通設定（キー/値）。ピン留め（全端末で共有）などを保存する。 */

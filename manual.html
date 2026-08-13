@@ -9,7 +9,7 @@
   <link rel="manifest" href="manifest.webmanifest">
   <link rel="icon" href="icon.svg" type="image/svg+xml">
   <link rel="apple-touch-icon" href="icon-192.png">
-  <link rel="stylesheet" href="manual.css?v=80">
+  <link rel="stylesheet" href="manual.css?v=81">
 </head>
 <body class="tm-body">
 
@@ -530,6 +530,20 @@
             <span class="tm-ai-toggle-label">&#10024; AI機能（AIで探す）を使う</span>
           </label>
           <span id="aiToggleHint" class="tm-ai-setting-hint"></span>
+          <!-- 意味検索の索引（各項目をベクトル化して保存しておくもの）の作成・状況表示 -->
+          <div id="aiIndexBox" class="tm-aiindex" hidden>
+            <div class="tm-aiindex-head">&#128218; AI検索の索引</div>
+            <p class="tm-aiindex-desc">
+              項目の内容をあらかじめAIが読み取れる形に変換して保存します。これを作っておくと、
+              検索のたびに全項目をAIへ送らずに済むため、<b>「AIで探す」がとても速くなります</b>。
+              項目を追加・編集したぶんは自動で作り直されるので、通常はこのボタンを押すのは最初の1回だけです。
+            </p>
+            <div class="tm-aiindex-row">
+              <button type="button" id="aiIndexBtn" class="tm-btn tm-btn-outline tm-btn-sm">索引を作成／更新</button>
+              <span id="aiIndexState" class="tm-aiindex-state">確認中…</span>
+            </div>
+            <div id="aiIndexBar" class="tm-aiindex-bar" hidden><div id="aiIndexBarFill" class="tm-aiindex-barfill"></div></div>
+          </div>
         </div>
 
         <!-- ===== 在庫管理のON/OFF（全端末共有・管理者のみ） ===== -->
@@ -905,6 +919,7 @@
       <div id="aiTipsBox" class="tm-aisearch-tips" hidden>
         <p>AIがまとめやすくなる書き方のコツ：</p>
         <ul>
+          <li>言葉が本文と違っても大丈夫です。「紙が詰まった」→「紙詰まりの直し方」のように、<b>意味が近い項目</b>を探します（思いついたまま質問してください）</li>
           <li>見出しは行頭に「<code># </code>」を付けると項目が構造化され、AIも要点をつかみやすくなります（例：<code># 準備するもの</code>）</li>
           <li>手順は「<code>- </code>」の箇条書きや「1. 2. 3.」の番号付きで書くと、順序が伝わりやすくなります</li>
           <li>特に大事な語句は「<code>**太字**</code>」で囲んでおくと、AIのまとめでも強調して表示されやすくなります</li>
@@ -1095,6 +1110,6 @@
   </dialog>
 
   <script src="vendor/xlsx.full.min.js"></script>
-  <script src="manual.js?v=95"></script>
+  <script src="manual.js?v=96"></script>
 </body>
 </html>

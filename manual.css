@@ -914,6 +914,26 @@ body.tm-dragging .tm-sortrow { cursor: grabbing; }
   font-family: var(--tm-mono); background: rgba(255,255,255,0.08); border-radius: 3px; padding: 0 4px;
 }
 .tm-aisearch-tips-note { margin: 8px 0 0 !important; color: var(--tm-muted) !important; font-weight: 400 !important; }
+/* 意味検索の索引づくり（修正画面・管理者のみ） */
+.tm-aiindex {
+  flex-basis: 100%; margin-top: 10px; padding-top: 10px;
+  border-top: 1px dashed var(--tm-line);
+}
+.tm-aiindex-head { font-size: 12px; font-weight: 700; color: var(--tm-cyan); margin-bottom: 4px; }
+.tm-aiindex-desc { font-size: 11px; line-height: 1.7; color: var(--tm-muted); margin: 0 0 8px; }
+.tm-aiindex-desc b { color: var(--tm-text); }
+.tm-aiindex-row { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
+.tm-aiindex-state { font-size: 12px; color: var(--tm-muted); }
+.tm-aiindex-state.is-ok { color: var(--tm-green); }
+.tm-aiindex-state.is-warn { color: var(--tm-warn); }
+.tm-aiindex-bar {
+  margin-top: 8px; height: 6px; border-radius: 3px; overflow: hidden;
+  background: rgba(255,255,255,0.08); border: 1px solid var(--tm-line);
+}
+.tm-aiindex-barfill { height: 100%; width: 0%; background: var(--tm-cyan); transition: width .2s; }
+/* 検索結果メタの補足（索引未作成のお知らせなど） */
+.tm-sr-note { color: var(--tm-muted); font-size: 11px; margin-left: 6px; }
+
 /* AIが質問の意図を1つに絞れなかったときの聞き返し（選ぶと、その内容で探し直す） */
 .tm-aisearch-ask {
   margin: 0 2px 10px; padding: 10px 14px;

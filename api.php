@@ -118,10 +118,27 @@ function cbc_search_terms($query) {
   preg_match_all('/[A-Za-z0-9]+|[^\x00-\x7F\s、。，,　]+/u', $query, $tm);
   return $tm[0];
 }
-/* $haystack（小文字化済み）の中に $terms がいくつ含まれるかを数える（簡易的な関連度スコア） */
+/* $haystack（小文字化済み）の中に $terms がどれだけ含まれるかを点数にする（簡易的な関連度スコア）。
+   日本語は「紙が詰まった」のように助詞・活用が付いた形で入力されるため、語がそのままの形で
+   本文に現れないことが多い（本文は「紙詰まりの直し方」など）。そのままの一致が無いときは
+   2文字ずつに割った部分一致も見て、部分点を与える（重みは小さくし、拾いすぎないようにする）。 */
 function cbc_keyword_score($terms, $haystackLower) {
-  $score = 0;
-  foreach ($terms as $t) { if ($t !== '' && mb_strpos($haystackLower, mb_strtolower($t)) !== false) $score++; }
+  $score = 0.0;
+  foreach ($terms as $t) {
+    if ($t === '') continue;
+    $tl = mb_strtolower($t);
+    if (mb_strpos($haystackLower, $tl) !== false) { $score += 1.0; continue; }
+    $len = mb_strlen($tl);
+    // 英数字（型番など）は部分一致させると誤爆しやすいので、日本語などの長い語だけを対象にする
+    if ($len >= 3 && !preg_match('/^[a-z0-9]+$/', $tl)) {
+      $hit = 0; $tot = 0;
+      for ($i = 0; $i + 2 <= $len; $i++) {
+        $tot++;
+        if (mb_strpos($haystackLower, mb_substr($tl, $i, 2)) !== false) $hit++;
+      }
+      if ($tot > 0 && $hit > 0) $score += 0.6 * ($hit / $tot);
+    }
+  }
   return $score;
 }
 
@@ -290,6 +307,199 @@ function cbc_gemini_soft($pdo, $prompt, $jsonMode = false, $maxTokens = 1024) {
   }
   return array(null, '利用可能なGeminiモデルが見つかりませんでした。config.php の GEMINI_MODEL をご確認ください（例: gemini-2.5-flash）。詳細: ' . $lastMsg, 502);
 }
+/* ===== 埋め込み（Embedding）による意味検索 =====
+   検索のたびに全項目をAIへ送って選ばせる方式は、応答が遅く（生成は秒単位）、
+   生成APIの少ない無料枠も消費してしまう。そこで、
+     1) 各項目の文章を「数値ベクトル」に変換して1度だけDBに保存しておく（索引）
+     2) 検索時は「質問文」だけをベクトル化し、サーバー内の計算（内積）で近い項目を選ぶ
+   という方式にする。2)のAI呼び出しは短文1件だけなので速く、埋め込みAPIは生成APIより
+   利用枠がはるかに大きい。文章が変わった項目だけ作り直せばよい。 */
+
+/* 埋め込みAPIを1回呼ぶ。戻り値: array(httpCode, responseBody, networkError) */
+function cbc_embed_call($model, $method, $bodyJson) {
+  $url = 'https://generativelanguage.googleapis.com/v1beta/models/' . rawurlencode($model) . ':' . $method . '?key=' . urlencode(GEMINI_API_KEY);
+  if (function_exists('curl_init')) {
+    $ch = curl_init($url);
+    curl_setopt_array($ch, array(
+      CURLOPT_POST => true,
+      CURLOPT_HTTPHEADER => array('Content-Type: application/json'),
+      CURLOPT_POSTFIELDS => $bodyJson,
+      CURLOPT_RETURNTRANSFER => true,
+      CURLOPT_CONNECTTIMEOUT => 10,
+      CURLOPT_TIMEOUT => 40,
+    ));
+    $resp = curl_exec($ch);
+    $code = (int)curl_getinfo($ch, CURLINFO_HTTP_CODE);
+    $err = curl_error($ch);
+    curl_close($ch);
+    if ($resp === false) return array(0, '', $err !== '' ? $err : 'connection error');
+    return array($code, $resp, '');
+  }
+  $ctx = stream_context_create(array('http' => array(
+    'method' => 'POST', 'header' => "Content-Type: application/json\r\n",
+    'content' => $bodyJson, 'timeout' => 40, 'ignore_errors' => true,
+  )));
+  $resp = @file_get_contents($url, false, $ctx);
+  if ($resp === false) return array(0, '', 'サーバーの外部通信設定をご確認ください');
+  $code = 200;
+  if (isset($http_response_header[0]) && preg_match('/\s(\d{3})\s/', $http_response_header[0], $m)) $code = (int)$m[1];
+  return array($code, $resp, '');
+}
+
+/* 複数のテキストをまとめてベクトル化する（batchEmbedContents は1回で最大100件）。
+   $taskType: 'RETRIEVAL_DOCUMENT'（登録側）/ 'RETRIEVAL_QUERY'（検索する質問側）。
+   埋め込みは用途を伝えると精度が上がるため、登録時と検索時で使い分ける。
+   戻り値: array($vectors, $errMsg) — $vectors は $texts と同じ並びの float配列の配列 */
+function cbc_embed_texts($pdo, $texts, $taskType) {
+  if (GEMINI_API_KEY === '') return array(null, 'AI機能が未設定です（config.php に GEMINI_API_KEY を設定してください）');
+  $texts = array_values($texts);
+  if (!$texts) return array(array(), null);
+  // 前回成功したモデルを優先。モデル名が変わっても次の候補で自動的に追従する。
+  $candidates = array();
+  foreach (array(cbc_setting_get($pdo, 'gemini_embed_ok', ''), 'gemini-embedding-001', 'text-embedding-004', 'embedding-001') as $m) {
+    $m = trim((string)$m);
+    if ($m !== '' && !in_array($m, $candidates, true)) $candidates[] = $m;
+  }
+  $lastMsg = '';
+  foreach ($candidates as $model) {
+    $reqs = array();
+    foreach ($texts as $t) {
+      $reqs[] = array(
+        'model' => 'models/' . $model,
+        'content' => array('parts' => array(array('text' => $t))),
+        'taskType' => $taskType,
+      );
+    }
+    $bodyJson = json_encode(array('requests' => $reqs), JSON_UNESCAPED_UNICODE);
+    $neterr = '';
+    for ($attempt = 0; $attempt < 2; $attempt++) {
+      list($code, $resp, $neterr) = cbc_embed_call($model, 'batchEmbedContents', $bodyJson);
+      if ($neterr === '') break;
+      usleep(400000);
+    }
+    if ($neterr !== '') return array(null, 'AIサーバーに接続できません: ' . $neterr);
+    $data = json_decode($resp, true);
+    if ($code >= 200 && $code < 300 && isset($data['embeddings']) && is_array($data['embeddings'])) {
+      $out = array();
+      foreach ($data['embeddings'] as $e) {
+        $out[] = (isset($e['values']) && is_array($e['values'])) ? $e['values'] : array();
+      }
+      if (count($out) !== count($texts)) return array(null, '埋め込みの件数が一致しませんでした');
+      cbc_setting_set($pdo, 'gemini_embed_ok', $model);
+      return array($out, null);
+    }
+    $lastMsg = (is_array($data) && isset($data['error']['message'])) ? $data['error']['message'] : ('HTTP ' . $code);
+    // モデルが無い/廃止のときだけ次の候補へ。それ以外（キー不正・権限・枠超過）は即エラー。
+    if (!preg_match('/not found|not supported|unknown|does not exist|unsupported|no longer available|deprecated|has been removed|is retired/i', $lastMsg)) {
+      $hint = '';
+      if (preg_match('/quota|billing|free_tier|limit:\s*0|RESOURCE_EXHAUSTED/i', $lastMsg)) {
+        $hint = "\n【対処】Googleの無料枠の上限に達しています。しばらく待つか、Google AI Studio の「課金」でお支払い情報を設定してください。";
+      } elseif (preg_match('/API key not valid|API_KEY_INVALID|PERMISSION_DENIED|permission/i', $lastMsg)) {
+        $hint = "\n【対処】APIキーが正しくないか権限がありません。config.php の GEMINI_API_KEY を再確認してください。";
+      }
+      return array(null, '索引の作成に失敗しました: ' . $lastMsg . $hint);
+    }
+  }
+  return array(null, '利用可能な埋め込みモデルが見つかりませんでした。詳細: ' . $lastMsg);
+}
+
+/* ベクトルを保存用の文字列に変換する。float32でパックしてbase64にすると、
+   JSONで持つより小さく、読み書きも速い（768次元で約4KB）。 */
+function cbc_vec_pack($vec) {
+  $s = '';
+  foreach ($vec as $f) $s .= pack('g', (float)$f); // 'g' = little-endian float32
+  return base64_encode($s);
+}
+function cbc_vec_unpack($packed) {
+  $bin = base64_decode((string)$packed, true);
+  if ($bin === false || $bin === '') return array();
+  $a = unpack('g*', $bin);
+  return $a === false ? array() : array_values($a);
+}
+/* あらかじめ長さ1に正規化しておくと、類似度が単なる内積で求まり、検索時の計算が軽くなる */
+function cbc_vec_normalize($vec) {
+  $sum = 0.0;
+  foreach ($vec as $f) $sum += $f * $f;
+  if ($sum <= 0) return $vec;
+  $inv = 1.0 / sqrt($sum);
+  $out = array();
+  foreach ($vec as $f) $out[] = $f * $inv;
+  return $out;
+}
+/* 正規化済みベクトル同士の内積（＝コサイン類似度。-1〜1、大きいほど内容が近い） */
+function cbc_vec_dot($a, $b) {
+  $n = min(count($a), count($b));
+  $s = 0.0;
+  for ($i = 0; $i < $n; $i++) $s += $a[$i] * $b[$i];
+  return $s;
+}
+
+/* 索引に入れる文章。見出しの階層も含めると「どの文脈の項目か」が反映され、精度が上がる。 */
+function cbc_index_text($pathTitles, $body) {
+  $head = implode(' > ', $pathTitles);
+  $plain = cbc_html_to_plain($body);
+  $plain = trim(preg_replace('/\s+/u', ' ', $plain));
+  return mb_substr($head . "\n" . $plain, 0, 3000);
+}
+function cbc_index_hash($text) { return hash('sha256', $text); }
+
+/* 全項目について、索引が未作成／本文が変わって古くなったものを洗い出す。
+   戻り値: array($allRows, $pathTitles, $staleIds) */
+function cbc_index_scan($pdo) {
+  $rows = $pdo->query('SELECT id, parent_id, title, body FROM nodes')->fetchAll();
+  $byId = array();
+  foreach ($rows as $r) $byId[$r['id']] = $r;
+  $pathTitles = array();
+  foreach ($rows as $r) {
+    $path = array(); $cur = $r; $guard = 0;
+    while ($cur && $guard++ < 20) {
+      array_unshift($path, $cur['title']);
+      $pid = $cur['parent_id'];
+      $cur = ($pid !== null && $pid !== '' && isset($byId[$pid])) ? $byId[$pid] : null;
+    }
+    $pathTitles[$r['id']] = $path;
+  }
+  $have = array();
+  try {
+    foreach ($pdo->query('SELECT node_id, text_hash FROM node_vectors') as $v) $have[$v['node_id']] = $v['text_hash'];
+  } catch (Throwable $e) { $have = array(); }
+  $stale = array();
+  foreach ($rows as $r) {
+    $h = cbc_index_hash(cbc_index_text($pathTitles[$r['id']], $r['body']));
+    if (!isset($have[$r['id']]) || $have[$r['id']] !== $h) $stale[] = $r['id'];
+  }
+  return array($rows, $pathTitles, $stale);
+}
+
+/* 指定した項目の索引を作り直す（まとめて最大 $limit 件）。戻り値: array($done, $errMsg) */
+function cbc_index_build($pdo, $rows, $pathTitles, $ids, $limit = 50) {
+  $ids = array_slice(array_values($ids), 0, $limit);
+  if (!$ids) return array(0, null);
+  $byId = array();
+  foreach ($rows as $r) $byId[$r['id']] = $r;
+  $texts = array(); $useIds = array();
+  foreach ($ids as $id) {
+    if (!isset($byId[$id])) continue;
+    $texts[] = cbc_index_text($pathTitles[$id], $byId[$id]['body']);
+    $useIds[] = $id;
+  }
+  if (!$texts) return array(0, null);
+  list($vecs, $err) = cbc_embed_texts($pdo, $texts, 'RETRIEVAL_DOCUMENT');
+  if ($err !== null) return array(0, $err);
+  $now = now_ms();
+  $del = $pdo->prepare('DELETE FROM node_vectors WHERE node_id = ?');
+  $ins = $pdo->prepare('INSERT INTO node_vectors (node_id, text_hash, dim, vec, updated_at) VALUES (?,?,?,?,?)');
+  $done = 0;
+  foreach ($useIds as $i => $id) {
+    if (!isset($vecs[$i]) || !$vecs[$i]) continue;
+    $v = cbc_vec_normalize($vecs[$i]); // 保存時に正規化しておき、検索時は内積だけで済ませる
+    $del->execute(array($id));
+    $ins->execute(array($id, cbc_index_hash($texts[$i]), count($v), cbc_vec_pack($v), $now));
+    $done++;
+  }
+  return array($done, null);
+}
+
 /* cbc_gemini_soft のラッパー。失敗したら即エラー応答して終了する（要約・検索の主機能で使用）。 */
 function cbc_gemini($pdo, $prompt, $jsonMode = false, $maxTokens = 1024) {
   list($text, $err, $code) = cbc_gemini_soft($pdo, $prompt, $jsonMode, $maxTokens);
@@ -742,6 +952,11 @@ switch ($action) {
     $del = $pdo->prepare('DELETE FROM nodes WHERE id = ?');
     foreach ($toDelete as $id) $del->execute(array($id));
     $pdo->commit();
+    // AI検索の索引も一緒に片付ける（消した項目が検索に残らないように）
+    try {
+      $dv = $pdo->prepare('DELETE FROM node_vectors WHERE node_id = ?');
+      foreach ($toDelete as $id) $dv->execute(array($id));
+    } catch (Throwable $e) { /* 索引の掃除に失敗しても削除自体は成功扱い */ }
     ok(array('deleted' => count($toDelete)));
   }
 
@@ -1167,111 +1382,154 @@ switch ($action) {
     ok(array('summary' => trim($summary)));
   }
 
+  case 'ai_index_status': {
+    // 索引（意味検索用のベクトル）の作成状況。修正画面に進捗を出すために使う。
+    $s = require_login($pdo);
+    if (!$s['is_admin']) fail('管理者のみ実行できます', 403);
+    list($rows, $pathTitles, $stale) = cbc_index_scan($pdo);
+    ok(array('total' => count($rows), 'stale' => count($stale), 'indexed' => count($rows) - count($stale)));
+  }
+
+  case 'ai_index_build': {
+    // 索引をまとめて作る。1回のリクエストで作りすぎるとタイムアウトするため、少しずつ進めて
+    // 残り件数を返し、クライアント側が終わるまで繰り返し呼ぶ（進捗バーを出せる）。
+    if (function_exists('set_time_limit')) @set_time_limit(120);
+    $s = require_login($pdo);
+    if (!$s['is_admin']) fail('管理者のみ実行できます', 403);
+    $d = body_json();
+    $limit = isset($d['limit']) ? max(1, min(100, (int)$d['limit'])) : 50;
+    list($rows, $pathTitles, $stale) = cbc_index_scan($pdo);
+    if (!$stale) ok(array('done' => 0, 'remaining' => 0, 'total' => count($rows)));
+    list($done, $err) = cbc_index_build($pdo, $rows, $pathTitles, $stale, $limit);
+    if ($err !== null) fail($err, 502);
+    ok(array('done' => $done, 'remaining' => max(0, count($stale) - $done), 'total' => count($rows)));
+  }
+
   case 'ai_search': {
-    // 自然文の質問に最も関連する項目をAIが選ぶ（意味で探す）。ここでは項目選択だけを行い、
-    // 一覧をすぐ返す（出力が短いぶん応答が速い）。まとめ文は別リクエスト（ai_search_summary）で取得する
-    // ——理由は下記参照。AIが0件だった場合は、キーワードの部分一致で補う（検索が空振りにならないように）。
-    if (function_exists('set_time_limit')) @set_time_limit(90);
+    // 意味で探す検索。従来は「全項目をAIに渡して選ばせる」方式だったが、生成APIは応答が秒単位で遅く、
+    // 無料枠も小さいため、キーワード検索より遅くて不便になっていた。
+    // そこで、あらかじめ作っておいた索引（各項目のベクトル）を使い、
+    //   ・AIに投げるのは「質問文1件のベクトル化」だけ（短いので速い・枠に優しい）
+    //   ・項目との照合はサーバー内の計算（内積）で行う
+    // という方式にした。さらにキーワード一致のスコアも足し合わせ（ハイブリッド）、
+    // 型番などの完全一致にも、言い換え・同義語にも強くしている。
+    if (function_exists('set_time_limit')) @set_time_limit(60);
     $s = require_login($pdo);
     $d = body_json();
     $query = isset($d['q']) ? trim($d['q']) : '';
     if ($query === '') fail('検索語が必要です');
-    $rows = $pdo->query('SELECT id, parent_id, title, body, lock_hash FROM nodes')->fetchAll();
-    if (!$s['is_admin']) $rows = cbc_filter_allowed($rows, cbc_user_allowed($pdo, $s['username'])); // 権限内のみ
-    if (!$rows) ok(array('results' => array()));
-    $byId = array();
-    foreach ($rows as $r) $byId[$r['id']] = $r;
-    // 各項目の見出しパス（TOPからの階層）とプレーンテキスト本文を先に用意し、
-    // AIへのプロンプトと、後述のキーワード一致フォールバックの両方で使い回す。
-    $pathTitles = array(); $plainBody = array();
-    foreach ($rows as $r) {
-      $path = array(); $cur = $r; $guard = 0;
-      while ($cur && $guard++ < 20) {
-        array_unshift($path, $cur['title']);
-        $pid = $cur['parent_id'];
-        $cur = ($pid !== null && $pid !== '' && isset($byId[$pid])) ? $byId[$pid] : null;
+
+    list($rows, $pathTitles, $stale) = cbc_index_scan($pdo);
+    if (!$rows) ok(array('results' => array(), 'mode' => 'empty'));
+    // 権限で見えない項目は最初から除外する
+    $visible = $s['is_admin'] ? $rows : cbc_filter_allowed($rows, cbc_user_allowed($pdo, $s['username']));
+    if (!$visible) ok(array('results' => array(), 'mode' => 'empty'));
+    $lockById = array();
+    foreach ($pdo->query('SELECT id, lock_hash FROM nodes') as $lr) $lockById[$lr['id']] = $lr['lock_hash'];
+
+    // 編集直後など、古くなった索引がわずかならこの場で作り直す（通常は0〜1件なので体感に影響しない）。
+    // 大量に未作成のとき（初回導入時など）はここでは作らず、キーワード検索で結果を出しつつ
+    // 「索引を作ってください」と伝える。検索を待たせないための割り切り。
+    $needIndex = false;
+    if ($stale) {
+      if (count($stale) <= 20) {
+        list($bd, $berr) = cbc_index_build($pdo, $rows, $pathTitles, $stale, 20);
+        if ($berr !== null) $needIndex = true;
+      } else {
+        $needIndex = true;
       }
-      $pathTitles[$r['id']] = $path;
-      $plainBody[$r['id']] = cbc_html_to_plain($r['body']);
     }
+
+    // キーワードのスコア（0〜1に正規化）。ここはAI不要で一瞬。
     $terms = cbc_search_terms($query);
-    // 項目数が多いプロジェクトでは、全項目をそのままAIに渡すとプロンプトが大きくなり、応答が遅くなる。
-    // そこで簡易キーワード一致（AI不要・一瞬で終わる）で先に当たりを付け、候補を絞ってからAIに渡す。
-    $candidateRows = $rows;
-    if (count($rows) > 60) {
-      $scored = array();
-      foreach ($rows as $r) {
-        $hay = mb_strtolower(implode(' ', $pathTitles[$r['id']]) . ' ' . $plainBody[$r['id']]);
-        $scored[] = array('row' => $r, 'score' => cbc_keyword_score($terms, $hay));
+    $kw = array();
+    $kwMax = 0;
+    foreach ($visible as $r) {
+      $hay = mb_strtolower(implode(' ', $pathTitles[$r['id']]) . ' ' . cbc_html_to_plain($r['body']));
+      $sc = cbc_keyword_score($terms, $hay);
+      // 見出しに含まれる語は本文より重みを大きくする（タイトル一致は意図に近いことが多い）
+      $headHay = mb_strtolower(implode(' ', $pathTitles[$r['id']]));
+      $sc += cbc_keyword_score($terms, $headHay);
+      $kw[$r['id']] = $sc;
+      if ($sc > $kwMax) $kwMax = $sc;
+    }
+
+    // 意味の近さ（ベクトルの内積）。索引と質問の両方がそろったときだけ使う。
+    $sim = array();
+    $mode = 'keyword';
+    $embedErr = null;
+    if (!$needIndex) {
+      list($qvecs, $qerr) = cbc_embed_texts($pdo, array($query), 'RETRIEVAL_QUERY');
+      if ($qerr === null && !empty($qvecs[0])) {
+        $qv = cbc_vec_normalize($qvecs[0]);
+        $st = $pdo->query('SELECT node_id, vec FROM node_vectors');
+        foreach ($st as $v) {
+          if (!isset($kw[$v['node_id']])) continue; // 権限外・削除済み
+          $sim[$v['node_id']] = cbc_vec_dot($qv, cbc_vec_unpack($v['vec']));
+        }
+        if ($sim) $mode = 'semantic';
+      } else {
+        $embedErr = $qerr;
       }
-      usort($scored, function ($a, $b) { return $b['score'] - $a['score']; });
-      $candidateRows = array();
-      foreach (array_slice($scored, 0, 60) as $sc) $candidateRows[] = $sc['row'];
     }
-    // 項目選択の出力は id と短い理由だけなので、内容は「どれが関連しそうか」を判断できる短さで十分
-    // （まとめに使う本文全体は、選ばれた項目だけを対象に ai_search_summary で別途取得する）。
-    $snippetLen = (count($rows) > 60) ? 300 : 350;
-    $lines = array();
-    foreach ($candidateRows as $r) {
-      $snippet = mb_substr($plainBody[$r['id']], 0, $snippetLen);
-      $snippet = str_replace(array("\r", "\n"), ' ', $snippet);
-      $lines[] = '- id:' . $r['id'] . ' | 見出し:' . implode(' > ', $pathTitles[$r['id']]) . ' | 内容:' . $snippet;
+
+    // 類似度の絶対値はモデルによって尺度が違う（0.8前後に固まるモデルもあれば、0.3台のモデルもある）。
+    // 固定のしきい値だと「全部通る」か「全部落ちる」になりやすいため、
+    // 一番近い項目を基準にした相対的な近さで足切りする（最低ラインだけ絶対値で押さえる）。
+    // ここは「一番近い項目から SIM_MARGIN 以内なら関連あり」と見なす、という1つの定数で決まる。
+    // 実際の項目で緩い／厳しいと感じたら、この値だけを調整すればよい（大きくすると候補が増える）。
+    $SIM_MARGIN = 0.10;
+    $bestSim = null;
+    foreach ($sim as $v) { if ($bestSim === null || $v > $bestSim) $bestSim = $v; }
+    $simCut = ($bestSim === null) ? null : max(0.15, $bestSim - $SIM_MARGIN);
+
+    // ハイブリッドの合成スコア。意味の近さを主、キーワード一致を補助にする。
+    // 意味検索が使えないときはキーワードだけで並べる（＝必ず何かしら結果が出る）。
+    $scored = array();
+    foreach ($visible as $r) {
+      $id = $r['id'];
+      $sv = isset($sim[$id]) ? $sim[$id] : null;
+      $kvn = $kwMax > 0 ? ($kw[$id] / $kwMax) : 0;
+      $semOk = ($sv !== null && $simCut !== null && $sv >= $simCut);
+      if ($mode === 'semantic') {
+        // 意味的にも語句的にも当たらないものは落とす（無関係な項目を並べない）
+        if (!$semOk && $kw[$id] <= 0) continue;
+        $score = ($sv === null ? 0 : $sv) + 0.25 * $kvn;
+      } else {
+        if ($kw[$id] <= 0) continue;
+        $score = $kvn;
+      }
+      $scored[] = array('id' => $id, 'score' => $score, 'sim' => $sv, 'kw' => $kw[$id], 'sem' => $semOk);
     }
-    $prompt = "あなたは社内作業マニュアルの検索アシスタントです。利用者は人に話しかけるような自然な言い方"
-      . "（会話文・言い換え・省略・多少の誤字を含む）で質問します。\n"
-      . "下の【項目一覧】から、質問の意図・同義語・関連する製品名/型番/略称・言い換えも考慮して、関連度が高い順に最大6件選んでください。"
-      . "文字が完全一致していなくても、意味や文脈が関連していれば積極的に候補に含めてください。"
-      . "完全に無関係なときのみ items を空配列にしてください。\n"
-      . "出力は次の形のJSONオブジェクトだけとし、JSON以外は一切出力しないこと:\n"
-      . "{\"items\":[{\"id\":\"項目ID\",\"reason\":\"関連する理由（日本語40字以内）\"}],\"ask\":null}\n"
-      . "【askについて】質問が具体的で、どの項目を見ればよいか自信をもって決められるときは必ず \"ask\":null にしてください。\n"
-      . "そうではなく、質問が曖昧で解釈が複数あり、そのままでは適切な項目を1つに絞れない場合"
-      . "（例：対象の機種・店舗・状況が分からないと手順が変わる、言葉が短すぎて意図が取れない）に限り、"
-      . "\"ask\":{\"question\":\"利用者への確認の質問（日本語50字以内）\",\"options\":[\"選択肢\",\"選択肢\"]} を返してください。\n"
-      . "・選択肢は2〜4個。必ず【項目一覧】に実在する内容（機種名・作業の種類・状況など）から作り、"
-      . "利用者がどれかを選べば実際の項目にたどり着けるようにしてください。存在しない選択肢を作らないこと。\n"
-      . "・選択肢は1つ20字以内の短い語句にしてください。\n"
-      . "・ask を返す場合も、その時点で関連しそうな項目は items に入れてください。\n\n"
-      . "【質問】" . $query . "\n\n【項目一覧】\n" . implode("\n", $lines);
-    $text = cbc_gemini($pdo, $prompt, true, 1100);
-    $arr = cbc_json_extract_list($text);
-    $ask = cbc_json_extract_ask($text);
-    $results = array(); $seen = array();
-    foreach ($arr as $item) {
-      if (!is_array($item) || !isset($item['id']) || !isset($byId[$item['id']])) continue;
-      $id = (string)$item['id'];
-      if (isset($seen[$id])) continue;
-      $seen[$id] = true;
+    usort($scored, function ($a, $b) { return ($b['score'] < $a['score']) ? -1 : (($b['score'] > $a['score']) ? 1 : 0); });
+
+    // 意味検索が効いているときは、近いものだけを絞って出す（多く並べるほど、どれを見ればよいか迷うため）。
+    // 語句一致だけのときは取りこぼしを避けたいので、やや多めに出す。
+    $maxOut = ($mode === 'semantic') ? 5 : 8;
+    $results = array();
+    foreach (array_slice($scored, 0, $maxOut) as $sc) {
+      $id = $sc['id'];
+      // 何で当たったのかが分かるよう、理由を短く添える（AIに書かせないので追加コストは無い）
+      if ($sc['sem'] && $sc['kw'] > 0) $reason = '内容が近く、語句も一致しています';
+      elseif ($sc['sem']) $reason = '質問と内容が意味的に近い項目です';
+      elseif ($sc['kw'] > 0) $reason = '語句が一致しています';
+      else $reason = '';
       $results[] = array(
         'id' => $id,
-        'reason' => isset($item['reason']) ? (string)$item['reason'] : '',
-        'title' => $byId[$id]['title'],
+        'reason' => $reason,
+        'title' => $pathTitles[$id][count($pathTitles[$id]) - 1],
         'path' => $pathTitles[$id],
-        'locked' => !empty($byId[$id]['lock_hash']),
-        'source' => 'ai',
+        'locked' => !empty($lockById[$id]),
+        'source' => $sc['sem'] ? 'ai' : 'keyword',
+        'score' => round($sc['score'], 4),
       );
-      if (count($results) >= 6) break;
     }
-    // AIが「該当なし」と判断した／応答をうまく解釈できなかったときは、単純な部分一致で補う
-    // （こちらは候補を絞らず全項目が対象。事前絞り込みで漏れた項目でも、この最終フォールバックでは拾える）。
-    if (!$results) {
-      $scored = array();
-      foreach ($rows as $r) {
-        $hay = mb_strtolower(implode(' ', $pathTitles[$r['id']]) . ' ' . $plainBody[$r['id']]);
-        $score = cbc_keyword_score($terms, $hay);
-        if ($score > 0) $scored[] = array('id' => $r['id'], 'score' => $score);
-      }
-      usort($scored, function ($a, $b) { return $b['score'] - $a['score']; });
-      foreach (array_slice($scored, 0, 8) as $sc) {
-        $id = $sc['id'];
-        $results[] = array(
-          'id' => $id, 'reason' => 'キーワードが一致しました',
-          'title' => $byId[$id]['title'], 'path' => $pathTitles[$id],
-          'locked' => !empty($byId[$id]['lock_hash']), 'source' => 'keyword',
-        );
-      }
-    }
-    ok(array('results' => $results, 'ask' => $ask));
+    ok(array(
+      'results' => $results,
+      'mode' => $mode,             // semantic = 意味検索が効いている / keyword = 語句一致のみ
+      'need_index' => $needIndex,  // true なら「索引を作ってください」の案内を出す
+      'embed_error' => $embedErr,
+    ));
   }
 
   case 'ai_search_summary': {
@@ -1330,10 +1588,35 @@ switch ($action) {
       . "・関連項目に書かれていないことは、絶対に推測や一般論で補わないでください。関連項目だけでは質問に答えられない場合は、"
       . "その旨とどの項目に何が書かれているかを正直に述べてください。\n"
       . "・出力はこの書式のプレーンテキストのみとし、JSON化やコードブロック（```）にはしないでください。\n\n"
+      . "【例外：聞き返し】関連項目に複数の異なる手順があり、対象（機種・状況・作業の種類など）が分からないと"
+      . "どれを案内すべきか決められない場合に限り、回答の代わりに次の形式だけを出力してください。\n"
+      . "ASK: 利用者への確認の質問（50字以内）\n"
+      . "- 選択肢1\n"
+      . "- 選択肢2\n"
+      . "選択肢は2〜4個。必ず【関連項目】に実在する内容から作り、選べば実際の手順にたどり着けるようにしてください。"
+      . "対象が明らかなときは聞き返さず、普通に回答してください。\n\n"
       . "【質問】" . $query . "\n\n【関連項目】\n" . implode("\n\n", $secLines);
     list($sumText, $sumErr) = cbc_gemini_soft($pdo, $prompt, false, 1600);
-    $summary = ($sumErr === null && trim((string)$sumText) !== '') ? trim($sumText) : null;
-    ok(array('summary' => $summary));
+    $sumText = ($sumErr === null) ? trim((string)$sumText) : '';
+    // 聞き返しは JSON ではなく行頭の「ASK:」で見分ける。JSONに包むと、文章が長引いて途中で切れたときに
+    // 構文ごと壊れて全部消えてしまうため（以前それで「文章が出ない」不具合が起きた）。
+    // 行頭マーカーなら、たとえ後半が切れても先頭の判定は必ず成立する。
+    $ask = null; $summary = null;
+    if ($sumText !== '' && preg_match('/^ASK[:：]\s*(.+)$/mu', $sumText, $m) && stripos(ltrim($sumText), 'ASK') === 0) {
+      $question = trim($m[1]);
+      $options = array();
+      foreach (preg_split('/\R/u', $sumText) as $line) {
+        if (preg_match('/^\s*[-・*]\s*(.+?)\s*$/u', $line, $om)) {
+          $o = mb_substr(trim($om[1]), 0, 40);
+          if ($o !== '' && !in_array($o, $options, true)) $options[] = $o;
+        }
+        if (count($options) >= 4) break;
+      }
+      // 選べる選択肢が2つ未満なら聞き返しとして成立しないので、通常の回答として扱う
+      if ($question !== '' && count($options) >= 2) $ask = array('question' => mb_substr($question, 0, 120), 'options' => $options);
+    }
+    if ($ask === null && $sumText !== '') $summary = $sumText;
+    ok(array('summary' => $summary, 'ask' => $ask));
   }
 
   case 'login': {

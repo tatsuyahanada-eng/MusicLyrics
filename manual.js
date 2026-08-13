@@ -746,6 +746,63 @@
       syncMsg('AI設定の保存に失敗：' + e.message, true);
     }
     updateAiToggleUI();
+    refreshAiIndexUI();
+  }); }
+
+  /* ---------- 意味検索の索引（管理者のみ・修正画面） ----------
+     各項目の内容をベクトル化して保存しておくと、検索時は質問文だけをAIに送れば済むため大幅に速くなる。
+     項目の追加・編集ぶんは検索時に自動で作り直されるので、ここを押すのは基本的に最初の1回だけ。 */
+  let aiIndexBusy = false;
+  function setAiIndexState(text, cls) {
+    const el = $('#aiIndexState'); if (!el) return;
+    el.textContent = text;
+    el.classList.toggle('is-ok', cls === 'ok');
+    el.classList.toggle('is-warn', cls === 'warn');
+  }
+  async function refreshAiIndexUI() {
+    const box = $('#aiIndexBox'); if (!box) return;
+    // 管理者かつAIが使える状態のときだけ表示する（一般利用者には関係のない設定のため）
+    const show = !!(serverMode() && session && session.isAdmin && hasGemini && aiOn);
+    box.hidden = !show;
+    if (!show || aiIndexBusy) return;
+    try {
+      const d = await apiCall('ai_index_status');
+      const total = Number(d.total) || 0, stale = Number(d.stale) || 0;
+      if (total === 0) setAiIndexState('項目がまだありません', '');
+      else if (stale === 0) setAiIndexState(`✔ 作成済み（${total}件）`, 'ok');
+      else setAiIndexState(`未作成・要更新が ${stale} 件（全 ${total} 件）`, 'warn');
+    } catch (e) { setAiIndexState('状況を取得できませんでした', 'warn'); }
+  }
+  { const btn = $('#aiIndexBtn'); if (btn) btn.addEventListener('click', async () => {
+    if (aiIndexBusy) return;
+    aiIndexBusy = true;
+    btn.disabled = true;
+    const bar = $('#aiIndexBar'), fill = $('#aiIndexBarFill');
+    if (bar) bar.hidden = false;
+    if (fill) fill.style.width = '0%';
+    try {
+      // 一度に全部作るとタイムアウトするため、少しずつ進めて残りが0になるまで繰り返す。
+      let firstTotal = null, guard = 0;
+      for (;;) {
+        const d = await apiCall('ai_index_build', { method: 'POST', body: { limit: 50 } });
+        const remaining = Number(d.remaining) || 0, done = Number(d.done) || 0;
+        if (firstTotal === null) firstTotal = remaining + done;
+        const finished = Math.max(0, firstTotal - remaining);
+        if (fill && firstTotal > 0) fill.style.width = Math.round((finished / firstTotal) * 100) + '%';
+        setAiIndexState(`作成中… ${finished} / ${firstTotal}`, '');
+        if (remaining <= 0) break;
+        if (done <= 0) break;            // 進まなくなったら打ち切る（無限ループ防止）
+        if (++guard > 200) break;        // 念のための上限
+      }
+      if (fill) fill.style.width = '100%';
+      syncMsg('AI検索の索引を作成しました');
+    } catch (e) {
+      syncMsg('索引の作成に失敗：' + e.message, true);
+      setAiIndexState('作成に失敗しました', 'warn');
+    }
+    aiIndexBusy = false;
+    btn.disabled = false;
+    setTimeout(() => { const b = $('#aiIndexBar'); if (b) b.hidden = true; refreshAiIndexUI(); }, 600);
   }); }
 
   function updateInvToggleUI() {
@@ -2916,6 +2973,7 @@
       updateTripToggleUI();
       updateLogoToggleUI();
       applyBrandLogo();
+      refreshAiIndexUI();
       // DB接続が一時的な「接続数オーバー(1040)」で失敗しているだけなら、
       // 少し待って数回だけ自動リトライする（アクセス集中時に怖いエラー画面を出さない）。
       if (!dbConnected && dbError && /too many connections|max_connections|max_user_connections/i.test(dbError) && retry < 3) {
@@ -3118,6 +3176,8 @@
     navModeBtn.classList.toggle('is-active', isNav);
     editModeBtn.classList.toggle('is-active', !isNav);
     breadcrumbBar.style.display = isNav ? '' : 'none';
+    // 修正画面を開くたびに索引の状況を取り直す（起動直後はまだ未ログインで判定できないため）
+    if (!isNav) refreshAiIndexUI();
     if (isNav) {
       // re-validate navPath against possibly edited tree
       navPath = navPath.filter((id) => findNode(id));
@@ -4400,9 +4460,9 @@
     box.hidden = false;
     return true;
   }
-  // AIで探す（意味検索）。まず項目一覧だけを取りに行きすぐ表示し（出力が短く速い）、
-  // AIが意味で見つけていれば、続けてその内容をもとにした「まとめ」を別リクエストで追いかけて取得する。
-  // 一覧を待たせずに出すことと、まとめ生成の失敗が一覧の表示を巻き込まないことの両方を狙っている。
+  // AIで探す（意味検索）。あらかじめ作った索引を使うので、AIに投げるのは「質問文のベクトル化」だけ。
+  // 一覧はほぼ待たずに出る。続けて、その中身をもとにした「まとめ」を別リクエストで追いかけて取得する
+  // （まとめの生成だけは時間がかかるため、一覧の表示を待たせない）。
   async function runAiSearch() {
     const q = searchInput.value.trim();
     if (!q) { searchMetaEl.textContent = ''; searchResultsEl.innerHTML = '<div class="tm-sr-empty">質問やキーワードを入力してから「AIで探す」を押してください。</div>'; return; }
@@ -4411,16 +4471,16 @@
     // 上書きしてしまうことがあるため、AI検索を始める時点でキャンセルしておく。
     clearTimeout(searchDebounce);
     const gen = ++aiSearchGen;
-    searchMetaEl.textContent = 'AIが探しています…';
-    searchResultsEl.innerHTML = '<div class="tm-sr-empty">&#10024; AIが関連する項目を探しています…</div>';
+    searchMetaEl.textContent = '探しています…';
+    searchResultsEl.innerHTML = '<div class="tm-sr-empty">&#10024; 関連する項目を探しています…</div>';
     const sumBox = $('#aiSearchSummary'), sumBody = $('#aiSearchSummaryBody'), sumSrc = $('#aiSearchSummarySources');
     if (sumBox) sumBox.hidden = true;
     if (sumSrc) sumSrc.innerHTML = '';
     const askBox = $('#aiSearchAsk');
     if (askBox) askBox.hidden = true;
     try {
-      // ツリーが手元で少し古いままだと、AIが見つけた項目をこの端末で解決できず結果が消えてしまうことがあるため、
-      // AI検索と並行して最新のツリーを取り直しておく（結果表示自体はサーバーが返す情報を優先して使う）。
+      // ツリーが手元で少し古いままだと、見つけた項目をこの端末で解決できず結果が消えてしまうことがあるため、
+      // 検索と並行して最新のツリーを取り直しておく（結果表示自体はサーバーが返す情報を優先して使う）。
       const [d] = await Promise.all([
         apiCall('ai_search', { method: 'POST', body: { q } }),
         reloadFromServer().catch(() => {}),
@@ -4438,41 +4498,46 @@
           pathTitles, idPath: path ? path.map((n) => n.id) : null, locked, source: r.source || 'ai' };
       });
       searchResultData = results;
-      const aiCount = results.filter((r) => r.source === 'ai').length;
-      const kwCount = results.length - aiCount;
-      searchMetaEl.innerHTML = kwCount
-        ? `&#128269; キーワード一致 ${kwCount} 件（AIでは見つかりませんでした）`
-        : `&#10024; AIの候補 ${aiCount} 件`;
-      // 質問だけでは項目を絞りきれないとAIが判断したときは、選択肢つきで聞き返す。
-      // 選ぶと、その内容を検索欄に足して探し直すので、少ないやり取りで目的の項目にたどり着ける。
-      const asked = renderAiSearchAsk(d.ask, q);
+      const semantic = (d.mode === 'semantic');
+      // 索引がまだ無い／作りかけのときは、語句一致だけの結果になる。黙って質を落とさず、理由を伝える。
+      let note = '';
+      if (d.need_index) {
+        note = session && session.isAdmin
+          ? '<span class="tm-sr-note">（意味検索の索引が未作成です。修正画面の「AI検索の索引」で作成してください）</span>'
+          : '<span class="tm-sr-note">（意味検索の準備中のため、語句一致で表示しています）</span>';
+      } else if (!semantic && d.embed_error) {
+        note = '<span class="tm-sr-note">（意味検索を利用できないため、語句一致で表示しています）</span>';
+      }
+      searchMetaEl.innerHTML = (semantic
+        ? `&#10024; 意味で検索 ${results.length} 件`
+        : `&#128269; 語句一致 ${results.length} 件`) + note;
       if (!results.length) {
-        searchResultsEl.innerHTML = asked
-          ? '<div class="tm-sr-empty">上の選択肢から選ぶと、その内容で探し直します。</div>'
-          : '<div class="tm-sr-empty">関連する項目が見つかりませんでした。言い方を変えて再度お試しください。</div>';
+        searchResultsEl.innerHTML = '<div class="tm-sr-empty">関連する項目が見つかりませんでした。言い方を変えて再度お試しください。</div>';
         return;
       }
       searchResultsEl.innerHTML = results.map((r, i) => {
         const pathHtml = '<span class="tm-sr-root">TOP</span>' +
           r.pathTitles.map((t) => `<span class="tm-sr-sep">&#8250;</span><span class="tm-sr-seg">${esc(t)}</span>`).join('');
-        const badge = (r.source === 'keyword') ? '<span class="tm-sr-kwbadge">&#128269; キーワード</span>' : '<span class="tm-sr-aibadge">&#10024; AI</span>';
+        const badge = (r.source === 'keyword') ? '<span class="tm-sr-kwbadge">&#128269; 語句</span>' : '<span class="tm-sr-aibadge">&#10024; 意味</span>';
         return `<button class="tm-sr-item" data-idx="${i}" type="button">
           <div class="tm-sr-path">${badge}${pathHtml}</div>
           <div class="tm-sr-title">${esc(r.title)}${r.locked ? '<span class="tm-sr-tag">&#128274;</span>' : ''}</div>
           ${r.reason ? `<div class="tm-sr-snippet">${esc(r.reason)}</div>` : ''}
         </button>`;
       }).join('');
-      // AIが意味で見つけたときだけ、続けてまとめを取りに行く（一覧はもう表示済みなので、ここで待たせない）。
-      // 聞き返し中は、どの解釈でまとめるべきかがまだ決まっていないため、まとめは作らない
-      // （精度の低いまとめを出さずに済み、AIの利用回数も節約できる。選択肢を選べば改めて作られる）。
-      if (AI_SEARCH_SUMMARY_ENABLED && !asked && aiCount && results[0].source === 'ai' && sumBox && sumBody) {
+      // ここからが本来AIが得意なところ：見つかった項目の中身を読んで、質問への答えを文章にまとめる。
+      // 生成には時間がかかるため、一覧を出したあとに追いかけて取得する。
+      // 対象を1つに絞れないとAIが判断した場合は、まとめの代わりに選択肢つきの聞き返しが返る。
+      if (AI_SEARCH_SUMMARY_ENABLED && sumBox && sumBody) {
         sumBody.textContent = '';
-        sumBody.innerHTML = '<span class="tm-sr-loading">&#10024; AIがまとめを作成中…</span>';
+        sumBody.innerHTML = '<span class="tm-sr-loading">&#10024; AIが手順をまとめています…</span>';
         sumBox.hidden = false;
         const srcIds = results.slice(0, 3).map((r) => r.id);
         apiCall('ai_search_summary', { method: 'POST', body: { q, ids: srcIds } }).then((sd) => {
           if (gen !== aiSearchGen) return; // 別の検索が始まっていれば無視
-          if (sd.summary) {
+          if (sd.ask && renderAiSearchAsk(sd.ask, q)) {
+            sumBox.hidden = true; // 聞き返しに切り替える（まとめは出さない）
+          } else if (sd.summary) {
             sumBody.innerHTML = renderBody(sd.summary);
             renderAiSummarySources(srcIds, results);
             sumBox.hidden = false;
