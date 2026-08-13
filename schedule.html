@@ -13,7 +13,7 @@
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="default">
   <meta name="apple-mobile-web-app-title" content="Scheduler">
-  <link rel="stylesheet" href="schedule.css?v=12">
+  <link rel="stylesheet" href="schedule.css?v=13">
 </head>
 <body class="sc-body">
 
@@ -272,7 +272,7 @@
 
       <div class="sc-settings">
         <label class="sc-field">
-          <span class="sc-field-label">移動・準備の余裕時間（枠が続く場合も警告したいとき）</span>
+          <span class="sc-field-label">移動・準備の余裕時間（予定の間があいているとき用。続けて入る予定は対象外）</span>
           <select id="bufferMin" class="sc-input sc-input-sm">
             <option value="0">なし（時間が重なる時だけ警告）／既定</option>
             <option value="30">30分</option>
@@ -346,6 +346,6 @@ Require valid-user</pre>
 
   <div id="toast" class="sc-toast" role="status" aria-live="polite" hidden></div>
 
-  <script src="schedule.js?v=12"></script>
+  <script src="schedule.js?v=13"></script>
 </body>
 </html>

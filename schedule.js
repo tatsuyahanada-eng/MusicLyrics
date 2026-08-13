@@ -429,6 +429,9 @@ function relation(a, b, buffer) {
   const A = jobRange(a);
   const B = jobRange(b);
   if (A.s < B.e && B.s < A.e) return 'overlap';
+  // 片方の終わりともう片方の始まりがちょうど同じ（18:00終了 → 18:00開始）は、
+  // 続けて入る予定として扱い、余裕時間の設定にかかわらず警告しない。
+  if (A.e === B.s || B.e === A.s) return null;
   // 終日予定には開始・終了の境目がないため、移動・準備時間は判定しない。
   // （そうしないと、隣り合う日の終日予定どうしが誤って「間隔不足」になる）
   if (a.allDay || b.allDay) return null;
