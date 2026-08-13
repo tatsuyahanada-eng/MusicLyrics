@@ -86,6 +86,32 @@ function cbc_json_extract_search_obj($text) {
   $summary = (isset($data['summary']) && is_string($data['summary']) && trim($data['summary']) !== '') ? trim($data['summary']) : null;
   return array('summary' => $summary, 'items' => $items);
 }
+/* AIの応答テキストから「聞き返し」（質問が曖昧なときの確認質問と選択肢）を取り出す。
+   {"ask":{"question":"...","options":["...","..."]}} を想定。項目一覧の抽出（cbc_json_extract_list）とは
+   独立して行うため、聞き返しの解釈に失敗しても候補一覧の表示には影響しない。
+   戻り値: null、または array('question' => string, 'options' => array(string)) */
+function cbc_json_extract_ask($text) {
+  $text = trim((string)$text);
+  if (preg_match('/```(?:json)?\s*(.*?)```/is', $text, $m)) $text = trim($m[1]);
+  $data = json_decode($text, true);
+  if (!is_array($data) || !isset($data['ask']) || !is_array($data['ask'])) return null;
+  $a = $data['ask'];
+  $question = isset($a['question']) ? trim((string)$a['question']) : '';
+  if ($question === '') return null;
+  $options = array();
+  if (isset($a['options']) && is_array($a['options'])) {
+    foreach ($a['options'] as $o) {
+      if (!is_string($o) && !is_numeric($o)) continue;
+      $o = trim((string)$o);
+      if ($o === '' || in_array($o, $options, true)) continue;
+      $options[] = mb_substr($o, 0, 40);
+      if (count($options) >= 4) break;
+    }
+  }
+  // 選択肢が無い（または1つしかない）聞き返しは、利用者が次に進む手がかりにならないため出さない
+  if (count($options) < 2) return null;
+  return array('question' => mb_substr($question, 0, 120), 'options' => $options);
+}
 /* 日本語は空白区切りが無いため、英数字の並び（製品名・型番など）と、それ以外（漢字・かな等）の
    連続部分を、それぞれ別の単語として切り出す（簡易的な部分一致・関連度スコア用の単語分割）。 */
 function cbc_search_terms($query) {
@@ -1193,13 +1219,23 @@ switch ($action) {
     }
     $prompt = "あなたは社内作業マニュアルの検索アシスタントです。利用者は人に話しかけるような自然な言い方"
       . "（会話文・言い換え・省略・多少の誤字を含む）で質問します。\n"
-      . "下の【項目一覧】から、質問の意図・同義語・関連する製品名/型番/略称・言い換えも考慮して、関連度が高い順に最大6件選び、"
-      . "JSON配列だけを出力してください。文字が完全一致していなくても、意味や文脈が関連していれば積極的に候補に含めてください。"
-      . "完全に無関係なときのみ空配列 [] にしてください。\n"
-      . "各要素は {\"id\":\"項目ID\",\"reason\":\"関連する理由（日本語40字以内）\"} の形式。JSON以外は一切出力しないこと。\n\n"
+      . "下の【項目一覧】から、質問の意図・同義語・関連する製品名/型番/略称・言い換えも考慮して、関連度が高い順に最大6件選んでください。"
+      . "文字が完全一致していなくても、意味や文脈が関連していれば積極的に候補に含めてください。"
+      . "完全に無関係なときのみ items を空配列にしてください。\n"
+      . "出力は次の形のJSONオブジェクトだけとし、JSON以外は一切出力しないこと:\n"
+      . "{\"items\":[{\"id\":\"項目ID\",\"reason\":\"関連する理由（日本語40字以内）\"}],\"ask\":null}\n"
+      . "【askについて】質問が具体的で、どの項目を見ればよいか自信をもって決められるときは必ず \"ask\":null にしてください。\n"
+      . "そうではなく、質問が曖昧で解釈が複数あり、そのままでは適切な項目を1つに絞れない場合"
+      . "（例：対象の機種・店舗・状況が分からないと手順が変わる、言葉が短すぎて意図が取れない）に限り、"
+      . "\"ask\":{\"question\":\"利用者への確認の質問（日本語50字以内）\",\"options\":[\"選択肢\",\"選択肢\"]} を返してください。\n"
+      . "・選択肢は2〜4個。必ず【項目一覧】に実在する内容（機種名・作業の種類・状況など）から作り、"
+      . "利用者がどれかを選べば実際の項目にたどり着けるようにしてください。存在しない選択肢を作らないこと。\n"
+      . "・選択肢は1つ20字以内の短い語句にしてください。\n"
+      . "・ask を返す場合も、その時点で関連しそうな項目は items に入れてください。\n\n"
       . "【質問】" . $query . "\n\n【項目一覧】\n" . implode("\n", $lines);
-    $text = cbc_gemini($pdo, $prompt, true, 900);
+    $text = cbc_gemini($pdo, $prompt, true, 1100);
     $arr = cbc_json_extract_list($text);
+    $ask = cbc_json_extract_ask($text);
     $results = array(); $seen = array();
     foreach ($arr as $item) {
       if (!is_array($item) || !isset($item['id']) || !isset($byId[$item['id']])) continue;
@@ -1235,7 +1271,7 @@ switch ($action) {
         );
       }
     }
-    ok(array('results' => $results));
+    ok(array('results' => $results, 'ask' => $ask));
   }
 
   case 'ai_search_summary': {

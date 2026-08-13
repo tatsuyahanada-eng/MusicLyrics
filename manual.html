@@ -9,7 +9,7 @@
   <link rel="manifest" href="manifest.webmanifest">
   <link rel="icon" href="icon.svg" type="image/svg+xml">
   <link rel="apple-touch-icon" href="icon-192.png">
-  <link rel="stylesheet" href="manual.css?v=79">
+  <link rel="stylesheet" href="manual.css?v=80">
 </head>
 <body class="tm-body">
 
@@ -914,6 +914,12 @@
         </ul>
         <p class="tm-aisearch-tips-note">上の書き方は、項目の本文だけでなく「✨ AIによるまとめ」の表示にもそのまま使われます（見出し・箇条書き・太字が整形されて表示されます）。</p>
       </div>
+      <div id="aiSearchAsk" class="tm-aisearch-ask" hidden>
+        <div class="tm-aisearch-ask-head">&#10067; もう少し詳しく教えてください</div>
+        <div id="aiSearchAskQ" class="tm-aisearch-ask-q"></div>
+        <div id="aiSearchAskOpts" class="tm-aisearch-ask-opts"></div>
+        <p class="tm-aisearch-ask-note">選ぶと、その内容で探し直します（検索欄に直接書き足してもかまいません）。</p>
+      </div>
       <div id="aiSearchSummary" class="tm-aisearch-summary" hidden>
         <div class="tm-aisearch-summary-head">&#10024; AIによるまとめ</div>
         <div id="aiSearchSummaryBody" class="tm-ai-summary"></div>
@@ -1089,6 +1095,6 @@
   </dialog>
 
   <script src="vendor/xlsx.full.min.js"></script>
-  <script src="manual.js?v=94"></script>
+  <script src="manual.js?v=95"></script>
 </body>
 </html>

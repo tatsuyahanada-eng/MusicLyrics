@@ -4322,6 +4322,12 @@
     return out;
   }
   function renderSearchResults() {
+    // 通常のキーワード検索を描画し直すときは、前回のAI検索の結果（まとめ・聞き返し）を必ず消す。
+    // 残したままだと、下の一覧は新しい語のものなのに上のまとめは前の質問のもの、という食い違いが起きる。
+    // 追いかけて届く「まとめ」も無効化する（世代を進めることで、到着しても捨てられる）。
+    aiSearchGen++;
+    { const b = $('#aiSearchSummary'); if (b) b.hidden = true; }
+    { const b = $('#aiSearchAsk'); if (b) b.hidden = true; }
     const q = searchInput.value;
     if (!q.trim()) {
       searchMetaEl.textContent = '';
@@ -4381,6 +4387,19 @@
     }).join('');
     sumSrc.innerHTML = chips;
   }
+  // AIからの聞き返し（確認の質問と選択肢）を描画する。表示できたら true を返す。
+  // 選択肢は「今の質問に足す言葉」として使うため、元の質問文も一緒に持たせておく。
+  function renderAiSearchAsk(ask, baseQuery) {
+    const box = $('#aiSearchAsk'), qEl = $('#aiSearchAskQ'), optsEl = $('#aiSearchAskOpts');
+    if (!box || !qEl || !optsEl) return false;
+    const opts = (ask && Array.isArray(ask.options)) ? ask.options.filter((o) => typeof o === 'string' && o.trim()) : [];
+    if (!ask || !ask.question || opts.length < 2) { box.hidden = true; return false; }
+    qEl.textContent = ask.question;
+    optsEl.innerHTML = opts.map((o) => `<button class="tm-aisearch-askopt" type="button" data-askopt="${esc(o)}">${esc(o)}</button>`).join('');
+    optsEl.dataset.baseq = baseQuery;
+    box.hidden = false;
+    return true;
+  }
   // AIで探す（意味検索）。まず項目一覧だけを取りに行きすぐ表示し（出力が短く速い）、
   // AIが意味で見つけていれば、続けてその内容をもとにした「まとめ」を別リクエストで追いかけて取得する。
   // 一覧を待たせずに出すことと、まとめ生成の失敗が一覧の表示を巻き込まないことの両方を狙っている。
@@ -4397,6 +4416,8 @@
     const sumBox = $('#aiSearchSummary'), sumBody = $('#aiSearchSummaryBody'), sumSrc = $('#aiSearchSummarySources');
     if (sumBox) sumBox.hidden = true;
     if (sumSrc) sumSrc.innerHTML = '';
+    const askBox = $('#aiSearchAsk');
+    if (askBox) askBox.hidden = true;
     try {
       // ツリーが手元で少し古いままだと、AIが見つけた項目をこの端末で解決できず結果が消えてしまうことがあるため、
       // AI検索と並行して最新のツリーを取り直しておく（結果表示自体はサーバーが返す情報を優先して使う）。
@@ -4422,7 +4443,15 @@
       searchMetaEl.innerHTML = kwCount
         ? `&#128269; キーワード一致 ${kwCount} 件（AIでは見つかりませんでした）`
         : `&#10024; AIの候補 ${aiCount} 件`;
-      if (!results.length) { searchResultsEl.innerHTML = '<div class="tm-sr-empty">関連する項目が見つかりませんでした。言い方を変えて再度お試しください。</div>'; return; }
+      // 質問だけでは項目を絞りきれないとAIが判断したときは、選択肢つきで聞き返す。
+      // 選ぶと、その内容を検索欄に足して探し直すので、少ないやり取りで目的の項目にたどり着ける。
+      const asked = renderAiSearchAsk(d.ask, q);
+      if (!results.length) {
+        searchResultsEl.innerHTML = asked
+          ? '<div class="tm-sr-empty">上の選択肢から選ぶと、その内容で探し直します。</div>'
+          : '<div class="tm-sr-empty">関連する項目が見つかりませんでした。言い方を変えて再度お試しください。</div>';
+        return;
+      }
       searchResultsEl.innerHTML = results.map((r, i) => {
         const pathHtml = '<span class="tm-sr-root">TOP</span>' +
           r.pathTitles.map((t) => `<span class="tm-sr-sep">&#8250;</span><span class="tm-sr-seg">${esc(t)}</span>`).join('');
@@ -4434,7 +4463,9 @@
         </button>`;
       }).join('');
       // AIが意味で見つけたときだけ、続けてまとめを取りに行く（一覧はもう表示済みなので、ここで待たせない）。
-      if (AI_SEARCH_SUMMARY_ENABLED && aiCount && results[0].source === 'ai' && sumBox && sumBody) {
+      // 聞き返し中は、どの解釈でまとめるべきかがまだ決まっていないため、まとめは作らない
+      // （精度の低いまとめを出さずに済み、AIの利用回数も節約できる。選択肢を選べば改めて作られる）。
+      if (AI_SEARCH_SUMMARY_ENABLED && !asked && aiCount && results[0].source === 'ai' && sumBox && sumBody) {
         sumBody.textContent = '';
         sumBody.innerHTML = '<span class="tm-sr-loading">&#10024; AIがまとめを作成中…</span>';
         sumBox.hidden = false;
@@ -4479,6 +4510,15 @@
     const el = e.target.closest('.tm-aisearch-srcchip');
     if (!el) return;
     openSearchResultByIdx(parseInt(el.dataset.idx, 10));
+  }); }
+  // 聞き返しの選択肢を押したら、その言葉を質問に足して探し直す（絞り込みを繰り返せる）
+  { const ao = $('#aiSearchAskOpts'); if (ao) ao.addEventListener('click', (e) => {
+    const el = e.target.closest('[data-askopt]');
+    if (!el) return;
+    const base = (ao.dataset.baseq || '').trim();
+    const pick = el.dataset.askopt || '';
+    searchInput.value = base ? `${base} ${pick}` : pick;
+    runAiSearch();
   }); }
   function closeSearchThen(after) {
     searchOpen = false;

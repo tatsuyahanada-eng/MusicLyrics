@@ -914,6 +914,24 @@ body.tm-dragging .tm-sortrow { cursor: grabbing; }
   font-family: var(--tm-mono); background: rgba(255,255,255,0.08); border-radius: 3px; padding: 0 4px;
 }
 .tm-aisearch-tips-note { margin: 8px 0 0 !important; color: var(--tm-muted) !important; font-weight: 400 !important; }
+/* AIが質問の意図を1つに絞れなかったときの聞き返し（選ぶと、その内容で探し直す） */
+.tm-aisearch-ask {
+  margin: 0 2px 10px; padding: 10px 14px;
+  background: rgba(255, 207, 63, 0.07);
+  border: 1px solid var(--tm-line); border-left: 3px solid var(--tm-warn);
+  border-radius: 8px;
+}
+.tm-aisearch-ask-head { font-size: 12px; font-weight: 700; color: var(--tm-warn); margin-bottom: 6px; }
+.tm-aisearch-ask-q { font-size: 14px; line-height: 1.7; color: var(--tm-text); margin-bottom: 8px; }
+.tm-aisearch-ask-opts { display: flex; flex-wrap: wrap; gap: 6px; }
+.tm-aisearch-askopt {
+  cursor: pointer; font-size: 13px; color: var(--tm-text);
+  background: var(--tm-panel-solid); border: 1px solid var(--tm-line);
+  border-radius: 999px; padding: 6px 14px;
+  transition: border-color .15s, color .15s, background .15s;
+}
+.tm-aisearch-askopt:hover { border-color: var(--tm-cyan); color: var(--tm-cyan); }
+.tm-aisearch-ask-note { font-size: 11px; color: var(--tm-muted); margin: 8px 0 0; }
 .tm-aisearch-summary { margin: 0 2px 10px; }
 .tm-aisearch-summary-head {
   font-size: 12px; font-weight: 700; color: var(--tm-cyan); margin-bottom: 6px;
