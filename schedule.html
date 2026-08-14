@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta http-equiv="Cache-Control" content="no-store">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Task Scheduler</title>
+  <title>VertiCale</title>
   <meta name="description" content="休み希望・稼働可能日の申請から、仮出勤・確定の管理までを1画面で行う業務スケジューラー">
   <meta name="theme-color" content="#1d4ed8">
   <link rel="manifest" href="manifest.webmanifest">
@@ -12,8 +12,8 @@
   <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="default">
-  <meta name="apple-mobile-web-app-title" content="Scheduler">
-  <link rel="stylesheet" href="schedule.css?v=15">
+  <meta name="apple-mobile-web-app-title" content="VertiCale">
+  <link rel="stylesheet" href="schedule.css?v=16">
 </head>
 <body class="sc-body">
 
@@ -21,7 +21,7 @@
     <div class="sc-header-inner">
       <h1 class="sc-header-title">
         <img class="sc-header-logo" src="icons/favicon-32.png" width="20" height="20" alt="">
-        Task Scheduler
+        VertiCale
       </h1>
 
       <nav class="sc-menu" aria-label="メニュー">
@@ -326,7 +326,7 @@
         </p>
         <p class="sc-note"><strong>.htaccess</strong>（ツールと同じフォルダに置く）</p>
         <pre class="sc-code">AuthType Basic
-AuthName "Task Scheduler"
+AuthName "VertiCale"
 AuthUserFile /home/ユーザー名/www/schedule/.htpasswd
 Require valid-user</pre>
         <p class="sc-note">
@@ -357,6 +357,6 @@ Require valid-user</pre>
 
   <div id="toast" class="sc-toast" role="status" aria-live="polite" hidden></div>
 
-  <script src="schedule.js?v=15"></script>
+  <script src="schedule.js?v=16"></script>
 </body>
 </html>

@@ -1,15 +1,15 @@
 /* ============================================================
-   Task Scheduler — Service Worker
+   VertiCale — Service Worker
    画面の表示に必要なファイルを保存しておき、通信が不安定でも開けるようにする。
    予定データの同期（sync.php）は常に通信を行い、キャッシュしない。
    ============================================================ */
 
-const CACHE = 'task-scheduler-v15';
+const CACHE = 'task-scheduler-v16';
 
 const ASSETS = [
   './schedule.html',
-  './schedule.css?v=15',
-  './schedule.js?v=15',
+  './schedule.css?v=16',
+  './schedule.js?v=16',
   './manifest.webmanifest',
   './icons/icon-192.png',
   './icons/icon-512.png',

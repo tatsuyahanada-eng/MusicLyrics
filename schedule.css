@@ -637,6 +637,22 @@
   color: var(--sc-text);
 }
 
+/* まとめて入力モード中、確定に使うボタンを強調する（誤タップ防止の案内とセット） */
+.sc-paint-notice {
+  background: var(--sc-tentative-bg);
+  border: 1px solid var(--sc-tentative);
+  border-radius: 8px;
+  color: #92400e;
+  font-size: 0.72rem;
+  line-height: 1.5;
+  padding: 6px 9px;
+  margin-bottom: 6px;
+}
+.sc-wish-btn-suggest {
+  box-shadow: 0 0 0 2px var(--sc-primary);
+  font-weight: 800;
+}
+
 /* 予定カード */
 .sc-job-card {
   background: #fff;

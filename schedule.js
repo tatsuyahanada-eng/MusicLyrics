@@ -820,9 +820,13 @@ function renderSidePanel() {
 
     <div class="sc-side-block">
       <p class="sc-side-block-title">この日の希望</p>
+      ${(view.paint === 'off' || view.paint === 'available') ? `<p class="sc-paint-notice">
+        まとめて入力（${view.paint === 'off' ? '✕ 休み希望' : '◯ 稼働可'}）を選択中です。
+        誤タップを防ぐため、下のボタンを押して確定してください。
+      </p>` : ''}
       <div class="sc-wish-row">
-        <button type="button" class="sc-wish-btn ${wish === WISH_AVAILABLE ? 'active-available' : ''}" data-wish="available">◯ 稼働可</button>
-        <button type="button" class="sc-wish-btn ${wish === WISH_OFF ? 'active-off' : ''}" data-wish="off">✕ 休み希望</button>
+        <button type="button" class="sc-wish-btn ${wish === WISH_AVAILABLE ? 'active-available' : ''} ${view.paint === 'available' ? 'sc-wish-btn-suggest' : ''}" data-wish="available">◯ 稼働可</button>
+        <button type="button" class="sc-wish-btn ${wish === WISH_OFF ? 'active-off' : ''} ${view.paint === 'off' ? 'sc-wish-btn-suggest' : ''}" data-wish="off">✕ 休み希望</button>
         <button type="button" class="sc-wish-btn ${!wish ? 'active-none' : ''}" data-wish="none">− 未定</button>
       </div>
     </div>
@@ -2110,7 +2114,7 @@ function bindEvents() {
       view.form = blankForm();
       renderAll();
       $('paintHint').textContent = view.paint
-        ? 'まとめて入力中です。ドラッグで一括設定、1日だけクリックするとその日の詳細も開きます。終わったら「選択のみ」に戻してください。'
+        ? 'まとめて入力中です。ドラッグで複数日を一括設定できます。1日だけクリックした場合は反映せず選ぶだけなので、パネルのボタンで確定してください。終わったら「選択のみ」に戻してください。'
         : '日付をクリックすると詳細パネルが開きます。まとめて入力を選ぶと、クリック（ドラッグ）で一括設定できます。';
       document.querySelector('.sc-calendar').classList.toggle('sc-calendar-painting', !!view.paint);
     });
@@ -2122,15 +2126,14 @@ function bindEvents() {
     const cell = ev.target.closest('[data-pick]');
     if (!dateBtn && !cell) return;
 
-    // 希望の塗りは日付ラベルの列だけ
+    // 希望の塗りは日付ラベルの列だけ。
+    // ここではまだ反映しない（1回押しただけで休みになってしまう誤操作を防ぐため）。
+    // ドラッグして2日目に触れた時点でまとめて反映する。1日だけなら endPaint で選ぶだけにする。
     if (dateBtn && view.paint && view.paint !== 'multi') {
       painting = true;
       paintTouched.clear();
       paintTouched.add(dateBtn.dataset.date);
-      applyPaint(dateBtn.dataset.date);
       renderCalendar();
-      renderStats();
-      renderExport();
       return;
     }
 
@@ -2160,8 +2163,12 @@ function bindEvents() {
     if (view.paint && view.paint !== 'multi') {
       const dateBtn = ev.target.closest('[data-role="date"]');
       if (!dateBtn || paintTouched.has(dateBtn.dataset.date)) return;
+      // ここまで来た＝2日目以降に触れた＝ドラッグでの範囲選択と判断し、
+      // 触れた日をまとめて反映する（1日目もまだ反映していなければ含める）。
+      const wasSingle = paintTouched.size === 1;
       paintTouched.add(dateBtn.dataset.date);
-      applyPaint(dateBtn.dataset.date);
+      if (wasSingle) paintTouched.forEach((d) => applyPaint(d));
+      else applyPaint(dateBtn.dataset.date);
       renderCalendar();
       return;
     }
@@ -2186,9 +2193,10 @@ function bindEvents() {
     painting = false;
     if (view.paint === 'multi') { renderAll(); return; }
     if (view.paint) {
-      // 希望を1日だけ押したときは、その日を選んで詳細も開く
+      // 1日だけ押した（ドラッグしなかった）ときは、まだ何も変更していない。
+      // その日を選ぶだけにして、パネルのボタンで確定してもらう（誤タップで休みにならないように）。
       if (paintTouched.size === 1) selectDate(Array.from(paintTouched)[0], { noScroll: true });
-      else renderAll();
+      else renderAll();   // ドラッグして複数日を触れた場合は pointerover 側ですでに反映済み
       return;
     }
     // 選択のみ：1枠だけならその枠を選ぶ。

@@ -1,6 +1,6 @@
 {
-  "name": "Task Scheduler",
-  "short_name": "Scheduler",
+  "name": "VertiCale",
+  "short_name": "VertiCale",
   "description": "休み希望・稼働可能日の申請から、仮出勤・確定の管理までを1画面で行う業務スケジューラー",
   "lang": "ja",
   "dir": "ltr",
