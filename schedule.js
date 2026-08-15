@@ -983,9 +983,35 @@ function monthDayKeys() {
   return keys;
 }
 
+/** 一覧の対象名（見出し・集計に使う） */
+const LIST_TARGET_NAMES = {
+  off: '休み希望日', available: '稼働可能日',
+  confirmed: '確定した稼働日', tentative: '仮出勤の日',
+};
+
+/** 「確定した稼働日」「仮出勤の日」で使う案件の選択肢を作る（プリセット＋実際に使った案件名） */
+function refreshProjectFilterOptions() {
+  const sel = $('projectFilter');
+  if (!sel) return;
+  const prev = sel.value;
+  const used = state.jobs.map((j) => (j.title || '').trim()).filter(Boolean);
+  const all = Array.from(new Set(PROJECT_PRESETS.concat(used)));
+  sel.innerHTML = '<option value="">すべての案件</option>'
+    + all.map((v) => `<option value="${escapeHtml(v)}">${escapeHtml(v)}</option>`).join('');
+  if (all.includes(prev)) sel.value = prev;
+}
+
 function listedDayKeys() {
-  const target = $('listTarget').value;             // 'off' = 休み希望日 / 'available' = 稼働可能日
+  const target = $('listTarget').value;
   const excludeBooked = $('excludeBooked').checked;
+  const project = $('projectFilter').value;
+
+  if (target === 'confirmed' || target === 'tentative') {
+    const wantStatus = target === 'confirmed' ? 'confirmed' : 'tentative';
+    return monthDayKeys().filter((key) => jobsOn(key).some((j) =>
+      (j.status || 'confirmed') === wantStatus && (!project || j.title === project)));
+  }
+
   return monthDayKeys().filter((key) => {
     const w = state.wishes[key] || null;
     if (target === 'off') return w === WISH_OFF;
@@ -999,13 +1025,17 @@ function buildListText() {
   const keys = listedDayKeys();
   const target = $('listTarget').value;
   const format = $('exportFormat').value;
-  const name = target === 'off' ? '休み希望日' : '稼働可能日';
+  const project = $('projectFilter').value;
+  const isProject = (target === 'confirmed' || target === 'tentative') && project;
+  const name = isProject ? `${project} の${LIST_TARGET_NAMES[target]}` : LIST_TARGET_NAMES[target];
   const title = `${view.year}年${view.month + 1}月`;
 
   if (!keys.length) {
-    return target === 'off'
-      ? `${title}の休み希望日は登録されていません。\nカレンダーで「✕ 休み希望」を設定してください。`
-      : `${title}の稼働可能日は登録されていません。\nカレンダーで「◯ 稼働可」を設定してください。`;
+    const howTo = target === 'off' ? 'カレンダーで「✕ 休み希望」を設定してください。'
+      : target === 'available' ? 'カレンダーで「◯ 稼働可」を設定してください。'
+      : isProject ? '案件名や対象の月をご確認ください。'
+      : 'カレンダーで予定を登録すると、ここに表示されます。';
+    return `${title} ${name}は登録されていません。\n${howTo}`;
   }
 
   if (format === 'inline') return keys.map((k) => formatDate(k)).join('、');
@@ -1018,11 +1048,15 @@ function buildListText() {
 
 function renderExport() {
   const target = $('listTarget').value;
-  // 「予定が入っている日は除く」は稼働可能日のときだけ意味がある
+  const isJobTarget = target === 'confirmed' || target === 'tentative';
+  // 「予定が入っている日は除く」は稼働可能日のときだけ、案件の絞り込みは確定・仮出勤のときだけ意味がある
   $('excludeBookedWrap').hidden = target !== 'available';
+  $('projectFilterWrap').hidden = !isJobTarget;
+
+  const project = $('projectFilter').value;
   const keys = listedDayKeys();
-  const name = target === 'off' ? '休み希望' : '稼働可能';
-  $('availCount').textContent = `${view.year}年${view.month + 1}月の${name}：${keys.length}日`;
+  const name = (isJobTarget && project) ? `${project} の${LIST_TARGET_NAMES[target]}` : LIST_TARGET_NAMES[target];
+  $('availCount').textContent = `${view.year}年${view.month + 1}月 ${name}：${keys.length}日`;
   elExportText.value = buildListText();
 }
 
@@ -1150,6 +1184,7 @@ function applySyncedData(data) {
   saveState(true);   // 取り込んだ直後に送り返さない
   syncSettingsInputs();
   refreshWorkTypeOptions();
+  refreshProjectFilterOptions();
   renderAll();
   return true;
 }
@@ -1199,6 +1234,7 @@ async function syncNow(silent, attempt) {
       saveState(true);
       syncSettingsInputs();
       refreshWorkTypeOptions();
+      refreshProjectFilterOptions();
       renderAll();
     }
 
@@ -1768,6 +1804,7 @@ function submitMultiJobs() {
   view.form = blankForm();
   saveState();
   refreshWorkTypeOptions();
+  refreshProjectFilterOptions();
   renderAll();
   toast(`${picks.length}枠に登録しました`);
 }
@@ -1846,6 +1883,7 @@ function submitJob(ev) {
   if (draft.status === 'confirmed') cleanupTentatives(savedId);
 
   refreshWorkTypeOptions();
+  refreshProjectFilterOptions();
   renderAll();
 }
 
@@ -2021,6 +2059,7 @@ function importJson(file) {
       saveState();
       syncSettingsInputs();
       refreshWorkTypeOptions();
+      refreshProjectFilterOptions();
       renderAll();
       toast('バックアップを読み込みました');
     } catch (err) {
@@ -2391,8 +2430,8 @@ function bindEvents() {
     });
   });
 
-  // 休み希望日の一覧
-  ['listTarget', 'exportFormat', 'excludeBooked'].forEach((id) => {
+  // 日付の一覧
+  ['listTarget', 'exportFormat', 'excludeBooked', 'projectFilter'].forEach((id) => {
     $(id).addEventListener('change', renderExport);
   });
 
@@ -2499,6 +2538,7 @@ function bindEvents() {
     saveState(true);
     syncSettingsInputs();
     refreshWorkTypeOptions();
+    refreshProjectFilterOptions();
     renderAll();
 
     if (alsoServer) {
@@ -2614,6 +2654,7 @@ function init() {
   syncSettingsInputs();
   syncSyncInputs();
   refreshWorkTypeOptions();
+  refreshProjectFilterOptions();
   view.form = blankForm();
   bindEvents();
   renderAll();

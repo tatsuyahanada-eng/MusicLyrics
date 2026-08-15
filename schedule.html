@@ -13,7 +13,7 @@
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="default">
   <meta name="apple-mobile-web-app-title" content="VertiCale">
-  <link rel="stylesheet" href="schedule.css?v=16">
+  <link rel="stylesheet" href="schedule.css?v=17">
 </head>
 <body class="sc-body">
 
@@ -26,7 +26,7 @@
 
       <nav class="sc-menu" aria-label="メニュー">
         <button class="sc-menu-item" data-jump="calendar" type="button">カレンダー</button>
-        <button class="sc-menu-item" data-jump="mail" type="button">休み希望日</button>
+        <button class="sc-menu-item" data-jump="mail" type="button">日付をコピー</button>
         <button class="sc-menu-item" data-jump="list" type="button">予定一覧</button>
         <button class="sc-menu-item" data-jump="settings" type="button">設定</button>
       </nav>
@@ -121,11 +121,11 @@
     </aside>
   </main>
 
-  <!-- 休み希望日の一覧 & コピー -->
+  <!-- 日付の一覧 & コピー -->
   <section class="sc-section">
     <div class="sc-section-inner">
       <div class="sc-section-head">
-        <h3 class="sc-section-title" id="sec-mail">📋 休み希望日の一覧</h3>
+        <h3 class="sc-section-title" id="sec-mail">📋 日付をコピー</h3>
         <span id="availCount" class="sc-section-count"></span>
       </div>
 
@@ -135,6 +135,14 @@
           <select id="listTarget" class="sc-input sc-input-sm">
             <option value="off">休み希望日</option>
             <option value="available">稼働可能日</option>
+            <option value="confirmed">確定した稼働日</option>
+            <option value="tentative">仮出勤の日</option>
+          </select>
+        </label>
+        <label class="sc-field" id="projectFilterWrap" hidden>
+          <span class="sc-field-label">案件で絞り込む</span>
+          <select id="projectFilter" class="sc-input sc-input-sm">
+            <option value="">すべての案件</option>
           </select>
         </label>
         <label class="sc-field">
@@ -157,6 +165,9 @@
       <div class="sc-export-actions">
         <button id="copyExport" class="sc-btn">📋 コピー</button>
       </div>
+      <p class="sc-hint">
+        「確定した稼働日」「仮出勤の日」は、案件で絞り込んでからコピーすると、メールなどでその案件の分だけを伝えられます。
+      </p>
     </div>
   </section>
 
@@ -340,7 +351,8 @@ Require valid-user</pre>
         <summary>使い方</summary>
         <ol class="sc-help-list">
           <li><strong>希望を出す</strong>：月を選び「まとめて入力」で稼働可能日・休み希望日をクリックで塗り分けます。</li>
-          <li><strong>伝える</strong>：「休み希望日の一覧」のテキストをコピーして、メールやチャットに貼り付けます。</li>
+          <li><strong>伝える</strong>：「日付をコピー」で、休み希望日・稼働可能日のほか、確定した稼働日や仮出勤の日を
+            案件ごとに絞り込んでコピーできます。メールやチャットに貼り付けてお使いください。</li>
           <li><strong>仮出勤を入れる</strong>：話が来た段階では区分を「仮出勤」にして、業務内容・時間とあわせて
             登録しておきます。仮出勤どうしの重なりも検知します。</li>
           <li><strong>確定にする</strong>：先方から確定の連絡が来たら、予定カードの「確定にする」を押します。
@@ -357,6 +369,6 @@ Require valid-user</pre>
 
   <div id="toast" class="sc-toast" role="status" aria-live="polite" hidden></div>
 
-  <script src="schedule.js?v=16"></script>
+  <script src="schedule.js?v=17"></script>
 </body>
 </html>
