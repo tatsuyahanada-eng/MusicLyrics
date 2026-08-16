@@ -618,10 +618,12 @@ function renderCalendar() {
           return d2 && d2.kind === 'early';
         });
         if (early) {
+          // 30分刻みのマスに区切って、そのうち何マス分早いかで幅を決める
+          // （他の枠のバーと同じ塗りで、あくまで1本のバーに見えるようにする）
           const std = toMinutes(nextSlot.start);
-          const winStart = toMinutes(nextSlot.from);
-          const frac = Math.min(1, Math.max(0, (std - toMinutes(early.start)) / (std - winStart)));
-          const width = Math.round(20 + frac * 60);
+          const totalUnits = (std - toMinutes(slot.start)) / 30;
+          const units = Math.min(totalUnits, Math.max(1, Math.round((std - toMinutes(early.start)) / 30)));
+          const width = Math.round((units / totalUnits) * 100);
           const cls2 = early.status === 'tentative' ? 'sc-vpeek-tentative' : 'sc-vpeek-confirmed';
           const tip = `${escapeHtml(early.title || '(無題)')}が${escapeHtml(shortTime(early.start))}から（${escapeHtml(nextSlot.name)}）`;
           peek = `<span class="sc-vpeek ${cls2}" style="width:${width}%" title="${tip}"></span>`;

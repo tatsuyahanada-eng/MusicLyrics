@@ -491,16 +491,19 @@
 /* 早い開始の予定は左端にも印を出す */
 .sc-vpill-early { box-shadow: inset 3px 0 0 #d97706; padding-left: 6px; }
 
-/* 次の枠が早い開始のとき、手前の枠にも少しだけ色をにじませる */
+/* 次の枠が早い開始のとき、手前の枠にも他の予定バーと同じ塗りで少しだけ色を差し込む
+   （隣の枠のバーからそのまま続いているように見せる。右端はマスの外まで伸ばして隙間を消す） */
 .sc-vpeek {
   position: absolute;
-  top: 0;
-  right: 0;
-  bottom: 0;
+  top: 50%;
+  right: -3px;
+  height: 16.5px;
+  transform: translateY(-50%);
+  border-radius: 4px 0 0 4px;
   pointer-events: none;
 }
-.sc-vpeek-confirmed { background: linear-gradient(to right, transparent, var(--sc-confirmed-bg) 35%, var(--sc-confirmed) 150%); }
-.sc-vpeek-tentative { background: linear-gradient(to right, transparent, var(--sc-tentative-bg) 35%, var(--sc-tentative) 150%); }
+.sc-vpeek-confirmed { background: var(--sc-confirmed); }
+.sc-vpeek-tentative { background: var(--sc-tentative-bg); border: 1px dashed var(--sc-tentative); border-right: 0; }
 
 /* 前の枠から続いている予定は控えめに */
 .sc-vpill-cont {
