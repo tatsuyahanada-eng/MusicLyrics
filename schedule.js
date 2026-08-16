@@ -2327,6 +2327,15 @@ function bindEvents() {
   window.addEventListener('pointerup', endPaint);
   window.addEventListener('pointercancel', endPaint);
 
+  // 選択中に画面がスクロールされたら、それは選択操作ではなくスクロール操作とみなして中止する。
+  // スマホでセルを選んだ状態から下にスクロールしようとすると、スクロールで指の下に
+  // 入れ替わった別のセルに pointerover が飛んでしまい、違う日が選ばれてしまうのを防ぐ。
+  window.addEventListener('scroll', () => {
+    if (!painting) return;
+    painting = false;
+    paintTouched.clear();
+  }, { passive: true });
+
   elCalendar.addEventListener('click', (ev) => {
     const dateBtn = ev.target.closest('[data-role="date"]');
     if (!dateBtn || view.paint) return;

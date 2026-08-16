@@ -1,0 +1,17 @@
+AuthType Basic
+AuthName "VertiCale"
+AuthUserFile /home/ユーザー名/www/schedule/.htpasswd
+Require valid-user
+
+# .htaccess / .htpasswd 自体への直接アクセスを拒否（多くのサーバでは既定で拒否されるが念のため）
+<IfModule mod_authz_core.c>
+  <Files ".ht*">
+    Require all denied
+  </Files>
+</IfModule>
+<IfModule !mod_authz_core.c>
+  <Files ".ht*">
+    Order allow,deny
+    Deny from all
+  </Files>
+</IfModule>
