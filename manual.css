@@ -985,6 +985,19 @@ table.tm-slip-grid.inner2 > tbody > tr > *:last-child { border-right: 0; }
 .tm-slip-cls { padding: 6px 9px; font-size: 10px; line-height: 1.7; color: var(--pm); }
 .tm-slip-cls b { color: var(--pr); }
 .tm-slip-list b.fix { color: var(--tm-warn); }
+/* 現地で記入する欄をひと目で分かるようにする（用紙の上で色を敷く） */
+.tm-slip-grid td.onsite { background: rgba(27, 58, 107, 0.07); }
+.tm-slip-sheet.is-green .tm-slip-grid td.onsite { background: rgba(22, 64, 110, 0.09); }
+.tm-slip-sheet .onsitebox {
+  background: rgba(27, 58, 107, 0.07); border-radius: 3px;
+  padding: 4px 6px; margin-top: 2px;
+}
+.tm-slip-legend { display: flex; align-items: center; gap: 7px; font-size: 12px; color: var(--tm-muted); margin: 2px 0 0; }
+.tm-slip-legend b { color: var(--tm-text); }
+.tm-slip-legendbox {
+  width: 15px; height: 15px; flex: none; border-radius: 3px;
+  background: rgba(27, 58, 107, 0.10); border: 1px solid var(--tm-line-strong);
+}
 .tm-slip-tag { font-size: 10px; color: var(--pm); margin-bottom: 5px; }
 .tm-slip-sheethead { display: flex; align-items: flex-end; justify-content: space-between; gap: 14px; margin-bottom: 9px; flex-wrap: wrap; }
 .tm-slip-sheettitle {

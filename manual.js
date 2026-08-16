@@ -4653,7 +4653,7 @@
   if (slipSampleDialog) slipSampleDialog.addEventListener('close', () => { syncTrap(); });
   // 作業をすれば必ずどちらかの伝票を書くため、相談の内容にかかわらず常に入口を出す
   function slipSampleBtnHtml() {
-    return `<button class="tm-chat-slipbtn" type="button" data-slipsample>&#129534; 報告書の記入サンプルを見る</button>`;
+    return `<button class="tm-chat-slipbtn" type="button" data-slipsample>&#129534; 作業完了報告書の記入サンプルを見る</button>`;
   }
 
   function aiChatAskHtml(ask) {

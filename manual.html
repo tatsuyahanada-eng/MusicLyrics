@@ -891,7 +891,7 @@
           <p class="tm-chat-sub">やりたいことを話しかけてください。登録済みの内容から簡易手順にまとめます。</p>
         </div>
         <div class="tm-chat-headbtns">
-          <button type="button" id="aiChatSlipBtn" class="tm-btn tm-btn-outline tm-btn-sm" title="報告書の記入サンプルを開く">&#129534; 報告書サンプル</button>
+          <button type="button" id="aiChatSlipBtn" class="tm-btn tm-btn-outline tm-btn-sm" title="作業完了報告書の記入サンプルを開く">&#129534; 作業完了報告書</button>
           <button type="button" id="aiChatReset" class="tm-btn tm-btn-outline tm-btn-sm" title="会話をリセット">&#8635; 新しい相談</button>
           <button type="button" id="aiChatClose" class="tm-btn tm-btn-outline tm-btn-sm">閉じる</button>
         </div>
@@ -911,8 +911,8 @@
     <div class="tm-dialog-form tm-slip-form">
       <div class="tm-slip-head">
         <div class="tm-slip-headtext">
-          <h2 class="tm-slip-title">&#129534; 報告書 記入サンプル</h2>
-          <p class="tm-slip-sub">POS交換のときに書く報告書の記入例です。青字が手書きで記入する部分です。</p>
+          <h2 class="tm-slip-title">&#129534; 作業完了報告書 記入サンプル</h2>
+          <p class="tm-slip-sub">作業完了報告書の記入例です。青字が手書きで記入する部分です。</p>
         </div>
         <button type="button" id="slipSampleClose" class="tm-btn tm-btn-outline tm-btn-sm">閉じる</button>
       </div>
@@ -933,28 +933,28 @@
             </div>
 
             <table class="tm-slip-grid">
-              <colgroup><col style="width:50px"><col style="width:66px"><col><col style="width:120px"><col style="width:66px"><col style="width:150px"></colgroup>
+              <colgroup><col style="width:50px"><col style="width:62px"><col><col style="width:52px"><col style="width:132px"><col style="width:104px"></colgroup>
               <tr>
                 <th rowspan="3" class="vert">作業先お客様</th>
                 <th>顧客名</th>
-                <td colspan="4"><i class="sm">2</i><span class="sw">店舗名を記入</span>　　様</td>
+                <td colspan="4" class="onsite"><i class="sm">2</i><span class="sw">業態名を記入</span>　　様</td>
               </tr>
               <tr>
-                <th>部署名</th><td><span class="sw"></span></td>
-                <th>TEL</th><td><span class="sw">03-XXXX-XXXX</span></td>
+                <th>部署名</th><td class="onsite"><i class="sm">3</i><span class="sw">店舗名を記入</span></td>
+                <th>TEL</th><td class="onsite"><i class="sm">4</i><span class="sw sml">店舗の電話番号</span></td>
                 <th>ご担当者</th>
               </tr>
               <tr>
                 <th>住所〒</th>
-                <td colspan="4"><i class="sm">3</i><span class="sw">（作業した店舗の住所）</span></td>
+                <td colspan="4" class="onsite"><i class="sm">5</i><span class="sw">〒と店舗の住所</span></td>
               </tr>
             </table>
 
             <table class="tm-slip-grid nt">
-              <colgroup><col style="width:50px"><col style="width:66px"><col><col style="width:120px"><col style="width:66px"><col style="width:150px"></colgroup>
+              <colgroup><col style="width:50px"><col style="width:62px"><col><col style="width:52px"><col style="width:132px"><col style="width:104px"></colgroup>
               <tr>
                 <th rowspan="3" class="vert">ご請求先</th>
-                <th>顧客名</th><td colspan="4"><i class="sm">4</i><span class="tm-slip-note-i">請求先が違うときだけ記入</span>　　様</td>
+                <th>顧客名</th><td colspan="4"><i class="sm">6</i><span class="tm-slip-note-i">請求先が違うときだけ記入</span>　　様</td>
               </tr>
               <tr><th>部署名</th><td></td><th>TEL</th><td></td><th>ご担当者</th></tr>
               <tr><th>住所〒</th><td colspan="4"></td></tr>
@@ -966,10 +966,10 @@
                 <th>サイトIDNo.（左詰）</th><th>作業報告書・B No.</th><th>リクエストIDNo.（左詰）</th><th>作　業　日</th>
               </tr>
               <tr>
-                <td><span class="sw sml">（伝票のサイトID）</span></td>
-                <td class="ctr"><span class="pre">01 -</span> <span class="pre bold">384225</span><div class="tm-slip-note"><i class="sm">5</i>用紙に印刷済み</div></td>
+                <td class="onsite"><i class="sm">7</i><span class="sw sml">障害サイトのID</span></td>
+                <td class="ctr"><span class="pre">01 -</span> <span class="pre bold">384225</span><div class="tm-slip-note"><i class="sm">8</i>用紙に印刷済み</div></td>
                 <td><span class="pre">s v</span></td>
-                <td><i class="sm">6</i><span class="sw">2026</span>/<span class="sw">04</span>/<span class="sw">19</span></td>
+                <td class="onsite"><i class="sm">9</i><span class="sw">2026</span>/<span class="sw">04</span>/<span class="sw">19</span></td>
               </tr>
             </table>
 
@@ -978,13 +978,13 @@
               <tr>
                 <td class="pad0">
                   <table class="tm-slip-grid inner2">
-                    <tr><th class="lft">CE名（</th><td><i class="sm">7</i><span class="sw">自分の名前</span>　）</td></tr>
+                    <tr><th class="lft">CE名（</th><td class="onsite"><i class="sm">10</i><span class="sw">JRS・東京　花田</span>　）</td></tr>
                   </table>
                   <table class="tm-slip-grid inner2">
                     <colgroup><col style="width:74px"><col><col><col><col><col></colgroup>
                     <tr><th>社員CODE</th><th>出発時刻</th><th>開始時刻</th><th>終了時刻</th><th>帰着時間</th><th>交通時間</th></tr>
                     <tr>
-                      <td class="ctr"><i class="sm">8</i><span class="sw">112202</span></td>
+                      <td class="ctr onsite"><i class="sm">11</i><span class="sw">112202</span></td>
                       <td class="ctr"><span class="sw sml">12:30</span></td>
                       <td class="ctr"><span class="sw sml">13:00</span></td>
                       <td class="ctr"><span class="sw sml">15:00</span></td>
@@ -1007,17 +1007,17 @@
             </table>
 
             <table class="tm-slip-grid nt">
-              <colgroup><col style="width:22px"><col style="width:96px"><col style="width:36px"><col style="width:140px"><col><col><col style="width:60px"><col style="width:40px"><col style="width:82px"></colgroup>
+              <colgroup><col style="width:22px"><col style="width:110px"><col style="width:34px"><col style="width:140px"><col><col><col style="width:60px"><col style="width:40px"><col style="width:82px"></colgroup>
               <tr>
                 <th>no</th><th>部品CODE</th><th>個数</th><th>部品名</th><th>納入S/N</th><th>引上S/N</th><th>部品費</th><th>区分</th><th>納入分類区分</th>
               </tr>
               <tr>
                 <td class="ctr">1</td>
-                <td><span class="sw sml">SA-853A-40</span></td>
+                <td class="onsite"><i class="sm">12</i><span class="sw sml">SA-853A-40</span></td>
                 <td class="ctr"><span class="sw sml">1</span></td>
                 <td><span class="sw sml">マルチディスプレイ</span></td>
-                <td><i class="sm">9</i><span class="sw sml">XXXXXXXX（納）</span></td>
-                <td><span class="sw sml">XXXXXXXX（引上）</span></td>
+                <td class="onsite"><i class="sm">13</i><span class="sw sml">XXXXXXXX</span></td>
+                <td class="onsite"><span class="sw sml">XXXXXXXX</span></td>
                 <td></td>
                 <td class="ctr sml">有・<b class="mk">無</b></td>
                 <td class="ctr sml"><b class="mk">代替</b>・貸出・他</td>
@@ -1040,7 +1040,7 @@
                     <div>
                       <div class="tm-slip-lbl">〈現象確認〉</div>
                       <span class="ck on">有り</span><br><span class="ck">無し</span>
-                      <div class="tm-slip-note"><i class="sm">11</i>現地で症状を再現できたか</div>
+                      <div class="tm-slip-note"><i class="sm">20</i>現地で症状を再現できたか</div>
                     </div>
                   </div>
                   <div class="tm-slip-lbl mt">〈発生頻度〉</div>
@@ -1052,8 +1052,8 @@
                   <div class="tm-slip-secttl">処理</div>
                   <span class="ck on">交換しました</span><span class="ck">修理しました</span><span class="ck">再インストールしました</span><br>
                   <span class="ck">見守りとしました</span><span class="ck">問題有りませんこのままご使用下さい</span>
-                  <div class="tm-slip-lbl mt">〈詳細内容を下記に記入〉<i class="sm">13</i></div>
-                  <div class="sw lh2 sml">
+                  <div class="tm-slip-lbl mt">〈詳細内容を下記に記入〉<i class="sm">15</i></div>
+                  <div class="sw lh2 sml onsitebox">
                     3番マルチディスプレイ（SA5D02）<br>
                     本体交換実施（ACアダプターも交換）<br>
                     VNC 再インストール済<br>
@@ -1063,8 +1063,8 @@
               </tr>
               <tr>
                 <td class="pad8 top">
-                  <div class="tm-slip-lbl">内容〈複数台交換時はナンバーを示す〉<i class="sm">12</i></div>
-                  <div class="sw lh2 tallbox">不具合の症状を記入して下さい<br>（例：3番用マルチディスプレイ　画が出ない）</div>
+                  <div class="tm-slip-lbl">内容〈複数台交換時はナンバーを示す〉<i class="sm">14</i></div>
+                  <div class="sw lh2 tallbox onsitebox">不具合の症状を記入して下さい<br>（例：3番用マルチディスプレイ　画が出ない）</div>
                 </td>
                 <td class="pad8"></td>
               </tr>
@@ -1074,12 +1074,12 @@
               <colgroup><col><col style="width:210px"><col style="width:190px"></colgroup>
               <tr>
                 <td class="pad8 top">
-                  <div class="tm-slip-lbl">備考<i class="sm">14</i></div>
-                  <div class="sw lh2 sml"><b class="mk2">SSOL</b><br>代替機 550L　4/20 出荷</div>
+                  <div class="tm-slip-lbl">備考<i class="sm">16</i></div>
+                  <div class="sw lh2 sml onsitebox"><b class="mk2">SSOL</b></div>
                 </td>
                 <td class="pad0">
                   <table class="tm-slip-grid inner2">
-                    <tr><td colspan="2" class="ctr hd">ご　請　求　費<i class="sm">15</i></td></tr>
+                    <tr><td colspan="2" class="ctr hd">ご　請　求　費<i class="sm">17</i></td></tr>
                     <tr><th class="lft">派　遣　費</th><td></td></tr>
                     <tr><th class="lft">技　術　料</th><td></td></tr>
                     <tr><th class="lft">引取修理費</th><td></td></tr>
@@ -1090,7 +1090,7 @@
                   </table>
                 </td>
                 <td class="pad0 top">
-                  <div class="tm-slip-sign"><span class="tm-slip-lbl">ご署名</span><i class="sm">10</i>
+                  <div class="tm-slip-sign"><span class="tm-slip-lbl">ご署名</span><i class="sm">18</i>
                     <div class="sw signline">（店舗の方に記入してもらう）</div>
                   </div>
                   <table class="tm-slip-grid inner2">
@@ -1099,7 +1099,7 @@
                   <div class="tm-slip-cls">
                     <div><b>〈A分類〉</b>1.保証期間中／2.契約保守／3.無契約保守（オンコール）</div>
                     <div><b>〈B分類〉</b>1.無償保守／2.有償保守</div>
-                    <div class="tm-slip-note"><i class="sm">16</i>この2つで請求の扱いが決まります</div>
+                    <div class="tm-slip-note"><i class="sm">19</i>この2つで請求の扱いが決まります</div>
                   </div>
                 </td>
               </tr>
@@ -1108,36 +1108,44 @@
         </div>
 
         <div class="tm-slip-memos">
+          <p class="tm-slip-legend"><span class="tm-slip-legendbox"></span>色の付いた欄が、<b>現地で記入する場所</b>です。</p>
           <h3 class="tm-slip-h3">各欄の書き方</h3>
           <ul class="tm-slip-list">
             <li><i class="sm">1</i><b>発行日</b>：作業した当日の日付。</li>
-            <li class="key"><i class="sm">2</i><b>顧客名（作業先）</b>：店舗の正式名称。似た店名があるのでエリア名まで。</li>
-            <li><i class="sm">3</i><b>住所</b>：作業した店舗の住所。TEL・ご担当者もあわせて。</li>
-            <li><i class="sm">4</i><b>ご請求先</b>：作業先と請求先が違うときだけ記入。同じなら空欄で構いません。</li>
-            <li><i class="sm">5</i><b>作業報告書・B No.</b>：用紙にあらかじめ印刷されています（書き写す必要はありません）。控えを取るときはこの番号で追えます。</li>
-            <li><i class="sm">6</i><b>作業日</b>：西暦で記入。</li>
-            <li><i class="sm">7</i><b>CE名</b>：自分の名前。2人で入ったときは右側の欄にもう1人を書きます。</li>
-            <li class="key"><i class="sm">8</i><b>社員CODE</b>：<b class="fix">112202</b>（固定）。出発・開始・終了・帰着・交通時間もセットで記入します。</li>
-            <li class="key"><i class="sm">9</i><b>納入S/N ／ 引上S/N</b>：置いてきた機械と持ち帰る機械の<b>シリアルを2つとも</b>。ここが機械の入れ替え記録になります。部品CODE・個数・部品名も忘れずに。</li>
-            <li class="key"><i class="sm">10</i><b>ご署名</b>：作業後、その場で店舗の方に書いてもらいます。作業した証拠になります。</li>
-            <li><i class="sm">11</i><b>現象確認</b>：現地で症状を再現できたら「有り」。再現しなかった場合は「無し」（重要な情報です）。</li>
-            <li class="key"><i class="sm">12</i><b>内容</b>：お客様が言った症状をそのまま書きます。複数台あるときは<b>何番の機械か</b>を必ず示します。</li>
-            <li><i class="sm">13</i><b>処理・詳細内容</b>：やったことを具体的に。交換した機種、ACアダプター等の同時交換、再インストールの有無、動作確認まで。</li>
-            <li class="key"><i class="sm">14</i><b>備考</b>：<b class="fix">必ず「SSOL」と記載</b>します。そのうえで、代替機の出荷予定など次につながる情報を残します。</li>
-            <li><i class="sm">15</i><b>ご請求費</b>：有償のときに記入。無償なら空欄。</li>
-            <li class="key"><i class="sm">16</i><b>保守区分A・B</b>：A（保証／契約／無契約）とB（無償／有償）の<b>番号</b>を書きます。請求の扱いが決まる欄です。</li>
+            <li class="key"><i class="sm">2</i><b>顧客名</b>：<b class="fix">業態名</b>を書きます（例：天丼てんや、とんでん）。店舗名ではありません。</li>
+            <li class="key"><i class="sm">3</i><b>部署名</b>：<b class="fix">店舗名</b>を書きます（例：相模原星が丘店）。</li>
+            <li><i class="sm">4</i><b>TEL</b>：<b>店舗の電話番号</b>。</li>
+            <li><i class="sm">5</i><b>住所〒</b>：郵便番号と店舗の住所。<br>
+              <b>ご担当者</b>は対応してくれた方の名前。<b class="fix">分からなければ「店長」</b>と書きます。</li>
+            <li><i class="sm">6</i><b>ご請求先</b>：作業先と請求先が違うときだけ記入。同じなら空欄で構いません。</li>
+            <li class="key"><i class="sm">7</i><b>サイトID</b>：<b>障害サイトを確認</b>して、そのIDを記入します。</li>
+            <li><i class="sm">8</i><b>作業報告書・B No.</b>：用紙にあらかじめ印刷されています（書き写す必要はありません）。</li>
+            <li><i class="sm">9</i><b>作業日</b>：西暦で記入。</li>
+            <li class="key"><i class="sm">10</i><b>CE名</b>：<b class="fix">JRS・エリア　氏名</b> の形で書きます（例：JRS・東京　花田）。
+              <b>エリア名は担当地域によって変わります</b>（東京／大阪 など）。</li>
+            <li><i class="sm">11</i><b>社員CODE</b>：<b class="fix">112202</b>（固定）。出発・開始・終了・帰着・交通時間もあわせて記入します。</li>
+            <li><i class="sm">12</i><b>部品CODE・個数・部品名</b>：交換した部品を記入します。</li>
+            <li class="key"><i class="sm">13</i><b>納入S/N ／ 引上S/N</b>：置いてきた機械と持ち帰る機械の<b>シリアルを2つとも</b>。
+              ここが機械の入れ替え記録になります。</li>
+            <li class="key"><i class="sm">14</i><b>内容</b>：<b>障害内容</b>を記入します。複数台あるときは<b>何番の機械か</b>を必ず示します。</li>
+            <li class="key"><i class="sm">15</i><b>処理</b>：<b>実際に行った作業</b>を書きます（交換した機種、同時に替えた物、再インストールの有無、動作確認まで）。</li>
+            <li class="key"><i class="sm">16</i><b>備考</b>：<b class="fix">「SSOL」とだけ</b>記入します。ほかのことは書きません。</li>
+            <li><i class="sm">17</i><b>ご請求費</b>：有償のときに記入。無償なら空欄。</li>
+            <li class="key"><i class="sm">18</i><b>ご署名</b>：作業後、その場で店舗の方に書いてもらいます。作業した証拠になります。</li>
+            <li><i class="sm">19</i><b>保守区分A・B</b>：A（保証／契約／無契約）とB（無償／有償）の<b>番号</b>を書きます。</li>
+            <li><i class="sm">20</i><b>現象確認</b>：現地で症状を再現できたら「有り」、しなければ「無し」（重要な情報です）。</li>
           </ul>
           <h3 class="tm-slip-h3">帰る前の確認</h3>
           <ul class="tm-slip-check">
-            <li>備考欄に <b>SSOL</b> と書いたか</li>
-            <li>社員CODE（112202）と各時刻を書いたか</li>
+            <li>顧客名は<b>業態名</b>、部署名は<b>店舗名</b>になっているか</li>
+            <li>ご担当者を書いたか（分からなければ<b>店長</b>）</li>
+            <li>CE名を <b>JRS・エリア　氏名</b> の形で書いたか</li>
             <li>納入S/N と 引上S/N を<b>2つとも</b>書いたか</li>
+            <li>備考に <b>SSOL</b> と書いたか</li>
             <li>店舗の方の<b>ご署名</b>をもらったか</li>
-            <li>複数台のときは<b>何番の機械か</b>を書いたか</li>
-            <li>保守区分A・Bの番号を書いたか</li>
           </ul>
         </div>
-      </div>
+      </div><!-- /#slipPaneB -->
 
       <!-- ========== 白伝票（日本リテールシステム）========== -->
       <div id="slipPaneHaku" class="tm-slip-pane" hidden>
