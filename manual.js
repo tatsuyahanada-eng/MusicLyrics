@@ -4651,9 +4651,14 @@
   }); }
   { const b = $('#slipSampleClose'); if (b) b.addEventListener('click', () => { if (slipSampleDialog.open) slipSampleDialog.close(); }); }
   if (slipSampleDialog) slipSampleDialog.addEventListener('close', () => { syncTrap(); });
-  // 作業をすれば必ずどちらかの伝票を書くため、相談の内容にかかわらず常に入口を出す
-  function slipSampleBtnHtml() {
-    return `<button class="tm-chat-slipbtn" type="button" data-slipsample>&#129534; 作業完了報告書の記入サンプルを見る</button>`;
+  // 作業をすれば必ずどちらかの伝票を書くため、相談の内容にかかわらず常に入口を出す。
+  // どちらの伝票が適切かは、回答のたびにAIが相談内容・参照した項目から判断する（サーバー側 report_form）。
+  // ヘッダーの常設ボタンは、直近にAIが判断した伝票を覚えておいて開く（会話が進むほど的確になる）。
+  let aiChatLastReportForm = 'b';
+  const SLIP_LABEL = { b: '作業報告書・B', haku: '白伝票' };
+  function slipSampleBtnHtml(which) {
+    const w = (which === 'haku') ? 'haku' : 'b';
+    return `<button class="tm-chat-slipbtn" type="button" data-slipsample="${w}">&#129534; 作業完了報告書の記入サンプルを見る（AIの判断：${SLIP_LABEL[w]}）</button>`;
   }
 
   function aiChatAskHtml(ask) {
@@ -4681,15 +4686,16 @@
         const note = d.need_index
           ? '関連する項目が見つかりませんでした。（意味検索の索引が未作成です。修正画面の「AI検索の索引」で作成すると精度が上がります）'
           : '関連する項目が見つかりませんでした。言い方を変えるか、もう少し具体的に教えてください。';
-        if (thinking) { thinking.textContent = note; thinking.innerHTML += slipSampleBtnHtml(); }
+        if (thinking) { thinking.textContent = note; thinking.innerHTML += slipSampleBtnHtml(aiChatLastReportForm); }
         aiChatMessages.push({ role: 'assistant', text: note });
       } else if (d.ask) {
         if (thinking) thinking.innerHTML = aiChatAskHtml(d.ask);
         aiChatMessages.push({ role: 'assistant', text: 'ASK: ' + d.ask.question });
       } else if (d.answer) {
         aiChatSources = d.sources || [];
+        if (d.report_form === 'haku' || d.report_form === 'b') aiChatLastReportForm = d.report_form;
         // 「1. 」で始まる手順を番号付きリストとして描画する（ordered:true）
-        if (thinking) thinking.innerHTML = renderBody(d.answer, { ordered: true }) + aiChatSourcesHtml(aiChatSources) + slipSampleBtnHtml();
+        if (thinking) thinking.innerHTML = renderBody(d.answer, { ordered: true }) + aiChatSourcesHtml(aiChatSources) + slipSampleBtnHtml(aiChatLastReportForm);
         aiChatMessages.push({ role: 'assistant', text: d.answer });
       } else {
         const note = '回答を作成できませんでした。もう一度お試しください。';
@@ -4699,7 +4705,7 @@
       // AIが使えないときでも、伝票の記入サンプルは開けるようにしておく
       if (thinking) {
         thinking.textContent = 'エラー：' + e.message;
-        thinking.innerHTML += slipSampleBtnHtml();
+        thinking.innerHTML += slipSampleBtnHtml(aiChatLastReportForm);
       }
     }
     aiChatScroll();
@@ -4714,6 +4720,7 @@
     // 見当違いの項目が出てしまうため、毎回まっさらな状態から始める。
     aiChatMessages = [];
     aiChatSources = [];
+    aiChatLastReportForm = 'b'; // 新しい相談では、直前の案件の判断を持ち越さない
     aiChatRenderEmpty();
     aiChatDialog.showModal();
     syncTrap();
@@ -4726,9 +4733,11 @@
     closeSearchThen(() => openAiChat(q));
   }); }
   { const b = $('#aiChatClose'); if (b) b.addEventListener('click', () => { if (aiChatDialog.open) aiChatDialog.close(); }); }
-  { const b = $('#aiChatSlipBtn'); if (b) b.addEventListener('click', () => openSlipSample('b')); }
+  // ヘッダーの常設ボタンは、この会話でAIが直近に判断した伝票を開く（未判断ならb＝作業報告書・B）
+  { const b = $('#aiChatSlipBtn'); if (b) b.addEventListener('click', () => openSlipSample(aiChatLastReportForm)); }
   { const b = $('#aiChatReset'); if (b) b.addEventListener('click', () => {
     aiChatMessages = []; aiChatSources = [];
+    aiChatLastReportForm = 'b';
     aiChatRenderEmpty();
     const input = $('#aiChatInput'); if (input) { input.value = ''; input.focus(); }
   }); }
@@ -4752,7 +4761,8 @@
     }
     const opt = e.target.closest('[data-chatask]');
     if (opt) { aiChatSend(opt.dataset.chatask); return; }
-    if (e.target.closest('[data-slipsample]')) { openSlipSample('b'); return; }
+    const slipBtn = e.target.closest('[data-slipsample]');
+    if (slipBtn) { openSlipSample(slipBtn.dataset.slipsample); return; }
   }); }
   if (aiChatDialog) aiChatDialog.addEventListener('close', () => { syncTrap(); });
 
