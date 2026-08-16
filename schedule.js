@@ -2636,9 +2636,14 @@ function bindEvents() {
   markActiveSection();
 
   // PDF出力（印刷ダイアログの「PDFに保存」を利用）
+  // 保存時のファイル名にも対象の月がわかるよう、印刷中だけタイトルを変える
+  let savedTitle = document.title;
   window.addEventListener('beforeprint', () => {
     $('printHeader').textContent = `${view.year}年${view.month + 1}月 スケジュール`;
+    savedTitle = document.title;
+    document.title = `VertiCale_${view.year}年${pad2(view.month + 1)}月`;
   });
+  window.addEventListener('afterprint', () => { document.title = savedTitle; });
   $('printPdfBtn').addEventListener('click', () => window.print());
 
   // ホーム画面・デスクトップへの追加（PWA）

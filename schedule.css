@@ -1105,7 +1105,7 @@
 @media print {
   * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
 
-  html, body { height: auto; }
+  html { height: auto; }
   .sc-body { background: #fff; font-size: 9px; }
 
   /* カレンダーと今月の予定一覧以外は印刷しない（印刷ボタン自体も含む） */
@@ -1176,21 +1176,24 @@
   #printJobListSection .sc-filter-tabs,
   #printJobListSection .sc-export-actions { display: none !important; }
   #printJobListSection .sc-section-title { font-size: 11px; margin-bottom: 3px; }
-  #printJobListSection .sc-joblist { gap: 3px; }
+  /* 件数が多い月でも高さを抑えられるよう、2段組みにする */
+  #printJobListSection .sc-joblist { display: block; column-count: 2; column-gap: 8px; }
   #printJobListSection .sc-joblist-row {
-    padding: 3px 5px;
-    font-size: 6.5px;
+    display: flex;
+    margin: 0 0 2.5px;
+    padding: 2px 5px;
+    font-size: 6.2px;
     border-radius: 4px;
     border-left-width: 3px;
-    gap: 4px;
+    gap: 3px;
     cursor: default;
     break-inside: avoid;
   }
-  #printJobListSection .sc-joblist-badge { font-size: 5.5px; padding: 0 4px; }
-  #printJobListSection .sc-joblist-date { min-width: 4.2em; }
-  #printJobListSection .sc-joblist-time { min-width: 6em; }
+  #printJobListSection .sc-joblist-badge { font-size: 5.3px; padding: 0 3px; }
+  #printJobListSection .sc-joblist-date { min-width: 3.6em; }
+  #printJobListSection .sc-joblist-time { min-width: 5em; }
   #printJobListSection .sc-joblist-meta,
-  #printJobListSection .sc-joblist-warn { font-size: 6px; }
+  #printJobListSection .sc-joblist-warn { font-size: 5.5px; }
   #printJobListSection .sc-worktype-summary { margin-top: 6px; }
   #printJobListSection .sc-worktype-title { font-size: 6px; }
   #printJobListSection .sc-worktype-row { gap: 4px; }
