@@ -67,21 +67,22 @@
   display: flex;
   align-items: center;
   gap: 18px;
-  min-height: 44px;
+  min-height: 52px;
   flex-wrap: wrap;
 }
 
 .sc-header-title {
-  font-size: 0.94rem;
-  font-weight: 700;
-  letter-spacing: 0.06em;
+  font-size: 1.5rem;
+  font-weight: 800;
+  letter-spacing: 0.01em;
   color: #fff;
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 9px;
   white-space: nowrap;
 }
-.sc-header-logo { border-radius: 4px; display: block; }
+.sc-header-logo { border-radius: 6px; display: block; box-shadow: 0 1px 4px rgba(0, 0, 0, 0.35); }
 
 .sc-menu { display: flex; gap: 2px; flex-wrap: wrap; }
 
@@ -135,7 +136,7 @@
   background: var(--sc-surface);
   border-bottom: 1px solid var(--sc-border);
   position: sticky;
-  top: 44px;
+  top: 52px;
   z-index: 30;
   box-shadow: 0 1px 6px rgba(15, 23, 42, 0.06);
 }
@@ -334,7 +335,7 @@
 /* 見出し行 */
 .sc-vhead {
   position: sticky;
-  top: 102px;
+  top: 107px;
   z-index: 20;
   background: var(--sc-navy);
   border-bottom: 0;
@@ -564,7 +565,7 @@
 .sc-stat-tentative .sc-stat-value { color: #92400e; }
 
 /* ---- サイドパネル ---- */
-.sc-side { position: sticky; top: 102px; }
+.sc-side { position: sticky; top: 107px; }
 
 .sc-side-inner {
   background: var(--sc-surface);
@@ -974,8 +975,9 @@
 
 @media (max-width: 720px) {
   .sc-header { padding: 0 8px; }
-  .sc-header-inner { gap: 8px; min-height: 40px; }
-  .sc-header-title { font-size: 0.84rem; }
+  .sc-header-inner { gap: 8px; min-height: 46px; }
+  .sc-header-title { font-size: 1.15rem; gap: 6px; }
+  .sc-header-logo { width: 24px; height: 24px; }
   .sc-menu {
     order: 3;
     width: 100%;
@@ -987,7 +989,7 @@
   }
   .sc-menu::-webkit-scrollbar { display: none; }
   .sc-menu-item { padding: 9px 10px 7px; font-size: 0.76rem; }
-  .sc-monthnav { top: 79px; }
+  .sc-monthnav { top: 74px; }
   .sc-section-title, .sc-main { scroll-margin-top: 130px; }
 }
 
@@ -998,7 +1000,7 @@
   .sc-jump-label { display: none; }
   .sc-jump .sc-input-sm { width: auto; max-width: 108px; }
   .sc-vrow { grid-template-columns: 58px repeat(5, minmax(0, 1fr)); }
-  .sc-vhead { top: 125px; }
+  .sc-vhead { top: 126px; }
   .sc-vdate { min-height: 40px; padding: 3px 4px; }
   .sc-vdate-num { font-size: 0.86rem; }
   .sc-vdate-wd { font-size: 0.62rem; }

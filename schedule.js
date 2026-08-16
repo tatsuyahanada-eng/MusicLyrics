@@ -822,7 +822,7 @@ function renderSidePanel() {
       <p class="sc-side-block-title">この日の希望</p>
       ${(view.paint === 'off' || view.paint === 'available') ? `<p class="sc-paint-notice">
         まとめて入力（${view.paint === 'off' ? '✕ 休み希望' : '◯ 稼働可'}）を選択中です。
-        誤タップを防ぐため、下のボタンを押して確定してください。
+        日付をタップすると確認してから登録します。設定し直したいときは、下のボタンでも変更できます。
       </p>` : ''}
       <div class="sc-wish-row">
         <button type="button" class="sc-wish-btn ${wish === WISH_AVAILABLE ? 'active-available' : ''} ${view.paint === 'available' ? 'sc-wish-btn-suggest' : ''}" data-wish="available">◯ 稼働可</button>
@@ -1985,6 +1985,26 @@ function applyPaint(dateKey) {
   return true;
 }
 
+/**
+ * まとめて入力（休み希望／稼働可／未定に戻す）モードで1日だけタップしたときに、
+ * その場で確認してから確定する。誤タップは防ぎつつ、パネルまで移動する手間はなくす。
+ */
+function confirmSingleDayPaint(dateKey) {
+  const label = view.paint === 'off' ? '休み希望' : view.paint === 'available' ? '稼働可' : '未定';
+  const verb = view.paint === 'clear' ? 'に戻します' : 'で登録します';
+  let msg = `${formatDate(dateKey, 'long')}を「${label}」${verb}。\nよろしいですか？`;
+
+  const busy = jobsOn(dateKey);
+  if (view.paint === 'off' && busy.length) {
+    msg += `\n\n※この日にはすでに予定が${busy.length}件あります。`;
+  }
+
+  const ok = confirm(msg);
+  if (ok) applyPaint(dateKey);
+  selectDate(dateKey, { noScroll: true });
+  if (ok) toast(`${formatDate(dateKey)}を${label}にしました`);
+}
+
 /* ------------------------------------------------------------
    コピー・トースト
    ------------------------------------------------------------ */
@@ -2153,7 +2173,7 @@ function bindEvents() {
       view.form = blankForm();
       renderAll();
       $('paintHint').textContent = view.paint
-        ? 'まとめて入力中です。ドラッグで複数日を一括設定できます。1日だけクリックした場合は反映せず選ぶだけなので、パネルのボタンで確定してください。終わったら「選択のみ」に戻してください。'
+        ? 'まとめて入力中です。1日だけクリックすると確認してから登録します。ドラッグすると複数日を確認なしで一括設定できます。終わったら「選択のみ」に戻してください。'
         : '日付をクリックすると詳細パネルが開きます。まとめて入力を選ぶと、クリック（ドラッグ）で一括設定できます。';
       document.querySelector('.sc-calendar').classList.toggle('sc-calendar-painting', !!view.paint);
     });
@@ -2233,8 +2253,8 @@ function bindEvents() {
     if (view.paint === 'multi') { renderAll(); return; }
     if (view.paint) {
       // 1日だけ押した（ドラッグしなかった）ときは、まだ何も変更していない。
-      // その日を選ぶだけにして、パネルのボタンで確定してもらう（誤タップで休みにならないように）。
-      if (paintTouched.size === 1) selectDate(Array.from(paintTouched)[0], { noScroll: true });
+      // 確認ダイアログでその場で確定できるようにする（誤タップ防止と、操作の軽さを両立させる）。
+      if (paintTouched.size === 1) confirmSingleDayPaint(Array.from(paintTouched)[0]);
       else renderAll();   // ドラッグして複数日を触れた場合は pointerover 側ですでに反映済み
       return;
     }
