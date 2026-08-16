@@ -207,6 +207,16 @@
 .sc-btn-danger { background: #fff; color: #b91c1c; border-color: #f0c2c2; }
 .sc-btn-danger:hover { background: var(--sc-conflict-bg); }
 
+.sc-btn-accent {
+  background: var(--sc-available);
+  color: #fff;
+  font-weight: 800;
+  padding: 10px 18px;
+  font-size: 0.92rem;
+  box-shadow: 0 3px 10px rgba(21, 115, 71, 0.35);
+}
+.sc-btn-accent:hover { background: #0f5c38; }
+
 /* 確定アクション（最も強い色） */
 .sc-btn-confirm { background: var(--sc-confirmed); color: #fff; }
 .sc-btn-confirm:hover { background: var(--sc-confirmed-strong); }
@@ -1098,9 +1108,17 @@
   html, body { height: auto; }
   .sc-body { background: #fff; font-size: 9px; }
 
-  /* カレンダー以外は印刷しない（印刷ボタン自体も含む） */
+  /* カレンダーと今月の予定一覧以外は印刷しない（印刷ボタン自体も含む） */
   .sc-header, .sc-monthnav, #conflictBanner, .sc-output-row,
-  .sc-side, .sc-stats, .sc-section, .sc-toast { display: none !important; }
+  .sc-side, .sc-section, .sc-toast { display: none !important; }
+
+  /* 左：カレンダー、右：今月の予定一覧　を並べる */
+  .sc-body {
+    display: grid;
+    grid-template-columns: 1.65fr 1fr;
+    align-items: start;
+    gap: 10px;
+  }
 
   .sc-print-header {
     display: block;
@@ -1143,6 +1161,40 @@
     gap: 5px;
   }
   .sc-chip { height: 10px; font-size: 5.5px; }
+
+  /* カレンダーの下に、稼働状況の集計を出す */
+  .sc-stats { display: flex; margin-top: 5px; gap: 4px; }
+  .sc-stat { box-shadow: none; border-color: #ccc; padding: 3px 6px; min-width: 0; flex: 1 1 auto; }
+  .sc-stat-label { font-size: 6px; }
+  .sc-stat-value { font-size: 9px; }
+  .sc-stat-unit { font-size: 5.5px; }
+
+  /* 右：今月の予定一覧（絞り込みタブ・件数・コピー操作は印刷しない） */
+  #printJobListSection { display: block !important; border: 0; background: transparent; }
+  #printJobListSection .sc-section-inner { max-width: none; padding: 0; }
+  #printJobListSection .sc-section-count,
+  #printJobListSection .sc-filter-tabs,
+  #printJobListSection .sc-export-actions { display: none !important; }
+  #printJobListSection .sc-section-title { font-size: 11px; margin-bottom: 3px; }
+  #printJobListSection .sc-joblist { gap: 3px; }
+  #printJobListSection .sc-joblist-row {
+    padding: 3px 5px;
+    font-size: 6.5px;
+    border-radius: 4px;
+    border-left-width: 3px;
+    gap: 4px;
+    cursor: default;
+    break-inside: avoid;
+  }
+  #printJobListSection .sc-joblist-badge { font-size: 5.5px; padding: 0 4px; }
+  #printJobListSection .sc-joblist-date { min-width: 4.2em; }
+  #printJobListSection .sc-joblist-time { min-width: 6em; }
+  #printJobListSection .sc-joblist-meta,
+  #printJobListSection .sc-joblist-warn { font-size: 6px; }
+  #printJobListSection .sc-worktype-summary { margin-top: 6px; }
+  #printJobListSection .sc-worktype-title { font-size: 6px; }
+  #printJobListSection .sc-worktype-row { gap: 4px; }
+  #printJobListSection .sc-worktype-stat { font-size: 6px; }
 
   /* リンク・カーソル関連の見た目は印刷で意味を持たないため無効化 */
   .sc-vcell, .sc-vdate { cursor: default; }
