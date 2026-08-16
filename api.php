@@ -242,6 +242,14 @@ function cbc_gemini_call($model, $bodyJson) {
   return array($code, $resp, '');
 }
 
+/* Google側が一時的に混んでいる（順番待ち）状態か。
+   この場合はしばらく待てば通ることが多いので、エラーにせず数回だけ試し直す。
+   例：503 UNAVAILABLE / "The model is overloaded" / "currently experiencing high demand" */
+function cbc_gemini_is_busy($code, $resp) {
+  if ((int)$code === 503 || (int)$code === 500) return true;
+  return (bool)preg_match('/high demand|overloaded|UNAVAILABLE|try again later|temporarily/i', (string)$resp);
+}
+
 /* Google Gemini 呼び出しの本体（失敗しても exit しない版）。$jsonMode=true でJSON応答を要求。
    モデル名の違い（廃止・改名）を吸収するため、候補モデルを順に試し、成功したモデルを記憶する。
    戻り値: array($text, $errMsg, $httpCodeForFail)
@@ -267,13 +275,17 @@ function cbc_gemini_soft($pdo, $prompt, $jsonMode = false, $maxTokens = 1024) {
 
   $lastMsg = '';
   foreach ($candidates as $model) {
-    // タイムアウト等の通信断は一時的なことが多いため、同じモデルにもう一度だけ試してから諦める
-    // （モデル名を変えても同じ通信経路を使うため、次の候補に移っても解決しないことが多い）。
+    // 一時的な失敗（通信断、Google側の混雑）は待てば直ることが多いので、
+    // 同じモデルで少し待ちながら数回試してから諦める
+    // （モデル名を変えても同じ通信経路・同じ混雑に当たるため、次の候補に移っても解決しないことが多い）。
     $neterr = '';
-    for ($attempt = 0; $attempt < 2; $attempt++) {
+    $code = 0; $resp = '';
+    for ($attempt = 0; $attempt < 3; $attempt++) {
+      if ($attempt > 0) usleep(700000 * $attempt); // 0.7秒 → 1.4秒 と待ち time を延ばす
       list($code, $resp, $neterr) = cbc_gemini_call($model, $bodyJson);
-      if ($neterr === '') break;
-      usleep(400000); // 400ms待ってからリトライ
+      if ($neterr !== '') continue;                       // 通信断：もう一度
+      if (cbc_gemini_is_busy($code, $resp)) continue;     // Google側が混雑：もう一度
+      break;
     }
     if ($neterr !== '') {
       // 2回試しても通信できなかった場合。一時的な混雑のこともあるが、繰り返す場合はサーバー側の
@@ -296,6 +308,10 @@ function cbc_gemini_soft($pdo, $prompt, $jsonMode = false, $maxTokens = 1024) {
     // モデルが無い/未対応/廃止のときだけ次の候補へ。それ以外（キー不正・権限・課金等）は即エラー。
     // Googleのモデル廃止メッセージは "not found" 系だけでなく "is no longer available" 系も来るため、両方を拾う。
     if (!preg_match('/not found|not supported|unknown|does not exist|unsupported|no longer available|deprecated|has been removed|is retired/i', $lastMsg)) {
+      // 数回試しても混雑が解消しなかった場合は、利用者に分かる言葉で伝える（設定の問題ではないため）
+      if (cbc_gemini_is_busy($code, $resp)) {
+        return array(null, 'Google側のAIが混み合っています。少し時間をおいて、もう一度お試しください。', 503);
+      }
       $hint = '';
       if (preg_match('/quota|billing|free_tier|limit:\s*0|RESOURCE_EXHAUSTED/i', $lastMsg)) {
         $hint = "\n【対処】Googleの無料枠が0/上限超過です。Google AI Studio の「課金」でプロジェクトにお支払い情報を設定すると解消します（Flashは低額）。";
@@ -372,12 +388,17 @@ function cbc_embed_texts($pdo, $texts, $taskType) {
     }
     $bodyJson = json_encode(array('requests' => $reqs), JSON_UNESCAPED_UNICODE);
     $neterr = '';
-    for ($attempt = 0; $attempt < 2; $attempt++) {
+    $code = 0; $resp = '';
+    // 通信断・Google側の混雑は待てば直ることが多いので、少し待ちながら数回試す
+    for ($attempt = 0; $attempt < 3; $attempt++) {
+      if ($attempt > 0) usleep(700000 * $attempt);
       list($code, $resp, $neterr) = cbc_embed_call($model, 'batchEmbedContents', $bodyJson);
-      if ($neterr === '') break;
-      usleep(400000);
+      if ($neterr !== '') continue;
+      if (cbc_gemini_is_busy($code, $resp)) continue;
+      break;
     }
     if ($neterr !== '') return array(null, 'AIサーバーに接続できません: ' . $neterr);
+    if (cbc_gemini_is_busy($code, $resp)) return array(null, 'Google側のAIが混み合っています。少し時間をおいて、もう一度お試しください。');
     $data = json_decode($resp, true);
     if ($code >= 200 && $code < 300 && isset($data['embeddings']) && is_array($data['embeddings'])) {
       $out = array();

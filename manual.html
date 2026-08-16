@@ -9,7 +9,7 @@
   <link rel="manifest" href="manifest.webmanifest">
   <link rel="icon" href="icon.svg" type="image/svg+xml">
   <link rel="apple-touch-icon" href="icon-192.png">
-  <link rel="stylesheet" href="manual.css?v=84">
+  <link rel="stylesheet" href="manual.css?v=85">
 </head>
 <body class="tm-body">
 
@@ -891,6 +891,7 @@
           <p class="tm-chat-sub">やりたいことを話しかけてください。登録済みの内容から簡易手順にまとめます。</p>
         </div>
         <div class="tm-chat-headbtns">
+          <button type="button" id="aiChatSlipBtn" class="tm-btn tm-btn-outline tm-btn-sm" title="報告書の記入サンプルを開く">&#129534; 報告書サンプル</button>
           <button type="button" id="aiChatReset" class="tm-btn tm-btn-outline tm-btn-sm" title="会話をリセット">&#8635; 新しい相談</button>
           <button type="button" id="aiChatClose" class="tm-btn tm-btn-outline tm-btn-sm">閉じる</button>
         </div>
@@ -1299,9 +1300,8 @@
         <button type="button" id="searchClose" class="tm-btn tm-btn-outline tm-search-closebtn">閉じる</button>
       </div>
       <div id="aiSearchRow" class="tm-aisearch-row" hidden>
-        <button type="button" id="aiSearchBtn" class="tm-btn tm-btn-ai tm-btn-sm">&#10024; AIで探す（意味で検索）</button>
-        <button type="button" id="aiChatOpenBtn" class="tm-btn tm-btn-outline tm-btn-sm">&#128172; AIに相談（手順を作る）</button>
-        <span class="tm-aisearch-hint">キーワードが合わなくても、質問文からAIが関連項目を探します。</span>
+        <button type="button" id="aiChatOpenBtn" class="tm-btn tm-btn-ai tm-btn-sm">&#128172; AIに相談（手順を作る）</button>
+        <span class="tm-aisearch-hint">やりたいことを話しかけると、登録内容から手順をまとめます。</span>
         <button type="button" id="aiTipsBtn" class="tm-aisearch-tipsbtn">&#128161; 入力のコツ</button>
       </div>
       <div id="aiTipsBox" class="tm-aisearch-tips" hidden>
@@ -1498,6 +1498,6 @@
   </dialog>
 
   <script src="vendor/xlsx.full.min.js"></script>
-  <script src="manual.js?v=100"></script>
+  <script src="manual.js?v=101"></script>
 </body>
 </html>
