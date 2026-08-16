@@ -992,7 +992,13 @@ table.tm-slip-grid.inner2 > tbody > tr > *:last-child { border-right: 0; }
   background: rgba(27, 58, 107, 0.07); border-radius: 3px;
   padding: 4px 6px; margin-top: 2px;
 }
-.tm-slip-legend { display: flex; align-items: center; gap: 7px; font-size: 12px; color: var(--tm-muted); margin: 2px 0 0; }
+/* 帰社後に記入する欄（現地では空欄のまま）は、現地記入の欄と区別できる色にする */
+.tm-slip-grid td.after { background: repeating-linear-gradient(135deg, rgba(110,122,102,.10) 0 5px, transparent 5px 10px); }
+.tm-slip-sheet .afterlbl { color: var(--pi); font-weight: 700; }
+.tm-slip-legend { display: flex; align-items: center; gap: 7px; font-size: 12px; color: var(--tm-muted); margin: 2px 0 0; flex-wrap: wrap; }
+.tm-slip-legendbox.is-after {
+  background: repeating-linear-gradient(135deg, rgba(110,122,102,.22) 0 4px, transparent 4px 8px);
+}
 .tm-slip-legend b { color: var(--tm-text); }
 .tm-slip-legendbox {
   width: 15px; height: 15px; flex: none; border-radius: 3px;
