@@ -4627,6 +4627,42 @@
     return `<div class="tm-chat-srclabel">参照した項目（クリックで開きます）</div>
       <div class="tm-chat-sources">${chips}</div>`;
   }
+  /* 白伝票（保守サービス報告書）の記入サンプル。
+     てんや・とんでんのPOS交換の話題のときに、相談の回答から開けるようにする。 */
+  const slipSampleDialog = $('#slipSampleDialog');
+  // which: 'b'（作業報告書・B＝メイン）/ 'haku'（白伝票）
+  function showSlipTab(which) {
+    const b = $('#slipPaneB'), h = $('#slipPaneHaku');
+    if (b) b.hidden = (which !== 'b');
+    if (h) h.hidden = (which !== 'haku');
+    document.querySelectorAll('[data-sliptab]').forEach((t) => {
+      t.classList.toggle('is-on', t.dataset.sliptab === which);
+    });
+  }
+  function openSlipSample(which) {
+    if (!slipSampleDialog) return;
+    showSlipTab(which === 'haku' ? 'haku' : 'b');
+    slipSampleDialog.showModal();
+    syncTrap();
+  }
+  { const tabs = $('.tm-slip-tabs'); if (tabs) tabs.addEventListener('click', (e) => {
+    const t = e.target.closest('[data-sliptab]');
+    if (t) showSlipTab(t.dataset.sliptab);
+  }); }
+  { const b = $('#slipSampleClose'); if (b) b.addEventListener('click', () => { if (slipSampleDialog.open) slipSampleDialog.close(); }); }
+  if (slipSampleDialog) slipSampleDialog.addEventListener('close', () => { syncTrap(); });
+  // 伝票を書く場面かどうかを、会話の言葉から判断する（AIに聞かないので追加の費用はかからない）
+  function slipSampleRelevant(text) {
+    const t = String(text || '');
+    if (/白伝票|伝票/.test(t)) return true;
+    if (/てんや|とんでん/.test(t)) return true;
+    if (/(POS|ＰＯＳ|ポス|レジ|プリンタ|プリンター|複合機)[\s\S]{0,12}(交換|入替|入れ替|載せ替|設置)/.test(t)) return true;
+    return false;
+  }
+  function slipSampleBtnHtml() {
+    return `<button class="tm-chat-slipbtn" type="button" data-slipsample>&#129534; 報告書の記入サンプルを見る</button>`;
+  }
+
   function aiChatAskHtml(ask) {
     const opts = (ask.options || []).map((o) =>
       `<button class="tm-aisearch-askopt" type="button" data-chatask="${esc(o)}">${esc(o)}</button>`).join('');
@@ -4659,8 +4695,11 @@
         aiChatMessages.push({ role: 'assistant', text: 'ASK: ' + d.ask.question });
       } else if (d.answer) {
         aiChatSources = d.sources || [];
+        // 伝票を書く場面（てんや・とんでんのPOS交換など）なら、記入サンプルへの入口を添える
+        const srcTitles = aiChatSources.map((x) => (x.path || []).join(' ') + ' ' + x.title).join(' ');
+        const slip = slipSampleRelevant(msg + ' ' + d.answer + ' ' + srcTitles) ? slipSampleBtnHtml() : '';
         // 「1. 」で始まる手順を番号付きリストとして描画する（ordered:true）
-        if (thinking) thinking.innerHTML = renderBody(d.answer, { ordered: true }) + aiChatSourcesHtml(aiChatSources);
+        if (thinking) thinking.innerHTML = renderBody(d.answer, { ordered: true }) + aiChatSourcesHtml(aiChatSources) + slip;
         aiChatMessages.push({ role: 'assistant', text: d.answer });
       } else {
         const note = '回答を作成できませんでした。もう一度お試しください。';
@@ -4714,6 +4753,7 @@
     }
     const opt = e.target.closest('[data-chatask]');
     if (opt) { aiChatSend(opt.dataset.chatask); return; }
+    if (e.target.closest('[data-slipsample]')) { openSlipSample('b'); return; }
   }); }
   if (aiChatDialog) aiChatDialog.addEventListener('close', () => { syncTrap(); });
 

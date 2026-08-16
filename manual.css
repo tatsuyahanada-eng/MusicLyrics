@@ -914,8 +914,164 @@ body.tm-dragging .tm-sortrow { cursor: grabbing; }
   font-family: var(--tm-mono); background: rgba(255,255,255,0.08); border-radius: 3px; padding: 0 4px;
 }
 .tm-aisearch-tips-note { margin: 8px 0 0 !important; color: var(--tm-muted) !important; font-weight: 400 !important; }
+/* ===== 白伝票（保守サービス報告書）の記入サンプル =====
+   紙の伝票なので、アプリの暗い画面の中でも「紙」として読めるよう、
+   この中だけは紙色＋black罫線・インク色で組む（ダーク／ライトどちらでも同じ見え方）。 */
+dialog.tm-slip-dialog { width: min(880px, 96vw); max-width: 96vw; }
+.tm-slip-form { display: flex; flex-direction: column; gap: 12px; max-height: min(88vh, 900px); }
+.tm-slip-head { display: flex; align-items: flex-start; gap: 10px; }
+.tm-slip-headtext { flex: 1 1 auto; min-width: 0; }
+.tm-slip-title { font-size: 17px; color: var(--tm-cyan); letter-spacing: 1px; margin: 0; }
+.tm-slip-sub { font-size: 12px; color: var(--tm-muted); margin: 2px 0 0; line-height: 1.6; }
+.tm-slip-scroll { overflow-x: auto; overflow-y: visible; flex: none; }
+.tm-slip-sheet {
+  --pp: #FBFAF6; --pe: #EFEDE4; --pr: #2E2C28; --pi: #1B3A6B; --ps: #B3121D; --pm: #6B6A63;
+  min-width: 700px; background: var(--pp); color: var(--pr);
+  border: 1.5px solid var(--pr); padding: 12px 14px 14px;
+  font-family: "Yu Gothic", YuGothic, "Hiragino Kaku Gothic ProN", Meiryo, sans-serif;
+}
+/* 作業報告書・B は緑刷りのクリーム紙。実物と同じ色味にして見分けやすくする */
+.tm-slip-sheet.is-green {
+  --pp: #F2F4E3; --pe: #E6EBD2; --pr: #3E7D52; --pi: #16406E; --ps: #B3121D; --pm: #6E7A66;
+  min-width: 860px;
+}
+.tm-slip-tabs { display: flex; gap: 6px; flex-wrap: wrap; }
+.tm-slip-tab {
+  font: inherit; font-size: 12.5px; cursor: pointer;
+  color: var(--tm-muted); background: transparent;
+  border: 1px solid var(--tm-line); border-radius: 6px 6px 0 0; padding: 7px 14px;
+  display: inline-flex; align-items: center; gap: 6px;
+}
+.tm-slip-tab:hover { color: var(--tm-text); }
+.tm-slip-tab.is-on {
+  color: var(--tm-cyan); border-color: var(--tm-cyan); background: rgba(63, 224, 224, 0.08); font-weight: 600;
+}
+.tm-slip-tab:focus-visible { outline: 2px solid var(--tm-cyan); outline-offset: 2px; }
+.tm-slip-tabnote {
+  font-size: 9.5px; letter-spacing: .08em; padding: 1px 5px; border-radius: 3px;
+  background: var(--tm-cyan); color: #06121a; font-weight: 700;
+}
+.tm-slip-pane { display: flex; flex-direction: column; gap: 12px; min-height: 0; overflow-y: auto; }
+.tm-slip-issue { font-size: 11.5px; font-variant-numeric: tabular-nums; }
+.tm-slip-corp { font-size: 12px; font-weight: 600; }
+.tm-slip-sheettitle.wide { letter-spacing: .3em; font-size: 21px; }
+.tm-slip-grid .vert {
+  font-size: 9.5px; line-height: 1.35; padding: 6px 2px; letter-spacing: 0;
+  white-space: normal; word-break: keep-all;
+}
+.tm-slip-grid .lft { text-align: left; }
+.tm-slip-grid .top { vertical-align: top; }
+.tm-slip-grid .pad8 { padding: 7px 9px; }
+.tm-slip-grid .h18 { height: 18px; }
+.tm-slip-grid .sml { font-size: 10.5px; }
+.tm-slip-sheet .sw.sml { font-size: 11.5px; }
+.tm-slip-sheet .pre { font-family: var(--tm-mono); font-size: 12px; }
+.tm-slip-sheet .pre.bold { font-weight: 700; font-size: 14px; letter-spacing: .06em; }
+.tm-slip-sheet .mk { color: var(--pi); border: 1.5px solid var(--pi); border-radius: 50%; padding: 0 3px; }
+.tm-slip-sheet .mk2 { color: var(--pi); border: 1.5px solid var(--pi); padding: 0 6px; letter-spacing: .1em; }
+table.tm-slip-grid.inner2 { border: 0; }
+table.tm-slip-grid.inner2 th, table.tm-slip-grid.inner2 td { font-size: 10.5px; padding: 3px 5px; }
+table.tm-slip-grid.inner2 tr:first-child > * { border-top: 0; }
+table.tm-slip-grid.inner2 tr:last-child > * { border-bottom: 0; }
+table.tm-slip-grid.inner2 > tbody > tr > *:first-child { border-left: 0; }
+table.tm-slip-grid.inner2 > tbody > tr > *:last-child { border-right: 0; }
+.tm-slip-secttl { font-weight: 700; font-size: 12px; border-bottom: 1px solid currentColor; display: inline-block; margin-bottom: 5px; }
+.tm-slip-lbl { font-size: 11px; font-weight: 600; margin-bottom: 3px; }
+.tm-slip-lbl.mt { margin-top: 8px; }
+.tm-slip-2col { display: flex; gap: 18px; }
+.tm-slip-sheet .tallbox { min-height: 68px; }
+.tm-slip-sign { padding: 7px 9px; border-bottom: 1px solid var(--pr); }
+.tm-slip-sheet .signline { border-bottom: 1px solid var(--pi); display: block; margin-top: 6px; font-size: 11px; }
+.tm-slip-cls { padding: 6px 9px; font-size: 10px; line-height: 1.7; color: var(--pm); }
+.tm-slip-cls b { color: var(--pr); }
+.tm-slip-list b.fix { color: var(--tm-warn); }
+.tm-slip-tag { font-size: 10px; color: var(--pm); margin-bottom: 5px; }
+.tm-slip-sheethead { display: flex; align-items: flex-end; justify-content: space-between; gap: 14px; margin-bottom: 9px; flex-wrap: wrap; }
+.tm-slip-sheettitle {
+  font-family: "Yu Mincho", YuMincho, "Hiragino Mincho ProN", serif;
+  font-size: 23px; font-weight: 700; letter-spacing: .12em;
+  border-bottom: 2px solid var(--pr); padding-bottom: 2px;
+}
+.tm-slip-no { font-size: 12px; display: flex; gap: 12px; align-items: flex-end; font-variant-numeric: tabular-nums; }
+table.tm-slip-grid { width: 100%; border-collapse: collapse; table-layout: fixed; }
+table.tm-slip-grid.nt { border-top: 0; }
+table.tm-slip-grid th, table.tm-slip-grid td {
+  border: 1px solid var(--pr); padding: 4px 6px; font-size: 11.5px;
+  vertical-align: top; font-weight: 400; color: var(--pr);
+}
+table.tm-slip-grid th { background: var(--pe); text-align: center; white-space: nowrap; font-weight: 500; }
+table.tm-slip-grid.inner { border: 0; }
+table.tm-slip-grid.inner th { border-left: 0; width: 62px; font-size: 11px; }
+table.tm-slip-grid.inner td { border-right: 0; }
+table.tm-slip-grid.inner tr:first-child > * { border-top: 0; }
+table.tm-slip-grid.inner tr:last-child > * { border-bottom: 0; }
+.tm-slip-grid .ctr { text-align: center; }
+.tm-slip-grid .pad0 { padding: 0; }
+.tm-slip-grid .tall { height: 46px; }
+.tm-slip-grid .tall2 { height: 92px; }
+.tm-slip-grid .hd { background: var(--pe); }
+.tm-slip-tech { margin-top: 5px; text-align: left; font-size: 11px; }
+.tm-slip-note { margin-top: 3px; font-size: 10.5px; color: var(--pm); }
+.tm-slip-note-i { font-size: 10.5px; color: var(--pm); }
+.tm-slip-hand { margin-top: 5px; }
+.tm-slip-grid .lh2 { line-height: 1.95; }
+.tm-slip-grid .el { display: flex; justify-content: space-between; gap: 6px; padding: 1px 0; }
+.tm-slip-grid .el span:last-child { color: var(--pm); }
+.tm-slip-grid .el.tot { font-weight: 600; }
+/* 印字のチェックボックスと、記入済みのチェック */
+.tm-slip-sheet .ck { white-space: nowrap; margin-right: 10px; display: inline-block; }
+.tm-slip-sheet .ck::before { content: "□"; margin-right: 2px; font-size: 12px; }
+.tm-slip-sheet .ck.on { color: var(--pi); font-weight: 600; }
+.tm-slip-sheet .ck.on::before { content: "☑"; color: var(--pi); font-weight: 700; }
+/* 手書きで記入した箇所（印字と区別できるようインク色で） */
+.tm-slip-sheet .sw { color: var(--pi); font-weight: 600; font-size: 13px; }
+.tm-slip-sheet .stamp {
+  color: var(--ps); font-weight: 700; border: 1.5px solid var(--ps);
+  border-radius: 50%; padding: 2px 6px; font-size: 11px; display: inline-block;
+}
+/* 注釈番号（伝票と説明を結ぶ） */
+.tm-slip-sheet .sm, .tm-slip-memos .sm {
+  display: inline-flex; align-items: center; justify-content: center;
+  min-width: 15px; height: 15px; padding: 0 4px; margin-right: 4px;
+  border-radius: 50%; background: var(--ps, #B3121D); color: #fff;
+  font-size: 9.5px; font-weight: 700; font-style: normal; line-height: 1;
+  vertical-align: 1px; font-variant-numeric: tabular-nums;
+}
+.tm-slip-memos .sm { background: #B3121D; }
+/* 説明・チェックリスト（こちらはアプリ側の配色に戻す） */
+.tm-slip-memos { flex: none; }
+.tm-slip-h3 { font-size: 13px; color: var(--tm-cyan); margin: 14px 0 6px; letter-spacing: .5px; }
+.tm-slip-h3:first-child { margin-top: 4px; }
+.tm-slip-list, .tm-slip-check { margin: 0; padding: 0; list-style: none; }
+.tm-slip-list li {
+  font-size: 13px; line-height: 1.85; color: var(--tm-muted);
+  padding: 6px 0 6px 8px; border-bottom: 1px solid var(--tm-line);
+}
+.tm-slip-list li:last-child { border-bottom: 0; }
+.tm-slip-list li.key { border-left: 2px solid var(--tm-warn); }
+.tm-slip-list b { color: var(--tm-text); }
+.tm-slip-check li {
+  font-size: 13px; color: var(--tm-muted); padding: 7px 0 7px 24px; position: relative;
+}
+.tm-slip-check li::before {
+  content: "□"; position: absolute; left: 4px; top: 6px; color: var(--tm-line-strong); font-size: 14px;
+}
+@media (max-width: 560px) {
+  .tm-slip-scroll { margin: 0 -4px; }
+  .tm-slip-list li, .tm-slip-check li { font-size: 12.5px; }
+}
+/* チャット内の「伝票サンプルを見る」ボタン */
+.tm-chat-slipbtn {
+  margin-top: 10px; display: inline-flex; align-items: center; gap: 6px;
+  font: inherit; font-size: 12.5px; cursor: pointer;
+  color: var(--tm-warn); background: rgba(255, 207, 63, 0.08);
+  border: 1px solid var(--tm-warn); border-radius: 6px; padding: 7px 13px;
+}
+.tm-chat-slipbtn:hover { background: rgba(255, 207, 63, 0.16); }
+.tm-chat-slipbtn:focus-visible { outline: 2px solid var(--tm-cyan); outline-offset: 2px; }
+
 /* ===== AIに相談（会話で簡易手順をまとめる） ===== */
-.tm-chat-dialog { width: min(760px, 96vw); max-width: 96vw; }
+dialog.tm-chat-dialog { width: min(760px, 96vw); max-width: 96vw; }
 .tm-chat-form { display: flex; flex-direction: column; gap: 10px; max-height: min(84vh, 760px); }
 .tm-chat-head { display: flex; align-items: flex-start; gap: 10px; flex-wrap: wrap; }
 .tm-chat-ico { font-size: 22px; line-height: 1.2; }
