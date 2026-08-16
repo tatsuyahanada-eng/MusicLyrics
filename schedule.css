@@ -491,6 +491,17 @@
 /* 早い開始の予定は左端にも印を出す */
 .sc-vpill-early { box-shadow: inset 3px 0 0 #d97706; padding-left: 6px; }
 
+/* 次の枠が早い開始のとき、手前の枠にも少しだけ色をにじませる */
+.sc-vpeek {
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  pointer-events: none;
+}
+.sc-vpeek-confirmed { background: linear-gradient(to right, transparent, var(--sc-confirmed-bg) 35%, var(--sc-confirmed) 150%); }
+.sc-vpeek-tentative { background: linear-gradient(to right, transparent, var(--sc-tentative-bg) 35%, var(--sc-tentative) 150%); }
+
 /* 前の枠から続いている予定は控えめに */
 .sc-vpill-cont {
   opacity: 0.5;

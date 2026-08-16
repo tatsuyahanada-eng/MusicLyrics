@@ -36,6 +36,9 @@ const SLOTS = [
   { id: 'night', name: '夜間', start: '18:00', end: '23:00', from: '17:30', to: '24:00' },
 ];
 
+/** 早い開始があり得る枠（キー）と、その手前の枠（値＝そこに少しだけ色をにじませる） */
+const PEEK_NEXT = { early: 'am', p2: 'night' };
+
 function slotById(id) {
   for (let i = 0; i < SLOTS.length; i++) if (SLOTS[i].id === id) return SLOTS[i];
   return null;
@@ -569,8 +572,11 @@ function renderCalendar() {
       + (hol ? `<span class="sc-vdate-hol">${escapeHtml(hol)}</span>` : '')
       + `</button>`;
 
+    const slotJobs = {};
+    SLOTS.forEach((s2) => { slotJobs[s2.id] = jobsInSlot(key, s2.id); });
+
     const cells = SLOTS.map((slot) => {
-      const list = jobsInSlot(key, slot.id);
+      const list = slotJobs[slot.id];
       const pick = key + '|' + slot.id;
       const cls = ['sc-vcell'];
       if (key < today) cls.push('sc-vcell-past');
@@ -601,12 +607,33 @@ function renderCalendar() {
           + `${tag}${time}${escapeHtml(j.title || '(無題)')}</span>`;
       }).join('');
 
+      // この枠が空きで、次の枠（AM／夜間）に早い開始の予定があれば、少しだけ色をにじませる
+      let peek = '';
+      const nextId = PEEK_NEXT[slot.id];
+      if (!list.length && nextId) {
+        const nextSlot = slotById(nextId);
+        const early = slotJobs[nextId].find((j) => {
+          if (j.allDay || primarySlotId(j) !== nextId) return false;
+          const d2 = startDiff(j, nextSlot);
+          return d2 && d2.kind === 'early';
+        });
+        if (early) {
+          const std = toMinutes(nextSlot.start);
+          const winStart = toMinutes(nextSlot.from);
+          const frac = Math.min(1, Math.max(0, (std - toMinutes(early.start)) / (std - winStart)));
+          const width = Math.round(20 + frac * 60);
+          const cls2 = early.status === 'tentative' ? 'sc-vpeek-tentative' : 'sc-vpeek-confirmed';
+          const tip = `${escapeHtml(early.title || '(無題)')}が${escapeHtml(shortTime(early.start))}から（${escapeHtml(nextSlot.name)}）`;
+          peek = `<span class="sc-vpeek ${cls2}" style="width:${width}%" title="${tip}"></span>`;
+        }
+      }
+
       const label = `${view.month + 1}月${d}日 ${slot.name}`
         + (list.length ? ' ' + list.map((j) => j.title || '(無題)').join('、') : ' 空き');
 
       return `<button type="button" class="${cls.join(' ')}" data-date="${key}" data-slot="${slot.id}"`
         + ` data-pick="${pick}" aria-label="${escapeHtml(label)}">`
-        + `${inner || '<span class="sc-vcell-empty"></span>'}`
+        + `${inner || peek || '<span class="sc-vcell-empty"></span>'}`
         + (view.multi.has(pick) ? '<span class="sc-vcell-check">✓</span>' : '')
         + `</button>`;
     }).join('');
@@ -2277,6 +2304,8 @@ function bindEvents() {
     }
     // 選択のみ：1枠だけならその枠を選ぶ。
     // 続けてもう一度押した（ダブルクリック／ダブルタップ）ときだけ登録フォームを開く。
+    // ただし、すでに予定がある枠は、誤って内容を触ってしまわないよう内容の確認だけにする
+    // （新規に追加したいときは「＋予定を登録」ボタンを押す）。
     if (paintTouched.size === 1) {
       const pick = Array.from(paintTouched)[0];
       const now = Date.now();
@@ -2284,8 +2313,9 @@ function bindEvents() {
       lastTapKey = pick;
       lastTapAt = now;
       const [d, sid] = pick.split('|');
-      selectDate(d, { slot: sid, openForm: isDouble });
-      if (isDouble) {
+      const openForm = isDouble && !jobsInSlot(d, sid).length;
+      selectDate(d, { slot: sid, openForm });
+      if (openForm) {
         const el = $('fTitle');
         if (el) el.focus();
       }
@@ -2303,7 +2333,8 @@ function bindEvents() {
     const isDouble = lastTapKey === key && (now - lastTapAt) < DOUBLE_TAP_MS;
     lastTapKey = key;
     lastTapAt = now;
-    selectDate(dateBtn.dataset.date, { openForm: isDouble });
+    const openForm = isDouble && !jobsOn(dateBtn.dataset.date).length;
+    selectDate(dateBtn.dataset.date, { openForm });
   });
 
   // スマホでポップアップ表示中は、背景（枠外）をタップすると閉じる
