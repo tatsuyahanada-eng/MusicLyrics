@@ -539,6 +539,155 @@ function cbc_index_build($pdo, $rows, $pathTitles, $ids, $limit = 50) {
   return array($done, null);
 }
 
+/* 質問文に関連する項目を探す（意味の近さ＋語句一致のハイブリッド）。
+   「AIで探す」と「AIに相談（会話）」の両方から使う共通処理。
+   戻り値: array('results'=>..., 'mode'=>'semantic|keyword|empty', 'need_index'=>bool, 'embed_error'=>?string) */
+function cbc_retrieve($pdo, $s, $query, $maxOut = null) {
+  // 本文（body）はここでは読み込まない。項目数が多いと本文の総量が数百KBになり、
+  // 取得とHTML除去だけで時間を使ってしまうため。見出しの組み立てに必要な列だけを読む。
+  $rows = $pdo->query('SELECT id, parent_id, title, lock_hash FROM nodes')->fetchAll();
+  if (!$rows) return array('results' => array(), 'mode' => 'empty', 'need_index' => false, 'embed_error' => null);
+  $pathTitles = cbc_path_titles($rows);
+  // 権限で見えない項目は最初から除外する
+  $visible = $s['is_admin'] ? $rows : cbc_filter_allowed($rows, cbc_user_allowed($pdo, $s['username']));
+  if (!$visible) return array('results' => array(), 'mode' => 'empty', 'need_index' => false, 'embed_error' => null);
+  $lockById = array();
+  foreach ($rows as $r) $lockById[$r['id']] = $r['lock_hash'];
+
+  $stale = cbc_index_stale_ids($pdo);
+  // 編集直後など、古くなった索引がわずかならこの場で作り直す（通常は0〜1件なので体感に影響しない）。
+  // 大量に未作成のとき（初回導入時など）はここでは作らず、キーワード検索で結果を出しつつ
+  // 「索引を作ってください」と伝える。検索を待たせないための割り切り。
+  $needIndex = false;
+  if ($stale) {
+    if (count($stale) <= 20) {
+      $full = $pdo->query('SELECT id, parent_id, title, body FROM nodes')->fetchAll();
+      list($bd, $berr) = cbc_index_build($pdo, $full, cbc_path_titles($full), $stale, 20);
+      if ($berr !== null) $needIndex = true;
+    } else {
+      $needIndex = true;
+    }
+  }
+
+  // 照合に使う本文は、索引を作ったときの整形済みテキストを使い回す（HTML除去をやり直さない）。
+  // 索引がまだ無い項目のぶんだけ、本文を読んで補う。
+  $plainById = array();
+  try {
+    foreach ($pdo->query('SELECT node_id, text FROM node_vectors') as $tv) $plainById[$tv['node_id']] = $tv['text'];
+  } catch (Throwable $e) { $plainById = array(); }
+  $missing = array();
+  foreach ($visible as $r) { if (!isset($plainById[$r['id']])) $missing[] = $r['id']; }
+  if ($missing) {
+    $chunk = array_slice($missing, 0, 500);
+    $ph = implode(',', array_fill(0, count($chunk), '?'));
+    $q2 = $pdo->prepare("SELECT id, body FROM nodes WHERE id IN ($ph)");
+    $q2->execute($chunk);
+    $fetched = array();
+    foreach ($q2 as $mr) { $plainById[$mr['id']] = cbc_html_to_plain($mr['body']); $fetched[] = $mr['id']; }
+    // 以前のバージョンで作られた索引には整形済みテキストが入っていない。作り直し（再ベクトル化）は
+    // 不要なので、ここで読んだ内容だけを書き戻しておく。次回以降は本文を読まずに済む。
+    try {
+      $bf = $pdo->prepare('UPDATE node_vectors SET text = ? WHERE node_id = ? AND text IS NULL');
+      foreach ($fetched as $fid) $bf->execute(array($plainById[$fid], $fid));
+    } catch (Throwable $e) { /* 補完できなくても検索は成立する */ }
+  }
+
+  // キーワードのスコア（0〜1に正規化）。ここはAI不要で一瞬。
+  $terms = cbc_search_terms($query);
+  $kw = array();
+  $kwMax = 0;
+  foreach ($visible as $r) {
+    $head = implode(' ', $pathTitles[$r['id']]);
+    $headLow = mb_strtolower($head);
+    $body = isset($plainById[$r['id']]) ? $plainById[$r['id']] : '';
+    $sc = cbc_keyword_score($terms, mb_strtolower($head . ' ' . $body));
+    // 見出しに含まれる語は本文より重みを大きくする（タイトル一致は意図に近いことが多い）
+    $sc += cbc_keyword_score($terms, $headLow);
+    $kw[$r['id']] = $sc;
+    if ($sc > $kwMax) $kwMax = $sc;
+  }
+
+  // 意味の近さ（ベクトルの内積）。索引と質問の両方がそろったときだけ使う。
+  $sim = array();
+  $mode = 'keyword';
+  $embedErr = null;
+  if (!$needIndex) {
+    // 同じ質問を一度でも検索していれば、AIへの問い合わせを省いてそのぶん速くなる
+    $qv = cbc_qvec_get($pdo, $query);
+    $qerr = null;
+    if ($qv === null) {
+      list($qvecs, $qerr) = cbc_embed_texts($pdo, array($query), 'RETRIEVAL_QUERY');
+      if ($qerr === null && !empty($qvecs[0])) {
+        $qv = cbc_vec_normalize($qvecs[0]);
+        cbc_qvec_put($pdo, $query, $qv);
+      }
+    }
+    if ($qv !== null) {
+      $st = $pdo->query('SELECT node_id, vec FROM node_vectors');
+      foreach ($st as $v) {
+        if (!isset($kw[$v['node_id']])) continue; // 権限外・削除済み
+        $sim[$v['node_id']] = cbc_vec_dot($qv, cbc_vec_unpack($v['vec']));
+      }
+      if ($sim) $mode = 'semantic';
+    } else {
+      $embedErr = $qerr;
+    }
+  }
+
+  // 類似度の絶対値はモデルによって尺度が違う（0.8前後に固まるモデルもあれば、0.3台のモデルもある）。
+  // 固定のしきい値だと「全部通る」か「全部落ちる」になりやすいため、
+  // 一番近い項目を基準にした相対的な近さで足切りする（最低ラインだけ絶対値で押さえる）。
+  // ここは「一番近い項目から SIM_MARGIN 以内なら関連あり」と見なす、という1つの定数で決まる。
+  // 実際の項目で緩い／厳しいと感じたら、この値だけを調整すればよい（大きくすると候補が増える）。
+  $SIM_MARGIN = 0.10;
+  $bestSim = null;
+  foreach ($sim as $v) { if ($bestSim === null || $v > $bestSim) $bestSim = $v; }
+  $simCut = ($bestSim === null) ? null : max(0.15, $bestSim - $SIM_MARGIN);
+
+  // ハイブリッドの合成スコア。意味の近さを主、キーワード一致を補助にする。
+  // 意味検索が使えないときはキーワードだけで並べる（＝必ず何かしら結果が出る）。
+  $scored = array();
+  foreach ($visible as $r) {
+    $id = $r['id'];
+    $sv = isset($sim[$id]) ? $sim[$id] : null;
+    $kvn = $kwMax > 0 ? ($kw[$id] / $kwMax) : 0;
+    $semOk = ($sv !== null && $simCut !== null && $sv >= $simCut);
+    if ($mode === 'semantic') {
+      // 意味的にも語句的にも当たらないものは落とす（無関係な項目を並べない）
+      if (!$semOk && $kw[$id] <= 0) continue;
+      $score = ($sv === null ? 0 : $sv) + 0.25 * $kvn;
+    } else {
+      if ($kw[$id] <= 0) continue;
+      $score = $kvn;
+    }
+    $scored[] = array('id' => $id, 'score' => $score, 'sim' => $sv, 'kw' => $kw[$id], 'sem' => $semOk);
+  }
+  usort($scored, function ($a, $b) { return ($b['score'] < $a['score']) ? -1 : (($b['score'] > $a['score']) ? 1 : 0); });
+
+  // 意味検索が効いているときは、近いものだけを絞って出す（多く並べるほど、どれを見ればよいか迷うため）。
+  // 語句一致だけのときは取りこぼしを避けたいので、やや多めに出す。
+  $cap = ($maxOut !== null) ? $maxOut : (($mode === 'semantic') ? 5 : 8);
+  $results = array();
+  foreach (array_slice($scored, 0, $cap) as $sc) {
+    $id = $sc['id'];
+    // 何で当たったのかが分かるよう、理由を短く添える（AIに書かせないので追加コストは無い）
+    if ($sc['sem'] && $sc['kw'] > 0) $reason = '内容が近く、語句も一致しています';
+    elseif ($sc['sem']) $reason = '質問と内容が意味的に近い項目です';
+    elseif ($sc['kw'] > 0) $reason = '語句が一致しています';
+    else $reason = '';
+    $results[] = array(
+      'id' => $id,
+      'reason' => $reason,
+      'title' => $pathTitles[$id][count($pathTitles[$id]) - 1],
+      'path' => $pathTitles[$id],
+      'locked' => !empty($lockById[$id]),
+      'source' => $sc['sem'] ? 'ai' : 'keyword',
+      'score' => round($sc['score'], 4),
+    );
+  }
+  return array('results' => $results, 'mode' => $mode, 'need_index' => $needIndex, 'embed_error' => $embedErr);
+}
+
 /* cbc_gemini_soft のラッパー。失敗したら即エラー応答して終了する（要約・検索の主機能で使用）。 */
 function cbc_gemini($pdo, $prompt, $jsonMode = false, $maxTokens = 1024) {
   list($text, $err, $code) = cbc_gemini_soft($pdo, $prompt, $jsonMode, $maxTokens);
@@ -1456,169 +1605,143 @@ switch ($action) {
   }
 
   case 'ai_search': {
-    // 意味で探す検索。従来は「全項目をAIに渡して選ばせる」方式だったが、生成APIは応答が秒単位で遅く、
-    // 無料枠も小さいため、キーワード検索より遅くて不便になっていた。
-    // そこで、あらかじめ作っておいた索引（各項目のベクトル）を使い、
-    //   ・AIに投げるのは「質問文1件のベクトル化」だけ（短いので速い・枠に優しい）
-    //   ・項目との照合はサーバー内の計算（内積）で行う
-    // という方式にした。さらにキーワード一致のスコアも足し合わせ（ハイブリッド）、
-    // 型番などの完全一致にも、言い換え・同義語にも強くしている。
+    // 意味で探す検索。実際の探索は cbc_retrieve() が行う（「AIに相談」と共通）。
+    // 生成AIは使わないので、索引さえできていれば一瞬で返る。
     if (function_exists('set_time_limit')) @set_time_limit(60);
     $s = require_login($pdo);
     $d = body_json();
     $query = isset($d['q']) ? trim($d['q']) : '';
     if ($query === '') fail('検索語が必要です');
-
-    // 本文（body）はここでは読み込まない。項目数が多いと本文の総量が数百KBになり、
-    // 取得とHTML除去だけで時間を使ってしまうため。見出しの組み立てに必要な列だけを読む。
-    $rows = $pdo->query('SELECT id, parent_id, title, lock_hash FROM nodes')->fetchAll();
-    if (!$rows) ok(array('results' => array(), 'mode' => 'empty'));
-    $pathTitles = cbc_path_titles($rows);
-    // 権限で見えない項目は最初から除外する
-    $visible = $s['is_admin'] ? $rows : cbc_filter_allowed($rows, cbc_user_allowed($pdo, $s['username']));
-    if (!$visible) ok(array('results' => array(), 'mode' => 'empty'));
-    $lockById = array();
-    foreach ($rows as $r) $lockById[$r['id']] = $r['lock_hash'];
-
-    $stale = cbc_index_stale_ids($pdo);
-    // 編集直後など、古くなった索引がわずかならこの場で作り直す（通常は0〜1件なので体感に影響しない）。
-    // 大量に未作成のとき（初回導入時など）はここでは作らず、キーワード検索で結果を出しつつ
-    // 「索引を作ってください」と伝える。検索を待たせないための割り切り。
-    $needIndex = false;
-    if ($stale) {
-      if (count($stale) <= 20) {
-        $full = $pdo->query('SELECT id, parent_id, title, body FROM nodes')->fetchAll();
-        list($bd, $berr) = cbc_index_build($pdo, $full, cbc_path_titles($full), $stale, 20);
-        if ($berr !== null) $needIndex = true;
-      } else {
-        $needIndex = true;
-      }
-    }
-
-    // 照合に使う本文は、索引を作ったときの整形済みテキストを使い回す（HTML除去をやり直さない）。
-    // 索引がまだ無い項目のぶんだけ、本文を読んで補う。
-    $plainById = array();
-    try {
-      foreach ($pdo->query('SELECT node_id, text FROM node_vectors') as $tv) $plainById[$tv['node_id']] = $tv['text'];
-    } catch (Throwable $e) { $plainById = array(); }
-    $missing = array();
-    foreach ($visible as $r) { if (!isset($plainById[$r['id']])) $missing[] = $r['id']; }
-    if ($missing) {
-      $chunk = array_slice($missing, 0, 500);
-      $ph = implode(',', array_fill(0, count($chunk), '?'));
-      $q2 = $pdo->prepare("SELECT id, body FROM nodes WHERE id IN ($ph)");
-      $q2->execute($chunk);
-      $fetched = array();
-      foreach ($q2 as $mr) { $plainById[$mr['id']] = cbc_html_to_plain($mr['body']); $fetched[] = $mr['id']; }
-      // 以前のバージョンで作られた索引には整形済みテキストが入っていない。作り直し（再ベクトル化）は
-      // 不要なので、ここで読んだ内容だけを書き戻しておく。次回以降は本文を読まずに済む。
-      try {
-        $bf = $pdo->prepare('UPDATE node_vectors SET text = ? WHERE node_id = ? AND text IS NULL');
-        foreach ($fetched as $fid) $bf->execute(array($plainById[$fid], $fid));
-      } catch (Throwable $e) { /* 補完できなくても検索は成立する */ }
-    }
-
-    // キーワードのスコア（0〜1に正規化）。ここはAI不要で一瞬。
-    $terms = cbc_search_terms($query);
-    $kw = array();
-    $kwMax = 0;
-    foreach ($visible as $r) {
-      $head = implode(' ', $pathTitles[$r['id']]);
-      $headLow = mb_strtolower($head);
-      $body = isset($plainById[$r['id']]) ? $plainById[$r['id']] : '';
-      $sc = cbc_keyword_score($terms, mb_strtolower($head . ' ' . $body));
-      // 見出しに含まれる語は本文より重みを大きくする（タイトル一致は意図に近いことが多い）
-      $sc += cbc_keyword_score($terms, $headLow);
-      $kw[$r['id']] = $sc;
-      if ($sc > $kwMax) $kwMax = $sc;
-    }
-
-    // 意味の近さ（ベクトルの内積）。索引と質問の両方がそろったときだけ使う。
-    $sim = array();
-    $mode = 'keyword';
-    $embedErr = null;
-    if (!$needIndex) {
-      // 同じ質問を一度でも検索していれば、AIへの問い合わせを省いてそのぶん速くなる
-      $qv = cbc_qvec_get($pdo, $query);
-      $qerr = null;
-      if ($qv === null) {
-        list($qvecs, $qerr) = cbc_embed_texts($pdo, array($query), 'RETRIEVAL_QUERY');
-        if ($qerr === null && !empty($qvecs[0])) {
-          $qv = cbc_vec_normalize($qvecs[0]);
-          cbc_qvec_put($pdo, $query, $qv);
-        }
-      }
-      if ($qv !== null) {
-        $st = $pdo->query('SELECT node_id, vec FROM node_vectors');
-        foreach ($st as $v) {
-          if (!isset($kw[$v['node_id']])) continue; // 権限外・削除済み
-          $sim[$v['node_id']] = cbc_vec_dot($qv, cbc_vec_unpack($v['vec']));
-        }
-        if ($sim) $mode = 'semantic';
-      } else {
-        $embedErr = $qerr;
-      }
-    }
-
-    // 類似度の絶対値はモデルによって尺度が違う（0.8前後に固まるモデルもあれば、0.3台のモデルもある）。
-    // 固定のしきい値だと「全部通る」か「全部落ちる」になりやすいため、
-    // 一番近い項目を基準にした相対的な近さで足切りする（最低ラインだけ絶対値で押さえる）。
-    // ここは「一番近い項目から SIM_MARGIN 以内なら関連あり」と見なす、という1つの定数で決まる。
-    // 実際の項目で緩い／厳しいと感じたら、この値だけを調整すればよい（大きくすると候補が増える）。
-    $SIM_MARGIN = 0.10;
-    $bestSim = null;
-    foreach ($sim as $v) { if ($bestSim === null || $v > $bestSim) $bestSim = $v; }
-    $simCut = ($bestSim === null) ? null : max(0.15, $bestSim - $SIM_MARGIN);
-
-    // ハイブリッドの合成スコア。意味の近さを主、キーワード一致を補助にする。
-    // 意味検索が使えないときはキーワードだけで並べる（＝必ず何かしら結果が出る）。
-    $scored = array();
-    foreach ($visible as $r) {
-      $id = $r['id'];
-      $sv = isset($sim[$id]) ? $sim[$id] : null;
-      $kvn = $kwMax > 0 ? ($kw[$id] / $kwMax) : 0;
-      $semOk = ($sv !== null && $simCut !== null && $sv >= $simCut);
-      if ($mode === 'semantic') {
-        // 意味的にも語句的にも当たらないものは落とす（無関係な項目を並べない）
-        if (!$semOk && $kw[$id] <= 0) continue;
-        $score = ($sv === null ? 0 : $sv) + 0.25 * $kvn;
-      } else {
-        if ($kw[$id] <= 0) continue;
-        $score = $kvn;
-      }
-      $scored[] = array('id' => $id, 'score' => $score, 'sim' => $sv, 'kw' => $kw[$id], 'sem' => $semOk);
-    }
-    usort($scored, function ($a, $b) { return ($b['score'] < $a['score']) ? -1 : (($b['score'] > $a['score']) ? 1 : 0); });
-
-    // 意味検索が効いているときは、近いものだけを絞って出す（多く並べるほど、どれを見ればよいか迷うため）。
-    // 語句一致だけのときは取りこぼしを避けたいので、やや多めに出す。
-    $maxOut = ($mode === 'semantic') ? 5 : 8;
-    $results = array();
-    foreach (array_slice($scored, 0, $maxOut) as $sc) {
-      $id = $sc['id'];
-      // 何で当たったのかが分かるよう、理由を短く添える（AIに書かせないので追加コストは無い）
-      if ($sc['sem'] && $sc['kw'] > 0) $reason = '内容が近く、語句も一致しています';
-      elseif ($sc['sem']) $reason = '質問と内容が意味的に近い項目です';
-      elseif ($sc['kw'] > 0) $reason = '語句が一致しています';
-      else $reason = '';
-      $results[] = array(
-        'id' => $id,
-        'reason' => $reason,
-        'title' => $pathTitles[$id][count($pathTitles[$id]) - 1],
-        'path' => $pathTitles[$id],
-        'locked' => !empty($lockById[$id]),
-        'source' => $sc['sem'] ? 'ai' : 'keyword',
-        'score' => round($sc['score'], 4),
-      );
-    }
+    $r = cbc_retrieve($pdo, $s, $query);
     ok(array(
-      'results' => $results,
-      'mode' => $mode,             // semantic = 意味検索が効いている / keyword = 語句一致のみ
-      'need_index' => $needIndex,  // true なら「索引を作ってください」の案内を出す
-      'embed_error' => $embedErr,
+      'results' => $r['results'],
+      'mode' => $r['mode'],             // semantic = 意味検索が効いている / keyword = 語句一致のみ
+      'need_index' => $r['need_index'], // true なら「索引を作ってください」の案内を出す
+      'embed_error' => $r['embed_error'],
     ));
   }
 
+  case 'ai_chat': {
+    // 「AIに相談」：会話でやりたいことを伝えると、登録済みの項目の内容だけを根拠に
+    // 簡易手順にまとめて返す。会話の流れを保つため、直前までのやり取りも一緒に受け取る。
+    //   1) 会話から「今、何を探すべきか」を組み立てて関連項目を取り出す（cbc_retrieve・生成AIは使わない）
+    //   2) 取り出した項目の本文と会話履歴を渡して、手順を書いてもらう（生成AIはここだけ）
+    // 対象を絞れないときは、手順の代わりに選択肢つきで聞き返す。
+    if (function_exists('set_time_limit')) @set_time_limit(90);
+    $s = require_login($pdo);
+    $d = body_json();
+    $msgs = (isset($d['messages']) && is_array($d['messages'])) ? $d['messages'] : array();
+    // 直近のやり取りだけを使う（長くなるほど遅く・高くなるため）
+    $msgs = array_slice($msgs, -8);
+    $clean = array();
+    foreach ($msgs as $m) {
+      if (!is_array($m)) continue;
+      $role = (isset($m['role']) && $m['role'] === 'assistant') ? 'assistant' : 'user';
+      $text = isset($m['text']) ? trim((string)$m['text']) : '';
+      if ($text === '') continue;
+      $clean[] = array('role' => $role, 'text' => mb_substr($text, 0, 2000));
+    }
+    if (!$clean) fail('相談内容を入力してください');
+    $lastUser = '';
+    for ($i = count($clean) - 1; $i >= 0; $i--) { if ($clean[$i]['role'] === 'user') { $lastUser = $clean[$i]['text']; break; } }
+    if ($lastUser === '') fail('相談内容を入力してください');
+
+    // 検索に使う文章：最新の要望を主にしつつ、それまでの要望も足して文脈を保つ
+    // （「じゃあ次は？」のような短い追加質問でも、話の流れから探せるようにする）。
+    $userTexts = array();
+    foreach ($clean as $m) { if ($m['role'] === 'user') $userTexts[] = $m['text']; }
+    $prevUsers = array_slice($userTexts, 0, -1);
+    $retrieveQuery = $lastUser;
+    if ($prevUsers) $retrieveQuery = implode(' ', array_slice($prevUsers, -2)) . ' ' . $lastUser;
+    $retrieveQuery = mb_substr($retrieveQuery, 0, 500);
+
+    $r = cbc_retrieve($pdo, $s, $retrieveQuery, 4);
+    $results = $r['results'];
+    if (!$results) {
+      ok(array(
+        'answer' => null, 'ask' => null, 'sources' => array(),
+        'mode' => $r['mode'], 'need_index' => $r['need_index'],
+        'empty' => true,
+      ));
+    }
+
+    // 見つかった項目の本文を読み込む（会話の根拠として渡す）
+    $ids = array();
+    foreach ($results as $x) $ids[] = $x['id'];
+    $ph = implode(',', array_fill(0, count($ids), '?'));
+    $st = $pdo->prepare("SELECT id, body FROM nodes WHERE id IN ($ph)");
+    $st->execute($ids);
+    $bodyById = array();
+    foreach ($st as $b) $bodyById[$b['id']] = $b['body'];
+
+    $secLines = array();
+    foreach ($results as $x) {
+      $plain = isset($bodyById[$x['id']]) ? cbc_html_to_plain($bodyById[$x['id']]) : '';
+      $plain = mb_substr(trim($plain), 0, 2200);
+      if ($plain === '') continue;
+      $secLines[] = '【項目名】' . implode(' > ', $x['path']) . "\n【内容】\n" . $plain;
+    }
+    if (!$secLines) {
+      ok(array('answer' => null, 'ask' => null, 'sources' => array(), 'mode' => $r['mode'], 'need_index' => $r['need_index'], 'empty' => true));
+    }
+
+    // 会話の流れをそのまま文章にして渡す（AIが「さっきの話」を踏まえて答えられるように）
+    $convo = '';
+    foreach ($clean as $m) $convo .= ($m['role'] === 'user' ? '利用者: ' : 'アシスタント: ') . $m['text'] . "\n";
+
+    $prompt = "あなたは社内作業マニュアルのアシスタントです。利用者が「こうしたい」と相談してくるので、"
+      . "登録済みのマニュアル（下記【関連項目】）の内容だけを根拠に、実際にやるべきことを簡易手順にまとめて答えてください。\n"
+      . "出力の書式（プレーンテキスト。JSONやコードブロックにはしないこと）:\n"
+      . "・最初に1〜2文で「何をすることになるか」を書く（見出し不要）。重要な語句は **太字** にしてよい。\n"
+      . "・続けて「## 手順」という見出しを付け、その下に「1. 」「2. 」…と番号を振った手順を、"
+      . "実際に手を動かす順番で、1行1手順で簡潔に書く（各行は80字以内。全体で3〜8手順を目安）。\n"
+      . "・注意点がある場合のみ、最後に「## 注意」の見出しを付けて「- 」の箇条書きで書く（多くても3つ）。\n"
+      . "・【関連項目】に書かれていないことは、絶対に推測や一般論で補わないでください。"
+      . "手順が足りない場合は、分かる範囲だけを書き、足りない部分は「マニュアルに記載がありません」と正直に書いてください。\n"
+      . "・すでに会話で答えた内容を繰り返さず、直前の利用者の発言に答えてください。\n\n"
+      . "【例外：聞き返し】対象（機種・状況・作業の種類など）が分からないと手順が変わってしまい、"
+      . "どれを案内すべきか決められない場合に限り、手順の代わりに次の形式だけを出力してください。\n"
+      . "ASK: 利用者への確認の質問（50字以内）\n"
+      . "- 選択肢1\n"
+      . "- 選択肢2\n"
+      . "選択肢は2〜4個で、必ず【関連項目】に実在する内容から作ってください。対象が明らかなときは聞き返さないこと。\n\n"
+      . "【これまでの会話】\n" . $convo . "\n"
+      . "【関連項目】\n" . implode("\n\n", $secLines);
+
+    list($text, $err) = cbc_gemini_soft($pdo, $prompt, false, 1600);
+    if ($err !== null) fail($err, 502);
+    $text = trim((string)$text);
+
+    // 聞き返しは行頭の「ASK:」で見分ける（JSONに包むと、長くなって途中で切れたとき全部消えるため）
+    $ask = null; $answer = null;
+    if ($text !== '' && stripos(ltrim($text), 'ASK') === 0 && preg_match('/^ASK[:：]\s*(.+)$/mu', $text, $m)) {
+      $question = trim($m[1]);
+      $options = array();
+      foreach (preg_split('/\R/u', $text) as $line) {
+        if (preg_match('/^\s*[-・*]\s*(.+?)\s*$/u', $line, $om)) {
+          $o = mb_substr(trim($om[1]), 0, 40);
+          if ($o !== '' && !in_array($o, $options, true)) $options[] = $o;
+        }
+        if (count($options) >= 4) break;
+      }
+      if ($question !== '' && count($options) >= 2) $ask = array('question' => mb_substr($question, 0, 120), 'options' => $options);
+    }
+    if ($ask === null && $text !== '') $answer = $text;
+
+    // 参照した項目（クリックでその項目を開けるようにする）
+    $sources = array();
+    foreach ($results as $x) {
+      $sources[] = array('id' => $x['id'], 'title' => $x['title'], 'path' => $x['path'], 'locked' => $x['locked']);
+    }
+    ok(array(
+      'answer' => $answer,
+      'ask' => $ask,
+      'sources' => $sources,
+      'mode' => $r['mode'],
+      'need_index' => $r['need_index'],
+      'empty' => false,
+    ));
+  }
   case 'ai_search_summary': {
     // 「AIで探す」で見つかった項目（上位いくつか）の内容をもとに、質問への回答をAIがまとめる。
     // ai_search とは別リクエストにすることで、一覧はすぐ表示しつつ、まとめは追いかけて表示できる

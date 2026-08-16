@@ -914,6 +914,63 @@ body.tm-dragging .tm-sortrow { cursor: grabbing; }
   font-family: var(--tm-mono); background: rgba(255,255,255,0.08); border-radius: 3px; padding: 0 4px;
 }
 .tm-aisearch-tips-note { margin: 8px 0 0 !important; color: var(--tm-muted) !important; font-weight: 400 !important; }
+/* ===== AIに相談（会話で簡易手順をまとめる） ===== */
+.tm-chat-dialog { width: min(760px, 96vw); max-width: 96vw; }
+.tm-chat-form { display: flex; flex-direction: column; gap: 10px; max-height: min(84vh, 760px); }
+.tm-chat-head { display: flex; align-items: flex-start; gap: 10px; flex-wrap: wrap; }
+.tm-chat-ico { font-size: 22px; line-height: 1.2; }
+.tm-chat-headtext { flex: 1 1 200px; min-width: 0; }
+.tm-chat-headbtns { display: flex; gap: 6px; flex: none; margin-left: auto; }
+.tm-chat-title { font-size: 18px; color: var(--tm-cyan); letter-spacing: 1px; margin: 0; }
+.tm-chat-sub { font-size: 12px; color: var(--tm-muted); margin: 2px 0 0; line-height: 1.6; }
+.tm-chat-thread {
+  flex: 1 1 auto; overflow-y: auto; min-height: 180px;
+  display: flex; flex-direction: column; gap: 10px;
+  padding: 12px; border: 1px solid var(--tm-line); border-radius: 8px;
+  background: rgba(4, 14, 22, 0.6);
+}
+.tm-chat-empty { color: var(--tm-muted); font-size: 13px; line-height: 1.8; text-align: center; padding: 18px 6px; }
+.tm-chat-empty b { color: var(--tm-text); }
+.tm-chat-row { display: flex; }
+.tm-chat-row.is-user { justify-content: flex-end; }
+.tm-chat-bubble {
+  max-width: 88%; font-size: 14px; line-height: 1.85;
+  padding: 10px 14px; border-radius: 12px; overflow-wrap: anywhere; word-break: break-word;
+}
+.tm-chat-row.is-user .tm-chat-bubble {
+  background: var(--tm-cyan-deep); border: 1px solid var(--tm-cyan-dim); color: var(--tm-text);
+  border-bottom-right-radius: 4px;
+}
+.tm-chat-row.is-ai .tm-chat-bubble {
+  background: var(--tm-panel-solid); border: 1px solid var(--tm-line); color: var(--tm-text);
+  border-bottom-left-radius: 4px;
+}
+/* 回答内の書式（見出し・番号付き手順・箇条書き） */
+.tm-chat-bubble h3 {
+  font-size: 14px; color: var(--tm-cyan); letter-spacing: .5px;
+  margin: 12px 0 6px; border-bottom: 1px dashed var(--tm-line); padding-bottom: 3px;
+}
+.tm-chat-bubble h3:first-child { margin-top: 0; }
+.tm-chat-bubble p { margin: 0 0 8px; }
+.tm-chat-bubble p:last-child { margin-bottom: 0; }
+.tm-chat-bubble ol { margin: 6px 0 8px; padding-left: 22px; }
+.tm-chat-bubble ul { margin: 6px 0 8px; padding-left: 20px; list-style: disc; }
+.tm-chat-bubble li { margin: 5px 0; }
+.tm-chat-bubble strong { color: var(--tm-text); }
+.tm-chat-loading { color: var(--tm-muted); font-size: 13px; }
+/* 参照した項目 */
+.tm-chat-srclabel { font-size: 11px; color: var(--tm-muted); margin: 10px 0 4px; }
+.tm-chat-sources { display: flex; flex-wrap: wrap; gap: 6px; }
+/* 聞き返しの選択肢 */
+.tm-chat-askopts { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+.tm-chat-inputrow { display: flex; gap: 8px; align-items: flex-end; }
+.tm-chat-input { flex: 1 1 auto; resize: vertical; min-height: 46px; font-family: var(--tm-sans); }
+.tm-chat-send { flex: none; }
+@media (max-width: 560px) {
+  .tm-chat-bubble { max-width: 95%; font-size: 13px; }
+  .tm-chat-thread { padding: 10px; }
+}
+
 /* 意味検索の索引づくり（修正画面・管理者のみ） */
 .tm-aiindex {
   flex-basis: 100%; margin-top: 10px; padding-top: 10px;

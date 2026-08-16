@@ -9,7 +9,7 @@
   <link rel="manifest" href="manifest.webmanifest">
   <link rel="icon" href="icon.svg" type="image/svg+xml">
   <link rel="apple-touch-icon" href="icon-192.png">
-  <link rel="stylesheet" href="manual.css?v=82">
+  <link rel="stylesheet" href="manual.css?v=83">
 </head>
 <body class="tm-body">
 
@@ -881,6 +881,30 @@
     </div>
   </dialog>
 
+  <!-- ===== AIに相談（会話で簡易手順をまとめる） ===== -->
+  <dialog id="aiChatDialog" class="tm-dialog tm-chat-dialog">
+    <div class="tm-dialog-form tm-chat-form">
+      <div class="tm-chat-head">
+        <span class="tm-chat-ico">&#128172;</span>
+        <div class="tm-chat-headtext">
+          <h2 class="tm-chat-title">AIに相談</h2>
+          <p class="tm-chat-sub">やりたいことを話しかけてください。登録済みの内容から簡易手順にまとめます。</p>
+        </div>
+        <div class="tm-chat-headbtns">
+          <button type="button" id="aiChatReset" class="tm-btn tm-btn-outline tm-btn-sm" title="会話をリセット">&#8635; 新しい相談</button>
+          <button type="button" id="aiChatClose" class="tm-btn tm-btn-outline tm-btn-sm">閉じる</button>
+        </div>
+      </div>
+      <div id="aiChatThread" class="tm-chat-thread" aria-live="polite"></div>
+      <form id="aiChatForm" class="tm-chat-inputrow">
+        <textarea id="aiChatInput" class="tm-input tm-chat-input" rows="2"
+          placeholder="例）新しい店舗にレジを導入したい" autocomplete="off"></textarea>
+        <button type="submit" id="aiChatSend" class="tm-btn tm-btn-primary tm-chat-send">送信</button>
+      </form>
+      <p class="tm-ai-note">※ 登録されている項目の内容だけをもとにAIがまとめています。実施前に元の項目もご確認ください。</p>
+    </div>
+  </dialog>
+
   <!-- ===== AI要約ポップアップ ===== -->
   <dialog id="aiSummaryDialog" class="tm-dialog tm-list-dialog">
     <div class="tm-dialog-form">
@@ -914,6 +938,7 @@
       </div>
       <div id="aiSearchRow" class="tm-aisearch-row" hidden>
         <button type="button" id="aiSearchBtn" class="tm-btn tm-btn-ai tm-btn-sm">&#10024; AIで探す（意味で検索）</button>
+        <button type="button" id="aiChatOpenBtn" class="tm-btn tm-btn-outline tm-btn-sm">&#128172; AIに相談（手順を作る）</button>
         <span class="tm-aisearch-hint">キーワードが合わなくても、質問文からAIが関連項目を探します。</span>
         <button type="button" id="aiTipsBtn" class="tm-aisearch-tipsbtn">&#128161; 入力のコツ</button>
       </div>
@@ -1111,6 +1136,6 @@
   </dialog>
 
   <script src="vendor/xlsx.full.min.js"></script>
-  <script src="manual.js?v=98"></script>
+  <script src="manual.js?v=99"></script>
 </body>
 </html>

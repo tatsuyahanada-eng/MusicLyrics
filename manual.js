@@ -501,18 +501,25 @@
   }
   // 本文がHTMLらしいか（新方式）／プレーン・旧記法か（レガシー）で描画を切替
   function looksLikeHtml(s) { return /<(b|strong|i|em|u|span|font|br|div|p|a|img)\b[^>]*>/i.test(String(s)); }
-  function renderBody(text) {
+  function renderBody(text, opts) {
     const s = String(text == null ? '' : text);
     if (looksLikeHtml(s)) return sanitizeHtml(s);
-    return renderLegacyBody(s);
+    return renderLegacyBody(s, opts);
   }
 
-  function renderLegacyBody(text) {
+  // opts.ordered = true のときだけ「1. 」で始まる行を番号付きリスト(<ol>)にする。
+  // 既定はオフ。項目本文の見え方を変えないため、AIの回答表示など明示した場所だけで有効にする。
+  function renderLegacyBody(text, opts) {
+    const ordered = !!(opts && opts.ordered);
     const lines = String(text).replace(/\r\n/g, '\n').replace(/\r/g, '\n').split('\n');
     let html = '';
     let inList = false;
+    let inOl = false;
     let para = [];
-    const closeList = () => { if (inList) { html += '</ul>'; inList = false; } };
+    const closeList = () => {
+      if (inList) { html += '</ul>'; inList = false; }
+      if (inOl) { html += '</ol>'; inOl = false; }
+    };
     // 連続した通常行は1段落にまとめ、改行(Enter)は<br>で表示。空行で段落を分ける。
     const flushPara = () => { if (para.length) { html += `<p>${para.join('<br>')}</p>`; para = []; } };
     // [ラベル](URL) のリンク と 素のURL を安全にリンク化
@@ -547,8 +554,15 @@
       } else if (/^#{1,3}\s+/.test(line)) {
         flushPara(); closeList();
         html += `<h3>${inline(line.replace(/^#{1,3}\s+/, ''))}</h3>`;
+      } else if (ordered && /^\d+[.)]\s+/.test(line)) {
+        flushPara();
+        if (inList) { html += '</ul>'; inList = false; }
+        if (!inOl) { html += '<ol>'; inOl = true; }
+        // 番号は <ol> が振り直すので、書かれていた番号は取り除く
+        html += `<li>${inline(line.replace(/^\d+[.)]\s+/, ''))}</li>`;
       } else if (/^[-*]\s+/.test(line)) {
         flushPara();
+        if (inOl) { html += '</ol>'; inOl = false; }
         if (!inList) { html += '<ul>'; inList = true; }
         html += `<li>${inline(line.replace(/^[-*]\s+/, ''))}</li>`;
       } else if (line.trim() === '') {
@@ -4566,6 +4580,151 @@
     }
   }
   { const aib = $('#aiSearchBtn'); if (aib) aib.addEventListener('click', runAiSearch); }
+
+  /* ---------- AIに相談（会話で簡易手順をまとめる） ----------
+     やりたいことを会話で伝えると、登録済みの項目から関連するものを探し、
+     その内容だけを根拠にAIが簡易手順を書く。会話の流れは端末側で保持し、
+     毎回まとめてサーバーへ送る（サーバー側に会話を保存しないので、他の人には見えない）。 */
+  const aiChatDialog = $('#aiChatDialog');
+  let aiChatMessages = [];   // [{role:'user'|'assistant', text}]
+  let aiChatSources = [];    // 直近の回答が参照した項目（チップのクリック用）
+  let aiChatBusy = false;
+
+  function aiChatRenderEmpty() {
+    const th = $('#aiChatThread'); if (!th) return;
+    th.innerHTML = `<div class="tm-chat-empty">
+      やりたいことを、話しかけるように書いてください。<br>
+      登録されている項目から関連する内容を探し、<b>簡易手順</b>にまとめます。<br><br>
+      例）「新しい店舗にレジを導入したい」<br>
+      例）「レシートが出ないので直したい」
+    </div>`;
+  }
+  function aiChatScroll() {
+    const th = $('#aiChatThread'); if (th) th.scrollTop = th.scrollHeight;
+  }
+  // 1件ぶんの吹き出しを描画する。html を渡すと整形済みHTMLとして入れる。
+  function aiChatAppend(role, opts) {
+    const th = $('#aiChatThread'); if (!th) return null;
+    const empty = th.querySelector('.tm-chat-empty'); if (empty) empty.remove();
+    const row = document.createElement('div');
+    row.className = 'tm-chat-row ' + (role === 'user' ? 'is-user' : 'is-ai');
+    const bub = document.createElement('div');
+    bub.className = 'tm-chat-bubble';
+    if (opts && opts.html != null) bub.innerHTML = opts.html;
+    else bub.textContent = (opts && opts.text) || '';
+    row.appendChild(bub);
+    th.appendChild(row);
+    aiChatScroll();
+    return bub;
+  }
+  // 参照した項目のチップ（押すとその項目へ移動）
+  function aiChatSourcesHtml(sources) {
+    if (!sources || !sources.length) return '';
+    const chips = sources.map((sc, i) =>
+      `<button class="tm-aisearch-srcchip" type="button" data-chatsrc="${i}">
+        <span class="tm-aisearch-srcchip-num">${i + 1}</span>${esc(sc.title)}${sc.locked ? '&#128274;' : ''}
+      </button>`).join('');
+    return `<div class="tm-chat-srclabel">参照した項目（クリックで開きます）</div>
+      <div class="tm-chat-sources">${chips}</div>`;
+  }
+  function aiChatAskHtml(ask) {
+    const opts = (ask.options || []).map((o) =>
+      `<button class="tm-aisearch-askopt" type="button" data-chatask="${esc(o)}">${esc(o)}</button>`).join('');
+    return `<div>${esc(ask.question)}</div><div class="tm-chat-askopts">${opts}</div>`;
+  }
+
+  async function aiChatSend(text) {
+    if (aiChatBusy) return;
+    const msg = String(text || '').trim();
+    if (!msg) return;
+    if (!serverMode()) { aiChatAppend('assistant', { text: 'AIに相談はサーバー接続時のみ利用できます。' }); return; }
+    aiChatBusy = true;
+    const sendBtn = $('#aiChatSend'); if (sendBtn) sendBtn.disabled = true;
+    const input = $('#aiChatInput'); if (input) input.value = '';
+
+    aiChatAppend('user', { text: msg });
+    aiChatMessages.push({ role: 'user', text: msg });
+    const thinking = aiChatAppend('assistant', { html: '<span class="tm-chat-loading">&#10024; 登録内容を調べて手順をまとめています…</span>' });
+
+    try {
+      const d = await apiCall('ai_chat', { method: 'POST', body: { messages: aiChatMessages } });
+      if (d.empty) {
+        const note = d.need_index
+          ? '関連する項目が見つかりませんでした。（意味検索の索引が未作成です。修正画面の「AI検索の索引」で作成すると精度が上がります）'
+          : '関連する項目が見つかりませんでした。言い方を変えるか、もう少し具体的に教えてください。';
+        if (thinking) thinking.textContent = note;
+        aiChatMessages.push({ role: 'assistant', text: note });
+      } else if (d.ask) {
+        if (thinking) thinking.innerHTML = aiChatAskHtml(d.ask);
+        aiChatMessages.push({ role: 'assistant', text: 'ASK: ' + d.ask.question });
+      } else if (d.answer) {
+        aiChatSources = d.sources || [];
+        // 「1. 」で始まる手順を番号付きリストとして描画する（ordered:true）
+        if (thinking) thinking.innerHTML = renderBody(d.answer, { ordered: true }) + aiChatSourcesHtml(aiChatSources);
+        aiChatMessages.push({ role: 'assistant', text: d.answer });
+      } else {
+        const note = '回答を作成できませんでした。もう一度お試しください。';
+        if (thinking) thinking.textContent = note;
+      }
+    } catch (e) {
+      if (thinking) thinking.textContent = 'エラー：' + e.message;
+    }
+    aiChatScroll();
+    aiChatBusy = false;
+    if (sendBtn) sendBtn.disabled = false;
+    if (input) input.focus();
+  }
+
+  function openAiChat(seed) {
+    if (!aiChatDialog) return;
+    if (!aiChatMessages.length) aiChatRenderEmpty();
+    aiChatDialog.showModal();
+    syncTrap();
+    const input = $('#aiChatInput');
+    if (input) { if (seed) input.value = seed; setTimeout(() => input.focus(), 30); }
+  }
+  { const b = $('#aiChatOpenBtn'); if (b) b.addEventListener('click', () => {
+    // 検索欄に入力済みならそれを引き継ぐ（「探す」から「相談」への流れを切らさない）
+    const q = searchInput ? searchInput.value.trim() : '';
+    closeSearchThen(() => openAiChat(q));
+  }); }
+  { const b = $('#aiChatClose'); if (b) b.addEventListener('click', () => { if (aiChatDialog.open) aiChatDialog.close(); }); }
+  { const b = $('#aiChatReset'); if (b) b.addEventListener('click', () => {
+    aiChatMessages = []; aiChatSources = [];
+    aiChatRenderEmpty();
+    const input = $('#aiChatInput'); if (input) { input.value = ''; input.focus(); }
+  }); }
+  { const f = $('#aiChatForm'); if (f) f.addEventListener('submit', (e) => {
+    e.preventDefault();
+    const input = $('#aiChatInput');
+    aiChatSend(input ? input.value : '');
+  }); }
+  // PCではEnterで送信・Shift+Enterで改行。スマホ等（タッチ主体）ではEnterは改行のままにする。
+  { const input = $('#aiChatInput'); if (input) input.addEventListener('keydown', (e) => {
+    const touch = window.matchMedia && window.matchMedia('(pointer: coarse)').matches;
+    if (e.key === 'Enter' && !e.shiftKey && !e.isComposing && !touch) { e.preventDefault(); aiChatSend(input.value); }
+  }); }
+  // 参照チップ／聞き返しの選択肢
+  { const th = $('#aiChatThread'); if (th) th.addEventListener('click', (e) => {
+    const src = e.target.closest('[data-chatsrc]');
+    if (src) {
+      const sc = aiChatSources[parseInt(src.dataset.chatsrc, 10)];
+      if (sc) openNodeById(sc.id);
+      return;
+    }
+    const opt = e.target.closest('[data-chatask]');
+    if (opt) { aiChatSend(opt.dataset.chatask); return; }
+  }); }
+  if (aiChatDialog) aiChatDialog.addEventListener('close', () => { syncTrap(); });
+
+  // 項目IDからその項目を開く（相談の「参照した項目」から移動するときに使う）
+  async function openNodeById(id) {
+    let p = findPath(id);
+    if (!p) { try { await reloadFromServer(); } catch (_) {} p = findPath(id); }
+    if (!p) return;
+    if (aiChatDialog && aiChatDialog.open) aiChatDialog.close();
+    gotoNodePath(p.map((n) => n.id));
+  }
   { const tb = $('#aiTipsBtn'), tbox = $('#aiTipsBox'); if (tb && tbox) tb.addEventListener('click', () => { tbox.hidden = !tbox.hidden; }); }
   let searchDebounce = null;
   searchInput.addEventListener('input', () => {
