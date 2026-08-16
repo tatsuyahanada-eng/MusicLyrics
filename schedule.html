@@ -13,7 +13,7 @@
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="default">
   <meta name="apple-mobile-web-app-title" content="VertiCale">
-  <link rel="stylesheet" href="schedule.css?v=18">
+  <link rel="stylesheet" href="schedule.css?v=19">
 </head>
 <body class="sc-body">
 
@@ -60,40 +60,6 @@
     <!-- 左：カレンダー -->
     <section class="sc-calendar-col">
 
-      <div class="sc-toolbar">
-        <div class="sc-toolbar-group">
-          <span class="sc-toolbar-label">操作モード</span>
-          <div class="sc-paint-tabs" role="group" aria-label="まとめて入力モード">
-            <button class="sc-paint-tab active" data-paint="off-mode" type="button">選択のみ</button>
-            <button class="sc-paint-tab sc-paint-tab-multi" data-paint="multi" type="button">☑ まとめて登録</button>
-            <button class="sc-paint-tab" data-paint="available" type="button">◯ 稼働可</button>
-            <button class="sc-paint-tab" data-paint="off" type="button">✕ 休み希望</button>
-            <button class="sc-paint-tab" data-paint="clear" type="button">− 未定に戻す</button>
-          </div>
-          <p id="paintHint" class="sc-hint">
-            枠（早朝・AM・P1・P2・夜間）を1回クリックすると内容を確認でき、ダブルクリック（スマホはダブルタップ）で登録画面が開きます。ドラッグすると複数の枠をまとめて選べます。
-            ◯稼働可・✕休み希望は、左端の日付をクリック（ドラッグ）して設定します。
-          </p>
-        </div>
-
-        <div class="sc-toolbar-group">
-          <span class="sc-toolbar-label">クイック設定（表示中の月）</span>
-          <div class="sc-quick-row">
-            <button id="quickWeekday" class="sc-btn sc-btn-sm sc-btn-outline" type="button">平日を稼働可</button>
-            <button id="quickWeekend" class="sc-btn sc-btn-sm sc-btn-outline" type="button">土日祝を休み希望</button>
-            <button id="quickClear" class="sc-btn sc-btn-sm sc-btn-outline sc-btn-danger" type="button">希望をクリア</button>
-          </div>
-        </div>
-
-        <div class="sc-toolbar-group">
-          <span class="sc-toolbar-label">出力</span>
-          <div class="sc-quick-row">
-            <button id="printPdfBtn" class="sc-btn sc-btn-sm sc-btn-outline" type="button">🖨 PDFで出力</button>
-          </div>
-          <p class="sc-hint">表示中の月（1日〜末日）を、この画面のまま印刷・PDF保存します。</p>
-        </div>
-      </div>
-
       <!-- 印刷／PDF出力のときだけ表示する見出し -->
       <div id="printHeader" class="sc-print-header"></div>
 
@@ -111,10 +77,30 @@
       </ul>
 
       <div id="stats" class="sc-stats"></div>
+
+      <div class="sc-output-row">
+        <button id="printPdfBtn" class="sc-btn sc-btn-sm sc-btn-outline" type="button">🖨 PDFで出力</button>
+        <p class="sc-hint">表示中の月（1日〜末日）を、この画面のまま印刷・PDF保存します。</p>
+      </div>
     </section>
 
-    <!-- 右：詳細パネル -->
+    <!-- 右：操作モード＋詳細パネル -->
     <aside class="sc-side">
+      <div class="sc-side-toolbar">
+        <span class="sc-toolbar-label">操作モード</span>
+        <div class="sc-paint-tabs" role="group" aria-label="まとめて入力モード">
+          <button class="sc-paint-tab active" data-paint="off-mode" type="button">選択のみ</button>
+          <button class="sc-paint-tab sc-paint-tab-multi" data-paint="multi" type="button">☑ まとめて登録</button>
+          <button class="sc-paint-tab" data-paint="available" type="button">◯ 稼働可</button>
+          <button class="sc-paint-tab" data-paint="off" type="button">✕ 休み希望</button>
+          <button class="sc-paint-tab" data-paint="clear" type="button">− 未定に戻す</button>
+        </div>
+        <p id="paintHint" class="sc-hint">
+          枠（早朝・AM・P1・P2・夜間）を1回クリックすると内容を確認でき、ダブルクリック（スマホはダブルタップ）で登録画面が開きます。ドラッグすると複数の枠をまとめて選べます。
+          ◯稼働可・✕休み希望は、左端の日付をクリック（ドラッグ）して設定します。
+        </p>
+      </div>
+
       <div id="sidePanel" class="sc-side-inner">
         <p class="sc-side-empty">カレンダーの日付を選択してください。</p>
       </div>
@@ -369,6 +355,6 @@ Require valid-user</pre>
 
   <div id="toast" class="sc-toast" role="status" aria-live="polite" hidden></div>
 
-  <script src="schedule.js?v=18"></script>
+  <script src="schedule.js?v=19"></script>
 </body>
 </html>

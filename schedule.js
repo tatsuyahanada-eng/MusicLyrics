@@ -494,7 +494,7 @@ function jobDuration(job) {
    ------------------------------------------------------------ */
 
 const $ = (id) => document.getElementById(id);
-let elCalendar, elMonthLabel, elMonthPicker, elSidePanel, elStats,
+let elCalendar, elMonthLabel, elMonthPicker, elSidePanel, elSideAside, elStats,
     elConflictBanner, elExportText, elAvailCount, elJobList, elJobCount, elToast;
 
 /* ------------------------------------------------------------
@@ -765,6 +765,8 @@ function renderMultiPanel() {
 }
 
 function renderSidePanel() {
+  updateSideModalState();
+
   if (view.paint === 'multi') { renderMultiPanel(); return; }
 
   const key = view.selected;
@@ -836,7 +838,7 @@ function renderSidePanel() {
       ${cards || '<p class="sc-empty-note">まだ予定はありません。</p>'}
     </div>
 
-    ${view.formOpen ? jobFormHtml(f) : `
+    ${view.formOpen ? `<button type="button" class="sc-modal-close" data-modal-close aria-label="閉じる">✕</button>${jobFormHtml(f)}` : `
     <div class="sc-side-block">
       <button type="button" id="openForm" class="sc-btn sc-btn-block">＋ ${slot ? 'この枠' : 'この日'}に予定を登録</button>
       <p class="sc-hint" style="margin-top:6px">
@@ -1877,6 +1879,9 @@ function submitJob(ev) {
   view.confirming = false;
   view.ack = false;
   view.form = blankForm();
+  // 狭い画面ではポップアップのまま残ると裏の操作ができなくなるため閉じる
+  // （広い画面は続けて登録しやすいよう、これまでどおり開いたままにする）
+  if (window.innerWidth <= 900) view.formOpen = false;
   saveState();
 
   // 確定させたときは、同じ時間帯に残っている仮出勤をまとめて取り消せるようにする
@@ -2136,12 +2141,24 @@ function selectDate(key, opts) {
     view.month = d.getMonth();
   }
   renderAll();
+}
 
-  // 1カラム表示のときは詳細パネルが画面外になるため送る
-  // （選んだだけの時は動かさない。登録フォームを開いたときだけ送る）
-  if (view.formOpen && !(opts && opts.noScroll) && window.innerWidth <= 900) {
-    elSidePanel.scrollIntoView({ behavior: 'smooth', block: 'start' });
-  }
+/** 登録フォームを閉じて、選んだ日の内容表示に戻す */
+function closeForm() {
+  view.editingId = null;
+  view.confirming = false;
+  view.formOpen = false;
+  view.ack = false;
+  view.form = blankForm();
+  renderSidePanel();
+}
+
+/** 狭い画面では登録フォームをカレンダーの上に重ねて表示する */
+function updateSideModalState() {
+  if (!elSideAside) return;
+  const open = view.formOpen && view.paint !== 'multi' && window.innerWidth <= 900;
+  elSideAside.classList.toggle('sc-side-modal-open', open);
+  document.body.classList.toggle('sc-modal-open-body', open);
 }
 
 function bindEvents() {
@@ -2289,37 +2306,9 @@ function bindEvents() {
     selectDate(dateBtn.dataset.date, { openForm: isDouble });
   });
 
-  // クイック設定
-  $('quickWeekday').addEventListener('click', () => {
-    monthDayKeys().forEach((key) => {
-      const d = fromKey(key);
-      if (d.getDay() !== 0 && d.getDay() !== 6 && !holidayName(key)) {
-        setWish(key, WISH_AVAILABLE, true);
-      }
-    });
-    saveState();
-    renderAll();
-    toast('平日を稼働可能に設定しました');
-  });
-
-  $('quickWeekend').addEventListener('click', () => {
-    monthDayKeys().forEach((key) => {
-      const d = fromKey(key);
-      if (d.getDay() === 0 || d.getDay() === 6 || holidayName(key)) {
-        setWish(key, WISH_OFF, true);
-      }
-    });
-    saveState();
-    renderAll();
-    toast('土日祝を休み希望に設定しました');
-  });
-
-  $('quickClear').addEventListener('click', () => {
-    if (!confirm(`${view.year}年${view.month + 1}月の希望（稼働可・休み希望）をすべて消します。予定は残ります。よろしいですか？`)) return;
-    monthDayKeys().forEach((key) => { setWish(key, null, true); });
-    saveState();
-    renderAll();
-    toast('今月の希望をクリアしました');
+  // スマホでポップアップ表示中は、背景（枠外）をタップすると閉じる
+  elSideAside.addEventListener('click', (ev) => {
+    if (ev.target === elSideAside && elSideAside.classList.contains('sc-side-modal-open')) closeForm();
   });
 
   // サイドパネル内の操作（委譲）
@@ -2371,9 +2360,10 @@ function bindEvents() {
       renderSidePanel();
       const el = $('fTitle');
       if (el) el.focus();
-      if (window.innerWidth <= 900) elSidePanel.scrollIntoView({ behavior: 'smooth', block: 'start' });
       return;
     }
+
+    if (ev.target.closest('[data-modal-close]')) { closeForm(); return; }
 
     const confirmBtn = ev.target.closest('[data-confirm]');
     if (confirmBtn) { startConfirm(confirmBtn.dataset.confirm); return; }
@@ -2384,14 +2374,7 @@ function bindEvents() {
     const delBtn = ev.target.closest('[data-del]');
     if (delBtn) { deleteJob(delBtn.dataset.del); return; }
 
-    if (ev.target.id === 'fCancel') {
-      view.editingId = null;
-      view.confirming = false;
-      view.formOpen = false;
-      view.ack = false;
-      view.form = blankForm();
-      renderSidePanel();
-    }
+    if (ev.target.id === 'fCancel') { closeForm(); }
   });
 
   elSidePanel.addEventListener('input', (ev) => {
@@ -2646,6 +2629,7 @@ function bindEvents() {
 
   // キーボード操作
   document.addEventListener('keydown', (ev) => {
+    if (ev.key === 'Escape' && elSideAside.classList.contains('sc-side-modal-open')) { closeForm(); return; }
     if (ev.target.matches('input, textarea, select')) return;
     if (ev.key === 'ArrowLeft') moveMonth(-1);
     if (ev.key === 'ArrowRight') moveMonth(1);
@@ -2661,6 +2645,7 @@ function init() {
   elMonthLabel = $('monthLabel');
   elMonthPicker = $('monthPicker');
   elSidePanel = $('sidePanel');
+  elSideAside = document.querySelector('.sc-side');
   elStats = $('stats');
   elConflictBanner = $('conflictBanner');
   elExportText = $('exportText');
