@@ -1206,6 +1206,9 @@
     // 直接追加ボタン ＋ 簡易並べ替えの切替
     const addParent = atRoot ? '' : curNode.id;
     let addHtml = `<button class="tm-addhere" data-add="${addParent}" type="button">&#43; ${depthLabel(navPath.length)}を追加</button>`;
+    if (curNode && hasFormFields(curNode.body)) {
+      addHtml += `<button class="tm-listbtn" data-listfields type="button" title="記入した内容を一覧で表示・コピー">&#128203; 記入内容を一覧</button>`;
+    }
     if (canReorder) {
       addHtml += `<button class="tm-sorttoggle ${navReorder ? 'is-active' : ''}" data-sorttoggle type="button">${navReorder ? '&#10003; 並べ替えを終了' : '&#8645; 並べ替え'}</button>`;
     }
@@ -1476,6 +1479,7 @@
   }
   navAddDock.addEventListener('click', (e) => {
     if (e.target.closest('[data-sorttoggle]')) { navReorder = !navReorder; renderNav(); syncTrap(); return; }
+    if (e.target.closest('[data-listfields]')) { openFieldList(); return; }
     const el = e.target.closest('[data-add]');
     if (el) openNodeDialog(null, el.dataset.add || null); // 案内モードから直接追加
   });
