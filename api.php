@@ -305,7 +305,13 @@ function cbc_gemini_soft($pdo, $prompt, $jsonMode = false, $maxTokens = 1024) {
       return array($text, null, 200);
     }
     $lastMsg = (is_array($data) && isset($data['error']['message'])) ? $data['error']['message'] : ('HTTP ' . $code);
-    // モデルが無い/未対応/廃止のときだけ次の候補へ。それ以外（キー不正・権限・課金等）は即エラー。
+    // 無料枠は「モデルごと」に別々の上限を持つ（例: gemini-2.5-flash と gemini-flash-latest が
+    // 実際に解決される先のモデルとでは、1日の上限がまったく違うことがある）。そのため、
+    // あるモデルで無料枠を使い切っていても、次の候補モデルはまだ余裕があることが多い。
+    // ここで諦めずに次の候補へ進む（キー不正・権限エラーはモデルによらず失敗するので、そちらは即終了）。
+    $isQuota = preg_match('/quota|billing|free_tier|limit:\s*0|RESOURCE_EXHAUSTED/i', $lastMsg);
+    if ($isQuota) { continue; }
+    // モデルが無い/未対応/廃止のときも次の候補へ。それ以外（キー不正・権限等）は即エラー。
     // Googleのモデル廃止メッセージは "not found" 系だけでなく "is no longer available" 系も来るため、両方を拾う。
     if (!preg_match('/not found|not supported|unknown|does not exist|unsupported|no longer available|deprecated|has been removed|is retired/i', $lastMsg)) {
       // 数回試しても混雑が解消しなかった場合は、利用者に分かる言葉で伝える（設定の問題ではないため）
@@ -313,13 +319,18 @@ function cbc_gemini_soft($pdo, $prompt, $jsonMode = false, $maxTokens = 1024) {
         return array(null, 'Google側のAIが混み合っています。少し時間をおいて、もう一度お試しください。', 503);
       }
       $hint = '';
-      if (preg_match('/quota|billing|free_tier|limit:\s*0|RESOURCE_EXHAUSTED/i', $lastMsg)) {
-        $hint = "\n【対処】Googleの無料枠が0/上限超過です。Google AI Studio の「課金」でプロジェクトにお支払い情報を設定すると解消します（Flashは低額）。";
-      } elseif (preg_match('/API key not valid|API_KEY_INVALID|PERMISSION_DENIED|permission/i', $lastMsg)) {
+      if (preg_match('/API key not valid|API_KEY_INVALID|PERMISSION_DENIED|permission/i', $lastMsg)) {
         $hint = "\n【対処】APIキーが正しくないか権限がありません。config.php の GEMINI_API_KEY を再確認してください。";
       }
       return array(null, 'AI呼び出しに失敗しました: ' . $lastMsg . $hint, ($code === 429 ? 429 : 502));
     }
+  }
+  // 全ての候補モデルで無料枠を使い切っていた場合だけ、ここに来る（各モデルとも上限に達した）。
+  if (preg_match('/quota|billing|free_tier|limit:\s*0|RESOURCE_EXHAUSTED/i', $lastMsg)) {
+    $hint = "\n【対処】お試しいただいたモデルはすべて本日の無料枠の上限に達しています。"
+      . "しばらく（日付が変わる頃まで）お待ちいただくか、Google AI Studio の「課金」で"
+      . "プロジェクトにお支払い情報を設定すると解消します（Flashは低額）。";
+    return array(null, 'AI呼び出しに失敗しました: ' . $lastMsg . $hint, 429);
   }
   return array(null, '利用可能なGeminiモデルが見つかりませんでした。config.php の GEMINI_MODEL をご確認ください（例: gemini-2.5-flash）。詳細: ' . $lastMsg, 502);
 }
@@ -410,16 +421,22 @@ function cbc_embed_texts($pdo, $texts, $taskType) {
       return array($out, null);
     }
     $lastMsg = (is_array($data) && isset($data['error']['message'])) ? $data['error']['message'] : ('HTTP ' . $code);
-    // モデルが無い/廃止のときだけ次の候補へ。それ以外（キー不正・権限・枠超過）は即エラー。
+    // 無料枠はモデルごとに別々の上限を持つため、あるモデルで使い切っていても次の候補は
+    // まだ余裕があることが多い。生成側（cbc_gemini_soft）と同じ考え方で、諦めずに次へ進む。
+    if (preg_match('/quota|billing|free_tier|limit:\s*0|RESOURCE_EXHAUSTED/i', $lastMsg)) { continue; }
+    // モデルが無い/廃止のときも次の候補へ。それ以外（キー不正・権限）は即エラー。
     if (!preg_match('/not found|not supported|unknown|does not exist|unsupported|no longer available|deprecated|has been removed|is retired/i', $lastMsg)) {
       $hint = '';
-      if (preg_match('/quota|billing|free_tier|limit:\s*0|RESOURCE_EXHAUSTED/i', $lastMsg)) {
-        $hint = "\n【対処】Googleの無料枠の上限に達しています。しばらく待つか、Google AI Studio の「課金」でお支払い情報を設定してください。";
-      } elseif (preg_match('/API key not valid|API_KEY_INVALID|PERMISSION_DENIED|permission/i', $lastMsg)) {
+      if (preg_match('/API key not valid|API_KEY_INVALID|PERMISSION_DENIED|permission/i', $lastMsg)) {
         $hint = "\n【対処】APIキーが正しくないか権限がありません。config.php の GEMINI_API_KEY を再確認してください。";
       }
       return array(null, '索引の作成に失敗しました: ' . $lastMsg . $hint);
     }
+  }
+  if (preg_match('/quota|billing|free_tier|limit:\s*0|RESOURCE_EXHAUSTED/i', $lastMsg)) {
+    return array(null, '索引の作成に失敗しました: ' . $lastMsg
+      . "\n【対処】お試しいただいたモデルはすべて本日の無料枠の上限に達しています。しばらく待つか、"
+      . "Google AI Studio の「課金」でお支払い情報を設定してください。");
   }
   return array(null, '利用可能な埋め込みモデルが見つかりませんでした。詳細: ' . $lastMsg);
 }
