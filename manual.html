@@ -9,7 +9,7 @@
   <link rel="manifest" href="manifest.webmanifest">
   <link rel="icon" href="icon.svg" type="image/svg+xml">
   <link rel="apple-touch-icon" href="icon-192.png">
-  <link rel="stylesheet" href="manual.css?v=88">
+  <link rel="stylesheet" href="manual.css?v=89">
 </head>
 <body class="tm-body">
 
@@ -1301,6 +1301,9 @@
     <div id="lbCap" class="tm-lb-cap"></div>
   </dialog>
 
+  <!-- ===== 画面中央の完了メッセージ（交通費の登録完了など） ===== -->
+  <div id="centerToast" class="tm-centertoast" aria-live="polite"></div>
+
   <!-- ===== Search Dialog（キーワード検索） ===== -->
   <dialog id="searchDialog" class="tm-dialog tm-search-dialog">
     <div class="tm-dialog-form tm-search-form">
@@ -1509,6 +1512,6 @@
   </dialog>
 
   <script src="vendor/xlsx.full.min.js"></script>
-  <script src="manual.js?v=104"></script>
+  <script src="manual.js?v=105"></script>
 </body>
 </html>

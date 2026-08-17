@@ -2248,6 +2248,29 @@ textarea.tm-ff-input { width: 100%; resize: vertical; min-height: 88px; }
 }
 
 /* ============================================================
+   画面中央の完了メッセージ（交通費の登録完了など、目立たせたい通知）
+   ============================================================ */
+.tm-centertoast {
+  position: fixed;
+  left: 50%; top: 42%;
+  transform: translate(-50%, -50%) scale(0.9);
+  z-index: 10000;
+  pointer-events: none;
+  display: flex; align-items: center; gap: 10px;
+  font-family: var(--tm-mono); font-size: 18px; font-weight: 700; letter-spacing: 1px;
+  color: #06251e; background: var(--tm-green, #39ff14);
+  border-radius: 12px; padding: 18px 30px;
+  box-shadow: 0 0 0 1px rgba(57, 255, 20, 0.5), 0 10px 40px rgba(0, 0, 0, 0.5), 0 0 46px rgba(57, 255, 20, 0.55);
+  opacity: 0;
+  transition: opacity .22s ease, transform .22s ease;
+}
+.tm-centertoast.is-on { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+.tm-centertoast-ico { font-size: 22px; line-height: 1; }
+@media (max-width: 480px) {
+  .tm-centertoast { font-size: 15px; padding: 14px 22px; max-width: 88vw; text-align: center; }
+}
+
+/* ============================================================
    ログインゲート（Basic認証未通過時に全画面で中身を隠す）
    ============================================================ */
 .tm-authgate {
