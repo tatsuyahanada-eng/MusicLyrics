@@ -1903,7 +1903,7 @@ textarea.tm-ff-input { width: 100%; resize: vertical; min-height: 88px; }
 /* 履歴・編集ポップアップの見出しも緑 */
 #tripHistoryDialog .tm-updates-title, #tripEditDialog .tm-updates-title,
 #tripHistoryDialog .tm-search-ico, #tripEditDialog .tm-search-ico { color: var(--tm-green); }
-#tripHistoryDialog .tm-trip-table th, #tripEditDialog .tm-trip-table th { color: var(--tm-green); }
+#tripHistoryDialog .tm-trip-table th, #tripEditDialog .tm-trip-table th { color: var(--tm-text); }
 .tm-trip-table .tm-trip-total-cell { color: var(--tm-green); }
 /* 案内リストの「交通費精算」入口。見た目・動作は他の項目（.tm-choice）と同じで、
    通常時はうっすら緑、マウスオーバー時は緑のハイライト。 */
@@ -1933,10 +1933,13 @@ textarea.tm-ff-input { width: 100%; resize: vertical; min-height: 88px; }
 .tm-trip-table th {
   font-family: var(--tm-mono); font-size: 10px; letter-spacing: 1px;
   color: var(--tm-cyan); text-transform: uppercase;
-  border-bottom: 1px solid var(--tm-line-strong);
+  border-bottom: 2px solid var(--tm-cyan);
+  box-shadow: 0 3px 0 -2px rgba(63, 224, 224, 0.4);
 }
 .tm-trip-table td.num, .tm-trip-table th.num { text-align: right; font-variant-numeric: tabular-nums; }
 .tm-trip-table tfoot td { font-weight: bold; border-top: 2px solid var(--tm-line-strong); }
+/* 「目的地」までの案件情報と、「距離」からの数値・費用を、うっすら縦線で区切る */
+.tm-trip-table th.tm-col-divider, .tm-trip-table td.tm-col-divider { border-left: 1px solid var(--tm-line-strong); }
 .tm-trip-table .tm-trip-total-cell { color: #22c55e; }
 .tm-trip-empty { color: var(--tm-muted); padding: 16px 4px; font-size: 13px; }
 /* 一覧の日付：クリックで編集できることが分かる見た目 */

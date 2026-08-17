@@ -3786,14 +3786,14 @@
         <td><span class="tm-trip-kind ${train ? 'is-train' : 'is-car'}">${train ? '電車' : '車'}</span></td>
         <td>${esc(r.case_name || '')}</td>
         <td>${esc(tripRoute(r))}</td>
-        <td class="num">${train ? '—' : eff.toFixed(1) + 'km'}</td>
+        <td class="num tm-col-divider">${train ? '—' : eff.toFixed(1) + 'km'}</td>
         <td class="num">${train ? '—' : yen(r.gas_cost) + '円'}</td>
         <td class="num">${train ? yen(r.fare_cost) + '円' : '—'}</td>
         <td class="num">${train ? '—' : yen(r.toll_cost) + '円'}</td>
         <td class="num">${train ? '—' : yen(r.parking_cost) + '円'}</td>
         <td class="num">${yen(r.other_cost)}円</td>
         <td class="num tm-trip-total-cell">${yen(r.total)}円</td>
-        <td><div class="tm-trip-ops">
+        <td class="tm-col-divider"><div class="tm-trip-ops">
           <button class="tm-btn tm-btn-outline tm-btn-sm" data-tedit="${esc(r.id)}" type="button">編集</button>
           <button class="tm-btn tm-btn-danger-outline tm-btn-sm" data-tdel="${esc(r.id)}" type="button">削除</button>
         </div></td>
@@ -3803,19 +3803,19 @@
     wrap.innerHTML = `<table class="tm-trip-table">
       <thead><tr>
         <th>日付</th>${isAdmin ? '<th>登録者</th>' : ''}<th>区分</th><th>店舗</th><th>目的地・到着駅</th>
-        <th class="num">距離</th><th class="num">ガソリン</th><th class="num">運賃</th><th class="num">高速</th><th class="num">駐車</th><th class="num">その他</th><th class="num">合計</th><th>操作</th>
+        <th class="num tm-col-divider">距離</th><th class="num">ガソリン</th><th class="num">運賃</th><th class="num">高速</th><th class="num">駐車</th><th class="num">その他</th><th class="num">合計</th><th class="tm-col-divider">操作</th>
       </tr></thead>
       <tbody>${rows}</tbody>
       <tfoot><tr>
         <td colspan="${labelCols}">合計（${items.length}件）</td>
-        <td class="num">${sums.km.toFixed(1)}km</td>
+        <td class="num tm-col-divider">${sums.km.toFixed(1)}km</td>
         <td class="num">${yen(sums.gas)}円</td>
         <td class="num">${yen(sums.fare)}円</td>
         <td class="num">${yen(sums.toll)}円</td>
         <td class="num">${yen(sums.park)}円</td>
         <td class="num">${yen(sums.other)}円</td>
         <td class="num tm-trip-total-cell">${yen(sum)}円</td>
-        <td></td>
+        <td class="tm-col-divider"></td>
       </tr></tfoot>
     </table>`;
   }
