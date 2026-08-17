@@ -2256,6 +2256,7 @@ textarea.tm-ff-input { width: 100%; resize: vertical; min-height: 88px; }
    ============================================================ */
 .tm-centertoast {
   position: fixed;
+  margin: 0; border: none; padding: 0; background: none; color: inherit;
   left: 50%; top: 42%;
   transform: translate(-50%, -50%) scale(0.96);
   z-index: 10000;

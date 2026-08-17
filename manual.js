@@ -3231,8 +3231,13 @@
   let tripListData = [];    // 直近に取得した一覧（Excel出力にも使う）
   let tripReturnMode = 'nav';
   function tripMsg(m, isErr) { const el = $('#tripMsg'); if (el) { el.textContent = m || ''; el.style.color = isErr ? 'var(--tm-danger)' : ''; } }
-  // 画面中央に一瞬だけ大きく出す完了メッセージ（交通費の登録完了など、見落としやすい通知を目立たせる）
+  // 画面中央に一瞬だけ大きく出す完了メッセージ（交通費の登録完了など、見落としやすい通知を目立たせる）。
+  // 履歴・編集ポップアップ（<dialog>）が開いたままのことがあるが、<dialog> は常に最前面の
+  // 「トップレイヤー」で描画されるため、ただの固定配置divでは z-index をいくつ盛っても
+  // 開いているダイアログの裏に隠れてしまう。Popover API（popover="manual"）を使うと
+  // このトースト自身もトップレイヤーに乗るため、開いているダイアログより前に出せる。
   const centerToastEl = $('#centerToast');
+  const centerToastSupportsPopover = !!(centerToastEl && typeof centerToastEl.showPopover === 'function');
   function showCenterToast(text, sub) {
     if (!centerToastEl) return;
     centerToastEl.innerHTML = `
@@ -3246,11 +3251,19 @@
         <div class="tm-centertoast-main">${esc(text)}</div>
         ${sub ? `<div class="tm-centertoast-sub">${esc(sub)}</div>` : ''}
       </div>`;
+    clearTimeout(showCenterToast._t);
+    clearTimeout(showCenterToast._t2);
+    if (centerToastSupportsPopover) { try { centerToastEl.hidePopover(); } catch (_) {} }
     centerToastEl.classList.remove('is-on');
     void centerToastEl.offsetWidth; // 連続で出したときも毎回アニメーションし直す
+    if (centerToastSupportsPopover) { try { centerToastEl.showPopover(); } catch (_) {} }
     centerToastEl.classList.add('is-on');
-    clearTimeout(showCenterToast._t);
-    showCenterToast._t = setTimeout(() => centerToastEl.classList.remove('is-on'), 1900);
+    showCenterToast._t = setTimeout(() => {
+      centerToastEl.classList.remove('is-on');
+      if (centerToastSupportsPopover) {
+        showCenterToast._t2 = setTimeout(() => { try { centerToastEl.hidePopover(); } catch (_) {} }, 260);
+      }
+    }, 1900);
   }
   function tval(id) { const el = $('#' + id); const v = el ? parseFloat(el.value) : NaN; return isNaN(v) ? 0 : v; }
   function tstr(id) { const el = $('#' + id); return el ? el.value : ''; }
