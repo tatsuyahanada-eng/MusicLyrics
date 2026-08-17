@@ -1762,9 +1762,9 @@ textarea.tm-ff-input { width: 100%; resize: vertical; min-height: 88px; }
    マウスオーバー前から緑をやや強めに出す） */
 .tm-cat-tile.tm-trip-tile {
   position: relative;
-  border-color: rgba(57, 255, 20, 0.8);
-  background: linear-gradient(160deg, rgba(24, 68, 38, 0.85), rgba(10, 34, 20, 0.85));
-  box-shadow: inset 0 0 0 1px rgba(57, 255, 20, 0.25), 0 0 14px rgba(57, 255, 20, 0.2);
+  border-color: var(--tm-green);
+  background: linear-gradient(160deg, rgba(30, 84, 44, 0.92), rgba(9, 38, 21, 0.92));
+  box-shadow: inset 0 0 0 1px rgba(57, 255, 20, 0.45), 0 0 20px rgba(57, 255, 20, 0.32);
 }
 .tm-cat-tile.tm-trip-tile:hover, .tm-cat-tile.tm-trip-tile:focus-visible {
   border-color: var(--tm-green);
