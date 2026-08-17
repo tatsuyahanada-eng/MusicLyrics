@@ -3233,14 +3233,24 @@
   function tripMsg(m, isErr) { const el = $('#tripMsg'); if (el) { el.textContent = m || ''; el.style.color = isErr ? 'var(--tm-danger)' : ''; } }
   // 画面中央に一瞬だけ大きく出す完了メッセージ（交通費の登録完了など、見落としやすい通知を目立たせる）
   const centerToastEl = $('#centerToast');
-  function showCenterToast(text) {
+  function showCenterToast(text, sub) {
     if (!centerToastEl) return;
-    centerToastEl.innerHTML = `<span class="tm-centertoast-ico">&#10003;</span><span>${esc(text)}</span>`;
+    centerToastEl.innerHTML = `
+      <div class="tm-centertoast-frame"></div>
+      <div class="tm-centertoast-corner tl"></div>
+      <div class="tm-centertoast-corner tr"></div>
+      <div class="tm-centertoast-corner bl"></div>
+      <div class="tm-centertoast-corner br"></div>
+      <div class="tm-centertoast-tag">COMPLETE</div>
+      <div class="tm-centertoast-body">
+        <div class="tm-centertoast-main">${esc(text)}</div>
+        ${sub ? `<div class="tm-centertoast-sub">${esc(sub)}</div>` : ''}
+      </div>`;
     centerToastEl.classList.remove('is-on');
     void centerToastEl.offsetWidth; // 連続で出したときも毎回アニメーションし直す
     centerToastEl.classList.add('is-on');
     clearTimeout(showCenterToast._t);
-    showCenterToast._t = setTimeout(() => centerToastEl.classList.remove('is-on'), 1700);
+    showCenterToast._t = setTimeout(() => centerToastEl.classList.remove('is-on'), 1900);
   }
   function tval(id) { const el = $('#' + id); const v = el ? parseFloat(el.value) : NaN; return isNaN(v) ? 0 : v; }
   function tstr(id) { const el = $('#' + id); return el ? el.value : ''; }
@@ -3572,7 +3582,7 @@
       tripResetForm();
       // 登録結果の一覧は自動表示しない（一覧は「検索」を押したときだけ表示する）
       tripMsg(wasEdit ? '更新しました' : '登録しました');
-      showCenterToast(wasEdit ? '更新完了' : '登録完了');
+      showCenterToast(wasEdit ? '更新完了' : '登録完了', 'TRAVEL EXPENSE');
     } catch (e) { tripMsg('登録に失敗：' + e.message, true); }
   }
   /* ---- 編集は専用ポップアップで（履歴ポップアップの手前に開く。裏の入力画面は変えない） ---- */
