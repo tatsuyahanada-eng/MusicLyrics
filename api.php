@@ -21,7 +21,7 @@ if (!defined('UPLOAD_URL'))       define('UPLOAD_URL', 'uploads');
 if (!defined('UPLOAD_MAX_BYTES')) define('UPLOAD_MAX_BYTES', 5 * 1024 * 1024);
 if (!defined('BACKUP_DIR'))       define('BACKUP_DIR', __DIR__ . '/backups'); // 自動バックアップ（完全バックアップJSON）の保存先
 if (!defined('GEMINI_API_KEY'))   define('GEMINI_API_KEY', '');
-if (!defined('GEMINI_MODEL'))     define('GEMINI_MODEL', 'gemini-2.5-flash');
+if (!defined('GEMINI_MODEL'))     define('GEMINI_MODEL', 'gemini-flash-latest');
 if (!defined('GOOGLE_MAPS_API_KEY')) define('GOOGLE_MAPS_API_KEY', '');
 if (!defined('TRAVEL_ORIGIN'))    define('TRAVEL_ORIGIN', '東京都台東区台東2-1-1'); // 交通費の起点（日本リテイル）
 
@@ -265,10 +265,15 @@ function cbc_gemini_soft($pdo, $prompt, $jsonMode = false, $maxTokens = 1024) {
   $bodyJson = json_encode($payload, JSON_UNESCAPED_UNICODE);
 
   // 候補モデル: 前回成功したもの → config指定 → 現行の既定候補（重複除去）。
-  // 「latest」系のエイリアスも入れておくと、個別モデルが廃止されても自動で追従しやすい。
+  // 個別のバージョン名（例: gemini-2.5-flash）は、Googleが新しい世代を出すとある日突然
+  // 使えなくなる（"is not found ... not supported for generateContent"）。
+  // 「-latest」系のエイリアスはGoogle側が常に現行モデルを指すよう付け替えてくれるため、
+  // 個別バージョンが廃止されても自動で追従できるよう、こちらを優先候補にしている。
+  // 個別バージョン名は「-latest」も含めて全滅したときの最後の望みとして残してある。
   $candidates = array();
   foreach (array(cbc_setting_get($pdo, 'gemini_model_ok', ''), GEMINI_MODEL,
-    'gemini-2.5-flash', 'gemini-flash-latest', 'gemini-2.0-flash', 'gemini-1.5-flash') as $m) {
+    'gemini-flash-latest', 'gemini-flash-lite-latest', 'gemini-pro-latest',
+    'gemini-2.5-flash', 'gemini-2.0-flash', 'gemini-1.5-flash') as $m) {
     $m = trim((string)$m);
     if ($m !== '' && !in_array($m, $candidates, true)) $candidates[] = $m;
   }

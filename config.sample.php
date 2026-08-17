@@ -51,7 +51,7 @@ define('UPLOAD_MAX_BYTES', 5 * 1024 * 1024);        // 1ファイル上限（5MB
    ※サーバー（PHP）から外部へのHTTPS通信（curl等）が必要です。ロリポップは既定で利用可能です。
 */
 define('GEMINI_API_KEY', '');                 // 例: 'AIza...'（空なら AI 機能オフ）
-define('GEMINI_MODEL',   'gemini-2.5-flash'); // 使うモデル（例: gemini-2.5-flash / gemini-flash-latest）
+define('GEMINI_MODEL',   'gemini-flash-latest'); // 使うモデル（例: gemini-flash-latest / gemini-2.5-flash）
 // ※モデル名が古くなって使えなくなっても、自動で候補（2.5-flash等）を試して切り替えます。
 
 /* ---------- 交通費計算（Google マップ距離） ----------

@@ -181,8 +181,8 @@ FTPソフトで、`uploads/` フォルダのパーミッションを **705（必
 1. **APIキーを取得**：Google AI Studio（`https://aistudio.google.com/apikey`）で無料のAPIキーを発行します。
 2. **config.php に記入**：
    ```php
-   define('GEMINI_API_KEY', 'AIza…');            // 取得したキー
-   define('GEMINI_MODEL',   'gemini-2.5-flash');  // 使うモデル（例: gemini-2.5-flash / gemini-flash-latest）
+   define('GEMINI_API_KEY', 'AIza…');              // 取得したキー
+   define('GEMINI_MODEL',   'gemini-flash-latest'); // 使うモデル（例: gemini-flash-latest / gemini-2.5-flash）
    ```
 3. アプリを開き直すと、上部「検索」内に **「💬 AIに相談」** が表示されます。
 
@@ -195,10 +195,13 @@ FTPソフトで、`uploads/` フォルダのパーミッションを **705（必
 - 利用はGeminiの**無料枠／従量課金**の対象です（お使いのGoogleアカウントの契約に従います）。
 - AIの回答は自動生成のため、**最終的な正確さは元の項目でご確認ください**。
 - **モデル名エラー**（`... is not found for API version v1beta ...` や `... is no longer available ...`）
-  が出る場合は、指定モデルがそのキーで使えない（廃止された）状態です。`GEMINI_MODEL` を
-  `gemini-2.5-flash` などに変更してください。なお本アプリは、使えない／廃止されたモデルのときは
-  自動で他の候補（2.5-flash 等）を試し、成功したモデルを記憶して次回から直接使います
-  （Googleが将来モデルを廃止しても、次にAIを使ったときに自動で切り替わります）。
+  が出る場合は、指定モデルがそのキーで使えない（廃止された）状態です。個別バージョン名
+  （`gemini-2.5-flash` など）はGoogleが新しい世代を出すとある日突然使えなくなるため、
+  既定では**「-latest」系のエイリアス**（`gemini-flash-latest` など。Google側が常に現行の
+  モデルを指すよう自動で付け替えてくれる）を優先して使うようにしてあります。
+  本アプリは、使えない／廃止されたモデルに当たったときは自動で次の候補を試し、
+  成功したモデルを記憶して次回から直接使います（Googleが将来モデルを入れ替えても、
+  次にAIを使ったときに自動で切り替わります。候補が全滅した場合だけエラーになります）。
 
 - **「AIが混み合っています」と出るとき**：Googleのサーバーが一時的に混雑している状態
   （`This model is currently experiencing high demand`）です。設定の問題ではありません。
