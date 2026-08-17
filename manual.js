@@ -4606,6 +4606,12 @@
   function aiChatScroll() {
     const th = $('#aiChatThread'); if (th) th.scrollTop = th.scrollHeight;
   }
+  // 回答が長いとき、下端ではなく回答の書き出し（吹き出しの先頭）が見えるようにする
+  function aiChatScrollToTop(bubbleEl) {
+    const th = $('#aiChatThread'); const row = bubbleEl && bubbleEl.closest('.tm-chat-row');
+    if (th && row) th.scrollTop = Math.max(0, row.offsetTop - 8);
+    else aiChatScroll();
+  }
   // 1件ぶんの吹き出しを描画する。html を渡すと整形済みHTMLとして入れる。
   function aiChatAppend(role, opts) {
     const th = $('#aiChatThread'); if (!th) return null;
@@ -4664,6 +4670,29 @@
     const w = (which === 'haku') ? 'haku' : 'b';
     return `<button class="tm-chat-slipbtn" type="button" data-slipsample="${w}">&#129534; 作業完了報告書の記入サンプルを見る（AIの判断：${SLIP_LABEL[w]}）</button>`;
   }
+  // 回答の本文（プレーンテキスト）をコピーするボタン
+  function aiChatCopyBtnHtml(text) {
+    return `<button class="tm-chat-copybtn" type="button" data-copytext="${esc(text)}" title="回答をコピー">&#128203; コピー</button>`;
+  }
+
+  async function aiChatCopyAnswer(btn) {
+    const text = btn.dataset.copytext || '';
+    let ok = false;
+    try { await navigator.clipboard.writeText(text); ok = true; }
+    catch (_) {
+      try {
+        const ta = document.createElement('textarea');
+        ta.value = text; ta.style.position = 'fixed'; ta.style.opacity = '0';
+        document.body.appendChild(ta); ta.focus(); ta.select();
+        ok = document.execCommand('copy');
+        document.body.removeChild(ta);
+      } catch (__) { ok = false; }
+    }
+    const orig = btn.innerHTML;
+    btn.innerHTML = ok ? '&#10003; コピーしました' : 'コピーできませんでした';
+    clearTimeout(btn._resetT);
+    btn._resetT = setTimeout(() => { btn.innerHTML = orig; }, 1800);
+  }
 
   function aiChatAskHtml(ask) {
     const opts = (ask.options || []).map((o) =>
@@ -4699,7 +4728,7 @@
         aiChatSources = d.sources || [];
         if (d.report_form === 'haku' || d.report_form === 'b') aiChatLastReportForm = d.report_form;
         // 「1. 」で始まる手順を番号付きリストとして描画する（ordered:true）
-        if (thinking) thinking.innerHTML = renderBody(d.answer, { ordered: true }) + aiChatSourcesHtml(aiChatSources) + slipSampleBtnHtml(aiChatLastReportForm);
+        if (thinking) thinking.innerHTML = renderBody(d.answer, { ordered: true }) + aiChatCopyBtnHtml(d.answer) + aiChatSourcesHtml(aiChatSources) + slipSampleBtnHtml(aiChatLastReportForm);
         aiChatMessages.push({ role: 'assistant', text: d.answer });
       } else {
         const note = '回答を作成できませんでした。もう一度お試しください。';
@@ -4712,7 +4741,9 @@
         thinking.innerHTML += slipSampleBtnHtml(aiChatLastReportForm);
       }
     }
-    aiChatScroll();
+    // 回答（吹き出し）の先頭が見えるようにスクロールする。下端まで送ると、
+    // 長い回答では書き出しがスクロールの外に隠れてしまうため。
+    aiChatScrollToTop(thinking);
     aiChatBusy = false;
     if (sendBtn) sendBtn.disabled = false;
     if (input) input.focus();
@@ -4729,7 +4760,14 @@
     aiChatDialog.showModal();
     syncTrap();
     const input = $('#aiChatInput');
-    if (input) { if (seed) input.value = seed; setTimeout(() => input.focus(), 30); }
+    const q = String(seed || '').trim();
+    if (q) {
+      // 検索欄の内容を引き継いだときは、送信を二度手間にせず、開いた時点でそのまま相談を実行する
+      if (input) input.value = q;
+      setTimeout(() => aiChatSend(q), 30);
+    } else if (input) {
+      setTimeout(() => input.focus(), 30);
+    }
   }
   { const b = $('#aiChatOpenBtn'); if (b) b.addEventListener('click', () => {
     // 検索欄に入力済みならそれを引き継ぐ（「探す」から「相談」への流れを切らさない）
@@ -4767,6 +4805,8 @@
     if (opt) { aiChatSend(opt.dataset.chatask); return; }
     const slipBtn = e.target.closest('[data-slipsample]');
     if (slipBtn) { openSlipSample(slipBtn.dataset.slipsample); return; }
+    const cpy = e.target.closest('[data-copytext]');
+    if (cpy) { aiChatCopyAnswer(cpy); return; }
   }); }
   if (aiChatDialog) aiChatDialog.addEventListener('close', () => { syncTrap(); });
 

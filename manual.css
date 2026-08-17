@@ -917,8 +917,8 @@ body.tm-dragging .tm-sortrow { cursor: grabbing; }
 /* ===== 白伝票（保守サービス報告書）の記入サンプル =====
    紙の伝票なので、アプリの暗い画面の中でも「紙」として読めるよう、
    この中だけは紙色＋black罫線・インク色で組む（ダーク／ライトどちらでも同じ見え方）。 */
-dialog.tm-slip-dialog { width: min(880px, 96vw); max-width: 96vw; }
-.tm-slip-form { display: flex; flex-direction: column; gap: 12px; max-height: min(88vh, 900px); }
+dialog.tm-slip-dialog { width: min(1080px, 97vw); max-width: 97vw; }
+.tm-slip-form { display: flex; flex-direction: column; gap: 12px; max-height: min(94vh, 980px); }
 .tm-slip-head { display: flex; align-items: flex-start; gap: 10px; }
 .tm-slip-headtext { flex: 1 1 auto; min-width: 0; }
 .tm-slip-title { font-size: 17px; color: var(--tm-cyan); letter-spacing: 1px; margin: 0; }
@@ -1088,10 +1088,19 @@ table.tm-slip-grid.inner tr:last-child > * { border-bottom: 0; }
 }
 .tm-chat-slipbtn:hover { background: rgba(255, 207, 63, 0.16); }
 .tm-chat-slipbtn:focus-visible { outline: 2px solid var(--tm-cyan); outline-offset: 2px; }
+/* チャット内の回答をコピーするボタン */
+.tm-chat-copybtn {
+  margin-top: 10px; margin-right: 8px; display: inline-flex; align-items: center; gap: 6px;
+  font: inherit; font-size: 12.5px; cursor: pointer;
+  color: var(--tm-cyan); background: rgba(63, 224, 224, 0.08);
+  border: 1px solid var(--tm-cyan-dim); border-radius: 6px; padding: 7px 13px;
+}
+.tm-chat-copybtn:hover { background: rgba(63, 224, 224, 0.16); }
+.tm-chat-copybtn:focus-visible { outline: 2px solid var(--tm-cyan); outline-offset: 2px; }
 
 /* ===== AIに相談（会話で簡易手順をまとめる） ===== */
-dialog.tm-chat-dialog { width: min(760px, 96vw); max-width: 96vw; }
-.tm-chat-form { display: flex; flex-direction: column; gap: 10px; max-height: min(84vh, 760px); }
+dialog.tm-chat-dialog { width: min(960px, 96vw); max-width: 96vw; }
+.tm-chat-form { display: flex; flex-direction: column; gap: 10px; max-height: min(92vh, 920px); }
 .tm-chat-head { display: flex; align-items: flex-start; gap: 10px; flex-wrap: wrap; }
 .tm-chat-ico { font-size: 22px; line-height: 1.2; }
 .tm-chat-headtext { flex: 1 1 200px; min-width: 0; }

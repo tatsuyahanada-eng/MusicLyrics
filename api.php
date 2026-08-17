@@ -1698,7 +1698,8 @@ switch ($action) {
     if ($prevUsers) $retrieveQuery = implode(' ', array_slice($prevUsers, -2)) . ' ' . $lastUser;
     $retrieveQuery = mb_substr($retrieveQuery, 0, 500);
 
-    $r = cbc_retrieve($pdo, $s, $retrieveQuery, 4);
+    // 参照項目を4→6件に増やし、根拠となる材料を増やして精度を上げる
+    $r = cbc_retrieve($pdo, $s, $retrieveQuery, 6);
     $results = $r['results'];
     if (!$results) {
       ok(array(
@@ -1720,7 +1721,7 @@ switch ($action) {
     $secLines = array();
     foreach ($results as $x) {
       $plain = isset($bodyById[$x['id']]) ? cbc_html_to_plain($bodyById[$x['id']]) : '';
-      $plain = mb_substr(trim($plain), 0, 2200);
+      $plain = mb_substr(trim($plain), 0, 2800);
       if ($plain === '') continue;
       $secLines[] = '【項目名】' . implode(' > ', $x['path']) . "\n【内容】\n" . $plain;
     }
@@ -1741,6 +1742,9 @@ switch ($action) {
       . "・注意点がある場合のみ、最後に「## 注意」の見出しを付けて「- 」の箇条書きで書く（多くても3つ）。\n"
       . "・【関連項目】に書かれていないことは、絶対に推測や一般論で補わないでください。"
       . "手順が足りない場合は、分かる範囲だけを書き、足りない部分は「マニュアルに記載がありません」と正直に書いてください。\n"
+      . "・型番・部品CODE・電話番号・数量・金額などの具体的な値は、【関連項目】に書かれている通りに正確に転記してください"
+      . "（言い換えたり、丸めたり、桁を変えたりしないこと）。複数の項目に似た内容があり判断に迷う場合は、"
+      . "どの項目を参照したかが分かるよう項目名を添えてください。\n"
       . "・すでに会話で答えた内容を繰り返さず、直前の利用者の発言に答えてください。\n"
       . "・（聞き返しではなく）手順を回答する場合は、最後に改行してから必ず次の1行だけを追加してください"
       . "（本文には含めない。他の書式は付けない）：\n"
@@ -1758,7 +1762,7 @@ switch ($action) {
       . "【これまでの会話】\n" . $convo . "\n"
       . "【関連項目】\n" . implode("\n\n", $secLines);
 
-    list($text, $err) = cbc_gemini_soft($pdo, $prompt, false, 1600);
+    list($text, $err) = cbc_gemini_soft($pdo, $prompt, false, 2000);
     if ($err !== null) fail($err, 502);
     $text = trim((string)$text);
 
