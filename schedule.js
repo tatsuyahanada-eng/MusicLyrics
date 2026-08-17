@@ -288,6 +288,11 @@ let painting = false;
 let paintAdd = true;      // 複数日モードでドラッグ中に追加するか解除するか
 let lastTapKey = null;    // ダブルクリック／ダブルタップの判定用
 let lastTapAt = 0;
+let paintPointerId = null;   // 選択操作中のポインターID（スクロールとの誤操作防止用）
+let paintIsTouch = false;
+let paintStartX = 0;
+let paintStartY = 0;
+const SCROLL_CANCEL_PX = 10;   // これ以上指が動いたらスクロールとみなして選択を中止する
 const DOUBLE_TAP_MS = 450;
 const paintTouched = new Set();
 
@@ -2231,6 +2236,12 @@ function bindEvents() {
     const cell = ev.target.closest('[data-pick]');
     if (!dateBtn && !cell) return;
 
+    // スマホでのスクロール操作との誤操作防止用に、押した位置を覚えておく
+    paintPointerId = ev.pointerId;
+    paintIsTouch = ev.pointerType === 'touch';
+    paintStartX = ev.clientX;
+    paintStartY = ev.clientY;
+
     // 希望の塗りは日付ラベルの列だけ。
     // ここではまだ反映しない（1回押しただけで休みになってしまう誤操作を防ぐため）。
     // ドラッグして2日目に触れた時点でまとめて反映する。1日だけなら endPaint で選ぶだけにする。
@@ -2327,9 +2338,21 @@ function bindEvents() {
   window.addEventListener('pointerup', endPaint);
   window.addEventListener('pointercancel', endPaint);
 
-  // 選択中に画面がスクロールされたら、それは選択操作ではなくスクロール操作とみなして中止する。
-  // スマホでセルを選んだ状態から下にスクロールしようとすると、スクロールで指の下に
-  // 入れ替わった別のセルに pointerover が飛んでしまい、違う日が選ばれてしまうのを防ぐ。
+  // スマホでは、指を押した要素にそのままイベントが送られ続ける（他の枠に指が移っても
+  // pointerover は飛ばない）ため、スクロールしようとして指が動いただけでも
+  // 「1枠だけ押した」ことになり、そのままその枠が選ばれてしまう。
+  // 一定以上指が動いたらスクロール操作とみなし、選択操作を中止する。
+  window.addEventListener('pointermove', (ev) => {
+    if (!painting || !paintIsTouch || ev.pointerId !== paintPointerId) return;
+    const dx = ev.clientX - paintStartX;
+    const dy = ev.clientY - paintStartY;
+    if (Math.hypot(dx, dy) > SCROLL_CANCEL_PX) {
+      painting = false;
+      paintTouched.clear();
+    }
+  }, { passive: true });
+
+  // 念のため、画面が実際にスクロールされたときも同様に選択操作を中止する
   window.addEventListener('scroll', () => {
     if (!painting) return;
     painting = false;
