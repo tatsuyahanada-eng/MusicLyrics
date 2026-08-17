@@ -3663,6 +3663,7 @@
       tripEditingId = '';
       tripEditDialog.close();
       tripSearch(); // 履歴ポップアップの一覧を更新
+      showCenterToast('更新完了', 'TRAVEL EXPENSE');
     } catch (e) { teMsg('更新に失敗：' + e.message, true); }
   }
   if (tripEditDialog) {
