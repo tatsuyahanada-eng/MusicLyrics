@@ -39,7 +39,9 @@ jobs:
 
       - name: Build debug APKs
         working-directory: tubevault
-        run: ./gradlew assembleDebug --stacktrace --no-daemon
+        # buildNumber becomes versionCode, so each release install replaces
+        # the last one instead of tying at the same version.
+        run: ./gradlew assembleDebug -PbuildNumber="${{ github.run_number }}" --stacktrace --no-daemon
 
       - name: Name the APKs
         working-directory: tubevault/app/build/outputs/apk/debug

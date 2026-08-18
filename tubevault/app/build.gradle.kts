@@ -9,12 +9,32 @@ android {
     namespace = "dev.hanada.tubevault"
     compileSdk = 35
 
+    // CI passes -PbuildNumber=<run number> so each published APK installs as
+    // an update over the last one instead of tying at the same versionCode;
+    // local builds fall back to 1.
+    val buildNumber = (project.findProperty("buildNumber") as String?)?.toIntOrNull() ?: 1
+
     defaultConfig {
         applicationId = "dev.hanada.tubevault"
         minSdk = 26
         targetSdk = 35
-        versionCode = 1
-        versionName = "0.1.0"
+        versionCode = buildNumber
+        versionName = "0.1.$buildNumber"
+    }
+
+    // Every sideloaded build must carry the same signature or Android refuses
+    // to install it over the previous one. CI machines are ephemeral and would
+    // otherwise mint a fresh debug key each run, forcing an uninstall before
+    // every update — so both build types sign with this checked-in key
+    // instead. It is not a Play Store key and protects nothing sensitive; see
+    // keystore/README.md.
+    signingConfigs {
+        create("sideload") {
+            storeFile = rootProject.file("keystore/sideload.jks")
+            storePassword = "tubevault-sideload"
+            keyAlias = "tubevault"
+            keyPassword = "tubevault-sideload"
+        }
     }
 
     // One APK per ABI: each already carries ~40MB of bundled python/ffmpeg
@@ -32,10 +52,12 @@ android {
     buildTypes {
         debug {
             isMinifyEnabled = false
+            signingConfig = signingConfigs.getByName("sideload")
         }
         release {
             isMinifyEnabled = false
             isShrinkResources = false
+            signingConfig = signingConfigs.getByName("sideload")
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro",
