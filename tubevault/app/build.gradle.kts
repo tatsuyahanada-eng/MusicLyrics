@@ -15,14 +15,11 @@ android {
         targetSdk = 35
         versionCode = 1
         versionName = "0.1.0"
-
-        ndk {
-            // Bundled python / ffmpeg binaries exist only for these ABIs.
-            abiFilters += listOf("arm64-v8a", "armeabi-v7a")
-        }
     }
 
-    // One APK per ABI: each already carries ~40MB of native binaries.
+    // One APK per ABI: each already carries ~40MB of bundled python/ffmpeg
+    // binaries. AGP rejects ndk.abiFilters alongside this, so the split list
+    // is the single place ABIs are named.
     splits {
         abi {
             isEnable = true
