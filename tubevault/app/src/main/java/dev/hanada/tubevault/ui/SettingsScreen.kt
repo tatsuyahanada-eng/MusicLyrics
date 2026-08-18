@@ -158,6 +158,15 @@ fun SettingsScreen(
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             modifier = Modifier.padding(top = 4.dp),
         )
+        Text(
+            text = "⚠️ ログインする際は、普段使いのアカウントではなく、このアプリ専用のサブ" +
+                "アカウントを新しく作って使うことを強くおすすめします。自動的な取得はYouTube" +
+                "の規約に反するため、使いすぎるとそのアカウントに確認や制限がかかることがあり" +
+                "ます。サブアカウントなら、何かあっても普段のGmail等には影響しません。",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.error,
+            modifier = Modifier.padding(top = 8.dp),
+        )
         Row(
             modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
             verticalAlignment = Alignment.CenterVertically,

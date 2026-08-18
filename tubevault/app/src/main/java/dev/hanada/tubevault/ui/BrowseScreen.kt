@@ -26,6 +26,7 @@ import androidx.compose.material.icons.filled.Download
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.Login
 import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ExtendedFloatingActionButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -33,6 +34,7 @@ import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
@@ -84,6 +86,7 @@ fun BrowseScreen(
     // yt-dlp once captureCookies() runs.
     var popupWebView by remember { mutableStateOf<WebView?>(null) }
     var popupTitle by remember { mutableStateOf("") }
+    var confirmingSignIn by remember { mutableStateOf(false) }
 
     val webView = remember {
         WebView(context).apply {
@@ -206,7 +209,7 @@ fun BrowseScreen(
                 overflow = TextOverflow.Ellipsis,
                 modifier = Modifier.weight(1f).padding(horizontal = 4.dp),
             )
-            IconButton(onClick = { webView.loadUrl(GOOGLE_SIGN_IN_URL) }) {
+            IconButton(onClick = { confirmingSignIn = true }) {
                 Icon(Icons.Default.Login, contentDescription = "Google にログイン")
             }
             IconButton(onClick = { webView.reload() }) {
@@ -259,6 +262,31 @@ fun BrowseScreen(
             onConfirm = { kind, quality, categoryId ->
                 viewModel.download(videoId, title, kind, quality, categoryId)
                 askingDownload = false
+            },
+        )
+    }
+
+    if (confirmingSignIn) {
+        AlertDialog(
+            onDismissRequest = { confirmingSignIn = false },
+            title = { Text("サインインする前に") },
+            text = {
+                Text(
+                    "普段使いのアカウントではなく、このアプリ専用のサブアカウントを" +
+                        "新しく作ってサインインすることを強くおすすめします。\n\n" +
+                        "自動的な取得は YouTube の規約に反するため、使いすぎるとアカウントに" +
+                        "確認や制限がかかることがあります。サブアカウントなら、何かあっても" +
+                        "普段の Gmail 等には影響しません。",
+                )
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    confirmingSignIn = false
+                    webView.loadUrl(GOOGLE_SIGN_IN_URL)
+                }) { Text("理解してサインイン") }
+            },
+            dismissButton = {
+                TextButton(onClick = { confirmingSignIn = false }) { Text("キャンセル") }
             },
         )
     }
