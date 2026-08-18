@@ -3,6 +3,7 @@ package dev.hanada.tubevault.ui
 import android.annotation.SuppressLint
 import android.graphics.Bitmap
 import android.os.Bundle
+import android.os.Message
 import android.view.ViewGroup
 import android.webkit.CookieManager
 import android.webkit.WebChromeClient
@@ -20,15 +21,19 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.ArrowForward
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Download
 import androidx.compose.material.icons.filled.Home
+import androidx.compose.material.icons.filled.Login
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material3.ExtendedFloatingActionButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
@@ -41,6 +46,8 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
+import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import dev.hanada.tubevault.core.YouTubeUrls
 
@@ -52,6 +59,7 @@ import dev.hanada.tubevault.core.YouTubeUrls
  * "Please sign in" checks.
  */
 @SuppressLint("SetJavaScriptEnabled")
+@OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
 @Composable
 fun BrowseScreen(
     viewModel: BrowseViewModel,
@@ -69,6 +77,14 @@ fun BrowseScreen(
     var loadProgress by remember { mutableStateOf(0) }
     var askingDownload by remember { mutableStateOf(false) }
 
+    // Google's sign-in flow sometimes opens as a JS popup (target="_blank")
+    // rather than a normal navigation. Without handling that, tapping
+    // "ログイン" silently does nothing. The popup shares the same cookie jar
+    // as the main WebView, so anything it signs in with still reaches
+    // yt-dlp once captureCookies() runs.
+    var popupWebView by remember { mutableStateOf<WebView?>(null) }
+    var popupTitle by remember { mutableStateOf("") }
+
     val webView = remember {
         WebView(context).apply {
             settings.javaScriptEnabled = true
@@ -77,6 +93,8 @@ fun BrowseScreen(
             settings.useWideViewPort = true
             settings.loadWithOverviewMode = true
             settings.mediaPlaybackRequiresUserGesture = false
+            settings.setSupportMultipleWindows(true)
+            settings.javaScriptCanOpenWindowsAutomatically = true
             // The stock WebView UA contains "wv", which Google's sign-in flow
             // rejects outright; a plain Chrome UA at least gets a chance.
             settings.userAgentString = MOBILE_USER_AGENT
@@ -122,6 +140,33 @@ fun BrowseScreen(
                 override fun onReceivedTitle(view: WebView?, title: String?) {
                     viewModel.onTitle(title)
                 }
+
+                override fun onCreateWindow(
+                    view: WebView,
+                    isDialog: Boolean,
+                    isUserGesture: Boolean,
+                    resultMsg: Message,
+                ): Boolean {
+                    val popup = WebView(context).apply {
+                        settings.javaScriptEnabled = true
+                        settings.domStorageEnabled = true
+                        settings.userAgentString = MOBILE_USER_AGENT
+                        webViewClient = object : WebViewClient() {
+                            override fun onPageFinished(popupView: WebView?, url: String?) {
+                                viewModel.captureCookies()
+                                popupTitle = popupView?.title.orEmpty()
+                            }
+                        }
+                    }
+                    popupWebView = popup
+                    (resultMsg.obj as WebView.WebViewTransport).webView = popup
+                    resultMsg.sendToTarget()
+                    return true
+                }
+
+                override fun onCloseWindow(window: WebView) {
+                    popupWebView = null
+                }
             }
 
             val restored = viewModel.consumeSavedState()
@@ -161,6 +206,9 @@ fun BrowseScreen(
                 overflow = TextOverflow.Ellipsis,
                 modifier = Modifier.weight(1f).padding(horizontal = 4.dp),
             )
+            IconButton(onClick = { webView.loadUrl(GOOGLE_SIGN_IN_URL) }) {
+                Icon(Icons.Default.Login, contentDescription = "Google にログイン")
+            }
             IconButton(onClick = { webView.reload() }) {
                 Icon(Icons.Default.Refresh, contentDescription = "再読み込み")
             }
@@ -214,8 +262,48 @@ fun BrowseScreen(
             },
         )
     }
+
+    val popup = popupWebView
+    if (popup != null) {
+        Dialog(
+            onDismissRequest = {
+                viewModel.captureCookies()
+                popupWebView = null
+            },
+            properties = DialogProperties(usePlatformDefaultWidth = false),
+        ) {
+            Surface(modifier = Modifier.fillMaxSize()) {
+                Column(modifier = Modifier.fillMaxSize()) {
+                    TopAppBar(
+                        title = {
+                            Text(
+                                popupTitle.ifBlank { "ログイン" },
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                            )
+                        },
+                        navigationIcon = {
+                            IconButton(onClick = {
+                                viewModel.captureCookies()
+                                popupWebView = null
+                            }) {
+                                Icon(Icons.Default.Close, contentDescription = "閉じる")
+                            }
+                        },
+                    )
+                    AndroidView(
+                        factory = { popup },
+                        modifier = Modifier.fillMaxSize(),
+                    )
+                }
+            }
+        }
+    }
 }
 
 private const val MOBILE_USER_AGENT =
     "Mozilla/5.0 (Linux; Android 13) AppleWebKit/537.36 (KHTML, like Gecko) " +
         "Chrome/122.0.0.0 Mobile Safari/537.36"
+
+private const val GOOGLE_SIGN_IN_URL =
+    "https://accounts.google.com/ServiceLogin?continue=https://m.youtube.com/"

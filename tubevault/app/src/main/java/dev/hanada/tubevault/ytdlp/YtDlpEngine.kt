@@ -255,10 +255,18 @@ class YtDlpEngine(
 
         val lowered = message.lowercase()
         return when {
-            "sign in" in lowered || "not a bot" in lowered || "cookies" in lowered ->
-                "$message\n\nYouTube がログインを求めています。「ホーム」タブで YouTube を開く" +
-                    "（できればログインする）と、そのセッションが次回から使われます。" +
+            "not a bot" in lowered ->
+                "$message\n\nYouTube がボット判定を行っています。「ホーム」タブで YouTube を開くと" +
+                    "そのセッションが次回から使われ、改善することがあります。" +
                     "改善しない場合は設定で yt-dlp を更新するか、プレイヤークライアントを変更してください。"
+
+            "sign in" in lowered ->
+                "$message\n\nこの動画は年齢制限など、実際にサインインしたアカウントでないと" +
+                    "取得できないタイプです。閲覧しただけでは不十分なので、「ホーム」タブの🔑アイコンから" +
+                    "Google に実際にサインインしてから、もう一度お試しください。"
+
+            "cookies" in lowered ->
+                "$message\n\n「ホーム」タブで YouTube を開くとセッションが使われるようになります。"
 
             "unable to extract" in lowered || "player response" in lowered ->
                 "$message\n\nYouTube 側の仕様変更の可能性があります。設定タブの「yt-dlp を更新」を試してください。"

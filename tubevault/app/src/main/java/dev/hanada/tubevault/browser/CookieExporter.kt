@@ -87,4 +87,20 @@ object CookieExporter {
             ?.readLines()
             ?.count { it.isNotBlank() && !it.startsWith("#") }
             ?: 0
+
+    /**
+     * `SAPISID`/`__Secure-3PAPISID` only get set on an authenticated Google
+     * session; the consent/visitor cookies YouTube hands out anonymously
+     * never include them. Some videos (age-restricted, sensitive topics)
+     * require this — anonymous cookies alone will keep hitting
+     * "Please sign in" for those regardless of how many cookies exist.
+     */
+    fun isSignedIn(context: Context): Boolean =
+        current(context)
+            ?.readLines()
+            ?.any { line ->
+                val name = line.split('\t').getOrNull(5).orEmpty()
+                name == "SAPISID" || name == "__Secure-3PAPISID" || name == "LOGIN_INFO"
+            }
+            ?: false
 }

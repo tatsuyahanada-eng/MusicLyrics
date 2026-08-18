@@ -284,12 +284,16 @@ class SettingsViewModel(private val container: AppContainer) : ViewModel() {
     private val _cookieCount = MutableStateFlow(0)
     val cookieCount: StateFlow<Int> = _cookieCount.asStateFlow()
 
+    private val _signedIn = MutableStateFlow(false)
+    val signedIn: StateFlow<Boolean> = _signedIn.asStateFlow()
+
     init {
         refresh()
     }
 
     fun refresh() {
         _cookieCount.value = CookieExporter.cookieCount(container.appContext)
+        _signedIn.value = CookieExporter.isSignedIn(container.appContext)
         viewModelScope.launch {
             _ytDlpVersion.value = container.engine.version()
         }
@@ -341,6 +345,7 @@ class SettingsViewModel(private val container: AppContainer) : ViewModel() {
     fun clearCookies() {
         CookieExporter.clear(container.appContext)
         _cookieCount.value = 0
+        _signedIn.value = false
         _toast.value = "ブラウザのログイン情報を消しました"
     }
 

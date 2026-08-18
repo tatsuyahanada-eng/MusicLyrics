@@ -48,6 +48,7 @@ fun SettingsScreen(
     val storageBytes by viewModel.storageBytes.collectAsStateWithLifecycle()
     val toast by viewModel.toast.collectAsStateWithLifecycle()
     val cookieCount by viewModel.cookieCount.collectAsStateWithLifecycle()
+    val signedIn by viewModel.signedIn.collectAsStateWithLifecycle()
 
     LaunchedEffect(toast) {
         toast?.let {
@@ -55,6 +56,10 @@ fun SettingsScreen(
             viewModel.consumeToast()
         }
     }
+
+    // The browser tab is what actually changes the sign-in state, so pick
+    // that up whenever this screen becomes visible instead of only once.
+    LaunchedEffect(Unit) { viewModel.refresh() }
 
     Column(
         modifier = modifier
@@ -134,16 +139,21 @@ fun SettingsScreen(
 
         SettingSection("YouTube のログイン")
         Text(
-            text = if (cookieCount > 0) {
-                "「ホーム」タブのセッションを利用中（Cookie ${cookieCount} 件）"
-            } else {
-                "まだセッションがありません。「ホーム」タブで YouTube を開いてください。"
+            text = when {
+                signedIn -> "サインイン済みのセッションを利用中（Cookie ${cookieCount} 件）"
+                cookieCount > 0 -> "未サインインのセッションを利用中（Cookie ${cookieCount} 件）"
+                else -> "まだセッションがありません"
             },
             style = MaterialTheme.typography.bodyMedium,
+            color = if (signedIn) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface,
         )
         Text(
-            text = "「Please sign in」で失敗するときは、ホームタブで YouTube を開く" +
-                "（可能ならログインする）と、そのセッションが取得時に使われます。",
+            text = if (signedIn) {
+                "年齢制限などサインインが必須の動画にも対応できます。"
+            } else {
+                "年齢制限が付いた動画などは、閲覧だけでなく実際のサインインが必要です。" +
+                    "「ホーム」タブの🔑アイコンからサインインしてください。"
+            },
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             modifier = Modifier.padding(top = 4.dp),
