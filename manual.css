@@ -1927,17 +1927,25 @@ textarea.tm-ff-input { width: 100%; resize: vertical; min-height: 88px; }
 .tm-trip-filter { display: flex; flex-wrap: wrap; gap: 10px 14px; align-items: flex-end; margin: 6px 0 12px; }
 .tm-trip-filter .tm-field { min-width: 130px; }
 .tm-trip-filterbtns { justify-content: flex-end; }
+/* 行数が多いと表全体が縦に伸び、横スクロールバー（表の下端）を掴むために
+   ダイアログを一番下までスクロールしないといけなくなっていた。ここ自体に
+   高さの上限と縦スクロールを持たせることで、横スクロールバーが常に
+   ダイアログ上部の見える位置にとどまるようにする。 */
 .tm-trip-tablewrap {
-  overflow-x: auto; -webkit-overflow-scrolling: touch;
+  overflow-x: auto; overflow-y: auto; -webkit-overflow-scrolling: touch;
+  max-height: min(54vh, 420px);
   scrollbar-width: thin; scrollbar-color: var(--tm-cyan-dim) transparent;
 }
-.tm-trip-tablewrap::-webkit-scrollbar { height: 8px; }
+.tm-trip-tablewrap::-webkit-scrollbar { height: 8px; width: 8px; }
 .tm-trip-tablewrap::-webkit-scrollbar-track { background: transparent; }
 .tm-trip-tablewrap::-webkit-scrollbar-thumb { background: var(--tm-cyan-dim); border-radius: 4px; }
 .tm-trip-table { width: 100%; border-collapse: collapse; font-size: 13px; min-width: 760px; }
 .tm-trip-table th, .tm-trip-table td { padding: 8px 10px; text-align: left; border-bottom: 1px solid var(--tm-line); vertical-align: middle; white-space: nowrap; }
-/* 見出し行だけ、シアンの帯で塗って目立たせる */
+/* 見出し行だけ、シアンの帯で塗って目立たせる。縦スクロール中も見出しが
+   隠れないよう、上部に貼り付けておく（帯の背景を不透明寄りにしてあるのは
+   このため。下の行が透けて見えないようにする）。 */
 .tm-trip-table th {
+  position: sticky; top: 0; z-index: 1;
   font-family: var(--tm-mono); font-size: 10px; letter-spacing: 1px;
   color: var(--tm-cyan); text-transform: uppercase;
   padding-top: 10px; padding-bottom: 10px;
