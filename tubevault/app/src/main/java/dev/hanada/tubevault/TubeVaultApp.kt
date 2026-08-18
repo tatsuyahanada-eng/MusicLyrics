@@ -27,7 +27,7 @@ class AppContainer(private val app: Application) {
 
     val database: AppDatabase by lazy { AppDatabase.build(app) }
     val settings: SettingsStore by lazy { SettingsStore(app) }
-    val engine: YtDlpEngine by lazy { YtDlpEngine(app) }
+    val engine: YtDlpEngine by lazy { YtDlpEngine(app, settings) }
 
     val library: LibraryRepository by lazy {
         LibraryRepository(app, database.categoryDao(), database.mediaDao())

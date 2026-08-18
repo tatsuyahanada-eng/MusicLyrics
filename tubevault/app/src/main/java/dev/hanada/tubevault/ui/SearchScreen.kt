@@ -25,6 +25,7 @@ import androidx.compose.material.icons.filled.Audiotrack
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Clear
 import androidx.compose.material.icons.filled.Download
+import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Videocam
 import androidx.compose.material3.AlertDialog
@@ -61,6 +62,7 @@ import dev.hanada.tubevault.data.CategoryEntity
 fun SearchScreen(
     viewModel: SearchViewModel,
     contentPadding: PaddingValues,
+    onOpenBrowser: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val query by viewModel.query.collectAsStateWithLifecycle()
@@ -82,28 +84,37 @@ fun SearchScreen(
     }
 
     Column(modifier = modifier.fillMaxSize().padding(contentPadding)) {
-        OutlinedTextField(
-            value = query,
-            onValueChange = viewModel::onQueryChange,
-            modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
-            label = { Text("YouTube を検索 / URL を貼り付け") },
-            singleLine = true,
-            leadingIcon = { Icon(Icons.Default.Search, contentDescription = null) },
-            trailingIcon = {
-                if (query.isNotEmpty()) {
-                    IconButton(onClick = viewModel::clear) {
-                        Icon(Icons.Default.Clear, contentDescription = "クリア")
+        Row(
+            modifier = Modifier.fillMaxWidth().padding(start = 8.dp, end = 8.dp, top = 8.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            // Straight into the in-app YouTube, for when browsing beats searching.
+            IconButton(onClick = onOpenBrowser) {
+                Icon(Icons.Default.Home, contentDescription = "YouTube を開く")
+            }
+            OutlinedTextField(
+                value = query,
+                onValueChange = viewModel::onQueryChange,
+                modifier = Modifier.weight(1f),
+                label = { Text("YouTube を検索 / URL を貼り付け") },
+                singleLine = true,
+                leadingIcon = { Icon(Icons.Default.Search, contentDescription = null) },
+                trailingIcon = {
+                    if (query.isNotEmpty()) {
+                        IconButton(onClick = viewModel::clear) {
+                            Icon(Icons.Default.Clear, contentDescription = "クリア")
+                        }
                     }
-                }
-            },
-            keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
-            keyboardActions = KeyboardActions(
-                onSearch = {
-                    keyboard?.hide()
-                    viewModel.search()
                 },
-            ),
-        )
+                keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
+                keyboardActions = KeyboardActions(
+                    onSearch = {
+                        keyboard?.hide()
+                        viewModel.search()
+                    },
+                ),
+            )
+        }
 
         when {
             isSearching -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
@@ -145,7 +156,7 @@ fun SearchScreen(
 
     pending?.let { result ->
         DownloadOptionsDialog(
-            result = result,
+            title = result.title,
             categories = categories,
             initialKind = settings.defaultKind,
             initialQuality = settings.defaultQuality,
@@ -210,98 +221,4 @@ private fun SearchResultRow(
             modifier = Modifier.size(24.dp),
         )
     }
-}
-
-@OptIn(ExperimentalLayoutApi::class)
-@Composable
-private fun DownloadOptionsDialog(
-    result: SearchResult,
-    categories: List<CategoryEntity>,
-    initialKind: MediaKind,
-    initialQuality: VideoQuality,
-    initialCategoryId: Long,
-    onDismiss: () -> Unit,
-    onConfirm: (MediaKind, VideoQuality, Long) -> Unit,
-) {
-    var kind by remember { mutableStateOf(initialKind) }
-    var quality by remember { mutableStateOf(initialQuality) }
-    var categoryId by remember {
-        val valid = categories.any { it.id == initialCategoryId }
-        mutableStateOf(if (valid) initialCategoryId else categories.firstOrNull()?.id ?: 0L)
-    }
-
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text(result.title, maxLines = 2, overflow = TextOverflow.Ellipsis) },
-        text = {
-            Column(modifier = Modifier.verticalScroll(rememberScrollState())) {
-                SectionLabel("形式")
-                FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    MediaKind.entries.forEach { option ->
-                        FilterChip(
-                            selected = kind == option,
-                            onClick = { kind = option },
-                            label = { Text(option.label) },
-                            leadingIcon = {
-                                Icon(
-                                    imageVector = if (option == MediaKind.AUDIO) {
-                                        Icons.Default.Audiotrack
-                                    } else {
-                                        Icons.Default.Videocam
-                                    },
-                                    contentDescription = null,
-                                    modifier = Modifier.size(18.dp),
-                                )
-                            },
-                        )
-                    }
-                }
-
-                if (kind == MediaKind.VIDEO) {
-                    SectionLabel("画質")
-                    FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        VideoQuality.entries.forEach { option ->
-                            FilterChip(
-                                selected = quality == option,
-                                onClick = { quality = option },
-                                label = { Text(option.label) },
-                            )
-                        }
-                    }
-                }
-
-                SectionLabel("保存先フォルダ")
-                FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    categories.forEach { category ->
-                        FilterChip(
-                            selected = categoryId == category.id,
-                            onClick = { categoryId = category.id },
-                            label = { Text(category.name) },
-                        )
-                    }
-                }
-            }
-        },
-        confirmButton = {
-            TextButton(
-                onClick = { onConfirm(kind, quality, categoryId) },
-                enabled = categories.isNotEmpty(),
-            ) {
-                Text("ダウンロード")
-            }
-        },
-        dismissButton = {
-            TextButton(onClick = onDismiss) { Text("キャンセル") }
-        },
-    )
-}
-
-@Composable
-private fun SectionLabel(text: String) {
-    Text(
-        text = text,
-        style = MaterialTheme.typography.labelLarge,
-        color = MaterialTheme.colorScheme.onSurfaceVariant,
-        modifier = Modifier.padding(top = 12.dp, bottom = 6.dp),
-    )
 }

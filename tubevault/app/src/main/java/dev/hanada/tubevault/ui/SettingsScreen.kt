@@ -18,6 +18,7 @@ import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.SnackbarHostState
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -30,6 +31,7 @@ import dev.hanada.tubevault.core.MediaKind
 import dev.hanada.tubevault.core.Storage
 import dev.hanada.tubevault.core.VideoQuality
 import dev.hanada.tubevault.core.formatBytes
+import dev.hanada.tubevault.data.PlayerClient
 
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
@@ -45,6 +47,7 @@ fun SettingsScreen(
     val busy by viewModel.busyMessage.collectAsStateWithLifecycle()
     val storageBytes by viewModel.storageBytes.collectAsStateWithLifecycle()
     val toast by viewModel.toast.collectAsStateWithLifecycle()
+    val cookieCount by viewModel.cookieCount.collectAsStateWithLifecycle()
 
     LaunchedEffect(toast) {
         toast?.let {
@@ -125,6 +128,58 @@ fun SettingsScreen(
         ) {
             OutlinedButton(onClick = viewModel::pruneMissing) { Text("不明なファイルを整理") }
             OutlinedButton(onClick = viewModel::refresh) { Text("再計算") }
+        }
+
+        HorizontalDivider(modifier = Modifier.padding(vertical = 20.dp))
+
+        SettingSection("YouTube のログイン")
+        Text(
+            text = if (cookieCount > 0) {
+                "「ホーム」タブのセッションを利用中（Cookie ${cookieCount} 件）"
+            } else {
+                "まだセッションがありません。「ホーム」タブで YouTube を開いてください。"
+            },
+            style = MaterialTheme.typography.bodyMedium,
+        )
+        Text(
+            text = "「Please sign in」で失敗するときは、ホームタブで YouTube を開く" +
+                "（可能ならログインする）と、そのセッションが取得時に使われます。",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.padding(top = 4.dp),
+        )
+        Row(
+            modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Text("セッションを使う", style = MaterialTheme.typography.bodyMedium, modifier = Modifier.weight(1f))
+            Switch(
+                checked = settings.useCookies,
+                onCheckedChange = viewModel::setUseCookies,
+            )
+        }
+        OutlinedButton(
+            onClick = viewModel::clearCookies,
+            modifier = Modifier.padding(top = 8.dp),
+        ) {
+            Text("ログイン情報を消す")
+        }
+
+        SettingSection("プレイヤークライアント")
+        Text(
+            text = "取得に失敗し続けるときに変更します。まずは「自動」のままで。",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.padding(bottom = 8.dp),
+        )
+        FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            PlayerClient.entries.forEach { option ->
+                FilterChip(
+                    selected = settings.playerClient == option,
+                    onClick = { viewModel.setPlayerClient(option) },
+                    label = { Text(option.label) },
+                )
+            }
         }
 
         HorizontalDivider(modifier = Modifier.padding(vertical = 20.dp))

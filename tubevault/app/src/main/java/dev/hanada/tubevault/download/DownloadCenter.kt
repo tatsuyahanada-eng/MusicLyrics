@@ -39,6 +39,8 @@ data class DownloadJob(
     val statusLine: String = "",
     val error: String? = null,
     val createdAt: Long = System.currentTimeMillis(),
+    /** Queued from the browser, so title/duration still need resolving. */
+    val needsMetadata: Boolean = false,
 ) {
     val isActive: Boolean get() = state == JobState.QUEUED || state == JobState.RUNNING
     val thumbnailUrl: String get() = "https://i.ytimg.com/vi/$videoId/hqdefault.jpg"
@@ -76,8 +78,8 @@ class DownloadCenter(
         kind: MediaKind,
         quality: VideoQuality,
         categoryId: Long,
-    ): String {
-        val job = DownloadJob(
+    ): String = enqueue(
+        DownloadJob(
             id = UUID.randomUUID().toString(),
             videoId = result.videoId,
             title = result.title,
@@ -87,7 +89,37 @@ class DownloadCenter(
             kind = kind,
             quality = quality,
             categoryId = categoryId,
-        )
+        ),
+    )
+
+    /**
+     * Queues a video the browser is sitting on. All the page gives us is a URL
+     * and a tab title; the real metadata is resolved from yt-dlp when the job
+     * starts, so tapping download stays instant.
+     */
+    fun enqueueUrl(
+        videoId: String,
+        sourceUrl: String,
+        provisionalTitle: String,
+        kind: MediaKind,
+        quality: VideoQuality,
+        categoryId: Long,
+    ): String = enqueue(
+        DownloadJob(
+            id = UUID.randomUUID().toString(),
+            videoId = videoId,
+            title = provisionalTitle,
+            uploader = null,
+            durationSec = 0L,
+            sourceUrl = sourceUrl,
+            kind = kind,
+            quality = quality,
+            categoryId = categoryId,
+            needsMetadata = true,
+        ),
+    )
+
+    private fun enqueue(job: DownloadJob): String {
         _jobs.update { it + job }
         queue.trySend(job.id)
         DownloadService.start(context)
@@ -121,12 +153,26 @@ class DownloadCenter(
     }
 
     private suspend fun runJob(jobId: String) {
-        val job = _jobs.value.firstOrNull { it.id == jobId } ?: return
+        var job = _jobs.value.firstOrNull { it.id == jobId } ?: return
         if (job.state == JobState.CANCELED) return
 
         updateJob(jobId) { it.copy(state = JobState.RUNNING, statusLine = "準備中…") }
 
         try {
+            if (job.needsMetadata) {
+                val info = engine.fetchInfo(job.sourceUrl)
+                updateJob(jobId) {
+                    it.copy(
+                        title = info.title,
+                        uploader = info.uploader,
+                        durationSec = info.durationSec,
+                        needsMetadata = false,
+                    )
+                }
+                job = _jobs.value.firstOrNull { it.id == jobId } ?: return
+                if (job.state == JobState.CANCELED) return
+            }
+
             val category = library.getCategory(job.categoryId)
                 ?: library.getCategories().firstOrNull()
                 ?: error("保存先のカテゴリがありません")

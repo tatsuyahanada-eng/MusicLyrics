@@ -5,10 +5,13 @@ import android.util.Log
 import com.yausername.ffmpeg.FFmpeg
 import com.yausername.youtubedl_android.YoutubeDL
 import com.yausername.youtubedl_android.YoutubeDLRequest
+import dev.hanada.tubevault.browser.CookieExporter
 import dev.hanada.tubevault.core.MediaKind
 import dev.hanada.tubevault.core.SearchResult
 import dev.hanada.tubevault.core.Storage
 import dev.hanada.tubevault.core.VideoQuality
+import dev.hanada.tubevault.core.YouTubeUrls
+import dev.hanada.tubevault.data.SettingsStore
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
@@ -32,7 +35,10 @@ data class DownloadOutcome(
  * Every entry point calls [ensureInit] first: unpacking the native payload is
  * lazy so a cold start does not pay for it, and it must happen exactly once.
  */
-class YtDlpEngine(private val context: Context) {
+class YtDlpEngine(
+    private val context: Context,
+    private val settings: SettingsStore,
+) {
 
     private val initMutex = Mutex()
 
@@ -85,9 +91,36 @@ class YtDlpEngine(private val context: Context) {
         request.addOption("--dump-json")
         request.addOption("--no-warnings")
         request.addOption("--ignore-errors")
+        request.applyYouTubeOptions()
 
-        val response = YoutubeDL.getInstance().execute(request)
+        val response = try {
+            YoutubeDL.getInstance().execute(request)
+        } catch (e: Exception) {
+            throw YtDlpDownloadException(explain(e.message.orEmpty()))
+        }
         response.out.lineSequence().mapNotNull(::parseEntry).toList()
+    }
+
+    /**
+     * Full metadata for a single video. Used when a download starts from the
+     * browser, where all we have is the URL the page happens to be on.
+     */
+    suspend fun fetchInfo(url: String): SearchResult = withContext(Dispatchers.IO) {
+        ensureInit()
+        val request = YoutubeDLRequest(url)
+        request.addOption("--dump-single-json")
+        request.addOption("--no-playlist")
+        request.addOption("--no-warnings")
+        request.applyYouTubeOptions()
+
+        val response = try {
+            YoutubeDL.getInstance().execute(request)
+        } catch (e: Exception) {
+            throw YtDlpDownloadException(explain(e.message.orEmpty()))
+        }
+        val line = response.out.lineSequence().firstOrNull { it.trimStart().startsWith("{") }
+            ?: throw YtDlpDownloadException("動画の情報を取得できませんでした")
+        parseEntry(line) ?: throw YtDlpDownloadException("動画の情報を解釈できませんでした")
     }
 
     /**
@@ -114,6 +147,7 @@ class YtDlpEngine(private val context: Context) {
         request.addOption("-o", File(targetDir, "%(id)s.%(ext)s").absolutePath)
         request.addOption("--write-thumbnail")
         request.addOption("--convert-thumbnails", "jpg")
+        request.applyYouTubeOptions()
 
         when (kind) {
             MediaKind.AUDIO -> {
@@ -132,14 +166,18 @@ class YtDlpEngine(private val context: Context) {
             }
         }
 
-        val response = YoutubeDL.getInstance().execute(
-            request = request,
-            processId = processId,
-            callback = onProgress,
-        )
+        val response = try {
+            YoutubeDL.getInstance().execute(
+                request = request,
+                processId = processId,
+                callback = onProgress,
+            )
+        } catch (e: Exception) {
+            throw YtDlpDownloadException(explain(e.message.orEmpty()))
+        }
 
         if (response.exitCode != 0) {
-            throw YtDlpDownloadException(lastMeaningfulLine(response.err))
+            throw YtDlpDownloadException(explain(response.err))
         }
 
         val media = Storage.findMediaFile(targetDir, videoId)
@@ -157,6 +195,21 @@ class YtDlpEngine(private val context: Context) {
     }.getOrElse {
         Log.w(TAG, "failed to cancel process $processId", it)
         false
+    }
+
+    /**
+     * YouTube answers most anonymous extraction with "Please sign in", so every
+     * request carries whatever session the in-app browser has, plus the client
+     * override when the user picked one.
+     */
+    private fun YoutubeDLRequest.applyYouTubeOptions() {
+        val current = settings.current
+        if (current.useCookies) {
+            CookieExporter.current(context)?.let { addOption("--cookies", it.absolutePath) }
+        }
+        current.playerClient.argument?.let {
+            addOption("--extractor-args", "youtube:player_client=$it")
+        }
     }
 
     private fun isUrl(query: String): Boolean =
@@ -179,7 +232,7 @@ class YtDlpEngine(private val context: Context) {
                 viewCount = json.optLong("view_count", 0L),
             )
         } catch (e: Exception) {
-            Log.w(TAG, "unparsable search entry", e)
+            Log.w(TAG, "unparsable entry", e)
             null
         }
     }
@@ -188,13 +241,31 @@ class YtDlpEngine(private val context: Context) {
         .map { json.optString(it) }
         .firstOrNull { it.isNotBlank() && it != "null" }
 
-    /** yt-dlp's stderr ends with the line that actually explains the failure. */
-    private fun lastMeaningfulLine(stderr: String): String = stderr
-        .lineSequence()
-        .map { it.trim() }
-        .lastOrNull { it.isNotEmpty() }
-        ?.removePrefix("ERROR: ")
-        ?: "ダウンロードに失敗しました"
+    /**
+     * yt-dlp's stderr ends with the line that explains the failure, but its
+     * two most common ones need translating into something actionable.
+     */
+    private fun explain(stderr: String): String {
+        val message = stderr
+            .lineSequence()
+            .map { it.trim() }
+            .lastOrNull { it.isNotEmpty() }
+            ?.removePrefix("ERROR: ")
+            ?: "ダウンロードに失敗しました"
+
+        val lowered = message.lowercase()
+        return when {
+            "sign in" in lowered || "not a bot" in lowered || "cookies" in lowered ->
+                "$message\n\nYouTube がログインを求めています。「ホーム」タブで YouTube を開く" +
+                    "（できればログインする）と、そのセッションが次回から使われます。" +
+                    "改善しない場合は設定で yt-dlp を更新するか、プレイヤークライアントを変更してください。"
+
+            "unable to extract" in lowered || "player response" in lowered ->
+                "$message\n\nYouTube 側の仕様変更の可能性があります。設定タブの「yt-dlp を更新」を試してください。"
+
+            else -> message
+        }
+    }
 
     private companion object {
         const val TAG = "YtDlpEngine"

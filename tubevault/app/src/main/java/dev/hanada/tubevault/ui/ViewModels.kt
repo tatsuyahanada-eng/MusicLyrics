@@ -1,5 +1,6 @@
 package dev.hanada.tubevault.ui
 
+import android.os.Bundle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
@@ -8,12 +9,15 @@ import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
 import dev.hanada.tubevault.AppContainer
 import dev.hanada.tubevault.TubeVaultApp
+import dev.hanada.tubevault.browser.CookieExporter
 import dev.hanada.tubevault.core.MediaKind
 import dev.hanada.tubevault.core.SearchResult
 import dev.hanada.tubevault.core.Storage
 import dev.hanada.tubevault.core.VideoQuality
+import dev.hanada.tubevault.core.YouTubeUrls
 import dev.hanada.tubevault.data.CategoryEntity
 import dev.hanada.tubevault.data.CategoryWithStats
+import dev.hanada.tubevault.data.PlayerClient
 import dev.hanada.tubevault.data.MediaItemEntity
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.Dispatchers
@@ -36,6 +40,7 @@ private fun CreationExtras.container(): AppContainer {
 
 val AppViewModelFactory: ViewModelProvider.Factory = viewModelFactory {
     initializer { SearchViewModel(container()) }
+    initializer { BrowseViewModel(container()) }
     initializer { LibraryViewModel(container()) }
     initializer { DownloadsViewModel(container()) }
     initializer { SettingsViewModel(container()) }
@@ -112,6 +117,67 @@ class SearchViewModel(private val container: AppContainer) : ViewModel() {
     }
 
     fun rememberDefaults(kind: MediaKind, quality: VideoQuality, categoryId: Long) {
+        container.settings.update {
+            it.copy(defaultKind = kind, defaultQuality = quality, defaultCategoryId = categoryId)
+        }
+    }
+}
+
+/**
+ * Backs the in-app browser. It holds the WebView's serialised history so
+ * switching tabs does not throw the user back to the YouTube home page, and it
+ * is where the browser's cookies get handed to the download engine.
+ */
+class BrowseViewModel(private val container: AppContainer) : ViewModel() {
+
+    private var savedState: Bundle? = null
+
+    private val _currentUrl = MutableStateFlow<String?>(null)
+    val currentUrl: StateFlow<String?> = _currentUrl.asStateFlow()
+
+    private val _pageTitle = MutableStateFlow("")
+    val pageTitle: StateFlow<String> = _pageTitle.asStateFlow()
+
+    val categories: StateFlow<List<CategoryEntity>> = container.library.observeCategoryList()
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(SUBSCRIBE_TIMEOUT_MS), emptyList())
+
+    val settings = container.settings.state
+
+    fun onNavigated(url: String?, title: String?) {
+        if (!url.isNullOrBlank() && url != "about:blank") _currentUrl.value = url
+        onTitle(title)
+    }
+
+    fun onTitle(title: String?) {
+        if (!title.isNullOrBlank()) _pageTitle.value = title
+    }
+
+    /** Called as pages settle, so the newest session is always on disk. */
+    fun captureCookies() {
+        CookieExporter.export(container.appContext)
+    }
+
+    fun saveState(bundle: Bundle) {
+        savedState = bundle
+    }
+
+    fun consumeSavedState(): Bundle? = savedState
+
+    fun download(
+        videoId: String,
+        title: String,
+        kind: MediaKind,
+        quality: VideoQuality,
+        categoryId: Long,
+    ) {
+        container.downloads.enqueueUrl(
+            videoId = videoId,
+            sourceUrl = YouTubeUrls.watchUrl(videoId),
+            provisionalTitle = title,
+            kind = kind,
+            quality = quality,
+            categoryId = categoryId,
+        )
         container.settings.update {
             it.copy(defaultKind = kind, defaultQuality = quality, defaultCategoryId = categoryId)
         }
@@ -214,11 +280,16 @@ class SettingsViewModel(private val container: AppContainer) : ViewModel() {
     private val _toast = MutableStateFlow<String?>(null)
     val toast: StateFlow<String?> = _toast.asStateFlow()
 
+    /** How many cookies the in-app browser has handed over, for status display. */
+    private val _cookieCount = MutableStateFlow(0)
+    val cookieCount: StateFlow<Int> = _cookieCount.asStateFlow()
+
     init {
         refresh()
     }
 
     fun refresh() {
+        _cookieCount.value = CookieExporter.cookieCount(container.appContext)
         viewModelScope.launch {
             _ytDlpVersion.value = container.engine.version()
         }
@@ -260,6 +331,18 @@ class SettingsViewModel(private val container: AppContainer) : ViewModel() {
     fun setDefaultCategory(id: Long) = container.settings.update { it.copy(defaultCategoryId = id) }
 
     fun setSearchLimit(limit: Int) = container.settings.update { it.copy(searchLimit = limit) }
+
+    fun setPlayerClient(client: PlayerClient) =
+        container.settings.update { it.copy(playerClient = client) }
+
+    fun setUseCookies(enabled: Boolean) =
+        container.settings.update { it.copy(useCookies = enabled) }
+
+    fun clearCookies() {
+        CookieExporter.clear(container.appContext)
+        _cookieCount.value = 0
+        _toast.value = "ブラウザのログイン情報を消しました"
+    }
 
     fun consumeToast() {
         _toast.value = null

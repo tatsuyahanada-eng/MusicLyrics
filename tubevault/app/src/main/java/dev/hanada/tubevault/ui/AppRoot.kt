@@ -6,6 +6,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Download
 import androidx.compose.material.icons.filled.Folder
+import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.Icon
@@ -29,6 +30,7 @@ import dev.hanada.tubevault.AppContainer
 
 private enum class Tab(val label: String, val icon: ImageVector) {
     SEARCH("検索", Icons.Default.Search),
+    BROWSE("ホーム", Icons.Default.Home),
     LIBRARY("ライブラリ", Icons.Default.Folder),
     DOWNLOADS("取得中", Icons.Default.Download),
     SETTINGS("設定", Icons.Default.Settings),
@@ -37,6 +39,7 @@ private enum class Tab(val label: String, val icon: ImageVector) {
 @Composable
 fun AppRoot(container: AppContainer) {
     val searchViewModel: SearchViewModel = viewModel(factory = AppViewModelFactory)
+    val browseViewModel: BrowseViewModel = viewModel(factory = AppViewModelFactory)
     val libraryViewModel: LibraryViewModel = viewModel(factory = AppViewModelFactory)
     val downloadsViewModel: DownloadsViewModel = viewModel(factory = AppViewModelFactory)
     val settingsViewModel: SettingsViewModel = viewModel(factory = AppViewModelFactory)
@@ -71,7 +74,13 @@ fun AppRoot(container: AppContainer) {
             },
         ) { padding ->
             when (tab) {
-                Tab.SEARCH -> SearchScreen(searchViewModel, padding)
+                Tab.SEARCH -> SearchScreen(
+                    viewModel = searchViewModel,
+                    contentPadding = padding,
+                    onOpenBrowser = { tab = Tab.BROWSE },
+                )
+
+                Tab.BROWSE -> BrowseScreen(browseViewModel, padding)
                 Tab.LIBRARY -> LibraryScreen(libraryViewModel, padding)
                 Tab.DOWNLOADS -> DownloadsScreen(downloadsViewModel, padding)
                 Tab.SETTINGS -> SettingsScreen(settingsViewModel, snackbarHostState, padding)
