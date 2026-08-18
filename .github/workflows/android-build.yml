@@ -1,4 +1,4 @@
-name: Build TubeVault APK
+name: Build YD APK
 
 on:
   push:
@@ -9,8 +9,9 @@ on:
       - ".github/workflows/android-build.yml"
   workflow_dispatch:
 
+# Needed to publish the APKs as release assets.
 permissions:
-  contents: read
+  contents: write
 
 jobs:
   build:
@@ -40,16 +41,62 @@ jobs:
         working-directory: tubevault
         run: ./gradlew assembleDebug --stacktrace --no-daemon
 
-      - name: List outputs
-        if: always()
-        working-directory: tubevault
-        run: ls -lh app/build/outputs/apk/debug/ || true
+      - name: Name the APKs
+        working-directory: tubevault/app/build/outputs/apk/debug
+        run: |
+          set -eu
+          for f in *.apk; do
+            case "$f" in
+              *arm64-v8a*)   mv -f "$f" yd-arm64-v8a.apk ;;
+              *armeabi-v7a*) mv -f "$f" yd-armeabi-v7a.apk ;;
+            esac
+          done
+          ls -lh yd-*.apk
 
-      - name: Upload APKs
-        if: success()
+      - name: Upload APKs as a build artifact
         uses: actions/upload-artifact@v4
         with:
-          name: tubevault-debug-apk
-          path: tubevault/app/build/outputs/apk/debug/*.apk
+          name: yd-apk
+          path: tubevault/app/build/outputs/apk/debug/yd-*.apk
           if-no-files-found: error
           retention-days: 30
+
+      # Release assets download as plain .apk files — an Actions artifact is
+      # always served as a zip, which a phone cannot install directly.
+      - name: Publish APKs to the rolling release
+        working-directory: tubevault/app/build/outputs/apk/debug
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: yd-latest
+        run: |
+          set -eu
+          notes=$(cat <<'EOF'
+          個人利用向けのビルドです。スマホでリンクをタップすると .apk が直接ダウンロードされます。
+
+          - **yd-arm64-v8a.apk** — ここ8年ほどの端末はこちら
+          - **yd-armeabi-v7a.apk** — 32bit 端末用
+
+          デバッグ署名です。インストール時は「提供元不明のアプリ」の許可が必要です。
+          動画が取得できなくなったら、設定タブの「yt-dlp を更新」を先に試してください。
+          EOF
+          )
+          notes="${notes}
+
+          Build: ${GITHUB_SHA}"
+
+          if ! gh release view "$TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            gh release create "$TAG" \
+              --repo "$GITHUB_REPOSITORY" \
+              --target "$GITHUB_SHA" \
+              --title "YD (latest build)" \
+              --notes "$notes"
+          else
+            gh release edit "$TAG" --repo "$GITHUB_REPOSITORY" --notes "$notes"
+          fi
+
+          gh release upload "$TAG" --repo "$GITHUB_REPOSITORY" yd-*.apk --clobber
+
+          echo "### APK ダウンロード" >> "$GITHUB_STEP_SUMMARY"
+          base="https://github.com/${GITHUB_REPOSITORY}/releases/download/${TAG}"
+          echo "- [yd-arm64-v8a.apk](${base}/yd-arm64-v8a.apk)" >> "$GITHUB_STEP_SUMMARY"
+          echo "- [yd-armeabi-v7a.apk](${base}/yd-armeabi-v7a.apk)" >> "$GITHUB_STEP_SUMMARY"

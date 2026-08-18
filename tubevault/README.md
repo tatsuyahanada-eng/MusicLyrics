@@ -47,13 +47,20 @@ cd tubevault
 # app/build/outputs/apk/debug/ に APK が出ます
 ```
 
-手元に SDK がない場合は GitHub Actions を使ってください。`claude/youtube-download-app-pkvbjq` ブランチへの push、または Actions タブの **Build TubeVault APK** → *Run workflow* でビルドされ、成果物 `tubevault-debug-apk` から APK をダウンロードできます。
+手元に SDK がない場合は GitHub Actions を使ってください。`claude/youtube-download-app-pkvbjq` ブランチへの push、または Actions タブの **Build YD APK** → *Run workflow* でビルドされます。
 
 ## インストール
 
-1. 自分の端末に合う APK を選ぶ（ここ 8 年ほどの端末ならまず `arm64-v8a`）
-2. 端末に転送し、「提供元不明のアプリ」を許可してインストール
-3. 初回起動時に通知の許可を求められます（ダウンロード進捗の表示に使用）
+ビルドが通るたび、`yd-latest` リリースの添付ファイルが最新版に差し替わります。スマホからこのリンクをタップすれば `.apk` がそのまま落ちてきます（Actions の成果物は必ず zip で配信されるため、直接インストールできません）。
+
+- **arm64-v8a**（ここ 8 年ほどの端末はこちら）
+  `https://github.com/tatsuyahanada-eng/MusicLyrics/releases/download/yd-latest/yd-arm64-v8a.apk`
+- **armeabi-v7a**（32bit 端末用）
+  `https://github.com/tatsuyahanada-eng/MusicLyrics/releases/download/yd-latest/yd-armeabi-v7a.apk`
+
+インストール時に「提供元不明のアプリ」の許可、初回起動時に通知の許可（ダウンロード進捗の表示用）を求められます。
+
+> リポジトリが public なので、このリリースも public です。誰でも辿れる場所に置きたくない場合は、リポジトリを private にすればリリースも同時に非公開になります。
 
 デバッグ署名なので、Play ストア経由のアプリとは共存できますが、リリース署名版に上書き更新はできません。
 
