@@ -2737,7 +2737,10 @@
   const API = 'api.php';
   const TOKEN_KEY = 'treeManual.apiToken.v1';
   const USER_TOKEN_KEY = 'treeManual.userToken.v1';
-  function userToken() { return localStorage.getItem(USER_TOKEN_KEY) || ''; }
+  // ログインセッションのトークンだけは sessionStorage に保存する（localStorageと違い、
+  // ブラウザ／タブを閉じると自動的に消える）。これにより、無操作タイムアウトや
+  // 手動ログアウトの仕組みはそのまま保ちつつ、「ブラウザを閉じたら自動ログアウト」も実現する。
+  function userToken() { return sessionStorage.getItem(USER_TOKEN_KEY) || ''; }
   let session = null; // { username, isAdmin, allowed(null=all) } ／未ログインは null
   const apiTokenInput = $('#apiToken');
   const serverStatusEl = $('#serverStatus');
@@ -2886,7 +2889,7 @@
         // アプリ内ログインのセッション切れ／未ログインは、編集トークンではなくログイン画面へ
         if (/ログイン/.test(err)) {
           session = null;
-          try { localStorage.removeItem(USER_TOKEN_KEY); } catch (_) {}
+          try { sessionStorage.removeItem(USER_TOKEN_KEY); } catch (_) {}
           showAppLogin();
           const e = new Error(err || 'ログインが必要です'); e.needLogin = true; throw e;
         }
@@ -5200,7 +5203,7 @@
     });
     let d = null; try { d = await res.json(); } catch (_) {}
     if (!res.ok || !d || d.ok === false) throw new Error((d && d.error) || ('HTTP ' + res.status));
-    try { localStorage.setItem(USER_TOKEN_KEY, d.token); } catch (_) {}
+    try { sessionStorage.setItem(USER_TOKEN_KEY, d.token); } catch (_) {}
     session = { username: d.username, name: d.name || d.username, isAdmin: !!d.isAdmin, allowed: d.allowed, canChangePw: !!d.canChangePw };
     updateSessionUI();
     hideAppLogin();
@@ -5211,7 +5214,7 @@
   async function appLogout(reason) {
     if (idleTimer) { clearTimeout(idleTimer); idleTimer = null; }
     try { await apiCall('logout'); } catch (_) {}
-    try { localStorage.removeItem(USER_TOKEN_KEY); } catch (_) {}
+    try { sessionStorage.removeItem(USER_TOKEN_KEY); } catch (_) {}
     session = null;
     updateSessionUI();
     setMode('nav');
