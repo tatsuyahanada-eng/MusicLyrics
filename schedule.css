@@ -793,6 +793,9 @@
 .sc-form-actions { display: flex; gap: 6px; }
 .sc-form-actions .sc-btn { flex: 1; }
 
+.sc-map-actions { display: flex; gap: 6px; flex-wrap: wrap; margin: -6px 0 12px; }
+.sc-map-actions .sc-btn { flex: 1 1 auto; }
+
 /* ---- セクション ---- */
 .sc-section { border-top: 1px solid var(--sc-border); background: var(--sc-surface); }
 .sc-section:nth-of-type(even) { background: var(--sc-bg); }

@@ -604,7 +604,7 @@ function renderCalendar() {
           ? `<span class="sc-vtime sc-vtime-${diff.kind}">${diff.kind === 'early' ? '◀' : ''}${escapeHtml(diff.label)}</span>`
           : '';
         const tip = [formatDate(j.date), j.allDay ? '終日' : j.start + '〜' + j.end,
-          j.title, j.workType, j.client, j.place].filter(Boolean).join(' / ')
+          j.title, j.workType, j.client, j.place, j.address].filter(Boolean).join(' / ')
           + (diff ? `（この枠の標準 ${slot.start} より${diff.kind === 'early' ? '早い' : '遅い'}開始）` : '')
           + (isPrimary ? '' : '（前の枠から続いています）');
 
@@ -729,6 +729,16 @@ function jobFormHtml(f) {
         </div>
 
         <label class="sc-field">
+          <span class="sc-field-label">住所</span>
+          <input id="fAddress" class="sc-input" type="text" value="${escapeHtml(f.address)}"
+            placeholder="例）東京都渋谷区〇〇1-2-3" autocomplete="off">
+        </label>
+        <div class="sc-map-actions" id="mapActions" ${f.address.trim() ? '' : 'hidden'}>
+          <button type="button" class="sc-btn sc-btn-sm sc-btn-outline" data-map="google">📍 Googleマップで開く</button>
+          <button type="button" class="sc-btn sc-btn-sm sc-btn-outline" data-map="yahoo">📍 Yahoo!地図で開く</button>
+        </div>
+
+        <label class="sc-field">
           <span class="sc-field-label">メモ</span>
           <input id="fNote" class="sc-input" type="text" value="${escapeHtml(f.note)}" autocomplete="off">
         </label>
@@ -827,6 +837,7 @@ function renderSidePanel() {
     const warn = others.length
       ? `<p class="sc-job-warn">⚠ ${others.map((c) => (c.type === 'overlap' ? '時間が重複' : '移動時間が不足') + '：' + formatDate(c.job.date) + ' ' + escapeHtml(c.job.title || '(無題)')).join(' / ')}</p>`
       : '';
+    const loc = jobLocation(j);
     return `<div class="${cls.join(' ')}">
       <div class="sc-job-card-top">
         <span class="sc-job-status">${tentative ? '仮出勤' : '確定'}</span>
@@ -835,11 +846,14 @@ function renderSidePanel() {
       </div>
       ${j.workType ? `<p class="sc-job-meta"><span class="sc-worktype-tag">${escapeHtml(j.workType)}</span></p>` : ''}
       ${meta ? `<p class="sc-job-meta">${meta}</p>` : ''}
+      ${j.address ? `<p class="sc-job-meta">📍 ${escapeHtml(j.address)}</p>` : ''}
       ${j.note ? `<p class="sc-job-meta">📝 ${escapeHtml(j.note)}</p>` : ''}
       ${warn}
       <div class="sc-job-actions">
         ${tentative ? `<button type="button" class="sc-btn sc-btn-sm sc-btn-confirm" data-confirm="${j.id}">✓ 確定にする</button>` : ''}
         ${gcalUrl ? `<a class="sc-btn sc-btn-sm sc-btn-outline" href="${escapeHtml(gcalUrl)}" target="_blank" rel="noopener">📆 追加</a>` : ''}
+        ${loc ? `<a class="sc-btn sc-btn-sm sc-btn-outline" href="${escapeHtml(mapUrl('google', loc))}" target="_blank" rel="noopener">📍 Googleマップ</a>` : ''}
+        ${loc ? `<a class="sc-btn sc-btn-sm sc-btn-outline" href="${escapeHtml(mapUrl('yahoo', loc))}" target="_blank" rel="noopener">📍 Yahoo!地図</a>` : ''}
         <button type="button" class="sc-btn sc-btn-sm sc-btn-outline" data-edit="${j.id}">編集</button>
         <button type="button" class="sc-btn sc-btn-sm sc-btn-outline sc-btn-danger" data-del="${j.id}">削除</button>
       </div>
@@ -991,7 +1005,7 @@ function renderJobList() {
     cls.push(tentative ? 'sc-joblist-row-tentative' : 'sc-joblist-row-confirmed');
     if (conflicts.has(j.id)) cls.push('sc-joblist-row-conflict');
     const time = j.allDay ? '終日' : `${j.start}〜${j.end}`;
-    const meta = [j.client, j.place, j.note].filter(Boolean).map(escapeHtml).join(' / ');
+    const meta = [j.client, j.place, j.address, j.note].filter(Boolean).map(escapeHtml).join(' / ');
     return `<div class="${cls.join(' ')}" data-goto="${j.date}">
       <span class="sc-joblist-badge ${tentative ? 'sc-badge-tentative' : 'sc-badge-confirmed'}">${tentative ? '仮出勤' : '確定'}</span>
       <span class="sc-joblist-date">${formatDate(j.date)}</span>
@@ -1109,7 +1123,7 @@ function buildJobsText() {
   ];
   list.forEach((j) => {
     const time = j.allDay ? '終日' : `${j.start}〜${j.end}`;
-    const meta = [j.workType, j.client, j.place].filter(Boolean).join(' / ');
+    const meta = [j.workType, j.client, j.place, j.address].filter(Boolean).join(' / ');
     lines.push(`・[${j.status === 'tentative' ? '仮出勤' : '確定'}] ${formatDate(j.date)} ${time} ${j.title || '(無題)'}`
       + (meta ? `（${meta}）` : ''));
   });
@@ -1491,7 +1505,7 @@ function buildIcs(jobs, prefix) {
     timeLines.forEach((l) => lines.push(l));
     lines.push('SUMMARY:' + icsEscape(icsSummary(job, prefix)));
     if (desc) lines.push('DESCRIPTION:' + icsEscape(desc));
-    if (job.place) lines.push('LOCATION:' + icsEscape(job.place));
+    if (jobLocation(job)) lines.push('LOCATION:' + icsEscape(jobLocation(job)));
     if (job.workType) lines.push('CATEGORIES:' + icsEscape(job.workType));
     lines.push('STATUS:' + (job.status === 'tentative' ? 'TENTATIVE' : 'CONFIRMED'));
     lines.push('END:VEVENT');
@@ -1547,6 +1561,19 @@ function downloadIcs() {
   toast(`${jobs.length}件を書き出しました。Googleカレンダーの設定→インポートから取り込めます`);
 }
 
+/** 場所と住所をまとめた表示・地図検索用の文字列 */
+function jobLocation(job) {
+  return [job.place, job.address].filter(Boolean).join(' ');
+}
+
+/** 住所を地図アプリで開くURL（スマホでは該当のアプリが開く） */
+function mapUrl(kind, address) {
+  const q = encodeURIComponent(address);
+  if (kind === 'google') return `https://www.google.com/maps/search/?api=1&query=${q}`;
+  if (kind === 'yahoo') return `https://map.yahoo.co.jp/search?p=${q}`;
+  return null;
+}
+
 /** 1件だけGoogleカレンダーに追加するURL（スマホでも使える） */
 function googleCalendarUrl(job) {
   let dates;
@@ -1571,7 +1598,7 @@ function googleCalendarUrl(job) {
     + '&dates=' + dates
     + '&ctz=Asia/Tokyo'
     + (details ? '&details=' + encodeURIComponent(details) : '')
-    + (job.place ? '&location=' + encodeURIComponent(job.place) : '');
+    + (jobLocation(job) ? '&location=' + encodeURIComponent(jobLocation(job)) : '');
 }
 
 /* ------------------------------------------------------------
@@ -1584,7 +1611,7 @@ function blankForm() {
     titleSel: '', titleFree: '', workType: '', status: 'confirmed', allDay: false,
     start: slot ? slot.start : state.settings.defStart,
     end: slot ? slot.end : state.settings.defEnd,
-    client: '', place: '', note: '',
+    client: '', place: '', address: '', note: '',
   };
 }
 
@@ -1601,6 +1628,7 @@ function formFromJob(job) {
     end: job.end || state.settings.defEnd,
     client: job.client || '',
     place: job.place || '',
+    address: job.address || '',
     note: job.note || '',
   };
 }
@@ -1617,6 +1645,7 @@ function readForm() {
     end: $('fEnd').value,
     client: $('fClient').value,
     place: $('fPlace').value,
+    address: $('fAddress').value,
     note: $('fNote').value,
   };
 }
@@ -1647,6 +1676,7 @@ function draftJob() {
     workType: f.workType.trim(),
     client: f.client.trim(),
     place: f.place.trim(),
+    address: f.address.trim(),
     note: f.note.trim(),
     status: f.status,
   };
@@ -2430,6 +2460,16 @@ function bindEvents() {
 
     if (ev.target.closest('[data-modal-close]')) { closeForm(); return; }
 
+    const mapBtn = ev.target.closest('[data-map]');
+    if (mapBtn) {
+      const addrEl = $('fAddress');
+      const placeEl = $('fPlace');
+      const loc = [placeEl ? placeEl.value.trim() : '', addrEl ? addrEl.value.trim() : ''].filter(Boolean).join(' ');
+      if (!loc) { toast('住所を入力してください', true); if (addrEl) addrEl.focus(); return; }
+      window.open(mapUrl(mapBtn.dataset.map, loc), '_blank', 'noopener');
+      return;
+    }
+
     const confirmBtn = ev.target.closest('[data-confirm]');
     if (confirmBtn) { startConfirm(confirmBtn.dataset.confirm); return; }
 
@@ -2448,6 +2488,10 @@ function bindEvents() {
     if (!ev.target.closest('#jobForm')) return;
     view.form = readForm();
     updateFormAlert();
+    if (ev.target.id === 'fAddress' || ev.target.id === 'fPlace') {
+      const mapActions = $('mapActions');
+      if (mapActions) mapActions.hidden = !($('fAddress').value.trim() || $('fPlace').value.trim());
+    }
   });
 
   elSidePanel.addEventListener('change', (ev) => {
