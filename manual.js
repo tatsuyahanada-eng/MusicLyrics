@@ -3270,8 +3270,11 @@
     clearTimeout(showCenterToast._t2);
     if (centerToastSupportsPopover) { try { centerToastEl.hidePopover(); } catch (_) {} }
     centerToastEl.classList.remove('is-on');
-    void centerToastEl.offsetWidth; // 連続で出したときも毎回アニメーションし直す
     if (centerToastSupportsPopover) { try { centerToastEl.showPopover(); } catch (_) {} }
+    // popoverを開いた直後（display:none→flexだがまだopacity:0のまま）にレイアウトを
+    // 一度確定させてから is-on を付けないと、display切り替えとopacity切り替えが
+    // 同じフレームにまとまってしまい、フェードインが再生されないことがある。
+    void centerToastEl.offsetWidth; // 連続で出したときも毎回アニメーションし直す
     centerToastEl.classList.add('is-on');
     showCenterToast._t = setTimeout(() => {
       centerToastEl.classList.remove('is-on');

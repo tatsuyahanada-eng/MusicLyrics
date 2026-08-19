@@ -2283,10 +2283,15 @@ textarea.tm-ff-input { width: 100%; resize: vertical; min-height: 88px; }
   pointer-events: none;
   width: min(384px, 70vw);
   aspect-ratio: 3.1 / 1;
-  display: flex; align-items: center; justify-content: center;
   opacity: 0;
   transition: opacity .25s ease, transform .25s ease;
 }
+/* display は「表示中だけ」付ける。常時 flex にしてしまうと、Popover API の
+   既定の非表示（display:none）を上書きしてしまい、非表示中も装飾（グロー等）
+   込みの固定配置ボックスがドキュメントに存在し続けることになる。
+   PCでは常時表示のスクロールバーがある環境が多く、このボックスの分だけ
+   縦横にスクロールバーが出てしまっていた（PCだけで気づく不具合だった）。 */
+.tm-centertoast:popover-open, .tm-centertoast.is-on { display: flex; align-items: center; justify-content: center; }
 .tm-centertoast.is-on { opacity: 1; transform: translate(-50%, -50%) scale(1); }
 .tm-centertoast-frame {
   position: absolute; inset: 0;
