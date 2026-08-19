@@ -297,6 +297,28 @@
       font-variant-numeric: tabular-nums; line-height: 1;
     }
     .leg-total-card .u { font-size: 16px; color: var(--accent-d); font-weight: 600; margin-left: 2px; }
+    .key-legs {
+      display: flex; gap: 8px; flex-wrap: wrap;
+      margin: 8px 0 12px;
+    }
+    .key-legs .k-leg {
+      flex: 1 1 260px; min-width: 240px;
+      padding: 10px 14px;
+      background: #f6faff;
+      border: 1px solid var(--input-border);
+      border-left: 4px solid var(--accent);
+      border-radius: 6px;
+      font-size: 13px;
+      display: flex; justify-content: space-between; align-items: center;
+    }
+    .key-legs .k-leg .icon { font-size: 18px; margin-right: 6px; }
+    .key-legs .k-leg .lbl { color: var(--text); font-weight: 600; }
+    .key-legs .k-leg .num {
+      font-size: 18px; font-weight: 700; color: var(--accent-d);
+      font-variant-numeric: tabular-nums; margin-left: 8px;
+    }
+    .key-legs .k-leg.return { border-left-color: #1a8f5f; }
+    .key-legs .k-leg.return .num { color: #1a8f5f; }
 
     .summary .line { display: flex; justify-content: space-between; align-items: baseline; padding: 8px 0; border-bottom: 1px solid var(--line); }
     .summary .line .lbl { color: var(--muted); font-size: 14px; }
@@ -926,10 +948,23 @@
       document.getElementById('totalKm').value = total.toFixed(1);
       recalc();
       const gmapUrl = buildGmapsUrl(resolved.map(r => entries.find(e => e.label === r.label)?.addr).filter(Boolean));
+      // 出発区間・帰路区間を目立たせて表示
+      let keyHtml = '';
+      if (legsKm.length >= 1) {
+        const startLabel = `${resolved[0].label} → ${resolved[1].label}`;
+        keyHtml += `<div class="k-leg"><span><span class="icon">🏁</span><span class="lbl">出発 ${startLabel}</span></span><span class="num">${legsKm[0].toFixed(1)} km</span></div>`;
+      }
+      const isReturn = resolved.length >= 3 && /基点/.test(resolved[resolved.length - 1].label) && resolved[0].label === '基点';
+      if (isReturn) {
+        const li = legsKm.length - 1;
+        const rLabel = `${resolved[resolved.length - 2].label} → 基点`;
+        keyHtml += `<div class="k-leg return"><span><span class="icon">🏠</span><span class="lbl">帰路 ${rLabel}</span></span><span class="num">${legsKm[li].toFixed(1)} km</span></div>`;
+      }
       legBox.innerHTML =
         `<div class="leg-total-card">`
         + `<div><span class="lbl">総移動距離</span><br><span class="ref-badge">直線での移動距離：参考値</span></div>`
         + `<span><span class="val">${total.toFixed(1)}</span><span class="u"> km</span></span></div>`
+        + (keyHtml ? `<div class="key-legs">${keyHtml}</div>` : '')
         + `<table>${rows}</table>`
         + (gmapUrl ? `<a class="gmap-link" href="${gmapUrl}" target="_blank" rel="noopener">🗺️ Googleマップでルートを確認</a>` : '');
       showRouteMap(resolved);
