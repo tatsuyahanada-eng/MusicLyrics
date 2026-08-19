@@ -1281,6 +1281,14 @@
     renderNav();
     syncTrap();
   }
+  // ヘッダーのロゴ／タイトルをクリックしたときの「TOPへ戻る」。
+  // 開いているダイアログや修正モード・交通費/在庫管理の画面など、状態を問わず
+  // 常に案内モードのTOPへ戻す（他の「最初から」ボタンより広く効くようにする）。
+  function goHome() {
+    document.querySelectorAll('dialog[open]').forEach((d) => d.close());
+    setMode('nav');
+    navRestart();
+  }
 
   // 端末の戻るボタン（popstate）: このpopstateでセンチネルが1つ消費されている
   window.addEventListener('popstate', () => {
@@ -1493,6 +1501,13 @@
   // 上部にも同じ「一つ戻る／最初から」を配置
   if (backBtnTop) backBtnTop.addEventListener('click', () => history.back());
   if (restartBtnTop) restartBtnTop.addEventListener('click', navRestart);
+  // ヘッダーのロゴ／タイトル（CASE BY CASE）をクリック・Enter/Spaceで押すとTOPへ戻る
+  { const b = $('#brandHomeBtn'); if (b) {
+    b.addEventListener('click', goHome);
+    b.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); goHome(); }
+    });
+  } }
 
   /* ============================================================
      EDIT MODE

@@ -65,7 +65,13 @@
   background: linear-gradient(180deg, rgba(9, 24, 36, 0.9), rgba(9, 24, 36, 0.4));
   backdrop-filter: blur(4px);
 }
-.tm-header-brand { display: flex; flex-direction: row; align-items: center; gap: 10px; }
+.tm-header-brand {
+  display: flex; flex-direction: row; align-items: center; gap: 10px;
+  cursor: pointer; border-radius: 8px; padding: 4px 6px; margin: -4px -6px;
+  transition: background .15s;
+}
+.tm-header-brand:hover, .tm-header-brand:focus-visible { background: rgba(63, 224, 224, 0.08); }
+.tm-header-brand:focus-visible { outline: 2px solid var(--tm-cyan); outline-offset: 2px; }
 .tm-header-brandtext { display: flex; flex-direction: column; gap: 2px; }
 .tm-header-logoimg { height: clamp(28px, 6vw, 40px); width: auto; max-width: 140px; object-fit: contain; flex: 0 0 auto; }
 .tm-header-logo {
