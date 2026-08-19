@@ -316,6 +316,7 @@ class SettingsViewModel(private val container: AppContainer) : ViewModel() {
             _busyMessage.value = null
             _toast.value = message
             _ytDlpVersion.value = container.engine.version()
+            container.settings.update { it.copy(ytDlpUpdatedAt = System.currentTimeMillis()) }
         }
     }
 

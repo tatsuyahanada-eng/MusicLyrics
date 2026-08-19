@@ -255,15 +255,16 @@ class YtDlpEngine(
 
         val lowered = message.lowercase()
         return when {
-            "not a bot" in lowered ->
-                "$message\n\nYouTube がボット判定を行っています。「ホーム」タブで YouTube を開くと" +
-                    "そのセッションが次回から使われ、改善することがあります。" +
-                    "改善しない場合は設定で yt-dlp を更新するか、プレイヤークライアントを変更してください。"
-
-            "sign in" in lowered ->
-                "$message\n\nこの動画は年齢制限など、実際にサインインしたアカウントでないと" +
-                    "取得できないタイプです。閲覧しただけでは不十分なので、「ホーム」タブの🔑アイコンから" +
-                    "Google に実際にサインインしてから、もう一度お試しください。"
+            // Despite the wording, this is almost always a missing PO Token
+            // rather than a missing account: YouTube mints those via BotGuard
+            // to prove the request came from a real client, and cookies say
+            // nothing about that. Signing in does not help here.
+            "sign in" in lowered || "not a bot" in lowered ->
+                "$message\n\nこれはログインの問題ではなく、YouTube の「PO Token」" +
+                    "（本物のクライアントからの通信であることの証明）が無いために起きています。" +
+                    "ログインしても直りません。\n\n" +
+                    "設定タブで、①「yt-dlp を更新」を実行、②プレイヤークライアントを" +
+                    "「トークン不要を優先」に設定、の順に試してください。"
 
             "cookies" in lowered ->
                 "$message\n\n「ホーム」タブで YouTube を開くとセッションが使われるようになります。"

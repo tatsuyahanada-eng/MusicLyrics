@@ -60,6 +60,24 @@ class TubeVaultApp : Application() {
                 container.library.pruneMissingFiles()
             }
             runCatching { container.engine.ensureInit() }
+            refreshYtDlpIfStale()
+        }
+    }
+
+    /**
+     * The yt-dlp bundled into the APK is frozen at whatever the library shipped,
+     * while YouTube's extraction breaks on its own schedule — so the binary is
+     * refreshed in the background rather than waiting for the user to find the
+     * button in settings after something already failed.
+     */
+    private suspend fun refreshYtDlpIfStale() {
+        val lastUpdate = container.settings.current.ytDlpUpdatedAt
+        val age = System.currentTimeMillis() - lastUpdate
+        if (lastUpdate != 0L && age < UPDATE_INTERVAL_MS) return
+
+        val updated = runCatching { container.engine.updateYtDlp() }.isSuccess
+        if (updated) {
+            container.settings.update { it.copy(ytDlpUpdatedAt = System.currentTimeMillis()) }
         }
     }
 
@@ -78,5 +96,8 @@ class TubeVaultApp : Application() {
 
     companion object {
         const val CHANNEL_DOWNLOADS = "downloads"
+
+        /** Weekly is often enough to keep pace with YouTube's changes. */
+        private const val UPDATE_INTERVAL_MS = 7L * 24 * 60 * 60 * 1000
     }
 }

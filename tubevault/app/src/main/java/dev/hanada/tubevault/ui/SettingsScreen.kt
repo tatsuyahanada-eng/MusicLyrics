@@ -148,21 +148,18 @@ fun SettingsScreen(
             color = if (signedIn) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface,
         )
         Text(
-            text = if (signedIn) {
-                "年齢制限などサインインが必須の動画にも対応できます。"
-            } else {
-                "年齢制限が付いた動画などは、閲覧だけでなく実際のサインインが必要です。" +
-                    "「ホーム」タブの🔑アイコンからサインインしてください。"
-            },
+            text = "ログインは基本的に不要です。「Please sign in」で失敗するのは PO Token が" +
+                "無いためで、これは Cookie とは別物なのでログインしても直りません" +
+                "（下の「プレイヤークライアント」で対処します）。年齢制限付きの動画など、" +
+                "本当にアカウントが要る一部の動画でのみ役に立ちます。",
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             modifier = Modifier.padding(top = 4.dp),
         )
         Text(
-            text = "⚠️ ログインする際は、普段使いのアカウントではなく、このアプリ専用のサブ" +
-                "アカウントを新しく作って使うことを強くおすすめします。自動的な取得はYouTube" +
-                "の規約に反するため、使いすぎるとそのアカウントに確認や制限がかかることがあり" +
-                "ます。サブアカウントなら、何かあっても普段のGmail等には影響しません。",
+            text = "⚠️ ログインするなら、普段使いのアカウントではなく専用のサブアカウントを" +
+                "新規作成してください。自動的な取得は YouTube の規約に反するため、" +
+                "使いすぎるとそのアカウントに確認や制限がかかることがあります。",
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.error,
             modifier = Modifier.padding(top = 8.dp),
@@ -186,7 +183,9 @@ fun SettingsScreen(
 
         SettingSection("プレイヤークライアント")
         Text(
-            text = "取得に失敗し続けるときに変更します。まずは「自動」のままで。",
+            text = "「Please sign in」への主な対処はここです。既定の「トークン不要を優先」は、" +
+                "PO Token を要求しないクライアントだけを順に試します。" +
+                "それでも失敗する場合は、個別のクライアントを一つずつ試してください。",
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             modifier = Modifier.padding(bottom = 8.dp),
