@@ -127,7 +127,20 @@ python3 .claude/skills/parking-finder/scripts/find_parking.py \
   - 日時: **その日の 18:00〜19:00（1 時間、`Asia/Tokyo`）**
   - 説明文（description）は次の3ブロックで構成する（この順番・空行を守る）:
     1. **住所リスト**: 処理した各予定の住所だけを、開始時刻順に 1 行ずつ列挙する（駐車場情報や予定名は入れない。住所のみ）。各予定の `location` 欄の値をそのまま使う。
-    2. **区間ごとの移動距離・所要時間**: まず**自宅（`埼玉県越谷市東大沢1-22-4`）→訪問先1**の区間を1行目に出し、続けて住所リストの隣り合う2件（訪問先1→訪問先2、訪問先2→訪問先3、…）、最後に**最後の訪問先→自宅**の区間を出す。それぞれ `find_parking.py` と同様の要領で Google Maps の Distance Matrix API（`mode=driving`）を使い、`自宅→訪問先1　距離（車 所要時間）` / `訪問先N→訪問先N+1　距離（車 所要時間）` / `訪問先N→自宅　距離（車 所要時間）`（Nは最後の訪問先番号）の形式で1行ずつ出す。
+    2. **区間ごとの移動距離・所要時間**: 自宅（`埼玉県越谷市東大沢1-22-4`）→訪問先1→訪問先2→…→訪問先N→自宅、という一筆書きの区間（合計 N+1 区間）を計算する。**Distance Matrix API は 1 回のリクエストで呼び出す**（区間ごとに個別リクエストしない。クォータ節約のため必須）。訪問先が N 件なら:
+       - `origins` = `自宅|訪問先1|訪問先2|…|訪問先(N-1)`（自宅＋訪問先1〜N-1、計 N 件）
+       - `destinations` = `訪問先1|訪問先2|…|訪問先N|自宅`（訪問先1〜N＋自宅、計 N 件）
+       - `mode=driving` で1回呼ぶと N×N の行列が返るが、**対角成分（i 番目の origin × i 番目の destination）だけ**を上から順に使う。これがちょうど「自宅→訪問先1」「訪問先1→訪問先2」…「訪問先(N-1)→訪問先N」「訪問先N→自宅」の N+1 区間になる。
+       - 例（curl、訪問先が5件の場合）:
+         ```bash
+         curl -sS -G "https://maps.googleapis.com/maps/api/distancematrix/json" \
+           --data-urlencode "origins=埼玉県越谷市東大沢1-22-4|訪問先1住所|訪問先2住所|訪問先3住所|訪問先4住所" \
+           --data-urlencode "destinations=訪問先1住所|訪問先2住所|訪問先3住所|訪問先4住所|埼玉県越谷市東大沢1-22-4" \
+           --data-urlencode "mode=driving" --data-urlencode "language=ja" \
+           --data-urlencode "key=${GOOGLE_MAPS_API_KEY}"
+         ```
+         レスポンスの `rows[0].elements[0]`＝自宅→訪問先1、`rows[1].elements[1]`＝訪問先1→訪問先2、`rows[2].elements[2]`＝訪問先2→訪問先3、`rows[3].elements[3]`＝訪問先3→訪問先4、`rows[4].elements[4]`＝訪問先4→自宅、という対応になる。
+       - 結果を `自宅→訪問先1　距離（車 所要時間）` / `訪問先N→訪問先N+1　距離（車 所要時間）` / `訪問先N→自宅　距離（車 所要時間）`（Nは最後の訪問先番号）の形式で1行ずつ出す。
     3. **参考リンク**: `https://myse-style.com/AI-TOOL/RouteSearch/` を1行で。
 - **説明文の例**（今回の 5 件なら）:
 
