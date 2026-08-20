@@ -13,6 +13,13 @@
   same-origin: both the Create and GenerateIT endpoints are reachable through
   youtube.com's own /api/jnn/v1/ proxy, so no CORS preflight is involved.
 
+  visitor_data is fetched natively by Kotlin (plain HttpURLConnection, no
+  CORS concept at all) and injected below as a JS literal — WebView's
+  loadDataWithBaseURL origin spoofing is not reliably honoured by fetch()'s
+  own CORS-origin computation across WebView versions/OEMs, and asking a
+  Kotlin HttpURLConnection for a same-process HTTP GET sidesteps that
+  category of failure entirely rather than trying to work around it in JS.
+
   The heavy lifting is bgutils-js (MIT, bundled as bgutils.bundle.js); this
   file is only the glue that sequences it and hands results back to Kotlin.
 -->
@@ -23,6 +30,9 @@
 
   // The request key YouTube's own web player uses for this challenge.
   var REQUEST_KEY = 'O43z0dpjhgX20SCx4KAo';
+
+  // Injected by PoTokenWebView.kt as a JSON string literal (quotes included).
+  var visitorData = __VISITOR_DATA_JSON__;
 
   var minter = null;
 
@@ -36,35 +46,7 @@
     if (b) b.onError(message);
   }
 
-  /**
-   * The GVS token has to be bound to the same visitor id yt-dlp will send, so
-   * both are read from one page load and handed over together.
-   *
-   * This has to stay same-origin with the page (https://www.youtube.com, set
-   * via loadDataWithBaseURL) or the fetch is blocked by CORS before it ever
-   * reaches the network — m.youtube.com is a different origin and fails with
-   * exactly "TypeError: Failed to fetch", which has no further detail because
-   * the browser never lets the response be read.
-   */
-  async function fetchVisitorData() {
-    var response = await fetch('https://www.youtube.com/', { credentials: 'same-origin' });
-    var html = await response.text();
-    // ytcfg carries this under both keys depending on where it is embedded;
-    // either is fine, so take whichever appears first.
-    var match = html.match(/"(?:visitorData|VISITOR_DATA)":\s*"([^"]+)"/);
-    if (!match) throw new Error('visitorData not present in page');
-    // The value is JSON-escaped inside the page source.
-    return JSON.parse('"' + match[1] + '"');
-  }
-
   async function init() {
-    var visitorData;
-    try {
-      visitorData = await fetchVisitorData();
-    } catch (e) {
-      return fail('visitor_data', e);
-    }
-
     try {
       var challenge = await BG.getChallenge({
         requestKey: REQUEST_KEY,

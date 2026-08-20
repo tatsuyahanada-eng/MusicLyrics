@@ -3,6 +3,7 @@ package dev.hanada.tubevault.potoken
 import android.annotation.SuppressLint
 import android.content.Context
 import android.util.Log
+import android.webkit.CookieManager
 import android.webkit.JavascriptInterface
 import android.webkit.WebView
 import android.webkit.WebViewClient
@@ -10,7 +11,10 @@ import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeout
+import org.json.JSONArray
 import org.json.JSONObject
+import java.net.HttpURLConnection
+import java.net.URL
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.atomic.AtomicLong
 
@@ -35,8 +39,44 @@ class PoTokenWebView(private val appContext: Context) {
 
     /** Runs the attestation. Returns the visitor id tokens will be bound to. */
     suspend fun start(): String {
-        withContext(Dispatchers.Main) { ensureWebView() }
+        // Fetched natively rather than via the WebView's own fetch(): a page
+        // loaded through loadDataWithBaseURL has its origin spoofed for
+        // navigation purposes, but WebView's fetch()/XHR CORS-origin
+        // computation does not reliably follow that across versions and
+        // OEMs, and a plain HttpURLConnection has no concept of CORS at all
+        // — so this sidesteps the whole failure class instead of chasing it.
+        val visitorData = withContext(Dispatchers.IO) { fetchVisitorData() }
+        withContext(Dispatchers.Main) { ensureWebView(visitorData) }
         return withTimeout(INIT_TIMEOUT_MS) { ready.await() }
+    }
+
+    private fun fetchVisitorData(): String {
+        val url = URL("https://www.youtube.com/")
+        val connection = url.openConnection() as HttpURLConnection
+        connection.connectTimeout = FETCH_TIMEOUT_MS.toInt()
+        connection.readTimeout = FETCH_TIMEOUT_MS.toInt()
+        connection.setRequestProperty("User-Agent", DESKTOP_USER_AGENT)
+        // Carries along any consent cookie the WebView's shared cookie jar
+        // already holds, so a region that would otherwise show a consent
+        // wall (and no visitorData) is less likely to.
+        CookieManager.getInstance().getCookie(url.toString())?.let {
+            connection.setRequestProperty("Cookie", it)
+        }
+
+        try {
+            if (connection.responseCode !in 200..299) {
+                throw PoTokenException("youtube.com returned HTTP ${connection.responseCode}")
+            }
+            val body = connection.inputStream.bufferedReader().use { it.readText() }
+            val match = VISITOR_DATA_REGEX.find(body)
+                ?: throw PoTokenException("visitorData not present in youtube.com response")
+            // The value is JSON-escaped in the page source; wrapping it as a
+            // one-element JSON array and letting org.json unescape it avoids
+            // hand-rolling that.
+            return JSONArray("[\"${match.groupValues[1]}\"]").getString(0)
+        } finally {
+            connection.disconnect()
+        }
     }
 
     /**
@@ -75,13 +115,15 @@ class PoTokenWebView(private val appContext: Context) {
     }
 
     @SuppressLint("SetJavaScriptEnabled", "AddJavascriptInterface")
-    private fun ensureWebView() {
+    private fun ensureWebView(visitorData: String) {
         if (webView != null) return
 
         val page = try {
             val html = readAsset("potoken/potoken.html")
             val bundle = readAsset("potoken/bgutils.bundle.js")
-            html.replace(BUNDLE_PLACEHOLDER, bundle)
+            html
+                .replace(BUNDLE_PLACEHOLDER, bundle)
+                .replace(VISITOR_PLACEHOLDER, JSONObject.quote(visitorData))
         } catch (e: Exception) {
             ready.completeExceptionally(PoTokenException("could not read assets: ${e.message}"))
             return
@@ -137,9 +179,14 @@ class PoTokenWebView(private val appContext: Context) {
         const val TAG = "PoTokenWebView"
         const val BRIDGE_NAME = "AndroidPoToken"
         const val BUNDLE_PLACEHOLDER = "__BGUTILS_BUNDLE__"
+        const val VISITOR_PLACEHOLDER = "__VISITOR_DATA_JSON__"
 
         const val INIT_TIMEOUT_MS = 30_000L
         const val MINT_TIMEOUT_MS = 15_000L
+        const val FETCH_TIMEOUT_MS = 15_000L
+
+        /** ytcfg carries this under both keys depending on where it is embedded. */
+        val VISITOR_DATA_REGEX = Regex("\"(?:visitorData|VISITOR_DATA)\":\\s*\"([^\"]+)\"")
 
         /** BotGuard is fussier about mobile UAs than desktop ones. */
         const val DESKTOP_USER_AGENT =
