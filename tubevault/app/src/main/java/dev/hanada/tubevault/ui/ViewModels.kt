@@ -343,6 +343,27 @@ class SettingsViewModel(private val container: AppContainer) : ViewModel() {
     fun setUseCookies(enabled: Boolean) =
         container.settings.update { it.copy(useCookies = enabled) }
 
+    fun setUsePoToken(enabled: Boolean) =
+        container.settings.update { it.copy(usePoToken = enabled) }
+
+    /**
+     * Mints a token on demand and reports what happened. Attestation either
+     * works on a given device's WebView or fails quietly, so there needs to be
+     * a way to find out which without running a download to see.
+     */
+    fun probePoToken() {
+        if (_busyMessage.value != null) return
+        viewModelScope.launch {
+            _busyMessage.value = "PO Token を生成しています…"
+            val result = container.poTokens.probe()
+            _busyMessage.value = null
+            _toast.value = result.fold(
+                onSuccess = { "成功: トークンを生成できました（${it.token.take(12)}…）" },
+                onFailure = { "失敗: ${it.message}" },
+            )
+        }
+    }
+
     fun clearCookies() {
         CookieExporter.clear(container.appContext)
         _cookieCount.value = 0

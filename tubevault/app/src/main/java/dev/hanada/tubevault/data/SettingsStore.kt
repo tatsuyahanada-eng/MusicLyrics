@@ -38,6 +38,8 @@ data class Settings(
     val wifiOnly: Boolean = false,
     val playerClient: PlayerClient = PlayerClient.NO_POT,
     val useCookies: Boolean = true,
+    /** Mint a PO Token locally via the WebView before each request. */
+    val usePoToken: Boolean = true,
     /** When yt-dlp itself was last refreshed, so startup can keep it current. */
     val ytDlpUpdatedAt: Long = 0L,
 )
@@ -63,6 +65,7 @@ class SettingsStore(context: Context) {
             .putBoolean(KEY_WIFI_ONLY, next.wifiOnly)
             .putString(KEY_PLAYER_CLIENT, next.playerClient.name)
             .putBoolean(KEY_USE_COOKIES, next.useCookies)
+            .putBoolean(KEY_USE_PO_TOKEN, next.usePoToken)
             .putLong(KEY_YTDLP_UPDATED_AT, next.ytDlpUpdatedAt)
             .putInt(KEY_VERSION, CURRENT_VERSION)
             .apply()
@@ -97,6 +100,7 @@ class SettingsStore(context: Context) {
             wifiOnly = prefs.getBoolean(KEY_WIFI_ONLY, false),
             playerClient = client,
             useCookies = prefs.getBoolean(KEY_USE_COOKIES, true),
+            usePoToken = prefs.getBoolean(KEY_USE_PO_TOKEN, true),
             ytDlpUpdatedAt = prefs.getLong(KEY_YTDLP_UPDATED_AT, 0L),
         )
     }
@@ -113,6 +117,7 @@ class SettingsStore(context: Context) {
         const val KEY_WIFI_ONLY = "wifi_only"
         const val KEY_PLAYER_CLIENT = "player_client"
         const val KEY_USE_COOKIES = "use_cookies"
+        const val KEY_USE_PO_TOKEN = "use_po_token"
         const val KEY_YTDLP_UPDATED_AT = "ytdlp_updated_at"
     }
 }

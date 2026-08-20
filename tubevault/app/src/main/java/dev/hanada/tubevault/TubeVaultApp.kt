@@ -9,6 +9,7 @@ import dev.hanada.tubevault.data.LibraryRepository
 import dev.hanada.tubevault.data.SettingsStore
 import dev.hanada.tubevault.download.DownloadCenter
 import dev.hanada.tubevault.playback.PlaybackController
+import dev.hanada.tubevault.potoken.PoTokenProvider
 import dev.hanada.tubevault.ytdlp.YtDlpEngine
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -27,7 +28,9 @@ class AppContainer(private val app: Application) {
 
     val database: AppDatabase by lazy { AppDatabase.build(app) }
     val settings: SettingsStore by lazy { SettingsStore(app) }
-    val engine: YtDlpEngine by lazy { YtDlpEngine(app, settings) }
+    val poTokens: PoTokenProvider by lazy { PoTokenProvider(app) }
+
+    val engine: YtDlpEngine by lazy { YtDlpEngine(app, settings, poTokens) }
 
     val library: LibraryRepository by lazy {
         LibraryRepository(app, database.categoryDao(), database.mediaDao())

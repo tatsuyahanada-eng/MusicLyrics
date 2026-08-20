@@ -181,11 +181,51 @@ fun SettingsScreen(
             Text("ログイン情報を消す")
         }
 
+        HorizontalDivider(modifier = Modifier.padding(vertical = 20.dp))
+
+        SettingSection("PO Token（自動生成）")
+        Text(
+            text = "「Please sign in」の本当の原因は PO Token の欠如です。これを端末の" +
+                "WebView 上で自前生成して yt-dlp に渡します。ログインは不要です。",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        Row(
+            modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Text(
+                "PO Token を使う",
+                style = MaterialTheme.typography.bodyMedium,
+                modifier = Modifier.weight(1f),
+            )
+            Switch(
+                checked = settings.usePoToken,
+                onCheckedChange = viewModel::setUsePoToken,
+            )
+        }
+        Text(
+            text = "端末の WebView が古いと、エラーにならず無効なトークンが出ることがあります。" +
+                "下のボタンで実際に生成できるか確認できます。",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.padding(top = 4.dp),
+        )
+        OutlinedButton(
+            onClick = viewModel::probePoToken,
+            enabled = busy == null,
+            modifier = Modifier.padding(top = 8.dp),
+        ) {
+            Text("PO Token の生成をテスト")
+        }
+
+        HorizontalDivider(modifier = Modifier.padding(vertical = 20.dp))
+
         SettingSection("プレイヤークライアント")
         Text(
-            text = "「Please sign in」への主な対処はここです。既定の「トークン不要を優先」は、" +
-                "PO Token を要求しないクライアントだけを順に試します。" +
-                "それでも失敗する場合は、個別のクライアントを一つずつ試してください。",
+            text = "PO Token の生成に成功している間は、この設定は使われません（web クライアントに" +
+                "固定されます）。生成に失敗したときのフォールバック先です。既定の" +
+                "「トークン不要を優先」は、PO Token を要求しないクライアントを順に試します。",
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             modifier = Modifier.padding(bottom = 8.dp),

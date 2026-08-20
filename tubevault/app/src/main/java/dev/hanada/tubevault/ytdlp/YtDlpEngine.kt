@@ -12,6 +12,7 @@ import dev.hanada.tubevault.core.Storage
 import dev.hanada.tubevault.core.VideoQuality
 import dev.hanada.tubevault.core.YouTubeUrls
 import dev.hanada.tubevault.data.SettingsStore
+import dev.hanada.tubevault.potoken.PoTokenProvider
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
@@ -38,6 +39,7 @@ data class DownloadOutcome(
 class YtDlpEngine(
     private val context: Context,
     private val settings: SettingsStore,
+    private val poTokens: PoTokenProvider,
 ) {
 
     private val initMutex = Mutex()
@@ -202,13 +204,33 @@ class YtDlpEngine(
      * request carries whatever session the in-app browser has, plus the client
      * override when the user picked one.
      */
-    private fun YoutubeDLRequest.applyYouTubeOptions() {
+    /**
+     * yt-dlp takes one `youtube:` extractor-arg string, so every knob is
+     * collected and joined rather than added separately — a second
+     * `--extractor-args youtube:...` would replace the first.
+     */
+    private suspend fun YoutubeDLRequest.applyYouTubeOptions() {
         val current = settings.current
+
         if (current.useCookies) {
             CookieExporter.current(context)?.let { addOption("--cookies", it.absolutePath) }
         }
-        current.playerClient.argument?.let {
-            addOption("--extractor-args", "youtube:player_client=$it")
+
+        val args = mutableListOf<String>()
+        val token = if (current.usePoToken) runCatching { poTokens.current() }.getOrNull() else null
+
+        if (token != null) {
+            // The token is minted for the web client and bound to this visitor
+            // id, so both have to travel with it or YouTube rejects it.
+            args += "player_client=web"
+            args += "po_token=web.gvs+${token.token}"
+            args += "visitor_data=${token.visitorData}"
+        } else {
+            current.playerClient.argument?.let { args += "player_client=$it" }
+        }
+
+        if (args.isNotEmpty()) {
+            addOption("--extractor-args", "youtube:${args.joinToString(";")}")
         }
     }
 
@@ -263,8 +285,9 @@ class YtDlpEngine(
                 "$message\n\nこれはログインの問題ではなく、YouTube の「PO Token」" +
                     "（本物のクライアントからの通信であることの証明）が無いために起きています。" +
                     "ログインしても直りません。\n\n" +
-                    "設定タブで、①「yt-dlp を更新」を実行、②プレイヤークライアントを" +
-                    "「トークン不要を優先」に設定、の順に試してください。"
+                    "設定タブの「PO Token の生成をテスト」を実行してください。" +
+                    "失敗する場合は端末の WebView が古い可能性があるため、Play ストアで" +
+                    "「Android System WebView」を更新してみてください。"
 
             "cookies" in lowered ->
                 "$message\n\n「ホーム」タブで YouTube を開くとセッションが使われるようになります。"

@@ -1,0 +1,125 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>po_token</title>
+</head>
+<body>
+<!--
+  Runs YouTube's BotGuard attestation challenge to mint a PO Token.
+
+  This page is never shown. It is loaded into an offscreen WebView with
+  https://www.youtube.com as its base URL, which is what makes the challenge
+  same-origin: both the Create and GenerateIT endpoints are reachable through
+  youtube.com's own /api/jnn/v1/ proxy, so no CORS preflight is involved.
+
+  The heavy lifting is bgutils-js (MIT, bundled as bgutils.bundle.js); this
+  file is only the glue that sequences it and hands results back to Kotlin.
+-->
+<script>__BGUTILS_BUNDLE__</script>
+<script>
+(function () {
+  'use strict';
+
+  // The request key YouTube's own web player uses for this challenge.
+  var REQUEST_KEY = 'O43z0dpjhgX20SCx4KAo';
+
+  var minter = null;
+
+  function bridge() {
+    return typeof AndroidPoToken !== 'undefined' ? AndroidPoToken : null;
+  }
+
+  function fail(stage, error) {
+    var b = bridge();
+    var message = stage + ': ' + ((error && (error.message || error.name)) || String(error));
+    if (b) b.onError(message);
+  }
+
+  /**
+   * The GVS token has to be bound to the same visitor id yt-dlp will send, so
+   * both are read from one page load and handed over together.
+   */
+  async function fetchVisitorData() {
+    var response = await fetch('https://m.youtube.com/', { credentials: 'omit' });
+    var html = await response.text();
+    var match = html.match(/"visitorData":\s*"([^"]+)"/);
+    if (!match) throw new Error('visitorData not present in page');
+    // The value is JSON-escaped inside the page source.
+    return JSON.parse('"' + match[1] + '"');
+  }
+
+  async function init() {
+    var visitorData;
+    try {
+      visitorData = await fetchVisitorData();
+    } catch (e) {
+      return fail('visitor_data', e);
+    }
+
+    try {
+      var challenge = await BG.getChallenge({
+        requestKey: REQUEST_KEY,
+        fetchFunction: window.fetch.bind(window),
+        useYouTubeAPI: true
+      });
+      if (!challenge) throw new Error('empty challenge');
+
+      var script = challenge.interpreterJavascript &&
+        challenge.interpreterJavascript.privateDoNotAccessOrElseSafeScriptWrappedValue;
+      if (!script) throw new Error('challenge carried no interpreter');
+
+      // Defines the VM under challenge.globalName on window.
+      new Function(script)();
+
+      var webPoSignalOutput = [];
+      var botguard = await BG.BotGuardClient.create({
+        globalName: challenge.globalName,
+        globalObject: window,
+        program: challenge.program
+      });
+
+      var botguardResponse = await botguard.snapshot({ webPoSignalOutput: webPoSignalOutput });
+
+      var itResponse = await fetch(BG.buildURL('GenerateIT', true), {
+        method: 'POST',
+        headers: BG.getHeaders(),
+        body: JSON.stringify([REQUEST_KEY, botguardResponse])
+      });
+      if (!itResponse.ok) throw new Error('GenerateIT returned ' + itResponse.status);
+
+      var itData = await itResponse.json();
+      var integrityToken = itData && itData[0];
+      if (!integrityToken) throw new Error('GenerateIT returned no token');
+
+      minter = await BG.WebPoMinter.create({ integrityToken: integrityToken }, webPoSignalOutput);
+    } catch (e) {
+      return fail('botguard', e);
+    }
+
+    var b = bridge();
+    if (b) b.onReady(visitorData);
+  }
+
+  /** Called from Kotlin once init has reported ready. */
+  window.__mintPoToken = function (requestId, binding) {
+    if (!minter) {
+      var b = bridge();
+      if (b) b.onToken(requestId, '');
+      return;
+    }
+    minter.mintAsWebsafeString(binding).then(function (token) {
+      var b = bridge();
+      if (b) b.onToken(requestId, token || '');
+    }).catch(function (e) {
+      fail('mint', e);
+      var b = bridge();
+      if (b) b.onToken(requestId, '');
+    });
+  };
+
+  init();
+})();
+</script>
+</body>
+</html>
