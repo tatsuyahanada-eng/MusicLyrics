@@ -1700,7 +1700,7 @@ textarea.tm-ff-input { width: 100%; resize: vertical; min-height: 88px; }
   line-height: 1;
 }
 .tm-install-close:hover { color: var(--tm-text); }
-.tm-install-banner.is-ios .tm-install-actions { display: none; }
+.tm-install-banner.is-manual .tm-install-actions { display: none; }
 
 @media (max-width: 520px) {
   .tm-install-banner { flex-wrap: wrap; padding-right: 40px; }

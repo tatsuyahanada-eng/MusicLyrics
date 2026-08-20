@@ -5086,21 +5086,45 @@
 
   const isStandalone = () =>
     window.matchMedia('(display-mode: standalone)').matches || navigator.standalone === true;
+  // iPadOS 13以降は既定で「デスクトップ用サイトを表示」がONのため、UAに ipad が含まれず
+  // Mac として名乗る（platform=MacIntel）。タッチ対応（maxTouchPoints）で見分ける。
   const isIOS = () =>
-    /iphone|ipad|ipod/i.test(navigator.userAgent) && !window.MSStream;
+    (/iphone|ipad|ipod/i.test(navigator.userAgent) && !window.MSStream) ||
+    (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+  const isAndroid = () => /android/i.test(navigator.userAgent);
+  // iPadと同じ判定式で「タッチ対応のMac」に該当しない、純粋なMacのSafari（デスクトップ）
+  const isMacSafari = () =>
+    /Macintosh/.test(navigator.userAgent) && /Safari/.test(navigator.userAgent) &&
+    !/Chrome|Chromium|Edg\//.test(navigator.userAgent) && !isIOS();
   const recentlyDismissed = () => {
     const t = Number(localStorage.getItem(DISMISS_KEY) || 0);
     return t && (Date.now() - t) < RENAG_MS;
   };
 
+  const INSTALL_MSGS = {
+    ios: 'Safari で <b>共有</b> ボタン → <b>「ホーム画面に追加」</b> を選ぶと、アプリのように使えます。',
+    android: 'ブラウザのメニュー（<b>⋮</b>）から <b>「アプリをインストール」</b> または <b>「ホーム画面に追加」</b> を選んでください。',
+    macsafari: 'Safari のメニューの <b>「ファイル」</b> → <b>「Dockに追加」</b> を選ぶと、アプリのように使えます。',
+    generic: 'ご利用のブラウザでは、自動でのインストール案内ができませんでした。ブラウザのメニューに <b>「インストール」</b> や <b>「ホーム画面に追加」</b> の項目があれば、そちらから追加できます。',
+  };
   function showBanner(mode) {
     if (isStandalone() || recentlyDismissed()) return;
-    if (mode === 'ios') {
-      banner.classList.add('is-ios');
-      installMsg.innerHTML =
-        'Safari で <b>共有</b> ボタン → <b>「ホーム画面に追加」</b> を選ぶと、アプリのように使えます。';
+    banner.classList.remove('is-manual');
+    if (mode !== 'prompt') {
+      banner.classList.add('is-manual');
+      installMsg.innerHTML = INSTALL_MSGS[mode] || INSTALL_MSGS.generic;
+    } else {
+      installMsg.textContent = 'ホーム画面に追加すると、アプリのように起動できオフラインでも使えます。';
     }
     banner.hidden = false;
+  }
+  // ブラウザ側のインストール判定（beforeinstallprompt）に頼らず、常に導線を出す。
+  // 押した時点で分かる情報から、最善の案内を出す。
+  function installFallbackMode() {
+    if (isIOS()) return 'ios';
+    if (isAndroid()) return 'android';
+    if (isMacSafari()) return 'macsafari';
+    return 'generic';
   }
   function hideBanner(remember) {
     banner.hidden = true;
@@ -5126,8 +5150,12 @@
 
   $('#installNow').addEventListener('click', runInstall);
   installBtn.addEventListener('click', () => {
-    if (deferredPrompt) runInstall();
-    else if (isIOS()) { localStorage.removeItem(DISMISS_KEY); showBanner('ios'); }
+    if (deferredPrompt) { runInstall(); return; }
+    // ブラウザ標準のインストール案内（beforeinstallprompt）が出ないブラウザ・端末でも、
+    // 押せば必ず何らかの案内が出るようにする（iPadがデスクトップ表示でiOSと分からない等、
+    // 判定できずボタンごと出ないよりは、押した時点の情報で最善の案内を出す方がよい）。
+    localStorage.removeItem(DISMISS_KEY);
+    showBanner(installFallbackMode());
   });
   $('#installLater').addEventListener('click', () => hideBanner(true));
   $('#installClose').addEventListener('click', () => hideBanner(true));
@@ -5138,9 +5166,12 @@
     deferredPrompt = null;
   });
 
-  // iOS Safari は beforeinstallprompt 非対応 → 手動で案内バナーを表示
+  // フッターの「アプリとしてインストール」は、beforeinstallprompt の可否に関わらず常に出す
+  // （出るかどうかはブラウザ・端末・過去の操作履歴に左右され当てにならないため）。
+  // 既にアプリとして起動中（インストール済みで開いている）のときだけ隠す。
+  if (!isStandalone()) installHint.hidden = false;
+  // iOS Safari は beforeinstallprompt 非対応 → 手動で案内バナーを自動表示（従来通り）
   if (isIOS() && !isStandalone()) {
-    installHint.hidden = false;
     setTimeout(() => showBanner('ios'), 800);
   }
 
