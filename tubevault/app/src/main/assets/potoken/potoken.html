@@ -39,11 +39,19 @@
   /**
    * The GVS token has to be bound to the same visitor id yt-dlp will send, so
    * both are read from one page load and handed over together.
+   *
+   * This has to stay same-origin with the page (https://www.youtube.com, set
+   * via loadDataWithBaseURL) or the fetch is blocked by CORS before it ever
+   * reaches the network — m.youtube.com is a different origin and fails with
+   * exactly "TypeError: Failed to fetch", which has no further detail because
+   * the browser never lets the response be read.
    */
   async function fetchVisitorData() {
-    var response = await fetch('https://m.youtube.com/', { credentials: 'omit' });
+    var response = await fetch('https://www.youtube.com/', { credentials: 'same-origin' });
     var html = await response.text();
-    var match = html.match(/"visitorData":\s*"([^"]+)"/);
+    // ytcfg carries this under both keys depending on where it is embedded;
+    // either is fine, so take whichever appears first.
+    var match = html.match(/"(?:visitorData|VISITOR_DATA)":\s*"([^"]+)"/);
     if (!match) throw new Error('visitorData not present in page');
     // The value is JSON-escaped inside the page source.
     return JSON.parse('"' + match[1] + '"');
