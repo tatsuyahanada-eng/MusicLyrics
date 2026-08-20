@@ -55,15 +55,14 @@ fun DownloadsScreen(
     val jobs by viewModel.jobs.collectAsStateWithLifecycle()
 
     Column(modifier = modifier.fillMaxSize().padding(contentPadding)) {
-        Row(
-            modifier = Modifier.fillMaxWidth().padding(start = 16.dp, end = 8.dp, top = 8.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Text("ダウンロード", style = MaterialTheme.typography.titleLarge, modifier = Modifier.weight(1f))
-            if (jobs.any { !it.isActive }) {
-                TextButton(onClick = viewModel::clearFinished) { Text("履歴を消す") }
-            }
-        }
+        ScreenHeader(
+            title = "ダウンロード",
+            actions = {
+                if (jobs.any { !it.isActive }) {
+                    TextButton(onClick = viewModel::clearFinished) { Text("履歴を消す") }
+                }
+            },
+        )
 
         if (jobs.isEmpty()) {
             EmptyState(

@@ -65,215 +65,217 @@ fun SettingsScreen(
         modifier = modifier
             .fillMaxSize()
             .padding(contentPadding)
-            .verticalScroll(rememberScrollState())
-            .padding(horizontal = 16.dp),
+            .verticalScroll(rememberScrollState()),
     ) {
-        Text("設定", style = MaterialTheme.typography.titleLarge, modifier = Modifier.padding(vertical = 12.dp))
+        ScreenHeader(title = "設定")
 
-        SettingSection("既定の形式")
-        FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            MediaKind.entries.forEach { option ->
-                FilterChip(
-                    selected = settings.defaultKind == option,
-                    onClick = { viewModel.setDefaultKind(option) },
-                    label = { Text(option.label) },
-                )
+        Column(modifier = Modifier.padding(horizontal = 16.dp)) {
+
+            SettingSection("既定の形式")
+            FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                MediaKind.entries.forEach { option ->
+                    FilterChip(
+                        selected = settings.defaultKind == option,
+                        onClick = { viewModel.setDefaultKind(option) },
+                        label = { Text(option.label) },
+                    )
+                }
             }
-        }
 
-        SettingSection("既定の画質")
-        FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            VideoQuality.entries.forEach { option ->
-                FilterChip(
-                    selected = settings.defaultQuality == option,
-                    onClick = { viewModel.setDefaultQuality(option) },
-                    label = { Text(option.label) },
-                )
+            SettingSection("既定の画質")
+            FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                VideoQuality.entries.forEach { option ->
+                    FilterChip(
+                        selected = settings.defaultQuality == option,
+                        onClick = { viewModel.setDefaultQuality(option) },
+                        label = { Text(option.label) },
+                    )
+                }
             }
-        }
 
-        SettingSection("既定の保存先")
-        FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            categories.forEach { category ->
-                FilterChip(
-                    selected = settings.defaultCategoryId == category.id,
-                    onClick = { viewModel.setDefaultCategory(category.id) },
-                    label = { Text(category.name) },
-                )
+            SettingSection("既定の保存先")
+            FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                categories.forEach { category ->
+                    FilterChip(
+                        selected = settings.defaultCategoryId == category.id,
+                        onClick = { viewModel.setDefaultCategory(category.id) },
+                        label = { Text(category.name) },
+                    )
+                }
             }
-        }
 
-        SettingSection("検索結果の件数")
-        FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            listOf(10, 25, 50).forEach { limit ->
-                FilterChip(
-                    selected = settings.searchLimit == limit,
-                    onClick = { viewModel.setSearchLimit(limit) },
-                    label = { Text("$limit 件") },
-                )
+            SettingSection("検索結果の件数")
+            FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                listOf(10, 25, 50).forEach { limit ->
+                    FilterChip(
+                        selected = settings.searchLimit == limit,
+                        onClick = { viewModel.setSearchLimit(limit) },
+                        label = { Text("$limit 件") },
+                    )
+                }
             }
-        }
 
-        HorizontalDivider(modifier = Modifier.padding(vertical = 20.dp))
+            HorizontalDivider(modifier = Modifier.padding(vertical = 20.dp))
 
-        SettingSection("ストレージ")
-        Text(
-            text = "使用量: ${formatBytes(storageBytes)}",
-            style = MaterialTheme.typography.bodyMedium,
-        )
-        Text(
-            text = "保存先: Android/data/dev.hanada.tubevault/files/${Storage.ROOT_DIR_NAME}/",
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            modifier = Modifier.padding(top = 4.dp),
-        )
-        Row(
-            modifier = Modifier.padding(top = 12.dp),
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
-        ) {
-            OutlinedButton(onClick = viewModel::pruneMissing) { Text("不明なファイルを整理") }
-            OutlinedButton(onClick = viewModel::refresh) { Text("再計算") }
-        }
-
-        HorizontalDivider(modifier = Modifier.padding(vertical = 20.dp))
-
-        SettingSection("YouTube のログイン")
-        Text(
-            text = when {
-                signedIn -> "サインイン済みのセッションを利用中（Cookie ${cookieCount} 件）"
-                cookieCount > 0 -> "未サインインのセッションを利用中（Cookie ${cookieCount} 件）"
-                else -> "まだセッションがありません"
-            },
-            style = MaterialTheme.typography.bodyMedium,
-            color = if (signedIn) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface,
-        )
-        Text(
-            text = "ログインは基本的に不要です。「Please sign in」で失敗するのは PO Token が" +
-                "無いためで、これは Cookie とは別物なのでログインしても直りません" +
-                "（下の「プレイヤークライアント」で対処します）。年齢制限付きの動画など、" +
-                "本当にアカウントが要る一部の動画でのみ役に立ちます。",
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            modifier = Modifier.padding(top = 4.dp),
-        )
-        Text(
-            text = "⚠️ ログインするなら、普段使いのアカウントではなく専用のサブアカウントを" +
-                "新規作成してください。自動的な取得は YouTube の規約に反するため、" +
-                "使いすぎるとそのアカウントに確認や制限がかかることがあります。",
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.error,
-            modifier = Modifier.padding(top = 8.dp),
-        )
-        Row(
-            modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Text("セッションを使う", style = MaterialTheme.typography.bodyMedium, modifier = Modifier.weight(1f))
-            Switch(
-                checked = settings.useCookies,
-                onCheckedChange = viewModel::setUseCookies,
-            )
-        }
-        OutlinedButton(
-            onClick = viewModel::clearCookies,
-            modifier = Modifier.padding(top = 8.dp),
-        ) {
-            Text("ログイン情報を消す")
-        }
-
-        HorizontalDivider(modifier = Modifier.padding(vertical = 20.dp))
-
-        SettingSection("PO Token（自動生成）")
-        Text(
-            text = "「Please sign in」の本当の原因は PO Token の欠如です。これを端末の" +
-                "WebView 上で自前生成して yt-dlp に渡します。ログインは不要です。",
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
-        Row(
-            modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
+            SettingSection("ストレージ")
             Text(
-                "PO Token を使う",
+                text = "使用量: ${formatBytes(storageBytes)}",
                 style = MaterialTheme.typography.bodyMedium,
-                modifier = Modifier.weight(1f),
             )
-            Switch(
-                checked = settings.usePoToken,
-                onCheckedChange = viewModel::setUsePoToken,
+            Text(
+                text = "保存先: Android/data/dev.hanada.tubevault/files/${Storage.ROOT_DIR_NAME}/",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(top = 4.dp),
             )
-        }
-        Text(
-            text = "端末の WebView が古いと、エラーにならず無効なトークンが出ることがあります。" +
-                "下のボタンで実際に生成できるか確認できます。",
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            modifier = Modifier.padding(top = 4.dp),
-        )
-        OutlinedButton(
-            onClick = viewModel::probePoToken,
-            enabled = busy == null,
-            modifier = Modifier.padding(top = 8.dp),
-        ) {
-            Text("PO Token の生成をテスト")
-        }
+            Row(
+                modifier = Modifier.padding(top = 12.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                OutlinedButton(onClick = viewModel::pruneMissing) { Text("不明なファイルを整理") }
+                OutlinedButton(onClick = viewModel::refresh) { Text("再計算") }
+            }
 
-        HorizontalDivider(modifier = Modifier.padding(vertical = 20.dp))
+            HorizontalDivider(modifier = Modifier.padding(vertical = 20.dp))
 
-        SettingSection("プレイヤークライアント")
-        Text(
-            text = "PO Token の生成に成功している間は、この設定は使われません" +
-                "（web クライアントに「トークン不要を優先」のクライアント群を加えて併用します）。" +
-                "生成に失敗したときのフォールバック先です。既定の「トークン不要を優先」は、" +
-                "PO Token を要求しないクライアントを順に試します。",
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            modifier = Modifier.padding(bottom = 8.dp),
-        )
-        FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            PlayerClient.entries.forEach { option ->
-                FilterChip(
-                    selected = settings.playerClient == option,
-                    onClick = { viewModel.setPlayerClient(option) },
-                    label = { Text(option.label) },
+            SettingSection("YouTube のログイン")
+            Text(
+                text = when {
+                    signedIn -> "サインイン済みのセッションを利用中（Cookie ${cookieCount} 件）"
+                    cookieCount > 0 -> "未サインインのセッションを利用中（Cookie ${cookieCount} 件）"
+                    else -> "まだセッションがありません"
+                },
+                style = MaterialTheme.typography.bodyMedium,
+                color = if (signedIn) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface,
+            )
+            Text(
+                text = "ログインは基本的に不要です。「Please sign in」で失敗するのは PO Token が" +
+                    "無いためで、これは Cookie とは別物なのでログインしても直りません" +
+                    "（下の「プレイヤークライアント」で対処します）。年齢制限付きの動画など、" +
+                    "本当にアカウントが要る一部の動画でのみ役に立ちます。",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(top = 4.dp),
+            )
+            Text(
+                text = "⚠️ ログインするなら、普段使いのアカウントではなく専用のサブアカウントを" +
+                    "新規作成してください。自動的な取得は YouTube の規約に反するため、" +
+                    "使いすぎるとそのアカウントに確認や制限がかかることがあります。",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.error,
+                modifier = Modifier.padding(top = 8.dp),
+            )
+            Row(
+                modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text("セッションを使う", style = MaterialTheme.typography.bodyMedium, modifier = Modifier.weight(1f))
+                Switch(
+                    checked = settings.useCookies,
+                    onCheckedChange = viewModel::setUseCookies,
                 )
             }
-        }
-
-        HorizontalDivider(modifier = Modifier.padding(vertical = 20.dp))
-
-        SettingSection("yt-dlp")
-        Text(text = "バージョン: $version", style = MaterialTheme.typography.bodyMedium)
-        Text(
-            text = "YouTube の仕様変更で動画が取得できなくなったときは、まず更新を試してください。",
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            modifier = Modifier.padding(top = 4.dp),
-        )
-        Row(
-            modifier = Modifier.padding(top = 12.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(12.dp),
-        ) {
-            OutlinedButton(onClick = viewModel::updateYtDlp, enabled = busy == null) {
-                Text("yt-dlp を更新")
+            OutlinedButton(
+                onClick = viewModel::clearCookies,
+                modifier = Modifier.padding(top = 8.dp),
+            ) {
+                Text("ログイン情報を消す")
             }
-            if (busy != null) {
-                CircularProgressIndicator(modifier = Modifier.size(20.dp))
-                Text(busy.orEmpty(), style = MaterialTheme.typography.bodySmall)
+
+            HorizontalDivider(modifier = Modifier.padding(vertical = 20.dp))
+
+            SettingSection("PO Token（自動生成）")
+            Text(
+                text = "「Please sign in」の本当の原因は PO Token の欠如です。これを端末の" +
+                    "WebView 上で自前生成して yt-dlp に渡します。ログインは不要です。",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            Row(
+                modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text(
+                    "PO Token を使う",
+                    style = MaterialTheme.typography.bodyMedium,
+                    modifier = Modifier.weight(1f),
+                )
+                Switch(
+                    checked = settings.usePoToken,
+                    onCheckedChange = viewModel::setUsePoToken,
+                )
             }
+            Text(
+                text = "端末の WebView が古いと、エラーにならず無効なトークンが出ることがあります。" +
+                    "下のボタンで実際に生成できるか確認できます。",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(top = 4.dp),
+            )
+            OutlinedButton(
+                onClick = viewModel::probePoToken,
+                enabled = busy == null,
+                modifier = Modifier.padding(top = 8.dp),
+            ) {
+                Text("PO Token の生成をテスト")
+            }
+
+            HorizontalDivider(modifier = Modifier.padding(vertical = 20.dp))
+
+            SettingSection("プレイヤークライアント")
+            Text(
+                text = "PO Token の生成に成功している間は、この設定は使われません" +
+                    "（web クライアントに「トークン不要を優先」のクライアント群を加えて併用します）。" +
+                    "生成に失敗したときのフォールバック先です。既定の「トークン不要を優先」は、" +
+                    "PO Token を要求しないクライアントを順に試します。",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(bottom = 8.dp),
+            )
+            FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                PlayerClient.entries.forEach { option ->
+                    FilterChip(
+                        selected = settings.playerClient == option,
+                        onClick = { viewModel.setPlayerClient(option) },
+                        label = { Text(option.label) },
+                    )
+                }
+            }
+
+            HorizontalDivider(modifier = Modifier.padding(vertical = 20.dp))
+
+            SettingSection("yt-dlp")
+            Text(text = "バージョン: $version", style = MaterialTheme.typography.bodyMedium)
+            Text(
+                text = "YouTube の仕様変更で動画が取得できなくなったときは、まず更新を試してください。",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(top = 4.dp),
+            )
+            Row(
+                modifier = Modifier.padding(top = 12.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
+            ) {
+                OutlinedButton(onClick = viewModel::updateYtDlp, enabled = busy == null) {
+                    Text("yt-dlp を更新")
+                }
+                if (busy != null) {
+                    CircularProgressIndicator(modifier = Modifier.size(20.dp))
+                    Text(busy.orEmpty(), style = MaterialTheme.typography.bodySmall)
+                }
+            }
+
+            HorizontalDivider(modifier = Modifier.padding(vertical = 20.dp))
+
+            Text(
+                text = "このアプリは個人利用専用です。ダウンロードは YouTube の利用規約に反する場合があります。" +
+                    "権利者が許諾していないコンテンツの保存・再配布は行わないでください。",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(bottom = 32.dp),
+            )
         }
-
-        HorizontalDivider(modifier = Modifier.padding(vertical = 20.dp))
-
-        Text(
-            text = "このアプリは個人利用専用です。ダウンロードは YouTube の利用規約に反する場合があります。" +
-                "権利者が許諾していないコンテンツの保存・再配布は行わないでください。",
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            modifier = Modifier.padding(bottom = 32.dp),
-        )
     }
 }
 

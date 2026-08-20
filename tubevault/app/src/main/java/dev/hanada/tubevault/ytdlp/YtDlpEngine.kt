@@ -79,14 +79,17 @@ class YtDlpEngine(
     }
 
     /**
-     * Runs `ytsearch<N>:<query>`, or treats [query] as a URL when it looks like
-     * one. `--flat-playlist` keeps this to a single network round trip instead
-     * of resolving every result's formats up front.
+     * Runs `ytsearch<N>:<query>`, or resolves [query] as a single video when it
+     * carries a YouTube id. `--flat-playlist` keeps the keyword path to a
+     * single network round trip instead of resolving every result's formats up
+     * front.
      */
     suspend fun search(query: String, limit: Int): List<SearchResult> = withContext(Dispatchers.IO) {
         ensureInit()
         val trimmed = query.trim()
         if (trimmed.isEmpty()) return@withContext emptyList()
+
+        singleVideoId(trimmed)?.let { return@withContext listOf(resolveVideo(it)) }
 
         val target = if (isUrl(trimmed)) trimmed else "ytsearch$limit:$trimmed"
         val request = YoutubeDLRequest(target)
@@ -268,6 +271,44 @@ class YtDlpEngine(
         }
     }
 
+    /**
+     * The video [text] identifies, if any. Pasted text is rarely a bare URL —
+     * share sheets prepend the title, browsers append tracking parameters, and
+     * a `&list=` turns a watch link into a playlist — so the id is dug out of
+     * whatever arrives and everything around it is discarded.
+     *
+     * A bare id is accepted too, since that is what a half-pasted URL leaves
+     * behind, but only when it looks random rather than typed: plenty of
+     * English words are eleven letters long, and treating one as an id would
+     * break an ordinary keyword search.
+     */
+    private fun singleVideoId(text: String): String? {
+        YouTubeUrls.videoId(text)?.let { return it }
+        if (!BARE_VIDEO_ID.matches(text)) return null
+        val random = text.any { it.isDigit() || it == '-' || it == '_' } ||
+            (text.any { it.isUpperCase() } && text.any { it.isLowerCase() })
+        return if (random) text else null
+    }
+
+    /**
+     * One video's metadata, by id. Falls back to a placeholder row rather than
+     * failing the whole search: extraction is the fragile part of yt-dlp and
+     * the download path has retries this one does not, so a row the user can
+     * still tap beats an error that ends the interaction.
+     */
+    private suspend fun resolveVideo(videoId: String): SearchResult =
+        runCatching { fetchInfo(YouTubeUrls.watchUrl(videoId)) }
+            .getOrElse {
+                Log.w(TAG, "could not resolve $videoId, offering it unresolved", it)
+                SearchResult(
+                    videoId = videoId,
+                    title = "この動画 ($videoId)",
+                    uploader = "情報を取得できませんでした",
+                    durationSec = 0L,
+                    viewCount = 0L,
+                )
+            }
+
     private fun isUrl(query: String): Boolean =
         query.startsWith("http://") || query.startsWith("https://")
 
@@ -352,5 +393,6 @@ class YtDlpEngine(
 
     private companion object {
         const val TAG = "YtDlpEngine"
+        val BARE_VIDEO_ID = Regex("[A-Za-z0-9_-]{11}")
     }
 }

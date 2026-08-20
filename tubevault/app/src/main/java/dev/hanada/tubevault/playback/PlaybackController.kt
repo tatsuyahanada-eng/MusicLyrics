@@ -67,6 +67,10 @@ class PlaybackController(
     private val _shuffleEnabled = MutableStateFlow(false)
     val shuffleEnabled: StateFlow<Boolean> = _shuffleEnabled.asStateFlow()
 
+    /** One of [Player]'s `REPEAT_MODE_*` constants. */
+    private val _repeatMode = MutableStateFlow(Player.REPEAT_MODE_OFF)
+    val repeatMode: StateFlow<Int> = _repeatMode.asStateFlow()
+
     private val listener = object : Player.Listener {
         override fun onIsPlayingChanged(isPlaying: Boolean) {
             _isPlaying.value = isPlaying
@@ -75,6 +79,10 @@ class PlaybackController(
 
         override fun onShuffleModeEnabledChanged(shuffleModeEnabled: Boolean) {
             _shuffleEnabled.value = shuffleModeEnabled
+        }
+
+        override fun onRepeatModeChanged(repeatMode: Int) {
+            _repeatMode.value = repeatMode
         }
 
         override fun onMediaItemTransition(mediaItem: MediaItem?, reason: Int) {
@@ -108,6 +116,7 @@ class PlaybackController(
                         _player.value = controller
                         _isPlaying.value = controller.isPlaying
                         _shuffleEnabled.value = controller.shuffleModeEnabled
+                        _repeatMode.value = controller.repeatMode
                     }
                     .onFailure { Log.w(TAG, "could not connect to PlaybackService", it) }
             },
@@ -158,6 +167,21 @@ class PlaybackController(
         val next = !controller.shuffleModeEnabled
         controller.shuffleModeEnabled = next
         _shuffleEnabled.value = next
+    }
+
+    /**
+     * Off to all to one and back. A three-state control needs a single
+     * affordance rather than three, and the icon carries the current state.
+     */
+    fun cycleRepeat() {
+        val controller = _player.value ?: return
+        val next = when (controller.repeatMode) {
+            Player.REPEAT_MODE_OFF -> Player.REPEAT_MODE_ALL
+            Player.REPEAT_MODE_ALL -> Player.REPEAT_MODE_ONE
+            else -> Player.REPEAT_MODE_OFF
+        }
+        controller.repeatMode = next
+        _repeatMode.value = next
     }
 
     fun togglePlayPause() {

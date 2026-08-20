@@ -125,15 +125,14 @@ private fun CategoryGrid(
     var deleting by remember { mutableStateOf<CategoryWithStats?>(null) }
 
     Column(modifier = Modifier.fillMaxSize()) {
-        Row(
-            modifier = Modifier.fillMaxWidth().padding(start = 16.dp, end = 8.dp, top = 8.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Text("フォルダ", style = MaterialTheme.typography.titleLarge, modifier = Modifier.weight(1f))
-            IconButton(onClick = { showCreate = true }) {
-                Icon(Icons.Default.Add, contentDescription = "フォルダを追加")
-            }
-        }
+        ScreenHeader(
+            title = "フォルダ",
+            actions = {
+                FilledTonalIconButton(onClick = { showCreate = true }) {
+                    Icon(Icons.Default.Add, contentDescription = "フォルダを追加")
+                }
+            },
+        )
 
         if (categories.isEmpty()) {
             EmptyState(
@@ -317,39 +316,29 @@ private fun CategoryDetail(
                 onDelete = { deletingSelection = true },
             )
         } else {
-            Row(
-                modifier = Modifier.fillMaxWidth().padding(end = 12.dp, top = 8.dp),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                IconButton(onClick = onBack) {
-                    Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "戻る")
-                }
-                Column(modifier = Modifier.weight(1f)) {
-                    Text(
-                        text = category.category.name,
-                        style = MaterialTheme.typography.titleLarge,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                    )
-                    Text(
-                        text = "${category.itemCount} 件 · ${formatBytes(category.totalBytes)}",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                }
-                if (items.isNotEmpty()) {
-                    FilledTonalIconButton(onClick = onShuffle) {
-                        Icon(Icons.Default.Shuffle, contentDescription = "シャッフル再生")
+            ScreenHeader(
+                title = category.category.name,
+                subtitle = "${category.itemCount} 件 · ${formatBytes(category.totalBytes)}",
+                leading = {
+                    IconButton(onClick = onBack) {
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "戻る")
                     }
-                    Button(
-                        onClick = { onPlay(0) },
-                        modifier = Modifier.padding(start = 8.dp),
-                    ) {
-                        Icon(Icons.Default.PlayArrow, contentDescription = null, modifier = Modifier.size(18.dp))
-                        Text("再生", modifier = Modifier.padding(start = 4.dp))
+                },
+                actions = {
+                    if (items.isNotEmpty()) {
+                        FilledTonalIconButton(onClick = onShuffle) {
+                            Icon(Icons.Default.Shuffle, contentDescription = "シャッフル再生")
+                        }
+                        Button(
+                            onClick = { onPlay(0) },
+                            modifier = Modifier.padding(start = 8.dp),
+                        ) {
+                            Icon(Icons.Default.PlayArrow, contentDescription = null, modifier = Modifier.size(18.dp))
+                            Text("再生", modifier = Modifier.padding(start = 4.dp))
+                        }
                     }
-                }
-            }
+                },
+            )
         }
 
         if (items.isEmpty()) {
@@ -359,7 +348,10 @@ private fun CategoryDetail(
                 subtitle = "検索タブから動画をダウンロードすると、ここに保存されます",
             )
         } else {
-            LazyColumn(contentPadding = PaddingValues(bottom = 16.dp)) {
+            LazyColumn(
+                contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp),
+                verticalArrangement = Arrangement.spacedBy(6.dp),
+            ) {
                 itemsIndexed(items, key = { _, item -> item.id }) { index, item ->
                     MediaRow(
                         item = item,
@@ -495,88 +487,95 @@ private fun MediaRow(
 ) {
     var menuOpen by remember { mutableStateOf(false) }
 
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .background(
-                if (selected) MaterialTheme.colorScheme.primaryContainer else Color.Transparent,
-            )
-            .combinedClickable(onClick = onClick, onLongClick = onLongClick)
-            .padding(horizontal = 16.dp, vertical = 8.dp),
-        verticalAlignment = Alignment.CenterVertically,
+    Surface(
+        shape = MaterialTheme.shapes.medium,
+        color = if (selected) {
+            MaterialTheme.colorScheme.primaryContainer
+        } else {
+            MaterialTheme.colorScheme.surfaceContainerHigh
+        },
+        modifier = Modifier.fillMaxWidth(),
     ) {
-        if (selecting) {
-            Checkbox(
-                checked = selected,
-                onCheckedChange = { onClick() },
-                modifier = Modifier.padding(end = 4.dp),
-            )
-        }
-        Thumbnail(
-            model = item.thumbPath?.let { File(it) },
-            durationSec = item.durationSec,
-            fallbackIcon = if (item.mediaKind == MediaKind.AUDIO) {
-                Icons.Default.Audiotrack
-            } else {
-                Icons.Default.Videocam
-            },
-            modifier = Modifier.width(104.dp).height(60.dp),
-        )
-        Column(modifier = Modifier.weight(1f).padding(start = 12.dp)) {
-            Text(
-                text = item.title,
-                style = MaterialTheme.typography.bodyMedium,
-                maxLines = 2,
-                overflow = TextOverflow.Ellipsis,
-            )
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                if (item.lastPlayedAt == null) {
-                    NewBadge(modifier = Modifier.padding(end = 6.dp))
-                }
-                Text(
-                    text = listOfNotNull(
-                        item.mediaKind.label,
-                        formatBytes(item.fileSizeBytes),
-                        item.uploader,
-                    ).joinToString(" · "),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .combinedClickable(onClick = onClick, onLongClick = onLongClick)
+                .padding(10.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            if (selecting) {
+                Checkbox(
+                    checked = selected,
+                    onCheckedChange = { onClick() },
+                    modifier = Modifier.padding(end = 4.dp),
                 )
             }
-        }
-        // The per-row menu would just get in the way of tap-to-toggle.
-        if (!selecting) {
-            Box {
-                IconButton(onClick = { menuOpen = true }) {
-                    Icon(Icons.Default.MoreVert, contentDescription = "メニュー")
+            Thumbnail(
+                model = item.thumbPath?.let { File(it) },
+                durationSec = item.durationSec,
+                fallbackIcon = if (item.mediaKind == MediaKind.AUDIO) {
+                    Icons.Default.Audiotrack
+                } else {
+                    Icons.Default.Videocam
+                },
+                modifier = Modifier.width(104.dp).height(60.dp),
+            )
+            Column(modifier = Modifier.weight(1f).padding(start = 12.dp)) {
+                Text(
+                    text = item.title,
+                    style = MaterialTheme.typography.bodyMedium,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis,
+                )
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    if (item.lastPlayedAt == null) {
+                        NewBadge(modifier = Modifier.padding(end = 6.dp))
+                    }
+                    Text(
+                        text = listOfNotNull(
+                            item.mediaKind.label,
+                            formatBytes(item.fileSizeBytes),
+                            item.uploader,
+                        ).joinToString(" · "),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
                 }
-                DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
-                    DropdownMenuItem(
-                        text = { Text("フォルダを移動") },
-                        leadingIcon = { Icon(Icons.Default.DriveFileMove, contentDescription = null) },
-                        onClick = {
-                            menuOpen = false
-                            onMove()
-                        },
-                    )
-                    DropdownMenuItem(
-                        text = { Text("削除") },
-                        leadingIcon = { Icon(Icons.Default.Delete, contentDescription = null) },
-                        onClick = {
-                            menuOpen = false
-                            onDelete()
-                        },
-                    )
-                    DropdownMenuItem(
-                        text = { Text("選択") },
-                        leadingIcon = { Icon(Icons.Default.SelectAll, contentDescription = null) },
-                        onClick = {
-                            menuOpen = false
-                            onLongClick()
-                        },
-                    )
+            }
+            // The per-row menu would just get in the way of tap-to-toggle.
+            if (!selecting) {
+                Box {
+                    IconButton(onClick = { menuOpen = true }) {
+                        Icon(Icons.Default.MoreVert, contentDescription = "メニュー")
+                    }
+                    DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
+                        DropdownMenuItem(
+                            text = { Text("フォルダを移動") },
+                            leadingIcon = { Icon(Icons.Default.DriveFileMove, contentDescription = null) },
+                            onClick = {
+                                menuOpen = false
+                                onMove()
+                            },
+                        )
+                        DropdownMenuItem(
+                            text = { Text("削除") },
+                            leadingIcon = { Icon(Icons.Default.Delete, contentDescription = null) },
+                            onClick = {
+                                menuOpen = false
+                                onDelete()
+                            },
+                        )
+                        DropdownMenuItem(
+                            text = { Text("選択") },
+                            leadingIcon = { Icon(Icons.Default.SelectAll, contentDescription = null) },
+                            onClick = {
+                                menuOpen = false
+                                onLongClick()
+                            },
+                        )
+                    }
                 }
             }
         }

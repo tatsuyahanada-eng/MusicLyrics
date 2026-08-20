@@ -208,6 +208,20 @@ class LibraryRepository(
         return stale.size
     }
 
+    /**
+     * Repaints folders still carrying a colour from the old rainbow palette.
+     * Matching by exact value means a colour the user picked deliberately is
+     * left alone — only the ones this app assigned itself are migrated.
+     */
+    suspend fun harmonizeLegacyColors() {
+        val remap = LEGACY_PALETTE.zip(PALETTE).toMap()
+        categoryDao.getAll().forEach { category ->
+            remap[category.colorArgb]?.let {
+                categoryDao.update(category.copy(colorArgb = it))
+            }
+        }
+    }
+
     /** Recreates any category folder a user deleted from outside the app. */
     suspend fun ensureFoldersExist() {
         val categories = categoryDao.getAll()
@@ -217,7 +231,23 @@ class LibraryRepository(
     }
 
     companion object {
+        /**
+         * Muted and low-contrast on purpose: folder swatches are the only
+         * colour in an otherwise grey app, and the saturated rainbow this used
+         * to be fought both the grey and the thumbnails next to it.
+         */
         val PALETTE = listOf(
+            0xFF2F6F68.toInt(),
+            0xFF3E6B8A.toInt(),
+            0xFF5D6B7D.toInt(),
+            0xFF6E6A82.toInt(),
+            0xFF7A6A5D.toInt(),
+            0xFF4F7355.toInt(),
+            0xFF8A6A6A.toInt(),
+        )
+
+        /** The saturated set [PALETTE] replaced, kept only to migrate off it. */
+        private val LEGACY_PALETTE = listOf(
             0xFF7B2FF7.toInt(),
             0xFF2F80ED.toInt(),
             0xFF27AE60.toInt(),

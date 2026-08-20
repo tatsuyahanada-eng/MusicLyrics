@@ -59,6 +59,7 @@ class TubeVaultApp : Application() {
         CoroutineScope(SupervisorJob() + Dispatchers.IO).launch {
             runCatching {
                 container.library.seedDefaultsIfEmpty()
+                container.library.harmonizeLegacyColors()
                 container.library.ensureFoldersExist()
                 container.library.pruneMissingFiles()
             }
