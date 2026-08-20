@@ -92,7 +92,6 @@ class YtDlpEngine(
         val request = YoutubeDLRequest(target)
         request.addOption("--flat-playlist")
         request.addOption("--dump-json")
-        request.addOption("--no-warnings")
         request.addOption("--ignore-errors")
         request.applyYouTubeOptions()
 
@@ -113,7 +112,6 @@ class YtDlpEngine(
         val request = YoutubeDLRequest(url)
         request.addOption("--dump-single-json")
         request.addOption("--no-playlist")
-        request.addOption("--no-warnings")
         request.applyYouTubeOptions()
 
         val response = try {
@@ -143,14 +141,42 @@ class YtDlpEngine(
         ensureInit()
         targetDir.mkdirs()
 
+        try {
+            runDownload(sourceUrl, videoId, targetDir, kind, quality, processId, forceNoToken = false, onProgress)
+        } catch (e: YtDlpDownloadException) {
+            // A PO Token that mints successfully can still turn out to be
+            // rejected for this particular video's formats (yt-dlp then
+            // drops them and reports the same "format not available" as an
+            // empty format list would) — that failure mode is impossible to
+            // tell apart from a real empty format list without already
+            // having the fix in hand, so it is cheaper to just retry once
+            // without the token than to diagnose which one happened.
+            if (settings.current.usePoToken && "format" in e.message.orEmpty().lowercase()) {
+                Log.w(TAG, "retrying $videoId without a PO Token after: ${e.message}")
+                runDownload(sourceUrl, videoId, targetDir, kind, quality, processId, forceNoToken = true, onProgress)
+            } else {
+                throw e
+            }
+        }
+    }
+
+    private suspend fun runDownload(
+        sourceUrl: String,
+        videoId: String,
+        targetDir: File,
+        kind: MediaKind,
+        quality: VideoQuality,
+        processId: String,
+        forceNoToken: Boolean,
+        onProgress: (Float, Long, String) -> Unit,
+    ): DownloadOutcome {
         val request = YoutubeDLRequest(sourceUrl)
         request.addOption("--no-playlist")
         request.addOption("--no-mtime")
-        request.addOption("--no-warnings")
         request.addOption("-o", File(targetDir, "%(id)s.%(ext)s").absolutePath)
         request.addOption("--write-thumbnail")
         request.addOption("--convert-thumbnails", "jpg")
-        request.applyYouTubeOptions()
+        request.applyYouTubeOptions(forceNoToken)
 
         when (kind) {
             MediaKind.AUDIO -> {
@@ -186,7 +212,7 @@ class YtDlpEngine(
         val media = Storage.findMediaFile(targetDir, videoId)
             ?: throw YtDlpDownloadException("ダウンロードは完了しましたが、ファイルが見つかりませんでした")
 
-        DownloadOutcome(
+        return DownloadOutcome(
             mediaFile = media,
             thumbFile = Storage.findThumbnailFile(targetDir, videoId),
             sizeBytes = media.length(),
@@ -205,7 +231,7 @@ class YtDlpEngine(
      * collected and joined rather than added separately — a second
      * `--extractor-args youtube:...` would replace the first.
      */
-    private suspend fun YoutubeDLRequest.applyYouTubeOptions() {
+    private suspend fun YoutubeDLRequest.applyYouTubeOptions(forceNoToken: Boolean = false) {
         val current = settings.current
 
         if (current.useCookies) {
@@ -213,7 +239,11 @@ class YtDlpEngine(
         }
 
         val args = mutableListOf<String>()
-        val token = if (current.usePoToken) runCatching { poTokens.current() }.getOrNull() else null
+        val token = if (current.usePoToken && !forceNoToken) {
+            runCatching { poTokens.current() }.getOrNull()
+        } else {
+            null
+        }
 
         if (token != null) {
             // web alone sometimes has an empty format list for a given video
@@ -268,16 +298,27 @@ class YtDlpEngine(
         .firstOrNull { it.isNotBlank() && it != "null" }
 
     /**
-     * yt-dlp's stderr ends with the line that explains the failure, but its
-     * two most common ones need translating into something actionable.
+     * yt-dlp's final stderr line names the failure, but WARNING lines just
+     * above it often carry the actual reason — most notably
+     * "... formats have been skipped as they are missing a url. Fix it by
+     * adding --extractor-args youtube:formats=missing_pot", which fires
+     * exactly when a supplied PO Token was rejected or missing for those
+     * formats. Keeping only the last line, as this used to, discarded
+     * exactly the detail needed to tell that apart from every other reason
+     * "Requested format is not available" can happen.
      */
     private fun explain(stderr: String): String {
-        val message = stderr
-            .lineSequence()
-            .map { it.trim() }
-            .lastOrNull { it.isNotEmpty() }
-            ?.removePrefix("ERROR: ")
-            ?: "ダウンロードに失敗しました"
+        val lines = stderr.lineSequence().map { it.trim() }.filter { it.isNotEmpty() }.toList()
+        val errorLine = lines.lastOrNull()?.removePrefix("ERROR: ") ?: "ダウンロードに失敗しました"
+        val warnings = lines
+            .filter { it.startsWith("WARNING:") && "format" in it.lowercase() }
+            .distinct()
+
+        val message = if (warnings.isEmpty()) {
+            errorLine
+        } else {
+            (warnings + errorLine).joinToString("\n")
+        }
 
         val lowered = message.lowercase()
         return when {
@@ -292,6 +333,12 @@ class YtDlpEngine(
                     "設定タブの「PO Token の生成をテスト」を実行してください。" +
                     "失敗する場合は端末の WebView が古い可能性があるため、Play ストアで" +
                     "「Android System WebView」を更新してみてください。"
+
+            "missing_pot" in lowered || "missing a url" in lowered ->
+                "$message\n\n生成した PO Token が、この形式には無効と判断され、除外されています。" +
+                    "PO Token 自体の生成には成功していても、渡し方や有効期限の問題で個別の形式が" +
+                    "弾かれることがあります。設定タブで PO Token を一旦オフにして" +
+                    "（「トークン不要を優先」のクライアントのみで）試すと切り分けになります。"
 
             "cookies" in lowered ->
                 "$message\n\n「ホーム」タブで YouTube を開くとセッションが使われるようになります。"
