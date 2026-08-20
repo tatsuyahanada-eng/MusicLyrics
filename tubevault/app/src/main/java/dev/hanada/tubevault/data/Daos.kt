@@ -86,6 +86,10 @@ interface MediaDao {
     @Query("UPDATE media_items SET playbackPosMs = :positionMs, lastPlayedAt = :playedAt WHERE id = :id")
     suspend fun updateProgress(id: Long, positionMs: Long, playedAt: Long)
 
+    /** Leaves the resume position alone — this only retires the "New" badge. */
+    @Query("UPDATE media_items SET lastPlayedAt = :playedAt WHERE id = :id")
+    suspend fun markPlayed(id: Long, playedAt: Long)
+
     @Query("DELETE FROM media_items WHERE id = :id")
     suspend fun deleteById(id: Long)
 

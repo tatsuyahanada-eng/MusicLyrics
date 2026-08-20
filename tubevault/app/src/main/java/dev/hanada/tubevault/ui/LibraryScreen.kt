@@ -24,6 +24,7 @@ import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Add
@@ -61,6 +62,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -527,17 +529,22 @@ private fun MediaRow(
                 maxLines = 2,
                 overflow = TextOverflow.Ellipsis,
             )
-            Text(
-                text = listOfNotNull(
-                    item.mediaKind.label,
-                    formatBytes(item.fileSizeBytes),
-                    item.uploader,
-                ).joinToString(" · "),
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-            )
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                if (item.lastPlayedAt == null) {
+                    NewBadge(modifier = Modifier.padding(end = 6.dp))
+                }
+                Text(
+                    text = listOfNotNull(
+                        item.mediaKind.label,
+                        formatBytes(item.fileSizeBytes),
+                        item.uploader,
+                    ).joinToString(" · "),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
         }
         // The per-row menu would just get in the way of tap-to-toggle.
         if (!selecting) {
@@ -574,6 +581,20 @@ private fun MediaRow(
             }
         }
     }
+}
+
+/** Marks a download that has never been played. Retired on first playback. */
+@Composable
+private fun NewBadge(modifier: Modifier = Modifier) {
+    Text(
+        text = "New",
+        style = MaterialTheme.typography.labelSmall,
+        color = MaterialTheme.colorScheme.onPrimary,
+        modifier = modifier
+            .clip(RoundedCornerShape(4.dp))
+            .background(MaterialTheme.colorScheme.primary)
+            .padding(horizontal = 5.dp, vertical = 1.dp),
+    )
 }
 
 @Composable

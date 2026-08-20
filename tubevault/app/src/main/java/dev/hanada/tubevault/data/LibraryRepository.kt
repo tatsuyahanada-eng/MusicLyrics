@@ -170,6 +170,16 @@ class LibraryRepository(
         }
     }
 
+    /**
+     * Marks an item as having been played at all, which is what the "New"
+     * badge keys off. Called the moment a track starts rather than waiting for
+     * [recordPlayback], which only fires once a position is worth saving —
+     * a badge that lingers for the first few seconds of playback looks broken.
+     */
+    suspend fun markPlayed(itemId: Long) {
+        mediaDao.markPlayed(itemId, System.currentTimeMillis())
+    }
+
     suspend fun recordPlayback(itemId: Long, positionMs: Long) {
         mediaDao.updateProgress(itemId, positionMs, System.currentTimeMillis())
     }

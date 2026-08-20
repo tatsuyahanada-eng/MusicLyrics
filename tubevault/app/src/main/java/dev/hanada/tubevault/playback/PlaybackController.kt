@@ -79,8 +79,12 @@ class PlaybackController(
 
         override fun onMediaItemTransition(mediaItem: MediaItem?, reason: Int) {
             val id = mediaItem?.mediaId?.toLongOrNull() ?: return
-            if (_currentItem.value?.id == id) return
-            scope.launch { _currentItem.value = library.getItem(id) }
+            // Marks on every transition, not just changed ones, so tracks
+            // reached by auto-advance and shuffle retire their badge too.
+            scope.launch {
+                library.markPlayed(id)
+                if (_currentItem.value?.id != id) _currentItem.value = library.getItem(id)
+            }
         }
 
         override fun onPlaybackStateChanged(playbackState: Int) {
@@ -145,6 +149,7 @@ class PlaybackController(
             val resumeFrom = items[index].playbackPosMs
             if (!shuffle && resumeFrom > RESUME_THRESHOLD_MS) controller.seekTo(resumeFrom)
             controller.play()
+            library.markPlayed(items[index].id)
         }
     }
 
