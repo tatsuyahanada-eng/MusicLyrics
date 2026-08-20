@@ -11,6 +11,7 @@ import dev.hanada.tubevault.core.SearchResult
 import dev.hanada.tubevault.core.Storage
 import dev.hanada.tubevault.core.VideoQuality
 import dev.hanada.tubevault.core.YouTubeUrls
+import dev.hanada.tubevault.data.PlayerClient
 import dev.hanada.tubevault.data.SettingsStore
 import dev.hanada.tubevault.potoken.PoTokenProvider
 import kotlinx.coroutines.Dispatchers
@@ -200,11 +201,6 @@ class YtDlpEngine(
     }
 
     /**
-     * YouTube answers most anonymous extraction with "Please sign in", so every
-     * request carries whatever session the in-app browser has, plus the client
-     * override when the user picked one.
-     */
-    /**
      * yt-dlp takes one `youtube:` extractor-arg string, so every knob is
      * collected and joined rather than added separately — a second
      * `--extractor-args youtube:...` would replace the first.
@@ -220,9 +216,17 @@ class YtDlpEngine(
         val token = if (current.usePoToken) runCatching { poTokens.current() }.getOrNull() else null
 
         if (token != null) {
+            // web alone sometimes has an empty format list for a given video
+            // (progressive formats are largely gone from it, and GVS-token
+            // binding is picky) — restricting to just it, as this used to do,
+            // could take a video from "many formats available" down to
+            // "Requested format is not available". Requesting it alongside
+            // the clients that already work without a token instead lets
+            // yt-dlp merge format lists from all of them, so the po_token can
+            // only add options, never remove the ones already working.
+            args += "player_client=web,${PlayerClient.NO_POT.argument}"
             // The token is minted for the web client and bound to this visitor
             // id, so both have to travel with it or YouTube rejects it.
-            args += "player_client=web"
             args += "po_token=web.gvs+${token.token}"
             args += "visitor_data=${token.visitorData}"
         } else {

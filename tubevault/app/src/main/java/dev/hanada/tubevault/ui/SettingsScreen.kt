@@ -223,9 +223,10 @@ fun SettingsScreen(
 
         SettingSection("プレイヤークライアント")
         Text(
-            text = "PO Token の生成に成功している間は、この設定は使われません（web クライアントに" +
-                "固定されます）。生成に失敗したときのフォールバック先です。既定の" +
-                "「トークン不要を優先」は、PO Token を要求しないクライアントを順に試します。",
+            text = "PO Token の生成に成功している間は、この設定は使われません" +
+                "（web クライアントに「トークン不要を優先」のクライアント群を加えて併用します）。" +
+                "生成に失敗したときのフォールバック先です。既定の「トークン不要を優先」は、" +
+                "PO Token を要求しないクライアントを順に試します。",
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             modifier = Modifier.padding(bottom = 8.dp),
