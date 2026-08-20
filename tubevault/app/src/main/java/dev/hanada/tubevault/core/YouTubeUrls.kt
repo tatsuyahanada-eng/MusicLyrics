@@ -31,11 +31,4 @@ object YouTubeUrls {
     }
 
     fun watchUrl(videoId: String): String = "https://www.youtube.com/watch?v=$videoId"
-
-    /** Browser titles arrive as "<video title> - YouTube". */
-    fun cleanPageTitle(title: String?): String {
-        val trimmed = title?.trim().orEmpty()
-        if (trimmed.isEmpty()) return "(タイトル不明)"
-        return trimmed.removeSuffix(" - YouTube").trim().ifEmpty { "(タイトル不明)" }
-    }
 }

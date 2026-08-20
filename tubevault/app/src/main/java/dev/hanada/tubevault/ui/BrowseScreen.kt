@@ -6,6 +6,7 @@ import android.os.Bundle
 import android.os.Message
 import android.view.ViewGroup
 import android.webkit.CookieManager
+import android.widget.Toast
 import android.webkit.WebChromeClient
 import android.webkit.WebResourceRequest
 import android.webkit.WebView
@@ -22,7 +23,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.ArrowForward
 import androidx.compose.material.icons.filled.Close
-import androidx.compose.material.icons.filled.Download
+import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.Login
 import androidx.compose.material.icons.filled.Refresh
@@ -44,7 +45,9 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
@@ -71,13 +74,11 @@ fun BrowseScreen(
     val context = LocalContext.current
     val currentUrl by viewModel.currentUrl.collectAsStateWithLifecycle()
     val pageTitle by viewModel.pageTitle.collectAsStateWithLifecycle()
-    val categories by viewModel.categories.collectAsStateWithLifecycle()
-    val appSettings by viewModel.settings.collectAsStateWithLifecycle()
+    val clipboard = LocalClipboardManager.current
 
     var canGoBack by remember { mutableStateOf(false) }
     var canGoForward by remember { mutableStateOf(false) }
     var loadProgress by remember { mutableStateOf(0) }
-    var askingDownload by remember { mutableStateOf(false) }
 
     // Google's sign-in flow sometimes opens as a JS popup (target="_blank")
     // rather than a normal navigation. Without handling that, tapping
@@ -239,31 +240,23 @@ fun BrowseScreen(
 
             if (videoId != null) {
                 ExtendedFloatingActionButton(
-                    onClick = { askingDownload = true },
-                    icon = { Icon(Icons.Default.Download, contentDescription = null) },
-                    text = { Text("この動画を保存") },
+                    onClick = {
+                        // The canonical watch URL rather than the address bar's:
+                        // browsing YouTube accumulates playlist and tracking
+                        // params that only get in the way when pasted back.
+                        clipboard.setText(AnnotatedString(YouTubeUrls.watchUrl(videoId)))
+                        Toast
+                            .makeText(context, "URL をコピーしました", Toast.LENGTH_SHORT)
+                            .show()
+                    },
+                    icon = { Icon(Icons.Default.ContentCopy, contentDescription = null) },
+                    text = { Text("URL をコピー") },
                     modifier = Modifier
                         .align(Alignment.BottomEnd)
                         .padding(16.dp),
                 )
             }
         }
-    }
-
-    if (askingDownload && videoId != null) {
-        val title = YouTubeUrls.cleanPageTitle(pageTitle)
-        DownloadOptionsDialog(
-            title = title,
-            categories = categories,
-            initialKind = appSettings.defaultKind,
-            initialQuality = appSettings.defaultQuality,
-            initialCategoryId = appSettings.defaultCategoryId,
-            onDismiss = { askingDownload = false },
-            onConfirm = { kind, quality, categoryId ->
-                viewModel.download(videoId, title, kind, quality, categoryId)
-                askingDownload = false
-            },
-        )
     }
 
     if (confirmingSignIn) {

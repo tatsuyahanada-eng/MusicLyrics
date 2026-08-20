@@ -14,7 +14,6 @@ import dev.hanada.tubevault.core.MediaKind
 import dev.hanada.tubevault.core.SearchResult
 import dev.hanada.tubevault.core.Storage
 import dev.hanada.tubevault.core.VideoQuality
-import dev.hanada.tubevault.core.YouTubeUrls
 import dev.hanada.tubevault.data.CategoryEntity
 import dev.hanada.tubevault.data.CategoryWithStats
 import dev.hanada.tubevault.data.PlayerClient
@@ -138,11 +137,6 @@ class BrowseViewModel(private val container: AppContainer) : ViewModel() {
     private val _pageTitle = MutableStateFlow("")
     val pageTitle: StateFlow<String> = _pageTitle.asStateFlow()
 
-    val categories: StateFlow<List<CategoryEntity>> = container.library.observeCategoryList()
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(SUBSCRIBE_TIMEOUT_MS), emptyList())
-
-    val settings = container.settings.state
-
     fun onNavigated(url: String?, title: String?) {
         if (!url.isNullOrBlank() && url != "about:blank") _currentUrl.value = url
         onTitle(title)
@@ -162,26 +156,6 @@ class BrowseViewModel(private val container: AppContainer) : ViewModel() {
     }
 
     fun consumeSavedState(): Bundle? = savedState
-
-    fun download(
-        videoId: String,
-        title: String,
-        kind: MediaKind,
-        quality: VideoQuality,
-        categoryId: Long,
-    ) {
-        container.downloads.enqueueUrl(
-            videoId = videoId,
-            sourceUrl = YouTubeUrls.watchUrl(videoId),
-            provisionalTitle = title,
-            kind = kind,
-            quality = quality,
-            categoryId = categoryId,
-        )
-        container.settings.update {
-            it.copy(defaultKind = kind, defaultQuality = quality, defaultCategoryId = categoryId)
-        }
-    }
 }
 
 class LibraryViewModel(private val container: AppContainer) : ViewModel() {
