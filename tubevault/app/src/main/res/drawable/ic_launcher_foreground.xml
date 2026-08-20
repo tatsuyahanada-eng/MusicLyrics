@@ -3,16 +3,23 @@
     android:height="108dp"
     android:viewportWidth="108"
     android:viewportHeight="108">
-    <!-- Rounded "vault" body -->
+    <!--
+      Adaptive-icon safe zone is the middle 66dp of 108dp (roughly 27..81),
+      so everything here stays inside that or it gets cropped on round masks.
+    -->
+
+    <!-- Teal plate the glyph sits on -->
     <path
-        android:fillColor="#F2E9FF"
-        android:pathData="M32,36 h44 a10,10 0 0 1 10,10 v22 a10,10 0 0 1 -10,10 h-44 a10,10 0 0 1 -10,-10 v-22 a10,10 0 0 1 10,-10 z" />
-    <!-- Play triangle -->
+        android:fillColor="#00BFA5"
+        android:pathData="M38,26 H70 A12,12 0 0 1 82,38 V70 A12,12 0 0 1 70,82 H38 A12,12 0 0 1 26,70 V38 A12,12 0 0 1 38,26 Z" />
+
+    <!-- Download arrow -->
     <path
-        android:fillColor="#7B2FF7"
-        android:pathData="M49,47 L67,57 L49,67 z" />
-    <!-- Download arrow above the body -->
+        android:fillColor="#FFFFFF"
+        android:pathData="M50,36 h8 v16 h8 l-12,13 l-12,-13 h8 z" />
+
+    <!-- Baseline bar, completing the "save to device" glyph -->
     <path
-        android:fillColor="#F2E9FF"
-        android:pathData="M50,20 h8 v8 h6 l-10,10 l-10,-10 h6 z" />
+        android:fillColor="#FFFFFF"
+        android:pathData="M42,70 h24 v6 h-24 z" />
 </vector>

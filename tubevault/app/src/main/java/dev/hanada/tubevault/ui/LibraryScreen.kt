@@ -1,7 +1,10 @@
 package dev.hanada.tubevault.ui
 
 import androidx.activity.compose.BackHandler
+import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -25,24 +28,30 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Audiotrack
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.DriveFileMove
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Folder
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material.icons.filled.SelectAll
+import androidx.compose.material.icons.filled.Shuffle
 import androidx.compose.material.icons.filled.Videocam
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.Checkbox
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.FilledTonalIconButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -91,8 +100,11 @@ fun LibraryScreen(
                 allCategories = categories,
                 onBack = viewModel::closeCategory,
                 onPlay = { index -> viewModel.play(items, index) },
+                onShuffle = { viewModel.shuffle(items) },
                 onMove = viewModel::moveItem,
                 onDelete = viewModel::deleteItem,
+                onMoveMany = viewModel::moveItems,
+                onDeleteMany = viewModel::deleteItems,
             )
         }
     }
@@ -267,37 +279,73 @@ private fun CategoryDetail(
     allCategories: List<CategoryWithStats>,
     onBack: () -> Unit,
     onPlay: (Int) -> Unit,
+    onShuffle: () -> Unit,
     onMove: (Long, Long) -> Unit,
     onDelete: (Long) -> Unit,
+    onMoveMany: (Set<Long>, Long) -> Unit,
+    onDeleteMany: (Set<Long>) -> Unit,
 ) {
     var moving by remember { mutableStateOf<MediaItemEntity?>(null) }
     var deleting by remember { mutableStateOf<MediaItemEntity?>(null) }
 
+    // Empty means "not selecting". Long-pressing a row starts a selection,
+    // and clearing it drops straight back to normal browsing.
+    var selection by remember(category.category.id) { mutableStateOf(emptySet<Long>()) }
+    var movingSelection by remember { mutableStateOf(false) }
+    var deletingSelection by remember { mutableStateOf(false) }
+
+    val selecting = selection.isNotEmpty()
+
+    // Selections must not outlive the rows they point at.
+    val presentIds = items.map { it.id }.toSet()
+    if (selecting && !presentIds.containsAll(selection)) {
+        selection = selection intersect presentIds
+    }
+
+    BackHandler(enabled = selecting) { selection = emptySet() }
+
     Column(modifier = Modifier.fillMaxSize()) {
-        Row(
-            modifier = Modifier.fillMaxWidth().padding(end = 16.dp, top = 8.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            IconButton(onClick = onBack) {
-                Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "戻る")
-            }
-            Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    text = category.category.name,
-                    style = MaterialTheme.typography.titleLarge,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                )
-                Text(
-                    text = "${category.itemCount} 件 · ${formatBytes(category.totalBytes)}",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-            }
-            if (items.isNotEmpty()) {
-                Button(onClick = { onPlay(0) }) {
-                    Icon(Icons.Default.PlayArrow, contentDescription = null, modifier = Modifier.size(18.dp))
-                    Text("再生", modifier = Modifier.padding(start = 4.dp))
+        if (selecting) {
+            SelectionBar(
+                count = selection.size,
+                allSelected = selection.size == items.size,
+                onClear = { selection = emptySet() },
+                onSelectAll = { selection = presentIds },
+                onMove = { movingSelection = true },
+                onDelete = { deletingSelection = true },
+            )
+        } else {
+            Row(
+                modifier = Modifier.fillMaxWidth().padding(end = 12.dp, top = 8.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                IconButton(onClick = onBack) {
+                    Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "戻る")
+                }
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = category.category.name,
+                        style = MaterialTheme.typography.titleLarge,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                    Text(
+                        text = "${category.itemCount} 件 · ${formatBytes(category.totalBytes)}",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+                if (items.isNotEmpty()) {
+                    FilledTonalIconButton(onClick = onShuffle) {
+                        Icon(Icons.Default.Shuffle, contentDescription = "シャッフル再生")
+                    }
+                    Button(
+                        onClick = { onPlay(0) },
+                        modifier = Modifier.padding(start = 8.dp),
+                    ) {
+                        Icon(Icons.Default.PlayArrow, contentDescription = null, modifier = Modifier.size(18.dp))
+                        Text("再生", modifier = Modifier.padding(start = 4.dp))
+                    }
                 }
             }
         }
@@ -313,7 +361,20 @@ private fun CategoryDetail(
                 itemsIndexed(items, key = { _, item -> item.id }) { index, item ->
                     MediaRow(
                         item = item,
-                        onClick = { onPlay(index) },
+                        selecting = selecting,
+                        selected = item.id in selection,
+                        onClick = {
+                            if (selecting) {
+                                selection = if (item.id in selection) {
+                                    selection - item.id
+                                } else {
+                                    selection + item.id
+                                }
+                            } else {
+                                onPlay(index)
+                            }
+                        },
+                        onLongClick = { selection = selection + item.id },
                         onMove = { moving = item },
                         onDelete = { deleting = item },
                     )
@@ -323,13 +384,44 @@ private fun CategoryDetail(
     }
 
     moving?.let { item ->
-        MoveItemDialog(
-            item = item,
+        MoveTargetDialog(
+            title = "移動先を選択",
             categories = allCategories.filter { it.category.id != item.categoryId },
             onDismiss = { moving = null },
             onConfirm = { target ->
                 onMove(item.id, target)
                 moving = null
+            },
+        )
+    }
+
+    if (movingSelection) {
+        MoveTargetDialog(
+            title = "${selection.size} 件の移動先",
+            categories = allCategories.filter { it.category.id != category.category.id },
+            onDismiss = { movingSelection = false },
+            onConfirm = { target ->
+                onMoveMany(selection, target)
+                movingSelection = false
+                selection = emptySet()
+            },
+        )
+    }
+
+    if (deletingSelection) {
+        AlertDialog(
+            onDismissRequest = { deletingSelection = false },
+            title = { Text("${selection.size} 件を削除しますか？") },
+            text = { Text("選択した項目をファイルごと削除します。") },
+            confirmButton = {
+                TextButton(onClick = {
+                    onDeleteMany(selection)
+                    deletingSelection = false
+                    selection = emptySet()
+                }) { Text("削除") }
+            },
+            dismissButton = {
+                TextButton(onClick = { deletingSelection = false }) { Text("キャンセル") }
             },
         )
     }
@@ -352,10 +444,50 @@ private fun CategoryDetail(
     }
 }
 
+/** Replaces the header while rows are selected. */
 @Composable
+private fun SelectionBar(
+    count: Int,
+    allSelected: Boolean,
+    onClear: () -> Unit,
+    onSelectAll: () -> Unit,
+    onMove: () -> Unit,
+    onDelete: () -> Unit,
+) {
+    Surface(color = MaterialTheme.colorScheme.primaryContainer) {
+        Row(
+            modifier = Modifier.fillMaxWidth().padding(end = 8.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            IconButton(onClick = onClear) {
+                Icon(Icons.Default.Close, contentDescription = "選択を解除")
+            }
+            Text(
+                text = "$count 件を選択",
+                style = MaterialTheme.typography.titleMedium,
+                modifier = Modifier.weight(1f),
+            )
+            IconButton(onClick = onSelectAll, enabled = !allSelected) {
+                Icon(Icons.Default.SelectAll, contentDescription = "すべて選択")
+            }
+            IconButton(onClick = onMove) {
+                Icon(Icons.Default.DriveFileMove, contentDescription = "まとめて移動")
+            }
+            IconButton(onClick = onDelete) {
+                Icon(Icons.Default.Delete, contentDescription = "まとめて削除")
+            }
+        }
+    }
+}
+
+@Composable
+@OptIn(ExperimentalFoundationApi::class)
 private fun MediaRow(
     item: MediaItemEntity,
+    selecting: Boolean,
+    selected: Boolean,
     onClick: () -> Unit,
+    onLongClick: () -> Unit,
     onMove: () -> Unit,
     onDelete: () -> Unit,
 ) {
@@ -364,10 +496,20 @@ private fun MediaRow(
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .clickable(onClick = onClick)
+            .background(
+                if (selected) MaterialTheme.colorScheme.primaryContainer else Color.Transparent,
+            )
+            .combinedClickable(onClick = onClick, onLongClick = onLongClick)
             .padding(horizontal = 16.dp, vertical = 8.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
+        if (selecting) {
+            Checkbox(
+                checked = selected,
+                onCheckedChange = { onClick() },
+                modifier = Modifier.padding(end = 4.dp),
+            )
+        }
         Thumbnail(
             model = item.thumbPath?.let { File(it) },
             durationSec = item.durationSec,
@@ -397,42 +539,53 @@ private fun MediaRow(
                 overflow = TextOverflow.Ellipsis,
             )
         }
-        Box {
-            IconButton(onClick = { menuOpen = true }) {
-                Icon(Icons.Default.MoreVert, contentDescription = "メニュー")
-            }
-            DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
-                DropdownMenuItem(
-                    text = { Text("フォルダを移動") },
-                    leadingIcon = { Icon(Icons.Default.DriveFileMove, contentDescription = null) },
-                    onClick = {
-                        menuOpen = false
-                        onMove()
-                    },
-                )
-                DropdownMenuItem(
-                    text = { Text("削除") },
-                    leadingIcon = { Icon(Icons.Default.Delete, contentDescription = null) },
-                    onClick = {
-                        menuOpen = false
-                        onDelete()
-                    },
-                )
+        // The per-row menu would just get in the way of tap-to-toggle.
+        if (!selecting) {
+            Box {
+                IconButton(onClick = { menuOpen = true }) {
+                    Icon(Icons.Default.MoreVert, contentDescription = "メニュー")
+                }
+                DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
+                    DropdownMenuItem(
+                        text = { Text("フォルダを移動") },
+                        leadingIcon = { Icon(Icons.Default.DriveFileMove, contentDescription = null) },
+                        onClick = {
+                            menuOpen = false
+                            onMove()
+                        },
+                    )
+                    DropdownMenuItem(
+                        text = { Text("削除") },
+                        leadingIcon = { Icon(Icons.Default.Delete, contentDescription = null) },
+                        onClick = {
+                            menuOpen = false
+                            onDelete()
+                        },
+                    )
+                    DropdownMenuItem(
+                        text = { Text("選択") },
+                        leadingIcon = { Icon(Icons.Default.SelectAll, contentDescription = null) },
+                        onClick = {
+                            menuOpen = false
+                            onLongClick()
+                        },
+                    )
+                }
             }
         }
     }
 }
 
 @Composable
-private fun MoveItemDialog(
-    item: MediaItemEntity,
+private fun MoveTargetDialog(
+    title: String,
     categories: List<CategoryWithStats>,
     onDismiss: () -> Unit,
     onConfirm: (Long) -> Unit,
 ) {
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("移動先を選択") },
+        title = { Text(title) },
         text = {
             if (categories.isEmpty()) {
                 Text("他にフォルダがありません")

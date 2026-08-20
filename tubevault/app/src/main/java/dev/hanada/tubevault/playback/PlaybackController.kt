@@ -64,10 +64,17 @@ class PlaybackController(
     private val _expanded = MutableStateFlow(false)
     val expanded: StateFlow<Boolean> = _expanded.asStateFlow()
 
+    private val _shuffleEnabled = MutableStateFlow(false)
+    val shuffleEnabled: StateFlow<Boolean> = _shuffleEnabled.asStateFlow()
+
     private val listener = object : Player.Listener {
         override fun onIsPlayingChanged(isPlaying: Boolean) {
             _isPlaying.value = isPlaying
             if (isPlaying) startProgressLoop() else persistPosition()
+        }
+
+        override fun onShuffleModeEnabledChanged(shuffleModeEnabled: Boolean) {
+            _shuffleEnabled.value = shuffleModeEnabled
         }
 
         override fun onMediaItemTransition(mediaItem: MediaItem?, reason: Int) {
@@ -96,6 +103,7 @@ class PlaybackController(
                         controller.addListener(listener)
                         _player.value = controller
                         _isPlaying.value = controller.isPlaying
+                        _shuffleEnabled.value = controller.shuffleModeEnabled
                     }
                     .onFailure { Log.w(TAG, "could not connect to PlaybackService", it) }
             },
@@ -113,22 +121,38 @@ class PlaybackController(
 
     fun play(item: MediaItemEntity) = playQueue(listOf(item), 0)
 
-    /** Playing a whole folder is what turns a category into a playlist. */
-    fun playQueue(items: List<MediaItemEntity>, startIndex: Int) {
+    /**
+     * Playing a whole folder is what turns a category into a playlist.
+     *
+     * With [shuffle] on, the starting track is picked at random too — leaving
+     * it at index 0 would make every shuffled run open with the same track,
+     * which reads as "not actually shuffled" however random the rest is.
+     */
+    fun playQueue(items: List<MediaItemEntity>, startIndex: Int, shuffle: Boolean = false) {
         if (items.isEmpty()) return
-        val index = startIndex.coerceIn(0, items.lastIndex)
+        val index = if (shuffle) items.indices.random() else startIndex.coerceIn(0, items.lastIndex)
         connect()
         _currentItem.value = items[index]
         _expanded.value = true
 
         scope.launch {
             val controller = awaitController() ?: return@launch
+            controller.shuffleModeEnabled = shuffle
+            _shuffleEnabled.value = shuffle
             controller.setMediaItems(items.map(::toMediaItem), index, C.TIME_UNSET)
             controller.prepare()
+            // Resuming mid-track fights the point of a shuffled run.
             val resumeFrom = items[index].playbackPosMs
-            if (resumeFrom > RESUME_THRESHOLD_MS) controller.seekTo(resumeFrom)
+            if (!shuffle && resumeFrom > RESUME_THRESHOLD_MS) controller.seekTo(resumeFrom)
             controller.play()
         }
+    }
+
+    fun toggleShuffle() {
+        val controller = _player.value ?: return
+        val next = !controller.shuffleModeEnabled
+        controller.shuffleModeEnabled = next
+        _shuffleEnabled.value = next
     }
 
     fun togglePlayPause() {

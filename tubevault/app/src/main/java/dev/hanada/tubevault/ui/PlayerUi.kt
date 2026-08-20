@@ -28,6 +28,7 @@ import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Replay10
 import androidx.compose.material.icons.filled.SkipNext
+import androidx.compose.material.icons.filled.Shuffle
 import androidx.compose.material.icons.filled.SkipPrevious
 import androidx.compose.material.icons.filled.Stop
 import androidx.compose.material3.Icon
@@ -138,6 +139,7 @@ private fun PlayerContent(controller: PlaybackController) {
     val isPlaying by controller.isPlaying.collectAsStateWithLifecycle()
     val positionMs by controller.positionMs.collectAsStateWithLifecycle()
     val durationMs by controller.durationMs.collectAsStateWithLifecycle()
+    val shuffleEnabled by controller.shuffleEnabled.collectAsStateWithLifecycle()
 
     val current = item ?: return
     var scrubbing by remember { mutableStateOf<Float?>(null) }
@@ -261,6 +263,23 @@ private fun PlayerContent(controller: PlaybackController) {
                 IconButton(onClick = controller::next) {
                     Icon(Icons.Default.SkipNext, contentDescription = "次へ")
                 }
+            }
+
+            // Sits below the transport row rather than in it: shuffle is a mode
+            // that stays on, not a one-shot action like the others.
+            IconButton(
+                onClick = controller::toggleShuffle,
+                modifier = Modifier.align(Alignment.CenterHorizontally),
+            ) {
+                Icon(
+                    imageVector = Icons.Default.Shuffle,
+                    contentDescription = if (shuffleEnabled) "シャッフルを解除" else "シャッフル再生",
+                    tint = if (shuffleEnabled) {
+                        MaterialTheme.colorScheme.primary
+                    } else {
+                        MaterialTheme.colorScheme.onSurfaceVariant
+                    },
+                )
             }
 
             Spacer(modifier = Modifier.weight(1f))

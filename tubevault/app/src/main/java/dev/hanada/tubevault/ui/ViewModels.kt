@@ -242,9 +242,34 @@ class LibraryViewModel(private val container: AppContainer) : ViewModel() {
         }
     }
 
+    /**
+     * Bulk versions run sequentially inside one coroutine: each move rewrites
+     * rows and shuffles files between folders, so letting them overlap would
+     * race the same directories against each other.
+     */
+    fun moveItems(itemIds: Collection<Long>, targetCategoryId: Long) {
+        viewModelScope.launch {
+            itemIds.forEach { container.library.moveItem(it, targetCategoryId) }
+        }
+    }
+
+    fun deleteItems(itemIds: Collection<Long>) {
+        viewModelScope.launch {
+            itemIds.forEach {
+                container.playback.stopIfPlaying(it)
+                container.library.deleteItem(it)
+            }
+        }
+    }
+
     /** Plays the whole folder starting at [index] — a category doubles as a playlist. */
     fun play(items: List<MediaItemEntity>, index: Int) {
         container.playback.playQueue(items, index)
+    }
+
+    /** Plays the folder in random order, starting from a random track. */
+    fun shuffle(items: List<MediaItemEntity>) {
+        container.playback.playQueue(items, 0, shuffle = true)
     }
 }
 
