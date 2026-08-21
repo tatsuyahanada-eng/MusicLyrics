@@ -205,7 +205,7 @@ class DownloadCenter(
                     uploader = job.uploader,
                     durationSec = job.durationSec,
                     kind = job.kind.name,
-                    categoryId = category.id,
+                    categoryId = categoryId,
                     filePath = outcome.mediaFile.absolutePath,
                     thumbPath = outcome.thumbFile?.absolutePath,
                     fileSizeBytes = outcome.sizeBytes,
