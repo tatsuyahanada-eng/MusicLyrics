@@ -164,6 +164,10 @@ class LibraryViewModel(private val container: AppContainer) : ViewModel() {
     val categories: StateFlow<List<CategoryWithStats>> = container.library.observeCategories()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(SUBSCRIBE_TIMEOUT_MS), emptyList())
 
+    /** Every download across every folder, for the top-level shuffle. */
+    val allItems: StateFlow<List<MediaItemEntity>> = container.library.observeAllItems()
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(SUBSCRIBE_TIMEOUT_MS), emptyList())
+
     val settings = container.settings.state
 
     private val _importing = MutableStateFlow(false)
@@ -284,6 +288,15 @@ class LibraryViewModel(private val container: AppContainer) : ViewModel() {
     /** Plays the folder in random order, starting from a random track. */
     fun shuffle(items: List<MediaItemEntity>) {
         container.playback.playQueue(items, 0, shuffle = true)
+    }
+
+    /**
+     * Shuffles every download in the library, folder boundaries ignored —
+     * the button on the folder grid, for when the user wants anything to
+     * play rather than picking a specific folder first.
+     */
+    fun shuffleAll() {
+        shuffle(allItems.value)
     }
 }
 

@@ -93,6 +93,7 @@ fun LibraryScreen(
     val categories by viewModel.categories.collectAsStateWithLifecycle()
     val openCategory by viewModel.openCategory.collectAsStateWithLifecycle()
     val items by viewModel.items.collectAsStateWithLifecycle()
+    val allItems by viewModel.allItems.collectAsStateWithLifecycle()
     val settings by viewModel.settings.collectAsStateWithLifecycle()
     val importing by viewModel.importing.collectAsStateWithLifecycle()
     val importStatus by viewModel.importStatus.collectAsStateWithLifecycle()
@@ -112,10 +113,12 @@ fun LibraryScreen(
         if (current == null) {
             CategoryGrid(
                 categories = categories,
+                canShuffle = allItems.isNotEmpty(),
                 onOpen = viewModel::open,
                 onCreate = viewModel::createCategory,
                 onRename = viewModel::renameCategory,
                 onDelete = viewModel::deleteCategory,
+                onShuffleAll = viewModel::shuffleAll,
             )
         } else {
             CategoryDetail(
@@ -141,10 +144,12 @@ fun LibraryScreen(
 @Composable
 private fun CategoryGrid(
     categories: List<CategoryWithStats>,
+    canShuffle: Boolean,
     onOpen: (Long) -> Unit,
     onCreate: (String) -> Unit,
     onRename: (Long, String) -> Unit,
     onDelete: (Long, Long?) -> Unit,
+    onShuffleAll: () -> Unit,
 ) {
     var showCreate by remember { mutableStateOf(false) }
     var renaming by remember { mutableStateOf<CategoryWithStats?>(null) }
@@ -154,7 +159,18 @@ private fun CategoryGrid(
         ScreenHeader(
             title = "フォルダ",
             actions = {
-                FilledTonalIconButton(onClick = { showCreate = true }) {
+                // Folder boundaries are for organising, not for limiting what
+                // plays — this pulls from every folder at once, so there is a
+                // one-tap "just play something" without picking one first.
+                if (canShuffle) {
+                    FilledTonalIconButton(onClick = onShuffleAll) {
+                        Icon(Icons.Default.Shuffle, contentDescription = "すべてシャッフル再生")
+                    }
+                }
+                FilledTonalIconButton(
+                    onClick = { showCreate = true },
+                    modifier = Modifier.padding(start = 8.dp),
+                ) {
                     Icon(Icons.Default.Add, contentDescription = "フォルダを追加")
                 }
             },
