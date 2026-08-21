@@ -265,15 +265,16 @@ private fun PortraitPlayer(
                 }
             }
 
-            // The stage takes every pixel the controls do not, and centres the
-            // video inside it. That is what puts the picture at eye level with
-            // room above it, instead of pinned under the status bar.
+            // The stage takes every pixel the controls do not, and the picture
+            // sits at the bottom of it — directly above the title it belongs
+            // to. Centring it instead left the video stranded mid-screen with
+            // a gap under it and no relationship to anything.
             Box(
                 modifier = Modifier
                     .weight(1f)
                     .fillMaxWidth()
-                    .padding(horizontal = 20.dp, vertical = 12.dp),
-                contentAlignment = Alignment.Center,
+                    .padding(start = 20.dp, end = 20.dp, top = 12.dp, bottom = 20.dp),
+                contentAlignment = Alignment.BottomCenter,
             ) {
                 Stage(current = current, player = player)
             }

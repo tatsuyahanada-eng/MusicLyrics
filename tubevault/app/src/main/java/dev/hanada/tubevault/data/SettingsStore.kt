@@ -40,6 +40,8 @@ data class Settings(
     val useCookies: Boolean = true,
     /** Mint a PO Token locally via the WebView before each request. */
     val usePoToken: Boolean = true,
+    /** Folder listings drop thumbnails and show titles only. */
+    val compactLibrary: Boolean = false,
     /** When yt-dlp itself was last refreshed, so startup can keep it current. */
     val ytDlpUpdatedAt: Long = 0L,
 )
@@ -66,6 +68,7 @@ class SettingsStore(context: Context) {
             .putString(KEY_PLAYER_CLIENT, next.playerClient.name)
             .putBoolean(KEY_USE_COOKIES, next.useCookies)
             .putBoolean(KEY_USE_PO_TOKEN, next.usePoToken)
+            .putBoolean(KEY_COMPACT_LIBRARY, next.compactLibrary)
             .putLong(KEY_YTDLP_UPDATED_AT, next.ytDlpUpdatedAt)
             .putInt(KEY_VERSION, CURRENT_VERSION)
             .apply()
@@ -101,6 +104,7 @@ class SettingsStore(context: Context) {
             playerClient = client,
             useCookies = prefs.getBoolean(KEY_USE_COOKIES, true),
             usePoToken = prefs.getBoolean(KEY_USE_PO_TOKEN, true),
+            compactLibrary = prefs.getBoolean(KEY_COMPACT_LIBRARY, false),
             ytDlpUpdatedAt = prefs.getLong(KEY_YTDLP_UPDATED_AT, 0L),
         )
     }
@@ -118,6 +122,7 @@ class SettingsStore(context: Context) {
         const val KEY_PLAYER_CLIENT = "player_client"
         const val KEY_USE_COOKIES = "use_cookies"
         const val KEY_USE_PO_TOKEN = "use_po_token"
+        const val KEY_COMPACT_LIBRARY = "compact_library"
         const val KEY_YTDLP_UPDATED_AT = "ytdlp_updated_at"
     }
 }

@@ -214,7 +214,7 @@ class LibraryRepository(
      * left alone — only the ones this app assigned itself are migrated.
      */
     suspend fun harmonizeLegacyColors() {
-        val remap = LEGACY_PALETTE.zip(PALETTE).toMap()
+        val remap = LEGACY_PALETTES.flatMap { it.zip(PALETTE) }.toMap()
         categoryDao.getAll().forEach { category ->
             remap[category.colorArgb]?.let {
                 categoryDao.update(category.copy(colorArgb = it))
@@ -232,29 +232,46 @@ class LibraryRepository(
 
     companion object {
         /**
-         * Muted and low-contrast on purpose: folder swatches are the only
-         * colour in an otherwise grey app, and the saturated rainbow this used
-         * to be fought both the grey and the thumbnails next to it.
+         * Bright enough to hold up against a near-black background, muted
+         * enough not to fight the yellow accent. A swatch is the only colour
+         * a folder gets, so it has to read at 20dp without shouting.
          */
         val PALETTE = listOf(
-            0xFF2F6F68.toInt(),
-            0xFF3E6B8A.toInt(),
-            0xFF5D6B7D.toInt(),
-            0xFF6E6A82.toInt(),
-            0xFF7A6A5D.toInt(),
-            0xFF4F7355.toInt(),
-            0xFF8A6A6A.toInt(),
+            0xFFE8B93B.toInt(),
+            0xFFC9CDD1.toInt(),
+            0xFF9AAE63.toInt(),
+            0xFF6E93A8.toInt(),
+            0xFFC08457.toInt(),
+            0xFF9F8FBF.toInt(),
+            0xFF5FB89C.toInt(),
         )
 
-        /** The saturated set [PALETTE] replaced, kept only to migrate off it. */
-        private val LEGACY_PALETTE = listOf(
-            0xFF7B2FF7.toInt(),
-            0xFF2F80ED.toInt(),
-            0xFF27AE60.toInt(),
-            0xFFEB5757.toInt(),
-            0xFFF2994A.toInt(),
-            0xFF9B51E0.toInt(),
-            0xFF00B8D9.toInt(),
+        /**
+         * Every palette [PALETTE] has replaced, newest first. Folders are
+         * migrated by position, so a folder keeps the slot it was given even
+         * as the colours in that slot change.
+         */
+        private val LEGACY_PALETTES = listOf(
+            // The muted grey/teal set, from when the app was light grey.
+            listOf(
+                0xFF2F6F68.toInt(),
+                0xFF3E6B8A.toInt(),
+                0xFF5D6B7D.toInt(),
+                0xFF6E6A82.toInt(),
+                0xFF7A6A5D.toInt(),
+                0xFF4F7355.toInt(),
+                0xFF8A6A6A.toInt(),
+            ),
+            // The original saturated rainbow.
+            listOf(
+                0xFF7B2FF7.toInt(),
+                0xFF2F80ED.toInt(),
+                0xFF27AE60.toInt(),
+                0xFFEB5757.toInt(),
+                0xFFF2994A.toInt(),
+                0xFF9B51E0.toInt(),
+                0xFF00B8D9.toInt(),
+            ),
         )
 
         private val DEFAULT_CATEGORIES = listOf(

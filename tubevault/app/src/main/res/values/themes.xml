@@ -1,10 +1,12 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <!--
-      Only used for the window before Compose draws. Painting it the same grey
-      as the Compose background stops the launch flashing white first.
+      Only used for the window before Compose draws. Painting it the same
+      near-black as the Compose background stops the launch flashing first,
+      and the dark parent is used even in values/ because the app does not
+      follow the system theme.
     -->
-    <style name="Theme.TubeVault" parent="android:Theme.Material.Light.NoActionBar">
+    <style name="Theme.TubeVault" parent="android:Theme.Material.NoActionBar">
         <item name="android:windowBackground">@color/window_background</item>
     </style>
 </resources>

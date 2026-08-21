@@ -8,6 +8,7 @@ import dev.hanada.tubevault.data.AppDatabase
 import dev.hanada.tubevault.data.LibraryRepository
 import dev.hanada.tubevault.data.SettingsStore
 import dev.hanada.tubevault.download.DownloadCenter
+import dev.hanada.tubevault.importer.LocalImporter
 import dev.hanada.tubevault.playback.PlaybackController
 import dev.hanada.tubevault.potoken.PoTokenProvider
 import dev.hanada.tubevault.ytdlp.YtDlpEngine
@@ -37,6 +38,8 @@ class AppContainer(private val app: Application) {
     }
 
     val downloads: DownloadCenter by lazy { DownloadCenter(app, engine, library) }
+
+    val importer: LocalImporter by lazy { LocalImporter(app, library) }
 
     val playback: PlaybackController by lazy { PlaybackController(app, library) }
 

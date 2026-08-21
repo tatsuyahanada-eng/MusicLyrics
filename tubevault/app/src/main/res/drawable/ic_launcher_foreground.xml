@@ -8,18 +8,18 @@
       so everything here stays inside that or it gets cropped on round masks.
     -->
 
-    <!-- Teal plate the glyph sits on -->
+    <!-- Yellow plate the glyph sits on -->
     <path
-        android:fillColor="#00BFA5"
+        android:fillColor="#FFC93C"
         android:pathData="M38,26 H70 A12,12 0 0 1 82,38 V70 A12,12 0 0 1 70,82 H38 A12,12 0 0 1 26,70 V38 A12,12 0 0 1 38,26 Z" />
 
-    <!-- Download arrow -->
+    <!-- Download arrow, cut out of the plate in the background's black -->
     <path
-        android:fillColor="#FFFFFF"
+        android:fillColor="#151718"
         android:pathData="M50,36 h8 v16 h8 l-12,13 l-12,-13 h8 z" />
 
     <!-- Baseline bar, completing the "save to device" glyph -->
     <path
-        android:fillColor="#FFFFFF"
+        android:fillColor="#151718"
         android:pathData="M42,70 h24 v6 h-24 z" />
 </vector>

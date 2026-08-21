@@ -1,6 +1,10 @@
 package dev.hanada.tubevault.ui
 
+import android.net.Uri
+import android.widget.Toast
 import androidx.activity.compose.BackHandler
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -36,19 +40,23 @@ import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Folder
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material.icons.filled.FileUpload
 import androidx.compose.material.icons.filled.SelectAll
 import androidx.compose.material.icons.filled.Shuffle
 import androidx.compose.material.icons.filled.Videocam
+import androidx.compose.material.icons.filled.ViewList
+import androidx.compose.material.icons.filled.ViewModule
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.FilledIconButton
 import androidx.compose.material3.FilledTonalIconButton
 import androidx.compose.material3.Icon
+import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
@@ -56,12 +64,14 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.style.TextOverflow
@@ -69,6 +79,7 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import dev.hanada.tubevault.core.MediaKind
 import dev.hanada.tubevault.core.formatBytes
+import dev.hanada.tubevault.core.formatDuration
 import dev.hanada.tubevault.data.CategoryWithStats
 import dev.hanada.tubevault.data.MediaItemEntity
 import java.io.File
@@ -82,8 +93,19 @@ fun LibraryScreen(
     val categories by viewModel.categories.collectAsStateWithLifecycle()
     val openCategory by viewModel.openCategory.collectAsStateWithLifecycle()
     val items by viewModel.items.collectAsStateWithLifecycle()
+    val settings by viewModel.settings.collectAsStateWithLifecycle()
+    val importing by viewModel.importing.collectAsStateWithLifecycle()
+    val importStatus by viewModel.importStatus.collectAsStateWithLifecycle()
 
     BackHandler(enabled = openCategory != null) { viewModel.closeCategory() }
+
+    val context = LocalContext.current
+    LaunchedEffect(importStatus) {
+        importStatus?.let {
+            Toast.makeText(context, it, Toast.LENGTH_SHORT).show()
+            viewModel.consumeImportStatus()
+        }
+    }
 
     Box(modifier = modifier.fillMaxSize().padding(contentPadding)) {
         val current = openCategory
@@ -107,6 +129,10 @@ fun LibraryScreen(
                 onDelete = viewModel::deleteItem,
                 onMoveMany = viewModel::moveItems,
                 onDeleteMany = viewModel::deleteItems,
+                compact = settings.compactLibrary,
+                onToggleCompact = viewModel::toggleCompactLibrary,
+                importing = importing,
+                onImport = viewModel::importFiles,
             )
         }
     }
@@ -285,7 +311,18 @@ private fun CategoryDetail(
     onDelete: (Long) -> Unit,
     onMoveMany: (Set<Long>, Long) -> Unit,
     onDeleteMany: (Set<Long>) -> Unit,
+    compact: Boolean,
+    onToggleCompact: () -> Unit,
+    importing: Boolean,
+    onImport: (List<Uri>) -> Unit,
 ) {
+    // ACTION_OPEN_DOCUMENT rather than a media-store query: it needs no storage
+    // permission, and it lets the user reach files a media scanner never
+    // indexed — downloads folders, anything sideloaded over USB.
+    val picker = rememberLauncherForActivityResult(
+        ActivityResultContracts.OpenMultipleDocuments(),
+    ) { uris -> onImport(uris) }
+
     var moving by remember { mutableStateOf<MediaItemEntity?>(null) }
     var deleting by remember { mutableStateOf<MediaItemEntity?>(null) }
 
@@ -329,32 +366,44 @@ private fun CategoryDetail(
                         FilledTonalIconButton(onClick = onShuffle) {
                             Icon(Icons.Default.Shuffle, contentDescription = "シャッフル再生")
                         }
-                        Button(
+                        FilledIconButton(
                             onClick = { onPlay(0) },
-                            modifier = Modifier.padding(start = 8.dp),
+                            modifier = Modifier.padding(start = 6.dp),
                         ) {
-                            Icon(Icons.Default.PlayArrow, contentDescription = null, modifier = Modifier.size(18.dp))
-                            Text("再生", modifier = Modifier.padding(start = 4.dp))
+                            Icon(Icons.Default.PlayArrow, contentDescription = "先頭から再生")
                         }
                     }
+                    FolderMenu(
+                        compact = compact,
+                        importEnabled = !importing,
+                        onToggleCompact = onToggleCompact,
+                        onImport = { picker.launch(IMPORT_MIME_TYPES) },
+                    )
                 },
             )
+        }
+
+        if (importing) {
+            // Copying a long video off the device is not instant, and the
+            // folder shows nothing until a file lands, so say something.
+            LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
         }
 
         if (items.isEmpty()) {
             EmptyState(
                 icon = Icons.Default.Folder,
                 title = "まだ何もありません",
-                subtitle = "検索タブから動画をダウンロードすると、ここに保存されます",
+                subtitle = "検索タブからダウンロードするか、右上のメニューから端末の動画・音楽を取り込んでください",
             )
         } else {
             LazyColumn(
                 contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp),
-                verticalArrangement = Arrangement.spacedBy(6.dp),
+                verticalArrangement = Arrangement.spacedBy(if (compact) 3.dp else 6.dp),
             ) {
                 itemsIndexed(items, key = { _, item -> item.id }) { index, item ->
                     MediaRow(
                         item = item,
+                        compact = compact,
                         selecting = selecting,
                         selected = item.id in selection,
                         onClick = {
@@ -438,6 +487,51 @@ private fun CategoryDetail(
     }
 }
 
+/**
+ * The folder's less-used actions. They are behind one button because the
+ * header already carries shuffle and play, and four icon buttons plus a back
+ * arrow leaves a folder name nowhere to go on a phone.
+ */
+@Composable
+private fun FolderMenu(
+    compact: Boolean,
+    importEnabled: Boolean,
+    onToggleCompact: () -> Unit,
+    onImport: () -> Unit,
+) {
+    var open by remember { mutableStateOf(false) }
+
+    Box {
+        IconButton(onClick = { open = true }) {
+            Icon(Icons.Default.MoreVert, contentDescription = "フォルダのメニュー")
+        }
+        DropdownMenu(expanded = open, onDismissRequest = { open = false }) {
+            DropdownMenuItem(
+                text = { Text(if (compact) "サムネイル表示" else "タイトルのみ表示") },
+                leadingIcon = {
+                    Icon(
+                        imageVector = if (compact) Icons.Default.ViewModule else Icons.Default.ViewList,
+                        contentDescription = null,
+                    )
+                },
+                onClick = {
+                    open = false
+                    onToggleCompact()
+                },
+            )
+            DropdownMenuItem(
+                text = { Text("端末から取り込む") },
+                leadingIcon = { Icon(Icons.Default.FileUpload, contentDescription = null) },
+                enabled = importEnabled,
+                onClick = {
+                    open = false
+                    onImport()
+                },
+            )
+        }
+    }
+}
+
 /** Replaces the header while rows are selected. */
 @Composable
 private fun SelectionBar(
@@ -478,6 +572,7 @@ private fun SelectionBar(
 @OptIn(ExperimentalFoundationApi::class)
 private fun MediaRow(
     item: MediaItemEntity,
+    compact: Boolean,
     selecting: Boolean,
     selected: Boolean,
     onClick: () -> Unit,
@@ -500,7 +595,7 @@ private fun MediaRow(
             modifier = Modifier
                 .fillMaxWidth()
                 .combinedClickable(onClick = onClick, onLongClick = onLongClick)
-                .padding(10.dp),
+                .padding(horizontal = if (compact) 12.dp else 10.dp, vertical = if (compact) 4.dp else 10.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             if (selecting) {
@@ -510,45 +605,83 @@ private fun MediaRow(
                     modifier = Modifier.padding(end = 4.dp),
                 )
             }
-            Thumbnail(
-                model = item.thumbPath?.let { File(it) },
-                durationSec = item.durationSec,
-                fallbackIcon = if (item.mediaKind == MediaKind.AUDIO) {
-                    Icons.Default.Audiotrack
-                } else {
-                    Icons.Default.Videocam
-                },
-                modifier = Modifier.width(104.dp).height(60.dp),
-            )
-            Column(modifier = Modifier.weight(1f).padding(start = 12.dp)) {
-                Text(
-                    text = item.title,
-                    style = MaterialTheme.typography.bodyMedium,
-                    maxLines = 2,
-                    overflow = TextOverflow.Ellipsis,
+            if (compact) {
+                // Titles-only: the kind glyph replaces the artwork, since with
+                // no picture there is otherwise nothing telling a track apart
+                // from a video at a glance.
+                Icon(
+                    imageVector = if (item.mediaKind == MediaKind.AUDIO) {
+                        Icons.Default.Audiotrack
+                    } else {
+                        Icons.Default.Videocam
+                    },
+                    contentDescription = item.mediaKind.label,
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.size(18.dp),
                 )
+            } else {
+                Thumbnail(
+                    model = item.thumbPath?.let { File(it) },
+                    durationSec = item.durationSec,
+                    fallbackIcon = if (item.mediaKind == MediaKind.AUDIO) {
+                        Icons.Default.Audiotrack
+                    } else {
+                        Icons.Default.Videocam
+                    },
+                    modifier = Modifier.width(104.dp).height(60.dp),
+                )
+            }
+            Column(modifier = Modifier.weight(1f).padding(start = 12.dp)) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    if (item.lastPlayedAt == null) {
+                    if (compact && item.lastPlayedAt == null) {
                         NewBadge(modifier = Modifier.padding(end = 6.dp))
                     }
                     Text(
-                        text = listOfNotNull(
-                            item.mediaKind.label,
-                            formatBytes(item.fileSizeBytes),
-                            item.uploader,
-                        ).joinToString(" · "),
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        maxLines = 1,
+                        text = item.title,
+                        style = MaterialTheme.typography.bodyMedium,
+                        maxLines = if (compact) 1 else 2,
                         overflow = TextOverflow.Ellipsis,
                     )
                 }
+                if (!compact) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        if (item.lastPlayedAt == null) {
+                            NewBadge(modifier = Modifier.padding(end = 6.dp))
+                        }
+                        Text(
+                            text = listOfNotNull(
+                                item.mediaKind.label,
+                                formatBytes(item.fileSizeBytes),
+                                item.uploader,
+                            ).joinToString(" · "),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                        )
+                    }
+                }
+            }
+            if (compact && item.durationSec > 0) {
+                Text(
+                    text = formatDuration(item.durationSec),
+                    style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(start = 8.dp),
+                )
             }
             // The per-row menu would just get in the way of tap-to-toggle.
             if (!selecting) {
                 Box {
-                    IconButton(onClick = { menuOpen = true }) {
-                        Icon(Icons.Default.MoreVert, contentDescription = "メニュー")
+                    IconButton(
+                        onClick = { menuOpen = true },
+                        modifier = Modifier.size(if (compact) 32.dp else 48.dp),
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.MoreVert,
+                            contentDescription = "メニュー",
+                            modifier = Modifier.size(if (compact) 18.dp else 24.dp),
+                        )
                     }
                     DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
                         DropdownMenuItem(
@@ -706,3 +839,6 @@ private fun TextPromptDialog(
         dismissButton = { TextButton(onClick = onDismiss) { Text("キャンセル") } },
     )
 }
+
+/** What the picker will offer: playable media only, nothing else. */
+private val IMPORT_MIME_TYPES = arrayOf("video/*", "audio/*")

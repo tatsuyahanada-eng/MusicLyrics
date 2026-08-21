@@ -1,5 +1,6 @@
 package dev.hanada.tubevault.ui
 
+import android.net.Uri
 import android.os.Bundle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
@@ -163,6 +164,15 @@ class LibraryViewModel(private val container: AppContainer) : ViewModel() {
     val categories: StateFlow<List<CategoryWithStats>> = container.library.observeCategories()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(SUBSCRIBE_TIMEOUT_MS), emptyList())
 
+    val settings = container.settings.state
+
+    private val _importing = MutableStateFlow(false)
+    val importing: StateFlow<Boolean> = _importing.asStateFlow()
+
+    /** One-shot message about the last import, cleared once shown. */
+    private val _importStatus = MutableStateFlow<String?>(null)
+    val importStatus: StateFlow<String?> = _importStatus.asStateFlow()
+
     private val _openCategoryId = MutableStateFlow<Long?>(null)
     val openCategoryId: StateFlow<Long?> = _openCategoryId.asStateFlow()
 
@@ -234,6 +244,36 @@ class LibraryViewModel(private val container: AppContainer) : ViewModel() {
                 container.library.deleteItem(it)
             }
         }
+    }
+
+    fun toggleCompactLibrary() {
+        container.settings.update { it.copy(compactLibrary = !it.compactLibrary) }
+    }
+
+    /**
+     * Copies files chosen in the system picker into the open folder. Refuses to
+     * overlap with itself: a second run while the first is still copying would
+     * have both writing into the same directory, and the picker is easy to
+     * trigger twice while a large video is still being read.
+     */
+    fun importFiles(uris: List<Uri>) {
+        val target = _openCategoryId.value ?: return
+        if (uris.isEmpty() || _importing.value) return
+        viewModelScope.launch {
+            _importing.value = true
+            val outcome = runCatching { container.importer.import(uris, target) }.getOrNull()
+            _importing.value = false
+            _importStatus.value = when {
+                outcome == null || outcome.imported == 0 -> "取り込めませんでした"
+                outcome.failed > 0 ->
+                    "${outcome.imported} 件を取り込みました（${outcome.failed} 件は失敗）"
+                else -> "${outcome.imported} 件を取り込みました"
+            }
+        }
+    }
+
+    fun consumeImportStatus() {
+        _importStatus.value = null
     }
 
     /** Plays the whole folder starting at [index] — a category doubles as a playlist. */
