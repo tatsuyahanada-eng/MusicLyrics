@@ -306,6 +306,7 @@ class YtDlpEngine(
                     uploader = "情報を取得できませんでした",
                     durationSec = 0L,
                     viewCount = 0L,
+                    unresolved = true,
                 )
             }
 

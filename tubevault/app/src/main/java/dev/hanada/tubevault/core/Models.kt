@@ -22,6 +22,8 @@ data class SearchResult(
     val uploader: String?,
     val durationSec: Long,
     val viewCount: Long,
+    /** True when [title] is a placeholder — metadata extraction failed. */
+    val unresolved: Boolean = false,
 ) {
     val watchUrl: String get() = "https://www.youtube.com/watch?v=$videoId"
     val thumbnailUrl: String get() = "https://i.ytimg.com/vi/$videoId/hqdefault.jpg"

@@ -95,6 +95,22 @@ object Storage {
         true
     }.getOrDefault(false)
 
+    /**
+     * Relocates a whole folder tree — a category's directory, subfolders and
+     * all — to live under a new parent. `renameTo` alone handles this in one
+     * step when it works; the recursive-copy fallback exists for the same
+     * cross-mount-point case [copyThenDelete] covers for single files, just
+     * applied to an entire subtree at once.
+     */
+    fun moveDirectory(source: File, target: File): Boolean {
+        if (source.renameTo(target)) return true
+        return runCatching {
+            source.copyRecursively(target, overwrite = true)
+            source.deleteRecursively()
+            true
+        }.getOrDefault(false)
+    }
+
     fun directorySize(dir: File): Long =
         dir.walkTopDown().filter { it.isFile }.sumOf { it.length() }
 }

@@ -72,24 +72,37 @@ class DownloadCenter(
         }
     }
 
+    /**
+     * A result whose metadata never resolved (search fell back to a
+     * `videoId`-only placeholder, typically from a pasted URL hitting a
+     * transient extraction failure) still has to end up with a real title —
+     * otherwise the placeholder is what the library shows forever, since
+     * nothing else ever re-fetches it. Routing it through [enqueueUrl]
+     * instead retries the metadata fetch when the job actually starts.
+     */
     fun enqueue(
         result: SearchResult,
         kind: MediaKind,
         quality: VideoQuality,
         categoryId: Long,
-    ): String = enqueue(
-        DownloadJob(
-            id = UUID.randomUUID().toString(),
-            videoId = result.videoId,
-            title = result.title,
-            uploader = result.uploader,
-            durationSec = result.durationSec,
-            sourceUrl = result.watchUrl,
-            kind = kind,
-            quality = quality,
-            categoryId = categoryId,
-        ),
-    )
+    ): String {
+        if (result.unresolved) {
+            return enqueueUrl(result.videoId, result.watchUrl, result.title, kind, quality, categoryId)
+        }
+        return enqueue(
+            DownloadJob(
+                id = UUID.randomUUID().toString(),
+                videoId = result.videoId,
+                title = result.title,
+                uploader = result.uploader,
+                durationSec = result.durationSec,
+                sourceUrl = result.watchUrl,
+                kind = kind,
+                quality = quality,
+                categoryId = categoryId,
+            ),
+        )
+    }
 
     /**
      * Queues a video the browser is sitting on. All the page gives us is a URL

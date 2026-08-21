@@ -5,6 +5,7 @@ import android.widget.Toast
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -23,6 +24,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.item
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
@@ -123,6 +125,7 @@ fun LibraryScreen(
                 onCreate = { name -> viewModel.createCategory(name) },
                 onRename = viewModel::renameCategory,
                 onDelete = viewModel::deleteCategory,
+                onMoveCategory = viewModel::moveCategory,
                 onShuffleAll = viewModel::shuffleAll,
             )
         } else {
@@ -144,6 +147,7 @@ fun LibraryScreen(
                 onCreateSub = viewModel::createSubfolder,
                 onRenameSub = viewModel::renameCategory,
                 onDeleteSub = viewModel::deleteCategory,
+                onMoveCategory = viewModel::moveCategory,
                 compact = settings.compactLibrary,
                 onToggleCompact = viewModel::toggleCompactLibrary,
                 importing = importing,
@@ -162,11 +166,13 @@ private fun CategoryGrid(
     onCreate: (String) -> Unit,
     onRename: (Long, String) -> Unit,
     onDelete: (Long, Long?) -> Unit,
+    onMoveCategory: (Long, Long?) -> Unit,
     onShuffleAll: () -> Unit,
 ) {
     var showCreate by remember { mutableStateOf(false) }
     var renaming by remember { mutableStateOf<CategoryWithStats?>(null) }
     var deleting by remember { mutableStateOf<CategoryWithStats?>(null) }
+    var moving by remember { mutableStateOf<CategoryWithStats?>(null) }
 
     Column(modifier = Modifier.fillMaxSize()) {
         ScreenHeader(
@@ -208,6 +214,7 @@ private fun CategoryGrid(
                         onClick = { onOpen(entry.category.id) },
                         onRename = { renaming = entry },
                         onDelete = { deleting = entry },
+                        onMove = { moving = entry },
                     )
                 }
             }
@@ -257,6 +264,22 @@ private fun CategoryGrid(
             },
         )
     }
+
+    moving?.let { entry ->
+        // A folder can't move into itself or anywhere inside its own
+        // subtree — either does nothing or turns the tree into a cycle.
+        val excluded = categorySubtreeIds(allCategories, entry.category.id).toSet()
+        MoveCategoryDialog(
+            title = "「${entry.category.name}」の移動先",
+            candidates = allCategories.filter { it.category.id !in excluded },
+            currentParentId = entry.category.parentId,
+            onDismiss = { moving = null },
+            onConfirm = { newParentId ->
+                onMoveCategory(entry.category.id, newParentId)
+                moving = null
+            },
+        )
+    }
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -266,6 +289,7 @@ private fun CategoryCard(
     onClick: () -> Unit,
     onRename: () -> Unit,
     onDelete: () -> Unit,
+    onMove: () -> Unit,
 ) {
     var menuOpen by remember { mutableStateOf(false) }
 
@@ -301,6 +325,14 @@ private fun CategoryCard(
                             onClick = {
                                 menuOpen = false
                                 onRename()
+                            },
+                        )
+                        DropdownMenuItem(
+                            text = { Text("フォルダを移動") },
+                            leadingIcon = { Icon(Icons.Default.DriveFileMove, contentDescription = null) },
+                            onClick = {
+                                menuOpen = false
+                                onMove()
                             },
                         )
                         DropdownMenuItem(
@@ -357,6 +389,7 @@ private fun CategoryDetail(
     onCreateSub: (String) -> Unit,
     onRenameSub: (Long, String) -> Unit,
     onDeleteSub: (Long, Long?) -> Unit,
+    onMoveCategory: (Long, Long?) -> Unit,
     compact: Boolean,
     onToggleCompact: () -> Unit,
     importing: Boolean,
@@ -374,6 +407,7 @@ private fun CategoryDetail(
     var showCreateSub by remember { mutableStateOf(false) }
     var renamingSub by remember { mutableStateOf<CategoryWithStats?>(null) }
     var deletingSub by remember { mutableStateOf<CategoryWithStats?>(null) }
+    var movingSub by remember { mutableStateOf<CategoryWithStats?>(null) }
 
     // Empty means "not selecting". Long-pressing a row starts a selection,
     // and clearing it drops straight back to normal browsing.
@@ -469,6 +503,7 @@ private fun CategoryDetail(
                         onClick = { onOpenSub(entry.category.id) },
                         onRename = { renamingSub = entry },
                         onDelete = { deletingSub = entry },
+                        onMove = { movingSub = entry },
                     )
                 }
                 itemsIndexed(items, key = { _, item -> item.id }) { index, item ->
@@ -599,6 +634,20 @@ private fun CategoryDetail(
             },
         )
     }
+
+    movingSub?.let { entry ->
+        val excluded = categorySubtreeIds(allCategories, entry.category.id).toSet()
+        MoveCategoryDialog(
+            title = "「${entry.category.name}」の移動先",
+            candidates = allCategories.filter { it.category.id !in excluded },
+            currentParentId = entry.category.parentId,
+            onDismiss = { movingSub = null },
+            onConfirm = { newParentId ->
+                onMoveCategory(entry.category.id, newParentId)
+                movingSub = null
+            },
+        )
+    }
 }
 
 /**
@@ -612,6 +661,7 @@ private fun SubfolderRow(
     onClick: () -> Unit,
     onRename: () -> Unit,
     onDelete: () -> Unit,
+    onMove: () -> Unit,
 ) {
     var menuOpen by remember { mutableStateOf(false) }
 
@@ -661,6 +711,14 @@ private fun SubfolderRow(
                         onClick = {
                             menuOpen = false
                             onRename()
+                        },
+                    )
+                    DropdownMenuItem(
+                        text = { Text("フォルダを移動") },
+                        leadingIcon = { Icon(Icons.Default.DriveFileMove, contentDescription = null) },
+                        onClick = {
+                            menuOpen = false
+                            onMove()
                         },
                     )
                     DropdownMenuItem(
@@ -781,12 +839,20 @@ private fun MediaRow(
 ) {
     var menuOpen by remember { mutableStateOf(false) }
 
+    // primaryContainer alone read too close to the row's normal background
+    // to tell selected rows apart at a glance — a tinted fill plus a solid
+    // accent-coloured border makes a selected row unmistakable.
     Surface(
         shape = MaterialTheme.shapes.medium,
         color = if (selected) {
-            MaterialTheme.colorScheme.primaryContainer
+            MaterialTheme.colorScheme.primary.copy(alpha = 0.20f)
         } else {
             MaterialTheme.colorScheme.surfaceContainerHigh
+        },
+        border = if (selected) {
+            BorderStroke(1.5.dp, MaterialTheme.colorScheme.primary)
+        } else {
+            null
         },
         modifier = Modifier.fillMaxWidth(),
     ) {
@@ -961,6 +1027,77 @@ private fun MoveTargetDialog(
                             )
                         }
                     }
+                }
+            }
+        },
+        confirmButton = {},
+        dismissButton = { TextButton(onClick = onDismiss) { Text("キャンセル") } },
+    )
+}
+
+/**
+ * Where a folder moves to. Unlike [MoveTargetDialog] (an item's destination
+ * folder, which is always some existing folder) a folder's destination can
+ * also be "nowhere" — the top level — so this offers that as an explicit
+ * first row rather than only ever listing other folders.
+ */
+@Composable
+private fun MoveCategoryDialog(
+    title: String,
+    candidates: List<CategoryWithStats>,
+    currentParentId: Long?,
+    onDismiss: () -> Unit,
+    onConfirm: (Long?) -> Unit,
+) {
+    val destinations = candidates.filter { it.category.id != currentParentId }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(title) },
+        text = {
+            LazyColumn(modifier = Modifier.heightIn(max = 320.dp)) {
+                if (currentParentId != null) {
+                    item {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable { onConfirm(null) }
+                                .padding(vertical = 12.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Folder,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier.size(20.dp),
+                            )
+                            Text(
+                                text = "ルート（トップ階層）",
+                                modifier = Modifier.padding(start = 12.dp),
+                            )
+                        }
+                    }
+                }
+                itemsIndexed(destinations, key = { _, entry -> entry.category.id }) { _, entry ->
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable { onConfirm(entry.category.id) }
+                            .padding(vertical = 12.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        CategorySwatch(
+                            colorArgb = entry.category.colorArgb,
+                            modifier = Modifier.size(20.dp),
+                        )
+                        Text(
+                            text = entry.category.name,
+                            modifier = Modifier.padding(start = 12.dp),
+                        )
+                    }
+                }
+                if (destinations.isEmpty() && currentParentId == null) {
+                    item { Text("他にフォルダがありません", modifier = Modifier.padding(vertical = 12.dp)) }
                 }
             }
         },

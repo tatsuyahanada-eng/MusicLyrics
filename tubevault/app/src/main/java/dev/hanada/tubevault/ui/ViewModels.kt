@@ -257,6 +257,11 @@ class LibraryViewModel(private val container: AppContainer) : ViewModel() {
         viewModelScope.launch { container.library.setCategoryColor(id, colorArgb) }
     }
 
+    /** Reparents a folder — top-level or nested — under [newParentId], or to the top level when null. */
+    fun moveCategory(id: Long, newParentId: Long?) {
+        viewModelScope.launch { container.library.moveCategory(id, newParentId) }
+    }
+
     fun deleteCategory(id: Long, moveItemsTo: Long?) {
         viewModelScope.launch {
             // Structurally the UI never lets a folder delete itself or an

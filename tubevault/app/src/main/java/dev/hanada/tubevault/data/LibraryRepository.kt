@@ -141,6 +141,50 @@ class LibraryRepository(
     }
 
     /**
+     * Moves a folder under a new parent, or to the top level when
+     * [newParentId] is null — a top-level folder is as much a node in the
+     * tree as any other, so it belongs in the same reorganising as a nested
+     * one rather than being permanently fixed where it started. Moving a
+     * folder into itself or one of its own descendants is refused: the
+     * first is a no-op and the second would turn the tree into a cycle.
+     */
+    suspend fun moveCategory(id: Long, newParentId: Long?) {
+        if (newParentId == id) return
+        val category = categoryDao.getById(id) ?: return
+        if (category.parentId == newParentId) return
+        val subtree = descendantCategoryIds(id).toSet()
+        if (newParentId != null && newParentId in subtree) return
+        val newParent = newParentId?.let { categoryDao.getById(it) ?: return }
+
+        val oldDir = withContext(Dispatchers.IO) { categoryDirFor(category) }
+        val newBase = if (newParent == null) {
+            Storage.rootDir(context)
+        } else {
+            withContext(Dispatchers.IO) { categoryDirFor(newParent) }
+        }
+        val newDir = File(newBase, category.folderName)
+        val moved = withContext(Dispatchers.IO) { Storage.moveDirectory(oldDir, newDir) }
+        if (!moved) return
+
+        categoryDao.update(category.copy(parentId = newParentId))
+        val oldPrefix = oldDir.absolutePath
+        val newPrefix = newDir.absolutePath
+        // Every descendant folder's files moved along with the directory in
+        // one filesystem move, so their rows need the same path rewrite the
+        // renamed-folder case uses, not just this folder's own items.
+        subtree.forEach { subId ->
+            mediaDao.getByCategory(subId).forEach { item ->
+                mediaDao.update(
+                    item.copy(
+                        filePath = item.filePath.replace(oldPrefix, newPrefix),
+                        thumbPath = item.thumbPath?.replace(oldPrefix, newPrefix),
+                    ),
+                )
+            }
+        }
+    }
+
+    /**
      * Deletes a folder and every folder nested inside it. When [moveItemsTo]
      * is given, every download in the whole subtree survives and is relocated
      * there; otherwise the subtree's files go with it — deleting the top
