@@ -161,7 +161,13 @@ class BrowseViewModel(private val container: AppContainer) : ViewModel() {
 
 class LibraryViewModel(private val container: AppContainer) : ViewModel() {
 
+    /** The whole tree, flat. Screens filter it by parentId for whichever level they show. */
     val categories: StateFlow<List<CategoryWithStats>> = container.library.observeCategories()
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(SUBSCRIBE_TIMEOUT_MS), emptyList())
+
+    /** Top-level folders — what the library grid opens on. */
+    val rootCategories: StateFlow<List<CategoryWithStats>> = categories
+        .map { list -> list.filter { it.category.parentId == null } }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(SUBSCRIBE_TIMEOUT_MS), emptyList())
 
     /** Every download across every folder, for the top-level shuffle. */
@@ -177,9 +183,22 @@ class LibraryViewModel(private val container: AppContainer) : ViewModel() {
     private val _importStatus = MutableStateFlow<String?>(null)
     val importStatus: StateFlow<String?> = _importStatus.asStateFlow()
 
-    private val _openCategoryId = MutableStateFlow<Long?>(null)
-    val openCategoryId: StateFlow<Long?> = _openCategoryId.asStateFlow()
+    /**
+     * The path of folders navigated into, root first. A single nullable id
+     * was enough when folders could not nest — closing always meant "back to
+     * the grid" because there was nowhere else to land. With nesting, back
+     * has to mean "up one level", so the current folder is a stack rather
+     * than a single value: closing pops it, landing on whichever folder (or
+     * the root grid, once empty) the user came from.
+     */
+    private val _openStack = MutableStateFlow<List<Long>>(emptyList())
 
+    private val _openCategoryId: StateFlow<Long?> = _openStack
+        .map { it.lastOrNull() }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(SUBSCRIBE_TIMEOUT_MS), null)
+    val openCategoryId: StateFlow<Long?> = _openCategoryId
+
+    /** Items sitting directly in the open folder — what its row list shows. */
     @OptIn(ExperimentalCoroutinesApi::class)
     val items: StateFlow<List<MediaItemEntity>> = _openCategoryId
         .flatMapLatest { id ->
@@ -187,21 +206,47 @@ class LibraryViewModel(private val container: AppContainer) : ViewModel() {
         }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(SUBSCRIBE_TIMEOUT_MS), emptyList())
 
+    /**
+     * Every item in the open folder's whole subtree, nested folders included —
+     * what "play" and "shuffle" on the folder actually draw from, since
+     * grouping tracks into subfolders is meant to organise a folder's
+     * contents, not carve it into unrelated playlists.
+     */
+    @OptIn(ExperimentalCoroutinesApi::class)
+    val subtreeItems: StateFlow<List<MediaItemEntity>> = combine(categories, _openCategoryId) { list, id ->
+        id?.let { categorySubtreeIds(list, it) }
+    }
+        .flatMapLatest { ids -> if (ids == null) flowOf(emptyList()) else container.library.observeItemsIn(ids) }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(SUBSCRIBE_TIMEOUT_MS), emptyList())
+
+    /** Subfolders sitting directly in the open folder, shown as cards above its item rows. */
+    val subcategories: StateFlow<List<CategoryWithStats>> = combine(categories, _openCategoryId) { list, id ->
+        if (id == null) emptyList() else list.filter { it.category.parentId == id }
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(SUBSCRIBE_TIMEOUT_MS), emptyList())
+
     val openCategory: StateFlow<CategoryWithStats?> =
         combine(categories, _openCategoryId) { list, id ->
             list.firstOrNull { it.category.id == id }
         }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(SUBSCRIBE_TIMEOUT_MS), null)
 
+    /** Descends into a folder, root-level or a subfolder of whichever is currently open. */
     fun open(categoryId: Long) {
-        _openCategoryId.value = categoryId
+        _openStack.value = _openStack.value + categoryId
     }
 
+    /** Goes up one level — to the parent folder, or the root grid once the stack empties. */
     fun closeCategory() {
-        _openCategoryId.value = null
+        _openStack.value = _openStack.value.dropLast(1)
     }
 
-    fun createCategory(name: String) {
-        viewModelScope.launch { container.library.createCategory(name) }
+    fun createCategory(name: String, parentId: Long? = null) {
+        viewModelScope.launch { container.library.createCategory(name, parentId = parentId) }
+    }
+
+    /** A folder created inside the currently open one. */
+    fun createSubfolder(name: String) {
+        val parentId = _openCategoryId.value ?: return
+        createCategory(name, parentId)
     }
 
     fun renameCategory(id: Long, name: String) {
@@ -214,7 +259,16 @@ class LibraryViewModel(private val container: AppContainer) : ViewModel() {
 
     fun deleteCategory(id: Long, moveItemsTo: Long?) {
         viewModelScope.launch {
-            if (_openCategoryId.value == id) _openCategoryId.value = null
+            // Structurally the UI never lets a folder delete itself or an
+            // ancestor it's currently displayed inside of — but if the
+            // deleted subtree ever did include a folder on the open path,
+            // standing on a folder that no longer exists is worse than a
+            // few extra lines here, so the stack is trimmed back to
+            // whichever ancestor survives.
+            val subtree = categorySubtreeIds(categories.value, id).toSet()
+            val stack = _openStack.value
+            val cut = stack.indexOfFirst { it in subtree }
+            if (cut >= 0) _openStack.value = stack.take(cut)
             container.library.deleteCategory(id, moveItemsTo)
         }
     }
@@ -298,6 +352,33 @@ class LibraryViewModel(private val container: AppContainer) : ViewModel() {
     fun shuffleAll() {
         shuffle(allItems.value)
     }
+
+    /** Plays the open folder's whole subtree from the start, subfolders included. */
+    fun playFolder() {
+        play(subtreeItems.value, 0)
+    }
+
+    /** Shuffles the open folder's whole subtree, subfolders included. */
+    fun shuffleFolder() {
+        shuffle(subtreeItems.value)
+    }
+}
+
+/**
+ * [rootId] and every folder nested inside it, at any depth, self-inclusive —
+ * the client-side twin of [dev.hanada.tubevault.data.LibraryRepository.descendantCategoryIds],
+ * used wherever a screen already has the flat category list in hand and a
+ * suspend round trip would just be slower.
+ */
+internal fun categorySubtreeIds(all: List<CategoryWithStats>, rootId: Long): List<Long> {
+    val childrenOf = all.groupBy { it.category.parentId }
+    val result = mutableListOf<Long>()
+    fun collect(id: Long) {
+        result += id
+        childrenOf[id]?.forEach { collect(it.category.id) }
+    }
+    collect(rootId)
+    return result
 }
 
 class DownloadsViewModel(private val container: AppContainer) : ViewModel() {

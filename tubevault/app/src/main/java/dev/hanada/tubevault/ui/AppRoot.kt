@@ -1,5 +1,6 @@
 package dev.hanada.tubevault.ui
 
+import android.view.WindowManager
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
@@ -17,6 +18,7 @@ import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -24,6 +26,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.LocalView
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import dev.hanada.tubevault.AppContainer
@@ -48,6 +51,12 @@ fun AppRoot(container: AppContainer) {
     val snackbarHostState = remember { SnackbarHostState() }
     val jobs by downloadsViewModel.jobs.collectAsStateWithLifecycle()
     val activeCount = jobs.count { it.isActive }
+
+    // Keyed to playback rather than to the full player being open: audio kept
+    // going from the mini bar while browsing other tabs is exactly the case
+    // where the screen would otherwise time out mid-track.
+    val isPlaying by container.playback.isPlaying.collectAsStateWithLifecycle()
+    KeepScreenOnWhilePlaying(isPlaying)
 
     Box(modifier = Modifier.fillMaxSize()) {
         Scaffold(
@@ -89,5 +98,24 @@ fun AppRoot(container: AppContainer) {
 
         // Sits above the scaffold so it can cover the navigation bar too.
         FullPlayer(container.playback, modifier = Modifier.fillMaxSize())
+    }
+}
+
+/**
+ * The flag lives on the window, not a wake lock — it only holds the screen
+ * on while this activity is the foreground window, which is exactly the
+ * scope playback should affect. A wake lock would keep fighting the screen
+ * even after the user switches away.
+ */
+@Composable
+private fun KeepScreenOnWhilePlaying(playing: Boolean) {
+    val window = LocalView.current.context.findActivity()?.window ?: return
+    DisposableEffect(window, playing) {
+        if (playing) {
+            window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+        } else {
+            window.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+        }
+        onDispose { window.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON) }
     }
 }

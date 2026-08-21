@@ -8,7 +8,6 @@ import android.provider.OpenableColumns
 import android.util.Log
 import android.webkit.MimeTypeMap
 import dev.hanada.tubevault.core.MediaKind
-import dev.hanada.tubevault.core.Storage
 import dev.hanada.tubevault.data.LibraryRepository
 import dev.hanada.tubevault.data.MediaItemEntity
 import kotlinx.coroutines.Dispatchers
@@ -35,8 +34,7 @@ class LocalImporter(
 
     suspend fun import(uris: List<Uri>, categoryId: Long): Outcome = withContext(Dispatchers.IO) {
         if (uris.isEmpty()) return@withContext Outcome(0, 0)
-        val category = library.getCategory(categoryId) ?: return@withContext Outcome(0, uris.size)
-        val targetDir = Storage.categoryDir(context, category.folderName)
+        val targetDir = library.categoryDir(categoryId) ?: return@withContext Outcome(0, uris.size)
 
         var imported = 0
         var failed = 0

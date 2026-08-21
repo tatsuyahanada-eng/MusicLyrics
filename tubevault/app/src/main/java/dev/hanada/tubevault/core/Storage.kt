@@ -24,8 +24,15 @@ object Storage {
         return File(base, ROOT_DIR_NAME).also { it.mkdirs() }
     }
 
-    fun categoryDir(context: Context, folderName: String): File =
-        File(rootDir(context), folderName).also { it.mkdirs() }
+    /**
+     * A folder's directory, inside whichever directory [baseDir] names. Taking
+     * a base rather than resolving straight from the root is what lets a
+     * nested folder live physically inside its parent's directory — pass
+     * [rootDir] for a top-level folder, or a parent's own [categoryDir] for a
+     * subfolder.
+     */
+    fun categoryDir(baseDir: File, folderName: String): File =
+        File(baseDir, folderName).also { it.mkdirs() }
 
     /** Keeps Japanese text intact; only replaces what a filesystem cannot store. */
     fun sanitizeFolderName(raw: String): String {

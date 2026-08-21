@@ -11,11 +11,25 @@ import kotlinx.coroutines.flow.Flow
 @Dao
 interface CategoryDao {
 
+    /**
+     * `subtree` is a closure over every (ancestor, descendant) pair in the
+     * tree, built once and then reused per row — a folder's stats need every
+     * item under it, not just the ones sitting directly inside.
+     */
     @Query(
         """
+        WITH RECURSIVE subtree(ancestor, id) AS (
+            SELECT id, id FROM categories
+            UNION ALL
+            SELECT subtree.ancestor, categories.id
+            FROM categories JOIN subtree ON categories.parentId = subtree.id
+        )
         SELECT c.*,
-               (SELECT COUNT(*) FROM media_items m WHERE m.categoryId = c.id) AS itemCount,
-               (SELECT COALESCE(SUM(m.fileSizeBytes), 0) FROM media_items m WHERE m.categoryId = c.id) AS totalBytes
+               (SELECT COUNT(*) FROM media_items m
+                WHERE m.categoryId IN (SELECT id FROM subtree WHERE ancestor = c.id)) AS itemCount,
+               (SELECT COALESCE(SUM(m.fileSizeBytes), 0) FROM media_items m
+                WHERE m.categoryId IN (SELECT id FROM subtree WHERE ancestor = c.id)) AS totalBytes,
+               (SELECT COUNT(*) FROM categories child WHERE child.parentId = c.id) AS subfolderCount
         FROM categories c
         ORDER BY c.sortOrder ASC, c.createdAt ASC
         """,
@@ -52,6 +66,10 @@ interface MediaDao {
 
     @Query("SELECT * FROM media_items WHERE categoryId = :categoryId ORDER BY downloadedAt DESC")
     fun observeByCategory(categoryId: Long): Flow<List<MediaItemEntity>>
+
+    /** Every item across a set of folders — how a folder's subtree is played as one queue. */
+    @Query("SELECT * FROM media_items WHERE categoryId IN (:categoryIds) ORDER BY downloadedAt DESC")
+    fun observeByCategories(categoryIds: List<Long>): Flow<List<MediaItemEntity>>
 
     @Query("SELECT * FROM media_items ORDER BY downloadedAt DESC LIMIT :limit")
     fun observeRecent(limit: Int): Flow<List<MediaItemEntity>>

@@ -4,7 +4,6 @@ import android.content.Context
 import android.util.Log
 import dev.hanada.tubevault.core.MediaKind
 import dev.hanada.tubevault.core.SearchResult
-import dev.hanada.tubevault.core.Storage
 import dev.hanada.tubevault.core.VideoQuality
 import dev.hanada.tubevault.data.LibraryRepository
 import dev.hanada.tubevault.data.MediaItemEntity
@@ -173,10 +172,10 @@ class DownloadCenter(
                 if (job.state == JobState.CANCELED) return
             }
 
-            val category = library.getCategory(job.categoryId)
-                ?: library.getCategories().firstOrNull()
+            val categoryId = library.getCategory(job.categoryId)?.id
+                ?: library.getCategories().firstOrNull()?.id
                 ?: error("保存先のカテゴリがありません")
-            val targetDir = Storage.categoryDir(context, category.folderName)
+            val targetDir = library.categoryDir(categoryId) ?: error("保存先のフォルダを解決できませんでした")
 
             val outcome = engine.download(
                 sourceUrl = job.sourceUrl,
