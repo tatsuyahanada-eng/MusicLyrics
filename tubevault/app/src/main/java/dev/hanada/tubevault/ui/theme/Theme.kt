@@ -59,8 +59,6 @@ private val AppColors = darkColorScheme(
     onError = Color(0xFF3A0A08),
     errorContainer = Color(0xFF5C1A16),
     onErrorContainer = Color(0xFFFFDAD6),
-
-    scrim = Color(0xFF000000),
 )
 
 /** Softer, rounder than the Material defaults, so controls read as pills. */
