@@ -144,23 +144,56 @@ class YtDlpEngine(
         ensureInit()
         targetDir.mkdirs()
 
+        suspend fun attempt(forceNoToken: Boolean) =
+            runDownload(sourceUrl, videoId, targetDir, kind, quality, processId, forceNoToken, onProgress)
+
+        var forceNoToken = false
+        var lastError: YtDlpDownloadException
+
         try {
-            runDownload(sourceUrl, videoId, targetDir, kind, quality, processId, forceNoToken = false, onProgress)
+            return@withContext attempt(forceNoToken)
         } catch (e: YtDlpDownloadException) {
-            // A PO Token that mints successfully can still turn out to be
-            // rejected for this particular video's formats (yt-dlp then
-            // drops them and reports the same "format not available" as an
-            // empty format list would) — that failure mode is impossible to
-            // tell apart from a real empty format list without already
-            // having the fix in hand, so it is cheaper to just retry once
-            // without the token than to diagnose which one happened.
-            if (settings.current.usePoToken && "format" in e.message.orEmpty().lowercase()) {
-                Log.w(TAG, "retrying $videoId without a PO Token after: ${e.message}")
-                runDownload(sourceUrl, videoId, targetDir, kind, quality, processId, forceNoToken = true, onProgress)
-            } else {
-                throw e
+            lastError = e
+        }
+
+        // A PO Token that mints successfully can still turn out to be
+        // rejected for this particular video's formats (yt-dlp then drops
+        // them and reports the same "format not available" as an empty
+        // format list would) — that failure mode is impossible to tell apart
+        // from a real empty format list without already having the fix in
+        // hand, so it is cheaper to just retry once without the token than
+        // to diagnose which one happened.
+        if (settings.current.usePoToken && "format" in lastError.message.orEmpty().lowercase()) {
+            Log.w(TAG, "retrying $videoId without a PO Token after: ${lastError.message}")
+            forceNoToken = true
+            try {
+                return@withContext attempt(forceNoToken)
+            } catch (e: YtDlpDownloadException) {
+                lastError = e
             }
         }
+
+        // yt-dlp solves YouTube's "n" throttling parameter with its own
+        // interpreter, and that interpreter's solver lags behind whenever
+        // YouTube reshuffles the challenge — which is a fight this app's
+        // client or extractor-arg choices cannot work around. It is a fight
+        // yt-dlp itself usually wins within a day or two, so refreshing to
+        // whichever release upstream has shipped since and trying once more
+        // is the actual fix, not anything short of that.
+        val nsigFailure = NSIG_MARKERS.any { it in lastError.message.orEmpty().lowercase() }
+        if (nsigFailure) {
+            Log.w(TAG, "retrying $videoId after refreshing yt-dlp, following: ${lastError.message}")
+            if (runCatching { updateYtDlp() }.isSuccess) {
+                settings.update { it.copy(ytDlpUpdatedAt = System.currentTimeMillis()) }
+                try {
+                    return@withContext attempt(forceNoToken)
+                } catch (e: YtDlpDownloadException) {
+                    lastError = e
+                }
+            }
+        }
+
+        throw lastError
     }
 
     private suspend fun runDownload(
@@ -388,6 +421,12 @@ class YtDlpEngine(
             "unable to extract" in lowered || "player response" in lowered ->
                 "$message\n\nYouTube 側の仕様変更の可能性があります。設定タブの「yt-dlp を更新」を試してください。"
 
+            NSIG_MARKERS.any { it in lowered } ->
+                "$message\n\nYouTube 側の暗号化方式の変更に yt-dlp がまだ追いついていない状態です。" +
+                    "自動で yt-dlp を更新してから再試行しましたが、それでも解決しませんでした。" +
+                    "通常は数日以内に yt-dlp 側で修正されるため、時間をおいてから" +
+                    "設定タブの「yt-dlp を更新」を試すか、そのまま再ダウンロードしてみてください。"
+
             else -> message
         }
     }
@@ -395,5 +434,8 @@ class YtDlpEngine(
     private companion object {
         const val TAG = "YtDlpEngine"
         val BARE_VIDEO_ID = Regex("[A-Za-z0-9_-]{11}")
+
+        /** Substrings yt-dlp's own messages use for a failed nsig solve. */
+        val NSIG_MARKERS = listOf("n challenge", "nsig")
     }
 }
