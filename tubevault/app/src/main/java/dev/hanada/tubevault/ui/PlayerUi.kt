@@ -17,6 +17,7 @@ import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
@@ -31,6 +32,9 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.systemBars
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.windowInsetsPadding
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -75,6 +79,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalView
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
@@ -90,6 +95,7 @@ import androidx.media3.ui.PlayerView
 import dev.hanada.tubevault.core.MediaKind
 import dev.hanada.tubevault.core.formatDuration
 import dev.hanada.tubevault.data.MediaItemEntity
+import dev.hanada.tubevault.lyrics.LyricLine
 import dev.hanada.tubevault.lyrics.LyricsController
 import dev.hanada.tubevault.lyrics.LyricsUiState
 import dev.hanada.tubevault.lyrics.currentLyricLineIndex
@@ -292,15 +298,22 @@ private fun PortraitPlayer(
             // The stage takes every pixel the controls do not, and the picture
             // sits at the bottom of it — directly above the title it belongs
             // to. Centring it instead left the video stranded mid-screen with
-            // a gap under it and no relationship to anything.
-            Box(
+            // a gap under it and no relationship to anything. The gap the
+            // picture leaves above itself is where the lyrics go, so they
+            // never sit on top of the video.
+            Column(
                 modifier = Modifier
                     .weight(1f)
                     .fillMaxWidth()
                     .padding(start = 20.dp, end = 20.dp, top = 12.dp, bottom = 20.dp),
-                contentAlignment = Alignment.BottomCenter,
+                horizontalAlignment = Alignment.CenterHorizontally,
             ) {
-                Stage(current = current, player = player, lyrics = lyrics, positionMs = positionMs)
+                LyricsPanel(
+                    lyrics = lyrics,
+                    positionMs = positionMs,
+                    modifier = Modifier.weight(1f).fillMaxWidth(),
+                )
+                Stage(current = current, player = player)
             }
 
             Column(modifier = Modifier.padding(horizontal = 24.dp)) {
@@ -349,7 +362,7 @@ private fun PortraitPlayer(
  * first and stays inside the space it was given.
  */
 @Composable
-private fun Stage(current: MediaItemEntity, player: Player?, lyrics: LyricsController, positionMs: Long) {
+private fun Stage(current: MediaItemEntity, player: Player?) {
     if (current.mediaKind == MediaKind.VIDEO) {
         Surface(
             modifier = Modifier.aspectRatio(16f / 9f),
@@ -357,10 +370,7 @@ private fun Stage(current: MediaItemEntity, player: Player?, lyrics: LyricsContr
             color = Color.Black,
             shadowElevation = 12.dp,
         ) {
-            Box {
-                VideoSurface(player = player, modifier = Modifier.fillMaxSize())
-                LyricsOverlay(lyrics = lyrics, positionMs = positionMs, modifier = Modifier.fillMaxSize())
-            }
+            VideoSurface(player = player, modifier = Modifier.fillMaxSize())
         }
     } else {
         Surface(
@@ -369,14 +379,11 @@ private fun Stage(current: MediaItemEntity, player: Player?, lyrics: LyricsContr
             color = MaterialTheme.colorScheme.surfaceContainerHigh,
             shadowElevation = 16.dp,
         ) {
-            Box {
-                Thumbnail(
-                    model = current.thumbPath?.let { File(it) },
-                    durationSec = 0,
-                    modifier = Modifier.fillMaxSize(),
-                )
-                LyricsOverlay(lyrics = lyrics, positionMs = positionMs, modifier = Modifier.fillMaxSize())
-            }
+            Thumbnail(
+                model = current.thumbPath?.let { File(it) },
+                durationSec = 0,
+                modifier = Modifier.fillMaxSize(),
+            )
         }
     }
 }
@@ -411,7 +418,6 @@ private fun ImmersivePlayer(
 ) {
     val player by controller.player.collectAsStateWithLifecycle()
     val isPlaying by controller.isPlaying.collectAsStateWithLifecycle()
-    val positionMs by controller.positionMs.collectAsStateWithLifecycle()
 
     var controlsVisible by remember { mutableStateOf(true) }
     var showLyricsDialog by remember { mutableStateOf(false) }
@@ -443,8 +449,6 @@ private fun ImmersivePlayer(
                 modifier = Modifier.align(Alignment.Center).fillMaxHeight(0.7f).aspectRatio(1f),
             )
         }
-
-        LyricsOverlay(lyrics = lyrics, positionMs = positionMs, modifier = Modifier.fillMaxSize())
 
         AnimatedVisibility(
             visible = controlsVisible,
@@ -708,35 +712,65 @@ private fun GlyphButton(
 // ------------------------------------------------------------------ lyrics --
 
 /**
- * The current line as a caption over the video/artwork — only for lines with
- * real timestamps. A plain (unsynced) result would just sit there as a wall
- * of text no matter what is playing, which is worse than showing nothing, so
- * that case is left to [LyricsCorrectionDialog] instead.
+ * Lyrics in the gap the picture leaves above itself, rather than over the
+ * picture — several lines at once so the song reads as a whole, with the line
+ * playing right now carried in the accent colour.
+ *
+ * Always occupies its slot even with nothing to show, so the picture stays
+ * pinned to the bottom of the stage whether or not lyrics were found. Only
+ * timestamped lines qualify: a plain (unsynced) result cannot track playback,
+ * so it is left to [LyricsCorrectionDialog] to display in full.
  */
 @Composable
-private fun LyricsOverlay(
+private fun LyricsPanel(
     lyrics: LyricsController,
     positionMs: Long,
     modifier: Modifier = Modifier,
 ) {
     val state by lyrics.state.collectAsStateWithLifecycle()
-    val synced = state as? LyricsUiState.Synced ?: return
-    val line = remember(synced.lines, positionMs) {
-        currentLyricLineIndex(synced.lines, positionMs).takeIf { it >= 0 }?.let { synced.lines[it].text }
+    Box(modifier = modifier, contentAlignment = Alignment.Center) {
+        (state as? LyricsUiState.Synced)?.let { SyncedLyrics(lines = it.lines, positionMs = positionMs) }
     }
-    if (line.isNullOrBlank()) return
+}
 
-    Box(modifier = modifier.padding(bottom = 16.dp, start = 16.dp, end = 16.dp), contentAlignment = Alignment.BottomCenter) {
-        Surface(
-            color = Color.Black.copy(alpha = 0.6f),
-            shape = RoundedCornerShape(12.dp),
-        ) {
+@Composable
+private fun SyncedLyrics(lines: List<LyricLine>, positionMs: Long) {
+    val active = remember(lines, positionMs) { currentLyricLineIndex(lines, positionMs) }
+    val listState = rememberLazyListState()
+
+    // Held a third of the way down rather than at the top, so the lines about
+    // to be sung stay on screen ahead of the one being sung.
+    LaunchedEffect(active) {
+        if (active < 0) return@LaunchedEffect
+        val viewport = listState.layoutInfo.viewportSize.height
+        listState.animateScrollToItem(active, -viewport / 3)
+    }
+
+    LazyColumn(
+        state = listState,
+        modifier = Modifier.fillMaxSize(),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        // Lets the first and last lines reach the same resting place every
+        // other line does, instead of jamming against the panel edge.
+        contentPadding = PaddingValues(vertical = 48.dp),
+    ) {
+        itemsIndexed(lines) { index, line ->
+            val current = index == active
             Text(
-                text = line,
-                style = MaterialTheme.typography.titleMedium,
-                color = Color.White,
+                text = line.text,
+                style = if (current) {
+                    MaterialTheme.typography.titleMedium
+                } else {
+                    MaterialTheme.typography.bodyMedium
+                },
+                fontWeight = if (current) FontWeight.Bold else FontWeight.Normal,
+                color = if (current) {
+                    MaterialTheme.colorScheme.primary
+                } else {
+                    MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
+                },
                 textAlign = TextAlign.Center,
-                modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
+                modifier = Modifier.fillMaxWidth().padding(vertical = 6.dp),
             )
         }
     }

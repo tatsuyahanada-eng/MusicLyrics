@@ -13,13 +13,25 @@
         android:fillColor="#FFC93C"
         android:pathData="M38,26 H70 A12,12 0 0 1 82,38 V70 A12,12 0 0 1 70,82 H38 A12,12 0 0 1 26,70 V38 A12,12 0 0 1 38,26 Z" />
 
-    <!-- Download arrow, flowing down into the play triangle below -->
-    <path
-        android:fillColor="#151718"
-        android:pathData="M46,28 h8 v14 h6 l-10,11 l-10,-11 h6 z" />
+    <!--
+      Download arrow and play triangle side by side, both centred on y=54 and
+      the pair centred on the plate's x=54. The arrow's head and the play
+      triangle are deliberately close in width so neither half outweighs the
+      other at launcher size.
+    -->
 
-    <!-- Play triangle, completing the "download and play" glyph -->
+    <!-- Download arrow: shaft -->
     <path
         android:fillColor="#151718"
-        android:pathData="M44,53 L44,79 L72,66 Z" />
+        android:pathData="M37,38 h10 v16 h-10 z" />
+
+    <!-- Download arrow: head -->
+    <path
+        android:fillColor="#151718"
+        android:pathData="M32,52 L52,52 L42,69 Z" />
+
+    <!-- Play triangle -->
+    <path
+        android:fillColor="#151718"
+        android:pathData="M58,41 L58,67 L76,54 Z" />
 </vector>
