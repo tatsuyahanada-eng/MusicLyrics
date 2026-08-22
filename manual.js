@@ -5251,10 +5251,32 @@
      PWA
      ============================================================ */
   if ('serviceWorker' in navigator) {
+    // 新しい版をアップロードしたのに端末に反映されない、を防ぐための登録手順。
+    //   - updateViaCache:'none' … sw.js 自体をブラウザの古い写しから読ませない
+    //   - update() … 開くたびに新しい版が無いか確認しにいく
+    //   - controllerchange … 新しい版が有効になった瞬間に、1回だけ自動で読み込み直す
+    //     （これが無いと、更新されても「次に開き直すまで古いまま」になる）
+    const hadController = !!navigator.serviceWorker.controller;
+    let swReloaded = false;
+    navigator.serviceWorker.addEventListener('controllerchange', () => {
+      if (!hadController || swReloaded) return; // 初回登録時は再読み込みしない
+      swReloaded = true;
+      try { location.reload(); } catch (_) {}
+    });
     window.addEventListener('load', () => {
-      navigator.serviceWorker.register('sw.js').catch(() => {});
+      navigator.serviceWorker.register('sw.js', { updateViaCache: 'none' })
+        .then((reg) => { try { reg.update(); } catch (_) {} })
+        .catch(() => {});
     });
   }
+  // 実際に読み込まれている manual.js の版番号（?v=…）。
+  // 「アップロードしたのに反映されない」を一目で切り分けられるよう、フッターに小さく出す。
+  function appVersion() {
+    const s = document.querySelector('script[src*="manual.js"]');
+    const m = s && (s.getAttribute('src') || '').match(/v=(\d+)/);
+    return m ? m[1] : '?';
+  }
+  { const el = $('#appVer'); if (el) el.textContent = 'v' + appVersion(); }
   const DISMISS_KEY = 'treeManual.installDismissed.v1';
   const RENAG_MS = 7 * 24 * 60 * 60 * 1000; // 「あとで」から7日後に再表示
   let deferredPrompt = null;

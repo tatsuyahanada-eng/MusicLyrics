@@ -1756,6 +1756,8 @@ textarea.tm-ff-input { width: 100%; resize: vertical; min-height: 88px; }
   border-top: 1px solid var(--tm-line);
 }
 .tm-footer-note { color: var(--tm-cyan-dim); }
+/* いま動いているアプリの版番号（更新が反映されたかの確認用） */
+.tm-footer-ver { color: var(--tm-muted); font-family: var(--tm-mono); font-size: 11px; opacity: .75; }
 
 /* ---------- Responsive ---------- */
 @media (max-width: 560px) {
