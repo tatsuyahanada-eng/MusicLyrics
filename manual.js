@@ -746,12 +746,9 @@
     });
     const pr = $('#fieldListPrint'); if (pr) pr.addEventListener('click', printFieldList);
   }
-  // 記入内容の一覧を「引継ぎメモ」として印刷する（受付者名・印刷日時つき）。
-  // 開いたままの記入内容一覧ポップアップ（<dialog>）を裏に残したまま印刷しようとすると、
-  // ダイアログの ::backdrop がブラウザによっては印刷結果を邪魔し、
-  // 何も印刷されない／真っ白になることがあった。別の印刷専用ウィンドウに
-  // 内容だけを書き出して印刷することで、開いているダイアログの影響を受けないようにする。
-  function printFieldList() {
+  // 印刷する「引継ぎメモ」1枚ぶんのHTML（受付者名・印刷日時つき）を組み立てる。
+  // 外部のCSSや画像を一切参照しない、それだけで完結した内容にする。
+  function handoverPrintHtml() {
     const curNode = navPath.length ? findNode(navPath[navPath.length - 1]) : null;
     const rows = fieldListItems.length ? fieldListItems.map((it) => {
       let val;
@@ -759,45 +756,76 @@
       else val = (it.value && it.value.trim()) ? it.value : '（未入力）';
       return `<tr><th>${esc(it.label || '（ラベルなし）')}</th><td>${esc(val)}</td></tr>`;
     }).join('') : '<tr><td colspan="2">記入欄がありません。</td></tr>';
-    const html = `<!doctype html><html lang="ja"><head><meta charset="utf-8">
+    return `<!doctype html><html lang="ja"><head><meta charset="utf-8">
 <title>引継ぎメモ</title>
 <style>
+  @page { margin: 14mm; }
   * { box-sizing: border-box; }
-  body {
-    margin: 0; padding: 18mm 14mm; background: #fff; color: #111;
-    font-family: "Yu Gothic", YuGothic, "Hiragino Kaku Gothic ProN", Meiryo, sans-serif;
-  }
-  .tm-print-title { font-size: 19px; font-weight: 700; margin: 0 0 2px; }
-  .tm-print-sub { font-size: 13px; color: #444; margin: 0 0 14px; }
-  .tm-print-meta {
-    display: flex; justify-content: space-between; gap: 16px;
-    font-size: 12px; color: #333; border-top: 1px solid #999; border-bottom: 1px solid #999;
-    padding: 6px 2px; margin-bottom: 16px;
-  }
+  body { margin: 0; padding: 0; background: #fff; color: #111;
+    font-family: "Yu Gothic", YuGothic, "Hiragino Kaku Gothic ProN", Meiryo, sans-serif; }
+  .t { font-size: 19px; font-weight: 700; margin: 0 0 2px; }
+  .s { font-size: 13px; color: #444; margin: 0 0 14px; }
+  .m { display: flex; justify-content: space-between; gap: 16px; font-size: 12px; color: #333;
+       border-top: 1px solid #999; border-bottom: 1px solid #999; padding: 6px 2px; margin-bottom: 16px; }
   table { width: 100%; border-collapse: collapse; font-size: 13px; }
   th, td { border: 1px solid #999; padding: 7px 10px; text-align: left; vertical-align: top; }
   th { width: 34%; background: #f0f0f0; font-weight: 700; white-space: nowrap; }
   td { white-space: pre-wrap; word-break: break-word; }
 </style>
 </head><body>
-  <div class="tm-print-title">引継ぎメモ</div>
-  ${curNode ? `<div class="tm-print-sub">${esc(curNode.title)}</div>` : ''}
-  <div class="tm-print-meta">
+  <div class="t">引継ぎメモ</div>
+  ${curNode ? `<div class="s">${esc(curNode.title)}</div>` : ''}
+  <div class="m">
     <span>受付者：${esc(authorName() || '—')}</span>
     <span>印刷日時：${esc(fmtTime(Date.now()))}</span>
   </div>
   <table><tbody>${rows}</tbody></table>
 </body></html>`;
-    const win = window.open('', '_blank', 'width=800,height=1000');
+  }
+  // 別ウィンドウを開いて印刷する（iframeが使えなかったときの予備）
+  function printViaWindow(html) {
+    const win = window.open('', '_blank');
     if (!win) {
+      // ポップアップがブロックされている。閉じた一覧を開き直して、その場で理由を伝える。
+      if (fieldListDialog && !fieldListDialog.open) { try { fieldListDialog.showModal(); listOpen = true; syncTrap(); } catch (_) {} }
       const msg = $('#fieldListMsg');
-      if (msg) msg.textContent = '印刷用ウィンドウを開けませんでした。ポップアップがブロックされていないか確認してください。';
+      if (msg) msg.textContent = '印刷用の画面を開けませんでした。ブラウザのポップアップの許可をご確認ください。';
       return;
     }
-    win.document.open();
-    win.document.write(html);
-    win.document.close();
-    setTimeout(() => { try { win.focus(); win.print(); } catch (_) {} }, 80);
+    win.document.open(); win.document.write(html); win.document.close();
+    setTimeout(() => { try { win.focus(); win.print(); } catch (_) {} }, 120);
+  }
+  // 記入内容の一覧を「引継ぎメモ」として印刷する。
+  // 印刷は環境差が大きいため、確実に動く順に手を打つ：
+  //   1) 開いている一覧ポップアップ（<dialog>）を先に閉じる
+  //      … ダイアログの ::backdrop が印刷結果を覆ってしまう不具合を避けるため
+  //   2) 画面外の <iframe> に内容だけを書き出し、その iframe を印刷する
+  //      … 別ウィンドウと違いポップアップブロックの影響を受けず、
+  //        ホーム画面に追加したアプリ（PWA）の中でも動く
+  //   3) それも駄目なときだけ、別ウィンドウを開いて印刷する
+  function printFieldList() {
+    const html = handoverPrintHtml();
+    if (fieldListDialog && fieldListDialog.open) { try { fieldListDialog.close(); } catch (_) {} }
+    let f = null;
+    try {
+      const old = document.getElementById('tmPrintFrame');
+      if (old) old.remove(); // 前回ぶんは、次に印刷するこのタイミングまで残しておく
+      f = document.createElement('iframe');
+      f.id = 'tmPrintFrame';
+      f.setAttribute('aria-hidden', 'true');
+      f.style.cssText = 'position:fixed; right:0; bottom:0; width:1px; height:1px; opacity:0; border:0;';
+      document.body.appendChild(f);
+      const doc = f.contentWindow && f.contentWindow.document;
+      if (!doc) throw new Error('印刷用フレームを作れませんでした');
+      doc.open(); doc.write(html); doc.close();
+      setTimeout(() => {
+        try { f.contentWindow.focus(); f.contentWindow.print(); }
+        catch (_) { printViaWindow(html); }
+      }, 120);
+    } catch (_) {
+      if (f) { try { f.remove(); } catch (__) {} }
+      printViaWindow(html);
+    }
   }
 
   /* ---------- AI要約（Gemini・サーバー経由） ---------- */
