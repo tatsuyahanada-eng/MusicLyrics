@@ -11,8 +11,14 @@ import androidx.activity.SystemBarStyle
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.core.content.ContextCompat
+import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
 import dev.hanada.tubevault.ui.AppRoot
+import dev.hanada.tubevault.ui.BrandSplash
 import dev.hanada.tubevault.ui.theme.TubeVaultTheme
 
 class MainActivity : ComponentActivity() {
@@ -21,6 +27,10 @@ class MainActivity : ComponentActivity() {
         registerForActivityResult(ActivityResultContracts.RequestPermission()) { /* best effort */ }
 
     override fun onCreate(savedInstanceState: Bundle?) {
+        // Must run before super.onCreate() — it swaps the launch theme
+        // (icon-only system splash) out for the activity's real theme once
+        // this activity's first frame is ready to draw.
+        installSplashScreen()
         super.onCreate(savedInstanceState)
         // The app is near-black whatever the system theme is, so the bar
         // icons have to be forced light. The default follows the system, which
@@ -38,7 +48,12 @@ class MainActivity : ComponentActivity() {
 
         setContent {
             TubeVaultTheme {
-                AppRoot(container)
+                var showSplash by remember { mutableStateOf(true) }
+                if (showSplash) {
+                    BrandSplash(onFinished = { showSplash = false })
+                } else {
+                    AppRoot(container)
+                }
             }
         }
     }

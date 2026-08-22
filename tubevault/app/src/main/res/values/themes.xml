@@ -9,4 +9,18 @@
     <style name="Theme.TubeVault" parent="android:Theme.Material.NoActionBar">
         <item name="android:windowBackground">@color/window_background</item>
     </style>
+
+    <!--
+      The system-level splash (Android 12+, and back-ported by
+      core-splashscreen on older versions) — it can only ever show a bare
+      icon, so this is just the near-black background plus the launcher
+      icon. The activity swaps to Theme.TubeVault as soon as its first
+      Compose frame is ready; the icon+name pairing the app actually wants
+      to show lives in BrandSplash, drawn right after that swap.
+    -->
+    <style name="Theme.App.Starting" parent="Theme.SplashScreen">
+        <item name="windowSplashScreenBackground">@color/window_background</item>
+        <item name="windowSplashScreenAnimatedIcon">@mipmap/ic_launcher</item>
+        <item name="postSplashScreenTheme">@style/Theme.TubeVault</item>
+    </style>
 </resources>

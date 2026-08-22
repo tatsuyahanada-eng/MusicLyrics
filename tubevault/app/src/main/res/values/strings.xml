@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="app_name">YDVault</string>
+    <string name="app_name">YDPlayer</string>
     <string name="channel_downloads_name">ダウンロード</string>
     <string name="channel_downloads_desc">ダウンロードの進捗を表示します</string>
 </resources>
