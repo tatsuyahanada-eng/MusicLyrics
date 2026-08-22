@@ -56,13 +56,22 @@
   function depthLabel(level) {
     return level === 0 ? '大項目' : level === 1 ? '中項目' : '小項目';
   }
-  // 本文末尾の「最終更新: 日付時刻 ・ 編集者」薄枠スタンプ
+  // 本文末尾の「最終更新」「最終追記」薄枠スタンプ。更新（全文書き換え）と追記（先頭に足す）は
+  // 別々の日時を持つので、両方あれば2つとも表示する。
   function editStampHtml(node) {
+    const stamps = [];
     const t = fmtTime(node.updated_at || node.created_at);
     const by = node.updated_by || node.created_by;
-    if (!t && !by) return '';
-    const info = [t, by].filter(Boolean).join(' ・ ');
-    return `<span class="tm-editstamp"><span class="tm-editstamp-label">最終更新</span>${esc(info)}</span>`;
+    if (t || by) {
+      const info = [t, by].filter(Boolean).join(' ・ ');
+      stamps.push(`<span class="tm-editstamp"><span class="tm-editstamp-label">最終更新</span>${esc(info)}</span>`);
+    }
+    const at = fmtTime(node.appended_at);
+    if (at) {
+      const info = [at, node.appended_by].filter(Boolean).join(' ・ ');
+      stamps.push(`<span class="tm-editstamp tm-editstamp-append"><span class="tm-editstamp-label">最終追記</span>${esc(info)}</span>`);
+    }
+    return stamps.join('');
   }
 
   /* ============================================================
@@ -158,6 +167,7 @@
       id: r.id, title: r.title, body: r.body || '', children: [],
       created_by: r.created_by || '', updated_by: r.updated_by || '',
       updated_at: Number(r.updated_at) || 0, created_at: Number(r.created_at) || 0,
+      appended_by: r.appended_by || '', appended_at: Number(r.appended_at) || 0,
       locked: !!r.locked, lock: r.lock || '',
       _p: r.parent_id || '', _o: Number(r.sort_order) || 0,
     }));
@@ -296,6 +306,26 @@
       persist();
     }
   }
+  // 「更新」（全文書き換え）とは別の「追記」：今の内容は書き換えず、新しい内容を先頭に足す。
+  // updated_at は変えず、appended_at だけを進める（最終更新日と最終追記日を別々に表示するため）。
+  async function opAppend(id, addBodyHtml, author) {
+    const who = author != null ? author : authorName();
+    if (serverMode()) {
+      await apiCall('node_append', { method: 'POST', body: { id, body: addBodyHtml, author: who } });
+      await reloadFromServer();
+    } else {
+      const n = findNode(id);
+      if (n) {
+        const at = Date.now();
+        const stampWho = who ? ' ・ ' + esc(who) : '';
+        const block = `<div class="tm-append-block"><div class="tm-append-stamp">&#128221; 追記：${fmtTime(at)}${stampWho}</div>${addBodyHtml}</div>`;
+        n.body = block + (n.body || '');
+        n.appended_by = who || n.appended_by;
+        n.appended_at = at;
+      }
+      persist();
+    }
+  }
   async function opDelete(id) {
     if (serverMode()) {
       await apiCall('node_delete', { method: 'POST', body: { id } });
@@ -385,6 +415,7 @@
     const allow = {
       'tm-filechip': 1, 'tm-body-img': 1,
       'tm-formfield': 1, 'tm-ff-label': 1, 'tm-ff-input': 1, 'tm-ff-cb': 1,
+      'tm-append-block': 1, 'tm-append-stamp': 1,
     };
     return String(v).split(/\s+/).filter((t) => allow[t]).join(' ');
   }
@@ -1131,6 +1162,7 @@
             ${(AI_NODE_SUMMARY_ENABLED && aiEnabled && curNode.body && curNode.body.trim()) ? `<button class="tm-aibtn" data-aisummary="${curNode.id}" type="button" title="この項目をAIで要約">&#10024; AI要約</button>` : ''}
             ${hasFormFields(curNode.body) ? `<button class="tm-listbtn" data-listfields type="button" title="記入した内容を一覧で表示・コピー">&#128203; 記入内容を一覧</button>` : ''}
             <button class="tm-pinbtn ${isPinned(curNode.id) ? 'is-on' : ''}" data-pintoggle="${curNode.id}" type="button" title="TOP画面にピン留め">${isPinned(curNode.id) ? '&#9733; ピン留め中' : '&#9734; ピン留め'}</button>
+            <button class="tm-appendthis" data-appendthis="${curNode.id}" type="button" title="今の内容は書き換えず、上に新しい内容を足す">&#128221; 追記する</button>
             <button class="tm-editthis" data-editthis="${curNode.id}" type="button">&#9998; この項目を編集</button>
           </div>
         </div>`;
@@ -1456,6 +1488,13 @@
       const node = findNode(eb.dataset.editthis);
       if (isLocked(node)) { ensureUnlocked(node).then((ok) => { if (ok) openNodeDialog(eb.dataset.editthis); }); }
       else openNodeDialog(eb.dataset.editthis);
+      return;
+    }
+    const apb = e.target.closest('[data-appendthis]');
+    if (apb) { // 今の内容は書き換えず、上に新しい内容を足す
+      const node = findNode(apb.dataset.appendthis);
+      if (isLocked(node)) { ensureUnlocked(node).then((ok) => { if (ok) openAppendDialog(apb.dataset.appendthis); }); }
+      else openAppendDialog(apb.dataset.appendthis);
     }
   });
   async function retryConnect() {
@@ -2029,8 +2068,10 @@
       nodeBodyEditor.innerHTML = node.body ? renderBody(node.body) : ''; // レガシーは自動でHTML化
       const upd = fmtTime(node.updated_at);
       const crt = fmtTime(node.created_at);
+      const app = fmtTime(node.appended_at);
       const bits = [];
       if (node.updated_by || upd) bits.push(`最終更新: ${node.updated_by || '—'}${upd ? ' · ' + upd : ''}`);
+      if (app) bits.push(`最終追記: ${node.appended_by || '—'} · ${app}`);
       if (node.created_by || crt) bits.push(`作成: ${node.created_by || '—'}${crt ? ' · ' + crt : ''}`);
       metaStr = bits.join('　／　');
       if (nodeLockChk) {
@@ -2110,6 +2151,57 @@
     }
   });
   $('#nodeCancelBtn').addEventListener('click', () => nodeDialog.close());
+
+  /* ---------- 追記（既存の内容は書き換えず、上に新しい内容を足す） ---------- */
+  const appendDialog = $('#appendDialog');
+  const appendForm = $('#appendForm');
+  const appendTargetEl = $('#appendTarget');
+  const appendBodyInput = $('#appendBodyInput');
+  const appendErrorEl = $('#appendError');
+  let appendTargetId = null;
+  function appendError(msg) { if (appendErrorEl) appendErrorEl.textContent = msg || ''; }
+  // 素朴なプレーンテキスト→HTML変換（空行区切りで段落、単独改行は<br>）。
+  // リッチな装飾は不要な「一言追記」向けの想定なので、フル機能のエディタは使わない。
+  function plainTextToHtml(text) {
+    const paras = String(text || '').replace(/\r\n/g, '\n').split(/\n{2,}/);
+    return paras.map((p) => p.trim()).filter(Boolean)
+      .map((p) => `<p>${esc(p).replace(/\n/g, '<br>')}</p>`).join('');
+  }
+  function openAppendDialog(id) {
+    if (!appendDialog) return;
+    const node = findNode(id);
+    if (!node) return;
+    appendTargetId = id;
+    if (appendTargetEl) appendTargetEl.textContent = `「${node.title}」に追記します。`;
+    if (appendBodyInput) appendBodyInput.value = '';
+    appendError('');
+    appendDialog.showModal();
+    if (appendBodyInput) setTimeout(() => appendBodyInput.focus(), 30);
+  }
+  if (appendForm) appendForm.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    if (!appendTargetId) return;
+    const text = (appendBodyInput ? appendBodyInput.value : '').trim();
+    if (!text) { appendError('追記する内容を入力してください'); return; }
+    const html = plainTextToHtml(text);
+    const author = authorName();
+    const submitBtn = appendForm.querySelector('button[type=submit]');
+    submitBtn.disabled = true;
+    appendError('');
+    try {
+      const node = findNode(appendTargetId);
+      await opAppend(appendTargetId, html, author);
+      appendDialog.close();
+      renderEdit();
+      if (!navView.hidden) renderNav();
+      showCenterToast('追記完了', node ? node.title : '');
+    } catch (err) {
+      appendError('追記に失敗しました：' + err.message);
+    } finally {
+      submitBtn.disabled = false;
+    }
+  });
+  { const b = $('#appendCancelBtn'); if (b) b.addEventListener('click', () => appendDialog.close()); }
 
   /* ---------- 文字装飾ツールバー（選択部分にWord風に反映） ---------- */
   const fmtBar = $('#fmtBar');
@@ -4966,17 +5058,19 @@
     const w = ['日', '月', '火', '水', '木', '金', '土'][d.getDay()];
     return `${d.getFullYear()}/${p(d.getMonth() + 1)}/${p(d.getDate())}（${w}）`;
   }
+  // 各項目の「直近の操作」を、新規登録／更新（全文書き換え）／追記（先頭に足す）の
+  // 3種類のうち、最も新しい日時のものとして判定する。
   function buildRecentUpdates() {
     const out = [];
     const walk = (nodes, pathTitles, pathIds) => {
       for (const n of nodes) {
-        const ua = Number(n.updated_at) || 0, ca = Number(n.created_at) || 0;
-        const when = ua || ca;
-        const isNew = !ca || ua <= ca; // 作成後に更新されていなければ「新規」
+        const ua = Number(n.updated_at) || 0, ca = Number(n.created_at) || 0, aa = Number(n.appended_at) || 0;
+        let kind = 'new', when = ca, who = n.created_by || n.updated_by || '';
+        if (ua > when) { kind = 'update'; when = ua; who = n.updated_by || n.created_by || ''; }
+        if (aa > when) { kind = 'append'; when = aa; who = n.appended_by || n.updated_by || n.created_by || ''; }
         out.push({
           id: n.id, title: n.title || '', pathTitles: pathTitles.slice(), idPath: pathIds.concat(n.id),
-          when, isNew, locked: isLocked(n),
-          who: (isNew ? (n.created_by || n.updated_by) : (n.updated_by || n.created_by)) || '',
+          when, kind, isNew: kind === 'new', locked: isLocked(n), who,
         });
         if (n.children && n.children.length) walk(n.children, pathTitles.concat(n.title || ''), pathIds.concat(n.id));
       }
@@ -4985,6 +5079,7 @@
     out.sort((a, b) => (b.when || 0) - (a.when || 0));
     return out;
   }
+  const UPD_TAG = { new: { cls: 'is-new', label: '新規' }, update: { cls: 'is-upd', label: '更新' }, append: { cls: 'is-app', label: '追記' } };
   function renderUpdates() {
     const list = buildRecentUpdates();
     updatesData = list;
@@ -5001,9 +5096,10 @@
       if (day !== lastDay) { html += `<div class="tm-upd-day">${day}</div>`; lastDay = day; }
       const pathHtml = '<span class="tm-sr-root">TOP</span>' +
         r.pathTitles.map((t) => `<span class="tm-sr-sep">&#8250;</span><span class="tm-sr-seg">${esc(t)}</span>`).join('');
+      const tag = UPD_TAG[r.kind] || UPD_TAG.update;
       html += `<button class="tm-sr-item" data-idx="${i}" type="button">
         <div class="tm-sr-path">${pathHtml}</div>
-        <div class="tm-sr-title">${esc(r.title)}${r.locked ? ' &#128274;' : ''} <span class="tm-sr-tag ${r.isNew ? 'is-new' : 'is-upd'}">${r.isNew ? '新規' : '更新'}</span></div>
+        <div class="tm-sr-title">${esc(r.title)}${r.locked ? ' &#128274;' : ''} <span class="tm-sr-tag ${tag.cls}">${tag.label}</span></div>
         <div class="tm-sr-snippet">${r.who ? esc(r.who) + '　' : ''}${updFmtWhen(r.when)}</div>
       </button>`;
     });

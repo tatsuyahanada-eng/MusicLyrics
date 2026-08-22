@@ -495,6 +495,36 @@
   transition: background .15s, box-shadow .15s;
 }
 .tm-editthis:hover { background: rgba(63, 224, 224, 0.12); box-shadow: 0 0 12px rgba(63, 224, 224, 0.2); }
+/* 「追記する」（更新とは別に、内容を書き換えず上に足す） */
+.tm-appendthis {
+  flex-shrink: 0;
+  font-family: var(--tm-mono);
+  font-size: 12px;
+  letter-spacing: 1px;
+  color: #39e082;
+  background: transparent;
+  border: 1px solid rgba(57, 224, 130, 0.5);
+  padding: 8px 13px;
+  border-radius: 4px;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background .15s, box-shadow .15s;
+}
+.tm-appendthis:hover { background: rgba(57, 224, 130, 0.12); box-shadow: 0 0 12px rgba(57, 224, 130, 0.2); }
+/* 本文の先頭に足される「追記」ブロック（日付・記入者つき） */
+.tm-append-block {
+  margin: 0 0 14px; padding: 10px 14px;
+  border-left: 3px solid #39e082;
+  background: rgba(57, 224, 130, 0.06);
+  border-radius: 0 8px 8px 0;
+}
+.tm-append-block .tm-append-stamp {
+  font-family: var(--tm-mono); font-size: 11px; letter-spacing: .5px;
+  color: #39e082; margin-bottom: 6px;
+}
+.tm-append-block p:last-child { margin-bottom: 0; }
+/* 追記ダイアログの説明文 */
+.tm-append-note { font-size: 12px; line-height: 1.7; color: var(--tm-muted); margin: -4px 0 4px; }
 .tm-content-empty { border-left-color: var(--tm-line-strong); }
 
 /* 直接追加ボタン（案内モード） */
@@ -723,6 +753,9 @@ body.tm-dragging .tm-sortrow { cursor: grabbing; }
   margin-right: 8px;
   letter-spacing: 1px;
 }
+.tm-editstamp + .tm-editstamp { margin-left: 8px; }
+.tm-editstamp-append { border-color: rgba(57, 224, 130, 0.35); background: rgba(57, 224, 130, 0.05); }
+.tm-editstamp-append .tm-editstamp-label { color: #39e082; }
 
 /* ---------- Edit: author bar & clickable rows ---------- */
 .tm-author-bar { display: flex; align-items: center; gap: 10px; margin-bottom: 12px; flex-wrap: wrap; }
@@ -2150,6 +2183,7 @@ textarea.tm-ff-input { width: 100%; resize: vertical; min-height: 88px; }
 .tm-upd-day:first-child { margin-top: 0; }
 .tm-sr-tag.is-new { color: var(--tm-cyan); border-color: var(--tm-line-strong); }
 .tm-sr-tag.is-upd { color: var(--tm-warn); border-color: rgba(255, 207, 63, 0.5); }
+.tm-sr-tag.is-app { color: #39e082; border-color: rgba(57, 224, 130, 0.5); }
 
 /* ============================================================
    画像の名称（キャプション）＋ 拡大表示（ライトボックス）

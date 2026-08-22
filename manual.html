@@ -9,7 +9,7 @@
   <link rel="manifest" href="manifest.webmanifest">
   <link rel="icon" href="icon.svg" type="image/svg+xml">
   <link rel="apple-touch-icon" href="icon-192.png">
-  <link rel="stylesheet" href="manual.css?v=99">
+  <link rel="stylesheet" href="manual.css?v=100">
 </head>
 <body class="tm-body">
 
@@ -736,6 +736,27 @@
       <div class="tm-dialog-actions">
         <button type="button" id="nodeCancelBtn" class="tm-btn tm-btn-outline">キャンセル</button>
         <button type="submit" class="tm-btn tm-btn-primary">保存</button>
+      </div>
+    </form>
+  </dialog>
+
+  <!-- ===== Append Dialog（既存の内容の上に追記する。更新（全文書き換え）とは別の操作） ===== -->
+  <dialog id="appendDialog" class="tm-dialog">
+    <form id="appendForm" method="dialog" class="tm-dialog-form">
+      <h2 class="tm-dialog-title">追記する</h2>
+      <p id="appendTarget" class="tm-confirm-msg"></p>
+      <p class="tm-append-note">
+        入力した内容は、今の内容を書き換えずに<b>先頭に追加</b>されます（日付・記入者つき）。
+        今の内容ごと書き換えたいときは「この項目を編集」を使ってください。
+      </p>
+      <label class="tm-field">
+        <span class="tm-field-label">追記する内容</span>
+        <textarea id="appendBodyInput" class="tm-input" rows="6" placeholder="例：8/19 現地で確認したところ、部品Aの在庫が無かったため、翌日に持参して交換予定。"></textarea>
+      </label>
+      <p id="appendError" class="tm-dialog-err" aria-live="polite"></p>
+      <div class="tm-dialog-actions">
+        <button type="button" id="appendCancelBtn" class="tm-btn tm-btn-outline">キャンセル</button>
+        <button type="submit" class="tm-btn tm-btn-primary">追記する</button>
       </div>
     </form>
   </dialog>
@@ -1512,6 +1533,6 @@
   </dialog>
 
   <script src="vendor/xlsx.full.min.js"></script>
-  <script src="manual.js?v=114"></script>
+  <script src="manual.js?v=115"></script>
 </body>
 </html>

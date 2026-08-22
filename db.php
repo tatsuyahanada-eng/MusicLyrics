@@ -8,7 +8,7 @@
 
 /* スキーマのバージョン。テーブル定義（列の追加など）を変えたら必ず上げる。
    これが変わると、各サーバーで初回アクセス時に一度だけ初期化/マイグレーションが走る。 */
-if (!defined('CBC_SCHEMA_VERSION')) define('CBC_SCHEMA_VERSION', '2026-08-13-vectors2');
+if (!defined('CBC_SCHEMA_VERSION')) define('CBC_SCHEMA_VERSION', '2026-08-19-append1');
 
 // 接続だけを1回試みる（スキーマ初期化はしない）。
 function cbc_connect_once($driver, $opts) {
@@ -429,13 +429,19 @@ function cbc_ensure_columns($pdo, $driver) {
       $cols = array();
       foreach ($rows as $r) { $cols[] = strtolower($r['c']); }
     }
-    foreach (array('created_by', 'updated_by') as $col) {
+    foreach (array('created_by', 'updated_by', 'appended_by') as $col) {
       if (!in_array($col, $cols, true)) {
         $pdo->exec("ALTER TABLE nodes ADD COLUMN $col VARCHAR(120) NULL");
       }
     }
     if (!in_array('lock_hash', $cols, true)) {
       $pdo->exec("ALTER TABLE nodes ADD COLUMN lock_hash VARCHAR(255) NULL");
+    }
+    // 「追記」（既存の内容の上に、新しい内容を足す操作）の最終日時。
+    // updated_at（＝「更新」で全文を書き換えた日時）とは別に持ち、両方を表示できるようにする。
+    if (!in_array('appended_at', $cols, true)) {
+      $type = ($driver === 'mysql') ? 'BIGINT' : 'BIGINT';
+      $pdo->exec("ALTER TABLE nodes ADD COLUMN appended_at $type NOT NULL DEFAULT 0");
     }
   } catch (Throwable $e) { /* 追加できなくても致命ではない */ }
 }

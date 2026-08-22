@@ -881,7 +881,10 @@ function prune_locked($rows) {
     $out[] = array(
       'id' => $r['id'], 'parent_id' => $r['parent_id'], 'sort_order' => $r['sort_order'], 'title' => $r['title'],
       'body' => $locked ? '' : $r['body'], 'created_by' => $r['created_by'], 'updated_by' => $r['updated_by'],
-      'updated_at' => $r['updated_at'], 'created_at' => $r['created_at'], 'locked' => $locked ? 1 : 0,
+      'updated_at' => $r['updated_at'], 'created_at' => $r['created_at'],
+      'appended_by' => isset($r['appended_by']) ? $r['appended_by'] : null,
+      'appended_at' => isset($r['appended_at']) ? $r['appended_at'] : 0,
+      'locked' => $locked ? 1 : 0,
     );
     if ($locked) return; // 配下は隠す
     if (!empty($childrenOf[$id])) foreach ($childrenOf[$id] as $c) $emit($c);
@@ -1079,7 +1082,7 @@ switch ($action) {
 
   case 'tree': {
     $s = require_login($pdo); // アプリ内ログイン必須
-    $rows = $pdo->query('SELECT id, parent_id, sort_order, title, body, created_by, updated_by, updated_at, created_at, lock_hash FROM nodes ORDER BY parent_id, sort_order, created_at')->fetchAll();
+    $rows = $pdo->query('SELECT id, parent_id, sort_order, title, body, created_by, updated_by, updated_at, created_at, appended_by, appended_at, lock_hash FROM nodes ORDER BY parent_id, sort_order, created_at')->fetchAll();
     $nodes = prune_locked($rows);
     if (!$s['is_admin']) $nodes = cbc_filter_allowed($nodes, cbc_user_allowed($pdo, $s['username'])); // 権限フィルタ
     ok(array('nodes' => $nodes));
@@ -1137,6 +1140,34 @@ switch ($action) {
     ok();
   }
 
+  case 'node_append': {
+    // 「更新」（全文の書き換え）とは別に、既存の内容を残したまま新しい内容を
+    // 先頭に足す「追記」。updated_at（更新）はそのまま維持し、appended_at（追記）
+    // だけを進める。これにより、最終更新日と最終追記日を別々に表示できる。
+    require_token();
+    $d = body_json();
+    if (empty($d['id'])) fail('id は必須です');
+    $addBody = isset($d['body']) ? trim((string)$d['body']) : '';
+    if ($addBody === '') fail('追記する内容を入力してください');
+    $who = cbc_node_author($pdo, $d);
+    $cur = $pdo->prepare('SELECT body FROM nodes WHERE id = ?');
+    $cur->execute(array($d['id']));
+    $curRow = $cur->fetch();
+    if ($curRow === false) fail('項目が見つかりません', 404);
+    $at = now_ms();
+    $whoEsc = htmlspecialchars((string)$who, ENT_QUOTES, 'UTF-8');
+    $stampText = date('Y-m-d H:i', (int)($at / 1000));
+    $block = '<div class="tm-append-block">'
+      . '<div class="tm-append-stamp">&#128221; 追記：' . $stampText . ($whoEsc !== '' ? ' ・ ' . $whoEsc : '') . '</div>'
+      . $addBody
+      . '</div>';
+    $newBody = $block . (string)$curRow['body'];
+    $up = $pdo->prepare('UPDATE nodes SET body = ?, appended_by = COALESCE(?, appended_by), appended_at = ? WHERE id = ?');
+    $up->execute(array($newBody, $who, $at, $d['id']));
+    try { $pdo->prepare('DELETE FROM node_vectors WHERE node_id = ?')->execute(array($d['id'])); } catch (Throwable $e) {}
+    ok(array('body' => $newBody, 'appended_at' => $at, 'appended_by' => $who));
+  }
+
   case 'unlock': {
     $d = body_json();
     if (empty($d['id'])) fail('id は必須です');
@@ -1149,7 +1180,7 @@ switch ($action) {
     $okpw = empty($hash) || ($pw !== '' && (password_verify($pw, $hash) || hash_equals(ADMIN_PW, $pw)));
     if (!$okpw) fail('パスワードが違います', 403);
     // 対象のサブツリーを返す（対象自身は解錠、ネストされたロックは維持）
-    $all = $pdo->query('SELECT id, parent_id, sort_order, title, body, created_by, updated_by, updated_at, created_at, lock_hash FROM nodes ORDER BY parent_id, sort_order, created_at')->fetchAll();
+    $all = $pdo->query('SELECT id, parent_id, sort_order, title, body, created_by, updated_by, updated_at, created_at, appended_by, appended_at, lock_hash FROM nodes ORDER BY parent_id, sort_order, created_at')->fetchAll();
     $childrenOf = array(); $byId = array();
     foreach ($all as $r) { $byId[$r['id']] = $r; $childrenOf[$r['parent_id']][] = $r['id']; }
     $out = array();
@@ -1159,7 +1190,10 @@ switch ($action) {
       $out[] = array(
         'id' => $r['id'], 'parent_id' => $r['parent_id'], 'sort_order' => $r['sort_order'], 'title' => $r['title'],
         'body' => $locked ? '' : $r['body'], 'created_by' => $r['created_by'], 'updated_by' => $r['updated_by'],
-        'updated_at' => $r['updated_at'], 'created_at' => $r['created_at'], 'locked' => $locked ? 1 : 0,
+        'updated_at' => $r['updated_at'], 'created_at' => $r['created_at'],
+        'appended_by' => isset($r['appended_by']) ? $r['appended_by'] : null,
+        'appended_at' => isset($r['appended_at']) ? $r['appended_at'] : 0,
+        'locked' => $locked ? 1 : 0,
       );
       if ($locked) return;
       if (!empty($childrenOf[$id])) foreach ($childrenOf[$id] as $c) $emit($c, false);
