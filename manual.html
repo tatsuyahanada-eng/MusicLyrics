@@ -9,7 +9,7 @@
   <link rel="manifest" href="manifest.webmanifest">
   <link rel="icon" href="icon.svg" type="image/svg+xml">
   <link rel="apple-touch-icon" href="icon-192.png">
-  <link rel="stylesheet" href="manual.css?v=100">
+  <link rel="stylesheet" href="manual.css?v=101">
 </head>
 <body class="tm-body">
 
@@ -897,10 +897,14 @@
       <p id="fieldListMsg" class="tm-list-msg" aria-live="polite"></p>
       <div class="tm-dialog-actions">
         <button type="button" id="fieldListCopy" class="tm-btn tm-btn-primary">&#128203; コピー</button>
+        <button type="button" id="fieldListPrint" class="tm-btn tm-btn-outline">&#128424; 印刷</button>
         <button type="button" id="fieldListClose" class="tm-btn tm-btn-outline">&#9664; 閉じる（入力に戻る）</button>
       </div>
     </div>
   </dialog>
+
+  <!-- ===== 記入内容の一覧・印刷用（画面には出さず、印刷時だけ表示） ===== -->
+  <div id="fieldListPrintArea" class="tm-print-area" aria-hidden="true"></div>
 
   <!-- ===== AIに相談（会話で簡易手順をまとめる） ===== -->
   <dialog id="aiChatDialog" class="tm-dialog tm-chat-dialog">
@@ -1533,6 +1537,6 @@
   </dialog>
 
   <script src="vendor/xlsx.full.min.js"></script>
-  <script src="manual.js?v=115"></script>
+  <script src="manual.js?v=116"></script>
 </body>
 </html>

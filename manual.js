@@ -706,9 +706,11 @@
     return out;
   }
   const fieldListDialog = $('#fieldListDialog');
+  let fieldListItems = []; // 直近に一覧表示した内容（印刷ボタンで再利用する）
   function openFieldList() {
     if (!fieldListDialog) return;
     const items = collectFieldValues();
+    fieldListItems = items;
     const bodyEl = $('#fieldListBody');
     if (bodyEl) {
       bodyEl.innerHTML = items.length ? items.map((it) => {
@@ -742,6 +744,28 @@
       catch (_) { try { ta.focus(); ta.select(); ok = document.execCommand('copy'); } catch (__) { ok = false; } }
       if (msg) msg.textContent = ok ? 'コピーしました。' : 'コピーできませんでした。テキストを選択してコピーしてください。';
     });
+    const pr = $('#fieldListPrint'); if (pr) pr.addEventListener('click', printFieldList);
+  }
+  // 記入内容の一覧を、そのまま印刷用のレイアウトで印刷する（ログイン者名・印刷日時つき）
+  function printFieldList() {
+    const area = $('#fieldListPrintArea');
+    if (!area) return;
+    const curNode = navPath.length ? findNode(navPath[navPath.length - 1]) : null;
+    const rows = fieldListItems.length ? fieldListItems.map((it) => {
+      let val;
+      if (it.kind === 'check') val = it.checked ? '☑ チェック済み' : '□ 未チェック';
+      else val = (it.value && it.value.trim()) ? it.value : '（未入力）';
+      return `<tr><th>${esc(it.label || '（ラベルなし）')}</th><td>${esc(val)}</td></tr>`;
+    }).join('') : '<tr><td colspan="2">記入欄がありません。</td></tr>';
+    area.innerHTML = `
+      <div class="tm-print-title">記入内容の一覧</div>
+      ${curNode ? `<div class="tm-print-sub">${esc(curNode.title)}</div>` : ''}
+      <div class="tm-print-meta">
+        <span>ログイン者：${esc(authorName() || '—')}</span>
+        <span>印刷日時：${esc(fmtTime(Date.now()))}</span>
+      </div>
+      <table class="tm-print-table"><tbody>${rows}</tbody></table>`;
+    window.print();
   }
 
   /* ---------- AI要約（Gemini・サーバー経由） ---------- */

@@ -922,6 +922,29 @@ body.tm-dragging .tm-sortrow { cursor: grabbing; }
 .tm-list-text { width: 100%; resize: vertical; font-family: var(--tm-mono); font-size: 13px; line-height: 1.6; }
 .tm-list-msg { min-height: 16px; font-size: 12px; color: var(--tm-cyan); margin: 4px 0 0; }
 
+/* 記入内容の一覧・印刷用（画面には出さない。印刷時だけ、これ以外を全部隠す） */
+.tm-print-area { display: none; }
+@media print {
+  body * { visibility: hidden; }
+  .tm-print-area, .tm-print-area * { visibility: visible; }
+  .tm-print-area {
+    display: block; position: fixed; inset: 0; margin: 0; padding: 18mm 14mm;
+    background: #fff; color: #111;
+    font-family: "Yu Gothic", YuGothic, "Hiragino Kaku Gothic ProN", Meiryo, sans-serif;
+  }
+  .tm-print-title { font-size: 19px; font-weight: 700; margin: 0 0 2px; }
+  .tm-print-sub { font-size: 13px; color: #444; margin: 0 0 14px; }
+  .tm-print-meta {
+    display: flex; justify-content: space-between; gap: 16px;
+    font-size: 12px; color: #333; border-top: 1px solid #999; border-bottom: 1px solid #999;
+    padding: 6px 2px; margin-bottom: 16px;
+  }
+  .tm-print-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  .tm-print-table th, .tm-print-table td { border: 1px solid #999; padding: 7px 10px; text-align: left; vertical-align: top; }
+  .tm-print-table th { width: 34%; background: #f0f0f0; font-weight: 700; white-space: nowrap; }
+  .tm-print-table td { white-space: pre-wrap; word-break: break-word; }
+}
+
 /* ---------- AI（Gemini）機能 ---------- */
 /* AIボタン共通（シアン→紫のグラデで「特別」感） */
 .tm-btn-ai, .tm-aibtn {
