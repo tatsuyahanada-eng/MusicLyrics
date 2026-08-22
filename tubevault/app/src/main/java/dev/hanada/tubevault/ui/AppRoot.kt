@@ -115,7 +115,7 @@ fun AppRoot(container: AppContainer) {
         }
 
         // Sits above the scaffold so it can cover the navigation bar too.
-        FullPlayer(container.playback, modifier = Modifier.fillMaxSize())
+        FullPlayer(container.playback, container.lyrics, modifier = Modifier.fillMaxSize())
     }
 }
 

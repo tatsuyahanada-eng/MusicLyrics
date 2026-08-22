@@ -59,6 +59,11 @@ data class MediaItemEntity(
     val downloadedAt: Long,
     val lastPlayedAt: Long? = null,
     val playbackPosMs: Long = 0L,
+    // A video title is rarely a clean "artist - title" pair on its own, so
+    // these hold the user's correction once they make one; null means "use
+    // the best guess from title/uploader" rather than "no lyrics".
+    val lyricsArtist: String? = null,
+    val lyricsTitle: String? = null,
 ) {
     val mediaKind: MediaKind
         get() = runCatching { MediaKind.valueOf(kind) }.getOrDefault(MediaKind.VIDEO)

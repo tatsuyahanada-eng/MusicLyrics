@@ -25,13 +25,16 @@ import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.systemBars
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.windowInsetsPadding
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Forward30
 import androidx.compose.material.icons.filled.Fullscreen
@@ -46,14 +49,18 @@ import androidx.compose.material.icons.filled.Shuffle
 import androidx.compose.material.icons.filled.SkipNext
 import androidx.compose.material.icons.filled.SkipPrevious
 import androidx.compose.material.icons.filled.Stop
+import androidx.compose.material.icons.filled.Subtitles
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Slider
 import androidx.compose.material3.SliderDefaults
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
@@ -68,6 +75,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalView
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
@@ -82,6 +90,9 @@ import androidx.media3.ui.PlayerView
 import dev.hanada.tubevault.core.MediaKind
 import dev.hanada.tubevault.core.formatDuration
 import dev.hanada.tubevault.data.MediaItemEntity
+import dev.hanada.tubevault.lyrics.LyricsController
+import dev.hanada.tubevault.lyrics.LyricsUiState
+import dev.hanada.tubevault.lyrics.currentLyricLineIndex
 import dev.hanada.tubevault.playback.PlaybackController
 import kotlinx.coroutines.delay
 import java.io.File
@@ -172,6 +183,7 @@ fun MiniPlayer(
 @Composable
 fun FullPlayer(
     controller: PlaybackController,
+    lyrics: LyricsController,
     modifier: Modifier = Modifier,
 ) {
     val expanded by controller.expanded.collectAsStateWithLifecycle()
@@ -183,12 +195,12 @@ fun FullPlayer(
         exit = slideOutVertically { it } + fadeOut(),
         modifier = modifier,
     ) {
-        PlayerContent(controller)
+        PlayerContent(controller, lyrics)
     }
 }
 
 @Composable
-private fun PlayerContent(controller: PlaybackController) {
+private fun PlayerContent(controller: PlaybackController, lyrics: LyricsController) {
     val item by controller.currentItem.collectAsStateWithLifecycle()
     val current = item ?: return
 
@@ -215,12 +227,14 @@ private fun PlayerContent(controller: PlaybackController) {
     if (immersive) {
         ImmersivePlayer(
             controller = controller,
+            lyrics = lyrics,
             current = current,
             onExitFullscreen = { forcedLandscape = false },
         )
     } else {
         PortraitPlayer(
             controller = controller,
+            lyrics = lyrics,
             current = current,
             onEnterFullscreen = { forcedLandscape = true },
         )
@@ -232,10 +246,13 @@ private fun PlayerContent(controller: PlaybackController) {
 @Composable
 private fun PortraitPlayer(
     controller: PlaybackController,
+    lyrics: LyricsController,
     current: MediaItemEntity,
     onEnterFullscreen: () -> Unit,
 ) {
     val player by controller.player.collectAsStateWithLifecycle()
+    val positionMs by controller.positionMs.collectAsStateWithLifecycle()
+    var showLyricsDialog by remember { mutableStateOf(false) }
 
     Surface(modifier = Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
         Column(
@@ -256,6 +273,13 @@ private fun PortraitPlayer(
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.weight(1f),
                 )
+                IconButton(onClick = { showLyricsDialog = true }) {
+                    Icon(
+                        imageVector = Icons.Default.Subtitles,
+                        contentDescription = "歌詞を検索・修正",
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
                 IconButton(onClick = controller::stop) {
                     Icon(
                         imageVector = Icons.Default.Stop,
@@ -276,7 +300,7 @@ private fun PortraitPlayer(
                     .padding(start = 20.dp, end = 20.dp, top = 12.dp, bottom = 20.dp),
                 contentAlignment = Alignment.BottomCenter,
             ) {
-                Stage(current = current, player = player)
+                Stage(current = current, player = player, lyrics = lyrics, positionMs = positionMs)
             }
 
             Column(modifier = Modifier.padding(horizontal = 24.dp)) {
@@ -310,6 +334,10 @@ private fun PortraitPlayer(
             Spacer(Modifier.height(20.dp))
         }
     }
+
+    if (showLyricsDialog) {
+        LyricsCorrectionDialog(lyrics = lyrics, onDismiss = { showLyricsDialog = false })
+    }
 }
 
 /**
@@ -321,7 +349,7 @@ private fun PortraitPlayer(
  * first and stays inside the space it was given.
  */
 @Composable
-private fun Stage(current: MediaItemEntity, player: Player?) {
+private fun Stage(current: MediaItemEntity, player: Player?, lyrics: LyricsController, positionMs: Long) {
     if (current.mediaKind == MediaKind.VIDEO) {
         Surface(
             modifier = Modifier.aspectRatio(16f / 9f),
@@ -329,7 +357,10 @@ private fun Stage(current: MediaItemEntity, player: Player?) {
             color = Color.Black,
             shadowElevation = 12.dp,
         ) {
-            VideoSurface(player = player, modifier = Modifier.fillMaxSize())
+            Box {
+                VideoSurface(player = player, modifier = Modifier.fillMaxSize())
+                LyricsOverlay(lyrics = lyrics, positionMs = positionMs, modifier = Modifier.fillMaxSize())
+            }
         }
     } else {
         Surface(
@@ -338,11 +369,14 @@ private fun Stage(current: MediaItemEntity, player: Player?) {
             color = MaterialTheme.colorScheme.surfaceContainerHigh,
             shadowElevation = 16.dp,
         ) {
-            Thumbnail(
-                model = current.thumbPath?.let { File(it) },
-                durationSec = 0,
-                modifier = Modifier.fillMaxSize(),
-            )
+            Box {
+                Thumbnail(
+                    model = current.thumbPath?.let { File(it) },
+                    durationSec = 0,
+                    modifier = Modifier.fillMaxSize(),
+                )
+                LyricsOverlay(lyrics = lyrics, positionMs = positionMs, modifier = Modifier.fillMaxSize())
+            }
         }
     }
 }
@@ -371,13 +405,16 @@ private fun VideoSurface(player: Player?, modifier: Modifier = Modifier) {
 @Composable
 private fun ImmersivePlayer(
     controller: PlaybackController,
+    lyrics: LyricsController,
     current: MediaItemEntity,
     onExitFullscreen: () -> Unit,
 ) {
     val player by controller.player.collectAsStateWithLifecycle()
     val isPlaying by controller.isPlaying.collectAsStateWithLifecycle()
+    val positionMs by controller.positionMs.collectAsStateWithLifecycle()
 
     var controlsVisible by remember { mutableStateOf(true) }
+    var showLyricsDialog by remember { mutableStateOf(false) }
 
     // Chrome over a video is for reaching, not reading — it goes away on its
     // own while playback continues, and any tap brings it back.
@@ -407,6 +444,8 @@ private fun ImmersivePlayer(
             )
         }
 
+        LyricsOverlay(lyrics = lyrics, positionMs = positionMs, modifier = Modifier.fillMaxSize())
+
         AnimatedVisibility(
             visible = controlsVisible,
             enter = fadeIn(),
@@ -429,15 +468,21 @@ private fun ImmersivePlayer(
                         .align(Alignment.TopStart)
                         .padding(horizontal = 24.dp, vertical = 16.dp),
                 )
-                IconButton(
-                    onClick = onExitFullscreen,
-                    modifier = Modifier.align(Alignment.TopEnd).padding(8.dp),
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.FullscreenExit,
-                        contentDescription = "全画面を終了",
-                        tint = Color.White,
-                    )
+                Row(modifier = Modifier.align(Alignment.TopEnd).padding(4.dp)) {
+                    IconButton(onClick = { showLyricsDialog = true }) {
+                        Icon(
+                            imageVector = Icons.Default.Subtitles,
+                            contentDescription = "歌詞を検索・修正",
+                            tint = Color.White,
+                        )
+                    }
+                    IconButton(onClick = onExitFullscreen) {
+                        Icon(
+                            imageVector = Icons.Default.FullscreenExit,
+                            contentDescription = "全画面を終了",
+                            tint = Color.White,
+                        )
+                    }
                 }
 
                 Column(
@@ -451,6 +496,10 @@ private fun ImmersivePlayer(
                 }
             }
         }
+    }
+
+    if (showLyricsDialog) {
+        LyricsCorrectionDialog(lyrics = lyrics, onDismiss = { showLyricsDialog = false })
     }
 }
 
@@ -654,6 +703,104 @@ private fun GlyphButton(
             modifier = Modifier.size(size),
         )
     }
+}
+
+// ------------------------------------------------------------------ lyrics --
+
+/**
+ * The current line as a caption over the video/artwork — only for lines with
+ * real timestamps. A plain (unsynced) result would just sit there as a wall
+ * of text no matter what is playing, which is worse than showing nothing, so
+ * that case is left to [LyricsCorrectionDialog] instead.
+ */
+@Composable
+private fun LyricsOverlay(
+    lyrics: LyricsController,
+    positionMs: Long,
+    modifier: Modifier = Modifier,
+) {
+    val state by lyrics.state.collectAsStateWithLifecycle()
+    val synced = state as? LyricsUiState.Synced ?: return
+    val line = remember(synced.lines, positionMs) {
+        currentLyricLineIndex(synced.lines, positionMs).takeIf { it >= 0 }?.let { synced.lines[it].text }
+    }
+    if (line.isNullOrBlank()) return
+
+    Box(modifier = modifier.padding(bottom = 16.dp, start = 16.dp, end = 16.dp), contentAlignment = Alignment.BottomCenter) {
+        Surface(
+            color = Color.Black.copy(alpha = 0.6f),
+            shape = RoundedCornerShape(12.dp),
+        ) {
+            Text(
+                text = line,
+                style = MaterialTheme.typography.titleMedium,
+                color = Color.White,
+                textAlign = TextAlign.Center,
+                modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
+            )
+        }
+    }
+}
+
+/** Lets the user correct the artist/title lyrics are searched for, and shows what was found. */
+@Composable
+private fun LyricsCorrectionDialog(lyrics: LyricsController, onDismiss: () -> Unit) {
+    val query by lyrics.query.collectAsStateWithLifecycle()
+    val state by lyrics.state.collectAsStateWithLifecycle()
+    var artist by remember(query) { mutableStateOf(query?.artist.orEmpty()) }
+    var title by remember(query) { mutableStateOf(query?.title.orEmpty()) }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("歌詞") },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                OutlinedTextField(
+                    value = artist,
+                    onValueChange = { artist = it },
+                    label = { Text("アーティスト") },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth(),
+                )
+                OutlinedTextField(
+                    value = title,
+                    onValueChange = { title = it },
+                    label = { Text("曲名") },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth(),
+                )
+                Text(
+                    text = when (state) {
+                        LyricsUiState.Idle -> ""
+                        LyricsUiState.Loading -> "検索中..."
+                        is LyricsUiState.Synced -> "同期歌詞が見つかりました。動画・再生画面の上に表示されます。"
+                        is LyricsUiState.PlainOnly -> "歌詞は見つかりましたが、タイミング情報がないため上には表示できません。下に全文を表示します。"
+                        LyricsUiState.NotFound -> "歌詞が見つかりませんでした。アーティスト名・曲名を修正して再検索してください。"
+                    },
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                val plain = (state as? LyricsUiState.PlainOnly)?.text
+                if (plain != null) {
+                    Text(
+                        text = plain,
+                        style = MaterialTheme.typography.bodySmall,
+                        modifier = Modifier
+                            .heightIn(max = 180.dp)
+                            .verticalScroll(rememberScrollState()),
+                    )
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = { lyrics.applyCorrection(artist, title) }) {
+                Text("再検索")
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) { Text("閉じる") }
+        },
+    )
 }
 
 // ------------------------------------------------------------------ window --

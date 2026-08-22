@@ -263,6 +263,11 @@ class LibraryRepository(
         mediaDao.updateProgress(itemId, positionMs, System.currentTimeMillis())
     }
 
+    /** The user's correction to the artist/title guessed for lyrics lookup. */
+    suspend fun updateLyricsInfo(itemId: Long, artist: String?, title: String?) {
+        mediaDao.updateLyricsInfo(itemId, artist, title)
+    }
+
     /**
      * Stores a finished download. Re-downloading something that already exists
      * replaces the row in place and removes the stale file if it landed in a
