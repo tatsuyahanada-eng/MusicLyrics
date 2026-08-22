@@ -37,6 +37,36 @@ jobs:
         working-directory: tubevault
         run: chmod +x gradlew
 
+      - name: Set up Android NDK
+        id: setup-ndk
+        uses: nttld/setup-ndk@v1
+        with:
+          ndk-version: r27d
+
+      # yt-dlp's nsig ("n challenge") solver now requires an external
+      # JavaScript runtime binary (deno/node/bun/quickjs) — none of which
+      # exist on Android by default. QuickJS is the smallest of the four, so
+      # its CLI is cross-compiled here and bundled the same way youtubedl-
+      # android already bundles ffmpeg: named "lib*.so" under jniLibs/<abi>/,
+      # which makes Android install it with execute permission for free.
+      - name: Build the QuickJS runtime for Android
+        env:
+          NDK: ${{ steps.setup-ndk.outputs.ndk-path }}
+        run: |
+          set -eu
+          git clone --depth 1 --branch v0.16.2 https://github.com/quickjs-ng/quickjs.git /tmp/quickjs-ng
+          for abi in arm64-v8a armeabi-v7a; do
+            cmake -S /tmp/quickjs-ng -B "/tmp/qjs-build-$abi" \
+              -DCMAKE_TOOLCHAIN_FILE="$NDK/build/cmake/android.toolchain.cmake" \
+              -DANDROID_ABI="$abi" \
+              -DANDROID_PLATFORM=android-26 \
+              -DCMAKE_BUILD_TYPE=Release
+            cmake --build "/tmp/qjs-build-$abi" --target qjs_exe --parallel
+            mkdir -p "tubevault/app/src/main/jniLibs/$abi"
+            cp "/tmp/qjs-build-$abi/qjs" "tubevault/app/src/main/jniLibs/$abi/libqjs.so"
+          done
+          ls -lh tubevault/app/src/main/jniLibs/*/libqjs.so
+
       - name: Build debug APKs
         working-directory: tubevault
         # buildNumber becomes versionCode, so each release install replaces

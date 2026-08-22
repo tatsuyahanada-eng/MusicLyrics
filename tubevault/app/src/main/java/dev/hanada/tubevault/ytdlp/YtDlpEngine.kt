@@ -48,6 +48,11 @@ class YtDlpEngine(
     @Volatile
     private var initialized = false
 
+    /** The bundled QuickJS CLI, if this ABI's build produced one. */
+    private val qjsPath: File? by lazy {
+        File(context.applicationInfo.nativeLibraryDir, "libqjs.so").takeIf { it.exists() }
+    }
+
     suspend fun ensureInit() {
         if (initialized) return
         initMutex.withLock {
@@ -273,6 +278,13 @@ class YtDlpEngine(
         if (current.useCookies) {
             CookieExporter.current(context)?.let { addOption("--cookies", it.absolutePath) }
         }
+
+        // Solving the nsig ("n challenge") requires an external JavaScript
+        // runtime binary; Android has none of the ones yt-dlp looks for on
+        // PATH, so the bundled QuickJS binary is pointed to directly. Missing
+        // on any ABI where the CI build couldn't produce it, this degrades
+        // to yt-dlp's unchanged default behavior.
+        qjsPath?.let { addOption("--js-runtimes", "quickjs:${it.absolutePath}") }
 
         val args = mutableListOf<String>()
         val token = if (current.usePoToken && !forceNoToken) {
