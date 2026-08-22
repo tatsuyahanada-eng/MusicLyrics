@@ -24,6 +24,7 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.ArrowForward
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.ContentCopy
+import androidx.compose.material.icons.filled.Download
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.Login
 import androidx.compose.material.icons.filled.Refresh
@@ -74,11 +75,14 @@ fun BrowseScreen(
     val context = LocalContext.current
     val currentUrl by viewModel.currentUrl.collectAsStateWithLifecycle()
     val pageTitle by viewModel.pageTitle.collectAsStateWithLifecycle()
+    val categories by viewModel.categories.collectAsStateWithLifecycle()
+    val settings by viewModel.settings.collectAsStateWithLifecycle()
     val clipboard = LocalClipboardManager.current
 
     var canGoBack by remember { mutableStateOf(false) }
     var canGoForward by remember { mutableStateOf(false) }
     var loadProgress by remember { mutableStateOf(0) }
+    var showDownloadDialog by remember { mutableStateOf(false) }
 
     // Google's sign-in flow sometimes opens as a JS popup (target="_blank")
     // rather than a normal navigation. Without handling that, tapping
@@ -210,6 +214,18 @@ fun BrowseScreen(
                 overflow = TextOverflow.Ellipsis,
                 modifier = Modifier.weight(1f).padding(horizontal = 4.dp),
             )
+            // Secondary now that download works directly from the FAB below —
+            // still useful for sharing the link elsewhere, just not the main path.
+            if (videoId != null) {
+                IconButton(
+                    onClick = {
+                        clipboard.setText(AnnotatedString(YouTubeUrls.watchUrl(videoId)))
+                        Toast.makeText(context, "URL をコピーしました", Toast.LENGTH_SHORT).show()
+                    },
+                ) {
+                    Icon(Icons.Default.ContentCopy, contentDescription = "URL をコピー")
+                }
+            }
             IconButton(onClick = { confirmingSignIn = true }) {
                 Icon(Icons.Default.Login, contentDescription = "Google にログイン")
             }
@@ -240,23 +256,31 @@ fun BrowseScreen(
 
             if (videoId != null) {
                 ExtendedFloatingActionButton(
-                    onClick = {
-                        // The canonical watch URL rather than the address bar's:
-                        // browsing YouTube accumulates playlist and tracking
-                        // params that only get in the way when pasted back.
-                        clipboard.setText(AnnotatedString(YouTubeUrls.watchUrl(videoId)))
-                        Toast
-                            .makeText(context, "URL をコピーしました", Toast.LENGTH_SHORT)
-                            .show()
-                    },
-                    icon = { Icon(Icons.Default.ContentCopy, contentDescription = null) },
-                    text = { Text("URL をコピー") },
+                    onClick = { showDownloadDialog = true },
+                    icon = { Icon(Icons.Default.Download, contentDescription = null) },
+                    text = { Text("ダウンロード") },
                     modifier = Modifier
                         .align(Alignment.BottomEnd)
                         .padding(16.dp),
                 )
             }
         }
+    }
+
+    if (showDownloadDialog && videoId != null) {
+        DownloadOptionsDialog(
+            title = pageTitle.ifBlank { "この動画" },
+            categories = categories,
+            initialKind = settings.defaultKind,
+            initialQuality = settings.defaultQuality,
+            initialCategoryId = settings.defaultCategoryId,
+            onDismiss = { showDownloadDialog = false },
+            onConfirm = { kind, quality, categoryId ->
+                viewModel.download(videoId, YouTubeUrls.watchUrl(videoId), kind, quality, categoryId)
+                viewModel.rememberDefaults(kind, quality, categoryId)
+                showDownloadDialog = false
+            },
+        )
     }
 
     if (confirmingSignIn) {

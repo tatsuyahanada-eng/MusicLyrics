@@ -13,6 +13,7 @@ import androidx.compose.material.icons.filled.Audiotrack
 import androidx.compose.material.icons.filled.Videocam
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.FilterChip
+import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -71,6 +72,7 @@ fun DownloadOptionsDialog(
                                     modifier = Modifier.size(18.dp),
                                 )
                             },
+                            colors = highlightedChipColors(),
                         )
                     }
                 }
@@ -83,6 +85,7 @@ fun DownloadOptionsDialog(
                                 selected = quality == option,
                                 onClick = { quality = option },
                                 label = { Text(option.label) },
+                                colors = highlightedChipColors(),
                             )
                         }
                     }
@@ -95,6 +98,7 @@ fun DownloadOptionsDialog(
                             selected = categoryId == category.id,
                             onClick = { categoryId = category.id },
                             label = { Text(category.name) },
+                            colors = highlightedChipColors(),
                         )
                     }
                 }
@@ -123,3 +127,16 @@ internal fun DialogSectionLabel(text: String) {
         modifier = Modifier.padding(top = 12.dp, bottom = 6.dp),
     )
 }
+
+/**
+ * The default M3 filled-chip selected style reads as barely-there against
+ * this app's near-black background — a light tint that used to be visible
+ * on a white or grey surface disappears into it. A solid yellow fill makes
+ * which format, quality and folder is picked unmistakable at a glance.
+ */
+@Composable
+internal fun highlightedChipColors() = FilterChipDefaults.filterChipColors(
+    selectedContainerColor = MaterialTheme.colorScheme.primary,
+    selectedLabelColor = MaterialTheme.colorScheme.onPrimary,
+    selectedLeadingIconColor = MaterialTheme.colorScheme.onPrimary,
+)

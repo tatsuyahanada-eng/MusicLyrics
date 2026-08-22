@@ -138,6 +138,11 @@ class BrowseViewModel(private val container: AppContainer) : ViewModel() {
     private val _pageTitle = MutableStateFlow("")
     val pageTitle: StateFlow<String> = _pageTitle.asStateFlow()
 
+    val categories: StateFlow<List<CategoryEntity>> = container.library.observeCategoryList()
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(SUBSCRIBE_TIMEOUT_MS), emptyList())
+
+    val settings = container.settings.state
+
     fun onNavigated(url: String?, title: String?) {
         if (!url.isNullOrBlank() && url != "about:blank") _currentUrl.value = url
         onTitle(title)
@@ -157,6 +162,23 @@ class BrowseViewModel(private val container: AppContainer) : ViewModel() {
     }
 
     fun consumeSavedState(): Bundle? = savedState
+
+    /**
+     * Downloads whatever video is currently on screen. All the page gives us
+     * is a URL and a tab title, so the real metadata is resolved from yt-dlp
+     * when the job starts — the same path a search result with unresolved
+     * metadata now falls back to — which keeps the tap itself instant.
+     */
+    fun download(videoId: String, sourceUrl: String, kind: MediaKind, quality: VideoQuality, categoryId: Long) {
+        val provisionalTitle = _pageTitle.value.ifBlank { "この動画 ($videoId)" }
+        container.downloads.enqueueUrl(videoId, sourceUrl, provisionalTitle, kind, quality, categoryId)
+    }
+
+    fun rememberDefaults(kind: MediaKind, quality: VideoQuality, categoryId: Long) {
+        container.settings.update {
+            it.copy(defaultKind = kind, defaultQuality = quality, defaultCategoryId = categoryId)
+        }
+    }
 }
 
 class LibraryViewModel(private val container: AppContainer) : ViewModel() {
