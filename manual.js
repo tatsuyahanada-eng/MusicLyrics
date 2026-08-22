@@ -746,10 +746,12 @@
     });
     const pr = $('#fieldListPrint'); if (pr) pr.addEventListener('click', printFieldList);
   }
-  // 記入内容の一覧を、そのまま印刷用のレイアウトで印刷する（ログイン者名・印刷日時つき）
+  // 記入内容の一覧を「引継ぎメモ」として印刷する（受付者名・印刷日時つき）。
+  // 開いたままの記入内容一覧ポップアップ（<dialog>）を裏に残したまま印刷しようとすると、
+  // ダイアログの ::backdrop がブラウザによっては印刷結果を邪魔し、
+  // 何も印刷されない／真っ白になることがあった。別の印刷専用ウィンドウに
+  // 内容だけを書き出して印刷することで、開いているダイアログの影響を受けないようにする。
   function printFieldList() {
-    const area = $('#fieldListPrintArea');
-    if (!area) return;
     const curNode = navPath.length ? findNode(navPath[navPath.length - 1]) : null;
     const rows = fieldListItems.length ? fieldListItems.map((it) => {
       let val;
@@ -757,15 +759,45 @@
       else val = (it.value && it.value.trim()) ? it.value : '（未入力）';
       return `<tr><th>${esc(it.label || '（ラベルなし）')}</th><td>${esc(val)}</td></tr>`;
     }).join('') : '<tr><td colspan="2">記入欄がありません。</td></tr>';
-    area.innerHTML = `
-      <div class="tm-print-title">記入内容の一覧</div>
-      ${curNode ? `<div class="tm-print-sub">${esc(curNode.title)}</div>` : ''}
-      <div class="tm-print-meta">
-        <span>ログイン者：${esc(authorName() || '—')}</span>
-        <span>印刷日時：${esc(fmtTime(Date.now()))}</span>
-      </div>
-      <table class="tm-print-table"><tbody>${rows}</tbody></table>`;
-    window.print();
+    const html = `<!doctype html><html lang="ja"><head><meta charset="utf-8">
+<title>引継ぎメモ</title>
+<style>
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; padding: 18mm 14mm; background: #fff; color: #111;
+    font-family: "Yu Gothic", YuGothic, "Hiragino Kaku Gothic ProN", Meiryo, sans-serif;
+  }
+  .tm-print-title { font-size: 19px; font-weight: 700; margin: 0 0 2px; }
+  .tm-print-sub { font-size: 13px; color: #444; margin: 0 0 14px; }
+  .tm-print-meta {
+    display: flex; justify-content: space-between; gap: 16px;
+    font-size: 12px; color: #333; border-top: 1px solid #999; border-bottom: 1px solid #999;
+    padding: 6px 2px; margin-bottom: 16px;
+  }
+  table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  th, td { border: 1px solid #999; padding: 7px 10px; text-align: left; vertical-align: top; }
+  th { width: 34%; background: #f0f0f0; font-weight: 700; white-space: nowrap; }
+  td { white-space: pre-wrap; word-break: break-word; }
+</style>
+</head><body>
+  <div class="tm-print-title">引継ぎメモ</div>
+  ${curNode ? `<div class="tm-print-sub">${esc(curNode.title)}</div>` : ''}
+  <div class="tm-print-meta">
+    <span>受付者：${esc(authorName() || '—')}</span>
+    <span>印刷日時：${esc(fmtTime(Date.now()))}</span>
+  </div>
+  <table><tbody>${rows}</tbody></table>
+</body></html>`;
+    const win = window.open('', '_blank', 'width=800,height=1000');
+    if (!win) {
+      const msg = $('#fieldListMsg');
+      if (msg) msg.textContent = '印刷用ウィンドウを開けませんでした。ポップアップがブロックされていないか確認してください。';
+      return;
+    }
+    win.document.open();
+    win.document.write(html);
+    win.document.close();
+    setTimeout(() => { try { win.focus(); win.print(); } catch (_) {} }, 80);
   }
 
   /* ---------- AI要約（Gemini・サーバー経由） ---------- */
