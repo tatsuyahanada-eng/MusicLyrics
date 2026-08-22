@@ -311,6 +311,7 @@ private fun PortraitPlayer(
                 LyricsPanel(
                     lyrics = lyrics,
                     positionMs = positionMs,
+                    onSeek = controller::seekTo,
                     modifier = Modifier.weight(1f).fillMaxWidth(),
                 )
                 Stage(current = current, player = player)
@@ -720,21 +721,27 @@ private fun GlyphButton(
  * pinned to the bottom of the stage whether or not lyrics were found. Only
  * timestamped lines qualify: a plain (unsynced) result cannot track playback,
  * so it is left to [LyricsCorrectionDialog] to display in full.
+ *
+ * Every line doubles as a seek target — the timestamps that drive the
+ * highlight are the same ones playback jumps to on a tap.
  */
 @Composable
 private fun LyricsPanel(
     lyrics: LyricsController,
     positionMs: Long,
+    onSeek: (Long) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val state by lyrics.state.collectAsStateWithLifecycle()
     Box(modifier = modifier, contentAlignment = Alignment.Center) {
-        (state as? LyricsUiState.Synced)?.let { SyncedLyrics(lines = it.lines, positionMs = positionMs) }
+        (state as? LyricsUiState.Synced)?.let {
+            SyncedLyrics(lines = it.lines, positionMs = positionMs, onSeek = onSeek)
+        }
     }
 }
 
 @Composable
-private fun SyncedLyrics(lines: List<LyricLine>, positionMs: Long) {
+private fun SyncedLyrics(lines: List<LyricLine>, positionMs: Long, onSeek: (Long) -> Unit) {
     val active = remember(lines, positionMs) { currentLyricLineIndex(lines, positionMs) }
     val listState = rememberLazyListState()
 
@@ -770,7 +777,13 @@ private fun SyncedLyrics(lines: List<LyricLine>, positionMs: Long) {
                     MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
                 },
                 textAlign = TextAlign.Center,
-                modifier = Modifier.fillMaxWidth().padding(vertical = 6.dp),
+                // Clickable outside the padding, so the gap between lines
+                // belongs to a line rather than to nothing — a lyric is a
+                // short target to hit while the list is moving.
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clickable { onSeek(line.timeMs) }
+                    .padding(vertical = 10.dp),
             )
         }
     }
