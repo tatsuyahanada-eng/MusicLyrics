@@ -76,7 +76,11 @@ fun BrowseScreen(
     val currentUrl by viewModel.currentUrl.collectAsStateWithLifecycle()
     val pageTitle by viewModel.pageTitle.collectAsStateWithLifecycle()
     val categories by viewModel.categories.collectAsStateWithLifecycle()
-    val settings by viewModel.settings.collectAsStateWithLifecycle()
+    // Named apart from WebView's own `settings` property — a plain `settings`
+    // here would shadow it inside every `webView.apply { settings... }` block
+    // below, since Kotlin favours the innermost same-named declaration over
+    // the receiver's member for unqualified property access.
+    val appSettings by viewModel.settings.collectAsStateWithLifecycle()
     val clipboard = LocalClipboardManager.current
 
     var canGoBack by remember { mutableStateOf(false) }
@@ -271,9 +275,9 @@ fun BrowseScreen(
         DownloadOptionsDialog(
             title = pageTitle.ifBlank { "この動画" },
             categories = categories,
-            initialKind = settings.defaultKind,
-            initialQuality = settings.defaultQuality,
-            initialCategoryId = settings.defaultCategoryId,
+            initialKind = appSettings.defaultKind,
+            initialQuality = appSettings.defaultQuality,
+            initialCategoryId = appSettings.defaultCategoryId,
             onDismiss = { showDownloadDialog = false },
             onConfirm = { kind, quality, categoryId ->
                 viewModel.download(videoId, YouTubeUrls.watchUrl(videoId), kind, quality, categoryId)
