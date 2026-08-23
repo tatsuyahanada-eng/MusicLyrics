@@ -44,7 +44,7 @@ fun BrandSplash(onFinished: () -> Unit) {
             verticalArrangement = Arrangement.spacedBy(16.dp),
         ) {
             Image(
-                painter = painterResource(R.drawable.ic_launcher_foreground),
+                painter = painterResource(R.drawable.ic_brand),
                 contentDescription = null,
                 modifier = Modifier.size(96.dp),
             )

@@ -1,5 +1,10 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <!-- The app's signature near-black, carried through to the launcher. -->
-    <color name="ic_launcher_background">#151718</color>
+    <!--
+      The icon artwork's own plate colour. The foreground carries the whole
+      icon including its plate, so this only has to fill the margin the
+      launcher's mask reaches into — matching the plate makes that seam
+      invisible whatever shape the mask is.
+    -->
+    <color name="ic_launcher_background">#FCC501</color>
 </resources>

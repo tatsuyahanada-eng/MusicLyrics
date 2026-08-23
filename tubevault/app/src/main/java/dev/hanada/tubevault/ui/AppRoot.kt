@@ -132,7 +132,7 @@ private fun AppHeader() {
             horizontalArrangement = Arrangement.spacedBy(10.dp),
         ) {
             Image(
-                painter = painterResource(R.drawable.ic_launcher_foreground),
+                painter = painterResource(R.drawable.ic_brand),
                 contentDescription = null,
                 modifier = Modifier.size(28.dp),
             )
