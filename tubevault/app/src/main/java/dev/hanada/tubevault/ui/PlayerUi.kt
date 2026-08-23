@@ -297,43 +297,49 @@ private fun PortraitPlayer(
                 }
             }
 
-            // The stage takes every pixel the controls do not, and the picture
-            // sits at the bottom of it — directly above the title it belongs
-            // to. Centring it instead left the video stranded mid-screen with
-            // a gap under it and no relationship to anything. The gap the
-            // picture leaves above itself is where the lyrics go, so they
-            // never sit on top of the video.
-            Column(
-                modifier = Modifier
-                    .weight(1f)
-                    .fillMaxWidth()
-                    .padding(start = 20.dp, end = 20.dp, top = 12.dp, bottom = 20.dp),
-                horizontalAlignment = Alignment.CenterHorizontally,
-            ) {
-                LyricsPanel(
-                    lyrics = lyrics,
-                    positionMs = positionMs,
-                    modifier = Modifier.weight(1f).fillMaxWidth(),
-                )
-                Stage(current = current, player = player)
-            }
-
-            Column(modifier = Modifier.padding(horizontal = 24.dp)) {
+            // Artist and song name, from what lyrics are actually being
+            // searched for rather than the raw video title — the guess (or
+            // the user's own correction) has already had a video title's
+            // usual decoration stripped, so it reads like a real credit
+            // instead of "Artist - Song (Official Video)".
+            val query by lyrics.query.collectAsStateWithLifecycle()
+            Column(modifier = Modifier.padding(horizontal = 24.dp, vertical = 4.dp)) {
                 Text(
-                    text = current.title,
+                    text = query?.title?.takeIf { it.isNotEmpty() } ?: current.title,
                     style = MaterialTheme.typography.titleMedium,
                     maxLines = 2,
                     overflow = TextOverflow.Ellipsis,
                 )
                 Text(
-                    text = current.uploader ?: current.mediaKind.label,
+                    text = query?.artist?.takeIf { it.isNotEmpty() }
+                        ?: current.uploader
+                        ?: current.mediaKind.label,
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
-                    modifier = Modifier.padding(top = 4.dp),
+                    modifier = Modifier.padding(top = 2.dp),
                 )
             }
+
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 20.dp, vertical = 12.dp),
+                contentAlignment = Alignment.Center,
+            ) {
+                Stage(current = current, player = player)
+            }
+
+            // Takes whatever the picture above and the controls below leave
+            // it, rather than sharing a fixed split with the picture — a
+            // short song's lyrics should not be stretched to fill space a
+            // long one would need to scroll.
+            LyricsPanel(
+                lyrics = lyrics,
+                positionMs = positionMs,
+                modifier = Modifier.weight(1f).fillMaxWidth().padding(horizontal = 20.dp),
+            )
 
             Spacer(Modifier.height(12.dp))
             SeekBar(controller = controller, modifier = Modifier.padding(horizontal = 20.dp))
@@ -714,12 +720,12 @@ private fun GlyphButton(
 // ------------------------------------------------------------------ lyrics --
 
 /**
- * Lyrics in the gap the picture leaves above itself, rather than over the
- * picture — several lines at once so the song reads as a whole, with the line
- * playing right now carried in the accent colour.
+ * Lyrics in the space below the picture, rather than over it — several lines
+ * at once so the song reads as a whole, with the line playing right now
+ * carried in white.
  *
- * Always occupies its slot even with nothing to show, so the picture stays
- * pinned to the bottom of the stage whether or not lyrics were found. Only
+ * Always occupies its slot even with nothing to show, so layout does not
+ * shift when lyrics show up mid-song or disappear on a track change. Only
  * timestamped lines qualify: a plain (unsynced) result cannot track playback,
  * so it is left to [LyricsCorrectionDialog] to display in full.
  *
@@ -776,11 +782,7 @@ private fun SyncedLyrics(lines: List<LyricLine>, positionMs: Long) {
                     MaterialTheme.typography.bodyMedium
                 },
                 fontWeight = if (current) FontWeight.Bold else FontWeight.Normal,
-                color = if (current) {
-                    MaterialTheme.colorScheme.primary
-                } else {
-                    MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
-                },
+                color = if (current) Color.White else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f),
                 textAlign = TextAlign.Center,
                 // Clickable outside the padding, so the gap between lines
                 // belongs to a line rather than to nothing — a lyric is a
