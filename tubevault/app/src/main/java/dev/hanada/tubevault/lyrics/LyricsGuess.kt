@@ -37,36 +37,83 @@ object LyricsGuess {
         Regex("""(?i)\s*[-–—]?\s*(topic|vevo|official|records?|music|channel|公式|オフィシャル|チャンネル)\s*$""")
 
     /**
+     * Which half of a split is the artist depends on the separator: a dash
+     * reads "artist - song", but a slash or bar is overwhelmingly
+     * "曲名 / アーティスト" — song first. Getting this backwards swaps the two
+     * fields and the search finds nothing, so each separator carries its own
+     * convention rather than sharing one.
+     */
+    private class Separator(val text: String, val artistIsSecond: Boolean)
+
+    /**
      * All require surrounding space (or are unambiguous full-width forms). A
      * bare "-" is deliberately absent: with nothing to disambiguate it, it
      * splits "Rock-n-Roll Star" into an artist and a song that are both wrong,
      * where falling through to the uploader gets at least the artist right.
      */
-    private val SEPARATORS = listOf(" - ", " – ", " — ", " / ", "／", " | ", "｜")
+    private val SEPARATORS = listOf(
+        Separator(" - ", artistIsSecond = false),
+        Separator(" – ", artistIsSecond = false),
+        Separator(" — ", artistIsSecond = false),
+        Separator(" / ", artistIsSecond = true),
+        Separator("／", artistIsSecond = true),
+        Separator(" | ", artistIsSecond = true),
+        Separator("｜", artistIsSecond = true),
+    )
 
     private val WHITESPACE = Regex("""\s+""")
 
     private const val QUOTES = "\"'「」『』 　"
 
     fun guess(title: String, uploader: String?): Pair<String, String> {
+        val channel = cleanUploader(uploader)
+
         QUOTED_SONG.find(title)?.let { match ->
             val song = cleanSong(match.groupValues[1])
             if (song.isNotEmpty()) {
                 val artist = cleanArtist(title.substring(0, match.range.first))
-                return artist.ifEmpty { cleanUploader(uploader) } to song
+                return artist.ifEmpty { channel } to song
             }
         }
 
         for (sep in SEPARATORS) {
-            val index = title.indexOf(sep)
+            val index = title.indexOf(sep.text)
             if (index <= 0) continue
-            val artist = cleanArtist(title.substring(0, index))
-            val song = cleanSong(title.substring(index + sep.length))
+            val first = title.substring(0, index)
+            val second = title.substring(index + sep.text.length)
+
+            // The channel is the surest signal there is about which half names
+            // the artist — it usually *is* the artist. Only when neither half
+            // resembles it does the separator's convention have to decide.
+            val artistIsSecond = when {
+                channel.isEmpty() -> sep.artistIsSecond
+                namesTheChannel(second, channel) -> true
+                namesTheChannel(first, channel) -> false
+                else -> sep.artistIsSecond
+            }
+
+            val artist = cleanArtist(if (artistIsSecond) second else first)
+            val song = cleanSong(if (artistIsSecond) first else second)
             if (artist.isNotEmpty() && song.isNotEmpty()) return artist to song
         }
 
-        return cleanUploader(uploader) to cleanSong(title)
+        return channel to cleanSong(title)
     }
+
+    /**
+     * Whether one half of a split looks like the uploader's name. Compared
+     * loosely — a channel is "YOASOBI" where the title says "Ayase / YOASOBI",
+     * or vice versa — with a floor on length so two short strings do not match
+     * on a coincidental substring.
+     */
+    private fun namesTheChannel(side: String, channel: String): Boolean {
+        val a = cleanArtist(side).squashed()
+        val b = channel.squashed()
+        if (a.isEmpty() || b.isEmpty()) return false
+        return a == b || (a.length >= 3 && b.contains(a)) || (b.length >= 3 && a.contains(b))
+    }
+
+    private fun String.squashed(): String = lowercase().replace(WHITESPACE, "")
 
     private fun cleanSong(raw: String): String = raw
         .replace(BRACKETED, " ")
