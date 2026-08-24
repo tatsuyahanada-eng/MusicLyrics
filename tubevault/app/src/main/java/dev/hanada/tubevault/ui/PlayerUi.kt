@@ -71,7 +71,6 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -102,7 +101,6 @@ import dev.hanada.tubevault.lyrics.LyricsUiState
 import dev.hanada.tubevault.lyrics.currentLyricLineIndex
 import dev.hanada.tubevault.playback.PlaybackController
 import kotlinx.coroutines.delay
-import kotlinx.coroutines.launch
 import java.io.File
 
 /** Persistent bar that sits above the bottom navigation while something plays. */
@@ -338,6 +336,7 @@ private fun PortraitPlayer(
             LyricsPanel(
                 lyrics = lyrics,
                 positionMs = positionMs,
+                onSeek = controller::seekTo,
                 modifier = Modifier.weight(1f).fillMaxWidth().padding(horizontal = 20.dp),
             )
 
@@ -729,33 +728,32 @@ private fun GlyphButton(
  * timestamped lines qualify: a plain (unsynced) result cannot track playback,
  * so it is left to [LyricsCorrectionDialog] to display in full.
  *
- * A tap browses the list rather than seeking — it only ever scrolls, so the
- * video keeps playing exactly where it was. Reading ahead or back this way
- * needs no round trip through playback at all, and the next line change
- * pulls the list back to what's actually playing regardless.
+ * A tap both seeks playback to that line and scrolls the list there, so the
+ * lyric under a finger is exactly where the song jumps to.
  */
 @Composable
 private fun LyricsPanel(
     lyrics: LyricsController,
     positionMs: Long,
+    onSeek: (Long) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val state by lyrics.state.collectAsStateWithLifecycle()
     Box(modifier = modifier, contentAlignment = Alignment.Center) {
-        (state as? LyricsUiState.Synced)?.let { SyncedLyrics(lines = it.lines, positionMs = positionMs) }
+        (state as? LyricsUiState.Synced)?.let {
+            SyncedLyrics(lines = it.lines, positionMs = positionMs, onSeek = onSeek)
+        }
     }
 }
 
 @Composable
-private fun SyncedLyrics(lines: List<LyricLine>, positionMs: Long) {
+private fun SyncedLyrics(lines: List<LyricLine>, positionMs: Long, onSeek: (Long) -> Unit) {
     val active = remember(lines, positionMs) { currentLyricLineIndex(lines, positionMs) }
     val listState = rememberLazyListState()
-    val scope = rememberCoroutineScope()
 
     // A line's resting place is a third of the way down rather than at the
     // top, so the lines about to be sung stay on screen ahead of the one
-    // being sung — shared by the tap-to-browse scroll below, so a tapped
-    // line lands exactly where the currently-playing one would.
+    // being sung.
     suspend fun scrollTo(index: Int) {
         if (index < 0) return
         val viewport = listState.layoutInfo.viewportSize.height
@@ -777,9 +775,9 @@ private fun SyncedLyrics(lines: List<LyricLine>, positionMs: Long) {
             Text(
                 text = line.text,
                 style = if (current) {
-                    MaterialTheme.typography.titleMedium
+                    MaterialTheme.typography.headlineSmall
                 } else {
-                    MaterialTheme.typography.bodyMedium
+                    MaterialTheme.typography.titleMedium
                 },
                 fontWeight = if (current) FontWeight.Bold else FontWeight.Normal,
                 color = if (current) Color.White else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f),
@@ -789,7 +787,7 @@ private fun SyncedLyrics(lines: List<LyricLine>, positionMs: Long) {
                 // short target to hit while the list is moving.
                 modifier = Modifier
                     .fillMaxWidth()
-                    .clickable { scope.launch { scrollTo(index) } }
+                    .clickable { onSeek(line.timeMs) }
                     .padding(vertical = 10.dp),
             )
         }
