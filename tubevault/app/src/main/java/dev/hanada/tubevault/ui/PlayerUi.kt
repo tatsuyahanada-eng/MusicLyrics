@@ -71,7 +71,6 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -102,7 +101,6 @@ import dev.hanada.tubevault.lyrics.LyricsUiState
 import dev.hanada.tubevault.lyrics.currentLyricLineIndex
 import dev.hanada.tubevault.playback.PlaybackController
 import kotlinx.coroutines.delay
-import kotlinx.coroutines.launch
 import java.io.File
 
 /** Persistent bar that sits above the bottom navigation while something plays. */
@@ -729,10 +727,12 @@ private fun GlyphButton(
  * timestamped lines qualify: a plain (unsynced) result cannot track playback,
  * so it is left to [LyricsCorrectionDialog] to display in full.
  *
- * A tap browses the list rather than seeking — it only ever scrolls, so the
- * video keeps playing exactly where it was. Reading ahead or back this way
- * needs no round trip through playback at all, and the next line change
- * pulls the list back to what's actually playing regardless.
+ * A tap does not seek playback — the video keeps running exactly where it
+ * was — but it does not just flash the list over either: the tapped line
+ * stays highlighted and held in place, and real playback (still advancing
+ * on its own) quietly takes back over the instant it reaches that line, so
+ * reading ahead resumes as the song itself rather than snapping straight
+ * back to wherever the video actually is.
  */
 @Composable
 private fun LyricsPanel(
@@ -748,14 +748,22 @@ private fun LyricsPanel(
 
 @Composable
 private fun SyncedLyrics(lines: List<LyricLine>, positionMs: Long) {
-    val active = remember(lines, positionMs) { currentLyricLineIndex(lines, positionMs) }
+    // Non-null while a tapped line is still ahead of real playback. Held
+    // fixed rather than ticking forward itself, since real playback is
+    // already advancing at its own pace — this just waits for it to arrive.
+    var readingMs by remember(lines) { mutableStateOf<Long?>(null) }
+    LaunchedEffect(positionMs) {
+        val target = readingMs
+        if (target != null && positionMs >= target) readingMs = null
+    }
+
+    val effectivePositionMs = readingMs ?: positionMs
+    val active = remember(lines, effectivePositionMs) { currentLyricLineIndex(lines, effectivePositionMs) }
     val listState = rememberLazyListState()
-    val scope = rememberCoroutineScope()
 
     // A line's resting place is a third of the way down rather than at the
     // top, so the lines about to be sung stay on screen ahead of the one
-    // being sung — shared by the tap-to-browse scroll below, so a tapped
-    // line lands exactly where the currently-playing one would.
+    // being sung.
     suspend fun scrollTo(index: Int) {
         if (index < 0) return
         val viewport = listState.layoutInfo.viewportSize.height
@@ -789,7 +797,7 @@ private fun SyncedLyrics(lines: List<LyricLine>, positionMs: Long) {
                 // short target to hit while the list is moving.
                 modifier = Modifier
                     .fillMaxWidth()
-                    .clickable { scope.launch { scrollTo(index) } }
+                    .clickable { readingMs = line.timeMs }
                     .padding(vertical = 10.dp),
             )
         }
