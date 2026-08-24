@@ -727,12 +727,15 @@ private fun GlyphButton(
  * timestamped lines qualify: a plain (unsynced) result cannot track playback,
  * so it is left to [LyricsCorrectionDialog] to display in full.
  *
- * A tap does not seek playback — the video keeps running exactly where it
- * was — but it does not just flash the list over either: the tapped line
- * stays highlighted and held in place, and real playback (still advancing
- * on its own) quietly takes back over the instant it reaches that line, so
- * reading ahead resumes as the song itself rather than snapping straight
- * back to wherever the video actually is.
+ * A tap re-syncs the lyrics to the video instead of seeking it. Downloaded
+ * video rarely starts where the lyrics database assumed — an intro, a
+ * trimmed opening, a live take — so the timestamps can sit seconds away from
+ * what is actually being sung. Tapping the line being sung right now says
+ * "this line is here", which is recorded as an offset between the two clocks
+ * and applied to every line from then on: the tapped line turns white
+ * immediately and the lyrics carry on advancing from there in step with the
+ * song. Playback itself is never touched, so the picture keeps running
+ * exactly where it was.
  */
 @Composable
 private fun LyricsPanel(
@@ -748,16 +751,15 @@ private fun LyricsPanel(
 
 @Composable
 private fun SyncedLyrics(lines: List<LyricLine>, positionMs: Long) {
-    // Non-null while a tapped line is still ahead of real playback. Held
-    // fixed rather than ticking forward itself, since real playback is
-    // already advancing at its own pace — this just waits for it to arrive.
-    var readingMs by remember(lines) { mutableStateOf<Long?>(null) }
-    LaunchedEffect(positionMs) {
-        val target = readingMs
-        if (target != null && positionMs >= target) readingMs = null
-    }
+    // How far this file's playback clock sits from the lyrics' own clock,
+    // set by tapping the line being sung. Reset per lyric set, since the
+    // offset only describes one pairing of a recording with a transcript.
+    var offsetMs by remember(lines) { mutableStateOf(0L) }
 
-    val effectivePositionMs = readingMs ?: positionMs
+    // Shifting the position the lines are looked up by — rather than the
+    // timestamps themselves — keeps one adjustable number in play and leaves
+    // the fetched lyrics untouched.
+    val effectivePositionMs = positionMs - offsetMs
     val active = remember(lines, effectivePositionMs) { currentLyricLineIndex(lines, effectivePositionMs) }
     val listState = rememberLazyListState()
 
@@ -797,7 +799,7 @@ private fun SyncedLyrics(lines: List<LyricLine>, positionMs: Long) {
                 // short target to hit while the list is moving.
                 modifier = Modifier
                     .fillMaxWidth()
-                    .clickable { readingMs = line.timeMs }
+                    .clickable { offsetMs = positionMs - line.timeMs }
                     .padding(vertical = 10.dp),
             )
         }
