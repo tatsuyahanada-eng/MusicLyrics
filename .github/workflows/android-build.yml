@@ -17,6 +17,10 @@ jobs:
   build:
     runs-on: ubuntu-latest
 
+    env:
+      QUICKJS_VERSION: v0.16.2
+      NDK_VERSION: r27d
+
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -30,18 +34,35 @@ jobs:
       - name: Set up Android SDK
         uses: android-actions/setup-android@v3
 
+      # cache-read-only defaults to true on every branch except the
+      # repository's default one, and this workflow only ever runs on the
+      # development branch — which left the cache never written, so every
+      # build re-downloaded every dependency and recompiled from cold.
       - name: Set up Gradle
         uses: gradle/actions/setup-gradle@v4
+        with:
+          cache-read-only: false
 
       - name: Make gradlew executable
         working-directory: tubevault
         run: chmod +x gradlew
 
+      # The binary only changes when QuickJS or the NDK does, so it is keyed
+      # on both and rebuilt on neither otherwise. A hit also makes the NDK
+      # itself unnecessary, which is the more expensive half to set up.
+      - name: Restore the QuickJS runtime
+        id: qjs-cache
+        uses: actions/cache@v4
+        with:
+          path: tubevault/app/src/main/jniLibs
+          key: qjs-${{ env.QUICKJS_VERSION }}-ndk-${{ env.NDK_VERSION }}-arm64-v8a-armeabi-v7a
+
       - name: Set up Android NDK
         id: setup-ndk
+        if: steps.qjs-cache.outputs.cache-hit != 'true'
         uses: nttld/setup-ndk@v1
         with:
-          ndk-version: r27d
+          ndk-version: ${{ env.NDK_VERSION }}
 
       # yt-dlp's nsig ("n challenge") solver now requires an external
       # JavaScript runtime binary (deno/node/bun/quickjs) — none of which
@@ -50,11 +71,12 @@ jobs:
       # android already bundles ffmpeg: named "lib*.so" under jniLibs/<abi>/,
       # which makes Android install it with execute permission for free.
       - name: Build the QuickJS runtime for Android
+        if: steps.qjs-cache.outputs.cache-hit != 'true'
         env:
           NDK: ${{ steps.setup-ndk.outputs.ndk-path }}
         run: |
           set -eu
-          git clone --depth 1 --branch v0.16.2 https://github.com/quickjs-ng/quickjs.git /tmp/quickjs-ng
+          git clone --depth 1 --branch "$QUICKJS_VERSION" https://github.com/quickjs-ng/quickjs.git /tmp/quickjs-ng
           for abi in arm64-v8a armeabi-v7a; do
             cmake -S /tmp/quickjs-ng -B "/tmp/qjs-build-$abi" \
               -DCMAKE_TOOLCHAIN_FILE="$NDK/build/cmake/android.toolchain.cmake" \
@@ -67,11 +89,24 @@ jobs:
           done
           ls -lh tubevault/app/src/main/jniLibs/*/libqjs.so
 
+      # A cache that restored empty or half-written would otherwise sail
+      # through and ship an APK with no JS runtime — which does not fail the
+      # build, it just silently breaks downloads again at nsig time.
+      - name: Check the QuickJS runtime is present
+        run: |
+          set -eu
+          for abi in arm64-v8a armeabi-v7a; do
+            so="tubevault/app/src/main/jniLibs/$abi/libqjs.so"
+            test -s "$so" || { echo "missing or empty: $so" >&2; exit 1; }
+          done
+          ls -lh tubevault/app/src/main/jniLibs/*/libqjs.so
+
       - name: Build debug APKs
         working-directory: tubevault
         # buildNumber becomes versionCode, so each release install replaces
         # the last one instead of tying at the same version.
-        run: ./gradlew assembleDebug -PbuildNumber="${{ github.run_number }}" --stacktrace --no-daemon
+        # No --no-daemon: it defeats the Gradle state the cache above keeps.
+        run: ./gradlew assembleDebug -PbuildNumber="${{ github.run_number }}" --stacktrace
 
       - name: Name the APKs
         working-directory: tubevault/app/build/outputs/apk/debug
