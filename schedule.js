@@ -705,8 +705,8 @@ function jobFormHtml(f) {
         </div>
 
         ${view.paint === 'multi' && !f.allDay
-          ? '<p class="sc-hint">時間はそれぞれの枠（早朝・AM・P1・P2・夜間）の時間で登録されます。</p>' : ''}
-        <div class="sc-form-row" id="timeRow" ${(f.allDay || view.paint === 'multi') ? 'hidden' : ''}>
+          ? '<p class="sc-hint">ここで指定した時間が、選んだすべての枠にまとめて登録されます。</p>' : ''}
+        <div class="sc-form-row" id="timeRow" ${f.allDay ? 'hidden' : ''}>
           <label class="sc-field">
             <span class="sc-field-label">開始</span>
             <input id="fStart" class="sc-input" type="time" value="${escapeHtml(f.start)}">
@@ -780,7 +780,7 @@ function renderMultiPanel() {
   elSidePanel.innerHTML = `
     <div>
       <p class="sc-side-date">${picks.length}枠を選択中</p>
-      <p class="sc-side-date-sub">${dates.length}日ぶん。各枠の時間で、同じ内容の予定をまとめて登録します。</p>
+      <p class="sc-side-date-sub">${dates.length}日ぶん。指定した時間で、同じ内容の予定をまとめて登録します。</p>
     </div>
 
     <div class="sc-side-block">
@@ -1765,12 +1765,9 @@ function updateFormAlert() {
 /** 選んだ枠それぞれについて、登録しようとしている内容の重複を調べる */
 function multiDraft(pick) {
   const [date, sid] = pick.split('|');
-  const slot = slotById(sid);
   const base = draftJob();
   return Object.assign(base, {
     id: '__draft__', date: date,
-    start: base.allDay ? base.start : (slot ? slot.start : base.start),
-    end: base.allDay ? base.end : (slot ? slot.end : base.end),
     slot: sid,
   });
 }
