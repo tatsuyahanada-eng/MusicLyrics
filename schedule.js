@@ -668,6 +668,11 @@ function jobFormHtml(f) {
         どの案件・どの業務で確定したのか、時間とあわせて確認してから「この内容で確定する」を押してください。
       </div>` : ''}
       <form id="jobForm" class="sc-form">
+        ${view.paint !== 'multi' ? `<label class="sc-field">
+          <span class="sc-field-label">日付 <span aria-hidden="true">*</span></span>
+          <input id="fDate" class="sc-input" type="date" value="${escapeHtml(f.date)}">
+        </label>` : ''}
+
         <label class="sc-field">
           <span class="sc-field-label">案件名 <span aria-hidden="true">*</span></span>
           <select id="fTitle" class="sc-input">
@@ -1608,6 +1613,7 @@ function googleCalendarUrl(job) {
 function blankForm() {
   const slot = view.slot ? slotById(view.slot) : null;
   return {
+    date: view.selected || todayKey(),
     titleSel: '', titleFree: '', workType: '', status: 'confirmed', allDay: false,
     start: slot ? slot.start : state.settings.defStart,
     end: slot ? slot.end : state.settings.defEnd,
@@ -1619,6 +1625,7 @@ function formFromJob(job) {
   const title = job.title || '';
   const preset = PROJECT_PRESETS.includes(title);
   return {
+    date: job.date,
     titleSel: title ? (preset ? title : PROJECT_FREE) : '',
     titleFree: preset ? '' : title,
     workType: job.workType || '',
@@ -1635,7 +1642,9 @@ function formFromJob(job) {
 
 function readForm() {
   if (!$('jobForm')) return null;
+  const dateEl = $('fDate');
   return {
+    date: dateEl ? dateEl.value : (view.selected || ''),
     titleSel: $('fTitle').value,
     titleFree: $('fTitleFree').value,
     workType: $('fWorkType').value,
@@ -1668,7 +1677,7 @@ function draftJob() {
   const f = view.form || blankForm();
   return {
     id: view.editingId || '__draft__',
-    date: view.selected,
+    date: f.date != null ? f.date : (view.selected || ''),
     allDay: !!f.allDay,
     start: f.start || state.settings.defStart,
     end: f.end || state.settings.defEnd,
@@ -1708,10 +1717,10 @@ function updateFormAlert() {
   const buffers = conflicts.filter((c) => c.type === 'buffer');
 
   const warns = [];
-  if ((state.wishes[view.selected] || null) === WISH_OFF) {
+  if ((state.wishes[draft.date] || null) === WISH_OFF) {
     warns.push('この日は「休み希望」に設定されています。');
   }
-  if (view.selected < todayKey()) {
+  if (draft.date < todayKey()) {
     warns.push('過去の日付です。');
   }
   if (!draft.allDay) {
@@ -1894,6 +1903,12 @@ function submitJob(ev) {
     $('fWorkType').focus();
     return;
   }
+  if (!draft.date) {
+    toast('日付を入力してください', true);
+    const el = $('fDate');
+    if (el) el.focus();
+    return;
+  }
   if (!draft.allDay) {
     if (toMinutes(draft.start) === null || toMinutes(draft.end) === null) {
       toast('開始・終了時刻を入力してください', true);
@@ -1935,6 +1950,14 @@ function submitJob(ev) {
 
   // 予定を入れた日は自動で「休み希望」を解除して稼働扱いにそろえる
   if (state.wishes[draft.date] === WISH_OFF) delete state.wishes[draft.date];
+
+  // 日付を変更した場合は、変更後の日（月をまたいでいればその月）に表示を合わせる
+  view.selected = draft.date;
+  const movedTo = fromKey(draft.date);
+  if (movedTo.getMonth() !== view.month || movedTo.getFullYear() !== view.year) {
+    view.year = movedTo.getFullYear();
+    view.month = movedTo.getMonth();
+  }
 
   view.editingId = null;
   view.confirming = false;
