@@ -416,6 +416,8 @@
       'tm-filechip': 1, 'tm-body-img': 1,
       'tm-formfield': 1, 'tm-ff-label': 1, 'tm-ff-input': 1, 'tm-ff-cb': 1,
       'tm-append-block': 1, 'tm-append-stamp': 1,
+      // 本文中の画像の見せ方（小さく置く／文章を横に回り込ませる）
+      'tm-img-s': 1, 'tm-img-m': 1, 'tm-img-wrap': 1,
     };
     return String(v).split(/\s+/).filter((t) => allow[t]).join(' ');
   }
@@ -1538,6 +1540,11 @@
       if (cap) {
         const fig = document.createElement('figure');
         fig.className = 'tm-figure';
+        // 大きさ・回り込みは、画像とキャプションをひとまとまりにした figure ごと適用する
+        // （画像だけに掛けると、キャプションが画像の横に取り残されてしまう）
+        ['tm-img-s', 'tm-img-m', 'tm-img-wrap'].forEach((c) => {
+          if (img.classList.contains(c)) { fig.classList.add(c); img.classList.remove(c); }
+        });
         img.replaceWith(fig);
         fig.appendChild(img);
         const fc = document.createElement('figcaption');
@@ -2117,14 +2124,52 @@
     if (!tmp.textContent.trim() && !tmp.querySelector('img, a, input, textarea, .tm-formfield')) return '';
     return clean;
   }
+  /* ---- 本文エディタのカーソル位置 ----
+     ボタンを押したりダイアログを開いたりすると、本文の選択（カーソル）は外れてしまう。
+     そのままだと画像は「文章の一番下」にしか入れられない。直前のカーソル位置を
+     覚えておき、そこへ差し込むことで「いま書いている場所に画像が入る」ようにする。 */
+  let editorRange = null;
+  function saveEditorRange() {
+    const sel = window.getSelection();
+    if (!sel || !sel.rangeCount) return;
+    const r = sel.getRangeAt(0);
+    if (nodeBodyEditor.contains(r.commonAncestorContainer)) editorRange = r.cloneRange();
+  }
+  function hasEditorRange() {
+    return !!(editorRange && nodeBodyEditor.contains(editorRange.commonAncestorContainer));
+  }
+  function restoreEditorRange() {
+    if (!hasEditorRange()) return false;
+    const sel = window.getSelection();
+    sel.removeAllRanges();
+    sel.addRange(editorRange);
+    return true;
+  }
+  // 画面上の位置（ドロップ地点）から、本文中のカーソル位置を求める
+  function editorRangeFromPoint(x, y) {
+    let r = null;
+    if (document.caretRangeFromPoint) r = document.caretRangeFromPoint(x, y);
+    else if (document.caretPositionFromPoint) {
+      const p = document.caretPositionFromPoint(x, y);
+      if (p) { r = document.createRange(); r.setStart(p.offsetNode, p.offset); r.collapse(true); }
+    }
+    return (r && nodeBodyEditor.contains(r.commonAncestorContainer)) ? r : null;
+  }
   function insertEditorHtml(html) {
     nodeBodyEditor.focus();
+    restoreEditorRange();
     document.execCommand('insertHTML', false, html);
+    saveEditorRange();
   }
   // 添付（画像・ファイル）は本文の末尾に追加する
   function appendEditorHtml(html) {
     nodeBodyEditor.insertAdjacentHTML('beforeend', html);
     nodeBodyEditor.scrollTop = nodeBodyEditor.scrollHeight;
+  }
+  // カーソルがあればそこへ、無ければ末尾へ。画像・ファイルの差し込みに使う。
+  function placeEditorHtml(html) {
+    if (hasEditorRange()) insertEditorHtml(html);
+    else appendEditorHtml(html);
   }
   // 拡張子に応じた小さなファイルアイコン（絵文字）
   function fileIcon(name) {
@@ -2314,7 +2359,15 @@
   const nodeFileBtn = $('#nodeFileBtn');
   const nodeFileFile = $('#nodeFileFile');
 
-  async function uploadAttachment(file) {
+  // 複数ファイルをまとめて取り込む（1枚ずつ順番に）。
+  // 1枚だけのときは、続けて名称（キャプション）を入力できるようにする。
+  async function uploadAttachments(files) {
+    const list = Array.from(files || []);
+    if (!list.length) return;
+    for (const f of list) await uploadAttachment(f, { silentPrompt: list.length > 1 });
+    if (list.length > 1) nodeError(`${list.length}件を本文に追加しました`);
+  }
+  async function uploadAttachment(file, opts) {
     if (!serverMode()) { nodeError('添付はサーバー(DB)接続時のみ利用できます'); return; }
     async function send(token) {
       const fd = new FormData();
@@ -2338,16 +2391,18 @@
         if (!data || typeof data !== 'object') throw new Error('サーバー応答が不正です');
         if (!res.ok || data.ok === false) throw new Error(data.error || ('HTTP ' + res.status));
         if (data.is_image) {
-          appendEditorHtml(`<img src="${esc(data.url)}" alt=""><br>`);
-          nodeError('画像を本文の下に追加しました');
-          // 挿入した画像の名称をすぐ入力できるようにする
-          const imgs = nodeBodyEditor.querySelectorAll('img');
-          const last = imgs[imgs.length - 1];
-          if (last) openImgNameDialog(last);
+          // 目印を一緒に入れて、差し込んだ画像そのものを確実に取り出す
+          const mark = 'cbcimg' + Date.now() + Math.random().toString(36).slice(2, 7);
+          placeEditorHtml(`<img src="${esc(data.url)}" alt="" data-new="${mark}"><br>`);
+          const added = nodeBodyEditor.querySelector(`img[data-new="${mark}"]`);
+          if (added) added.removeAttribute('data-new');
+          nodeError(hasEditorRange() ? '画像をカーソルの位置に入れました' : '画像を本文の下に追加しました');
+          // 1枚だけのときは、続けて名称・大きさを指定できるようにする
+          if (added && !(opts && opts.silentPrompt)) openImgNameDialog(added);
         } else {
           const nm = data.name || 'ファイル';
-          appendEditorHtml(`<a class="tm-filechip" href="${esc(data.url)}">${fileIcon(nm)} ${esc(nm)}</a> `);
-          nodeError('ファイルを文末に追加しました');
+          placeEditorHtml(`<a class="tm-filechip" href="${esc(data.url)}">${fileIcon(nm)} ${esc(nm)}</a> `);
+          nodeError('ファイルを追加しました');
         }
         break;
       }
@@ -2359,27 +2414,61 @@
       nodeImgFile.click();
     });
     nodeImgFile.addEventListener('change', () => {
-      const f = nodeImgFile.files[0]; if (f) uploadAttachment(f); nodeImgFile.value = '';
+      uploadAttachments(nodeImgFile.files); nodeImgFile.value = '';
     });
     nodeFileBtn.addEventListener('click', () => {
       if (!serverMode()) { nodeError('添付はサーバー(DB)接続時のみ利用できます'); return; }
       nodeFileFile.click();
     });
     nodeFileFile.addEventListener('change', () => {
-      const f = nodeFileFile.files[0]; if (f) uploadAttachment(f); nodeFileFile.value = '';
+      uploadAttachments(nodeFileFile.files); nodeFileFile.value = '';
+    });
+    // カーソル位置を追いかける（画像をここへ差し込むため）
+    ['keyup', 'mouseup', 'touchend', 'blur'].forEach((ev) =>
+      nodeBodyEditor.addEventListener(ev, saveEditorRange));
+    document.addEventListener('selectionchange', () => {
+      if (document.activeElement === nodeBodyEditor) saveEditorRange();
+    });
+    // 画像ファイルをエディタへドラッグ＆ドロップ → 落とした位置に差し込む
+    const dragHasFiles = (e) => {
+      const t = e.dataTransfer && e.dataTransfer.types;
+      return !!(t && Array.prototype.indexOf.call(t, 'Files') !== -1);
+    };
+    nodeBodyEditor.addEventListener('dragover', (e) => {
+      if (!dragHasFiles(e)) return;
+      e.preventDefault();
+      e.dataTransfer.dropEffect = 'copy';
+      nodeBodyEditor.classList.add('is-dropping');
+    });
+    nodeBodyEditor.addEventListener('dragleave', (e) => {
+      if (e.target === nodeBodyEditor) nodeBodyEditor.classList.remove('is-dropping');
+    });
+    nodeBodyEditor.addEventListener('drop', (e) => {
+      if (!dragHasFiles(e)) return;
+      e.preventDefault();
+      nodeBodyEditor.classList.remove('is-dropping');
+      const r = editorRangeFromPoint(e.clientX, e.clientY);
+      if (r) editorRange = r; // 落とした場所へ入れる
+      uploadAttachments(e.dataTransfer.files);
     });
     nodeBodyEditor.addEventListener('paste', (e) => {
       const cd = e.clipboardData;
       const items = cd && cd.items;
-      // 画像（スクリーンショット等）の貼り付けはアップロード
+      // 画像（スクリーンショット等）の貼り付けはアップロード。
+      // 貼り付け直前のカーソル位置に入れたいので、ここで位置を控えておく。
       if (items) {
+        const imgs = [];
         for (const it of items) {
           if (it.type && it.type.indexOf('image/') === 0) {
-            e.preventDefault();
             const f = it.getAsFile();
-            if (f) uploadAttachment(f);
-            return;
+            if (f) imgs.push(f);
           }
+        }
+        if (imgs.length) {
+          e.preventDefault();
+          saveEditorRange();
+          uploadAttachments(imgs);
+          return;
         }
       }
       if (!cd) return;
@@ -2418,11 +2507,33 @@
   const imgNameDialog = $('#imgNameDialog');
   const imgNameForm = $('#imgNameForm');
   let imgNameTarget = null;
+  // 選択中の大きさ（'s' 小 / 'm' 中 / 'l' 大＝既定）
+  let imgSizePick = 'l';
+  function imgSizeOf(img) {
+    if (img.classList.contains('tm-img-s')) return 's';
+    if (img.classList.contains('tm-img-m')) return 'm';
+    return 'l';
+  }
+  function paintImgSizeRow() {
+    document.querySelectorAll('#imgSizeRow .tm-imgsize').forEach((b) => {
+      b.classList.toggle('is-on', b.dataset.imgsize === imgSizePick);
+    });
+  }
+  { const row = $('#imgSizeRow'); if (row) row.addEventListener('click', (e) => {
+    const b = e.target.closest('[data-imgsize]');
+    if (!b) return;
+    imgSizePick = b.dataset.imgsize;
+    paintImgSizeRow();
+  }); }
   function openImgNameDialog(img) {
     imgNameTarget = img;
     const prev = $('#imgNamePreview');
     if (prev) prev.src = img.getAttribute('src') || '';
     $('#imgNameInput').value = img.getAttribute('alt') || '';
+    imgSizePick = imgSizeOf(img);
+    paintImgSizeRow();
+    const wrapChk = $('#imgWrapChk');
+    if (wrapChk) wrapChk.checked = img.classList.contains('tm-img-wrap');
     imgNameDialog.showModal();
     setTimeout(() => $('#imgNameInput').focus(), 30);
   }
@@ -2432,6 +2543,13 @@
       const v = $('#imgNameInput').value.trim();
       if (v) { imgNameTarget.setAttribute('alt', v); imgNameTarget.setAttribute('title', v); }
       else { imgNameTarget.setAttribute('alt', ''); imgNameTarget.removeAttribute('title'); }
+      // 大きさ・回り込みをクラスで反映（大＝クラス無しが既定）
+      imgNameTarget.classList.remove('tm-img-s', 'tm-img-m');
+      if (imgSizePick === 's') imgNameTarget.classList.add('tm-img-s');
+      else if (imgSizePick === 'm') imgNameTarget.classList.add('tm-img-m');
+      const wrapChk = $('#imgWrapChk');
+      imgNameTarget.classList.toggle('tm-img-wrap', !!(wrapChk && wrapChk.checked));
+      if (!imgNameTarget.getAttribute('class')) imgNameTarget.removeAttribute('class');
     }
     imgNameDialog.close();
   });

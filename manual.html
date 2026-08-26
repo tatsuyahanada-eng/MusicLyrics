@@ -12,7 +12,7 @@
   <link rel="manifest" href="manifest.webmanifest">
   <link rel="icon" href="icon.svg" type="image/svg+xml">
   <link rel="apple-touch-icon" href="icon-192.png">
-  <link rel="stylesheet" href="manual.css?v=103">
+  <link rel="stylesheet" href="manual.css?v=106">
 </head>
 <body class="tm-body">
 
@@ -730,8 +730,8 @@
       <div class="tm-dialog-imgrow">
         <button type="button" id="nodeImgBtn" class="tm-btn tm-btn-outline tm-btn-sm">&#128247; 画像を追加</button>
         <button type="button" id="nodeFileBtn" class="tm-btn tm-btn-outline tm-btn-sm">&#128206; ファイルを添付</button>
-        <input type="file" id="nodeImgFile" accept="image/*" hidden>
-        <input type="file" id="nodeFileFile" accept=".pdf,.txt,.csv,.zip,.doc,.docx,.xls,.xlsx,.ppt,.pptx,image/*" hidden>
+        <input type="file" id="nodeImgFile" accept="image/*" multiple hidden>
+        <input type="file" id="nodeFileFile" accept=".pdf,.txt,.csv,.zip,.doc,.docx,.xls,.xlsx,.ppt,.pptx,image/*" multiple hidden>
         <span class="tm-dialog-imghint">画像・ファイルは本文の下に追加されます（画像は貼り付けCtrl+Vも可）。追加した画像やファイルをタップすると削除できます。</span>
       </div>
 
@@ -879,6 +879,17 @@
         <span class="tm-field-label">名称（キャプション・任意）</span>
         <input id="imgNameInput" class="tm-input" type="text" maxlength="120" autocomplete="off" placeholder="例：分電盤の位置">
       </label>
+      <div class="tm-field">
+        <span class="tm-field-label">本文での大きさ</span>
+        <div id="imgSizeRow" class="tm-imgsize-row">
+          <button type="button" class="tm-imgsize" data-imgsize="s">小</button>
+          <button type="button" class="tm-imgsize" data-imgsize="m">中</button>
+          <button type="button" class="tm-imgsize" data-imgsize="l">大</button>
+        </div>
+        <label class="tm-imgwrap-lbl">
+          <input type="checkbox" id="imgWrapChk"> 文章を画像の横に回り込ませる
+        </label>
+      </div>
       <div class="tm-dialog-actions">
         <button type="button" id="imgNameDelete" class="tm-btn tm-btn-danger-outline">画像を削除</button>
         <button type="button" id="imgNameCancel" class="tm-btn tm-btn-outline">キャンセル</button>
@@ -1538,6 +1549,6 @@
   </dialog>
 
   <script src="vendor/xlsx.full.min.js"></script>
-  <script src="manual.js?v=120"></script>
+  <script src="manual.js?v=122"></script>
 </body>
 </html>

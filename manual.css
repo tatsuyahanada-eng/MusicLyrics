@@ -661,6 +661,12 @@ body.tm-dragging .tm-sortrow { cursor: grabbing; }
   cursor: pointer;
 }
 .tm-editor img:hover { outline: 2px solid var(--tm-warn); outline-offset: 1px; }
+/* 画像ファイルをドラッグしてきたとき、落とせる場所だと分かるようにする */
+.tm-editor.is-dropping {
+  outline: 2px dashed var(--tm-cyan);
+  outline-offset: -3px;
+  background: rgba(63, 224, 224, 0.06);
+}
 .tm-editor a { color: var(--tm-cyan); }
 /* 添付ファイルのチップ（小さなアイコン付き） */
 .tm-filechip {
@@ -723,6 +729,25 @@ body.tm-dragging .tm-sortrow { cursor: grabbing; }
   margin: 8px 0;
   border: 1px solid var(--tm-line);
   border-radius: 6px;
+}
+
+/* ---- 本文中の画像の大きさ・回り込み（編集画面と閲覧画面で同じ見え方にする） ----
+   既定（クラス無し）＝大。小・中は文章の流れを邪魔しない大きさに収める。 */
+.tm-editor img.tm-img-s, .tm-content-body img.tm-img-s { max-width: min(200px, 60%); }
+.tm-editor img.tm-img-m, .tm-content-body img.tm-img-m { max-width: min(380px, 80%); }
+/* 文章を横に回り込ませる（写真の隣に説明を書けるようにする） */
+.tm-editor img.tm-img-wrap, .tm-content-body img.tm-img-wrap {
+  display: inline; float: left; margin: 4px 14px 8px 0;
+}
+.tm-editor img.tm-img-wrap { max-width: min(300px, 50%); }
+.tm-content-body img.tm-img-wrap { max-width: min(300px, 50%); }
+/* 回り込みが次の見出し・段落へはみ出さないように、本文の区切りで解除する */
+.tm-content-body h3, .tm-content-body h2 { clear: both; }
+@media (max-width: 480px) {
+  /* 画面が狭いときは回り込むと読みにくいので、通常の配置に戻す */
+  .tm-editor img.tm-img-wrap, .tm-content-body img.tm-img-wrap {
+    display: block; float: none; margin: 8px 0; max-width: 100%;
+  }
 }
 .tm-content-body > img:first-child { margin-top: 0; }
 
@@ -2190,8 +2215,19 @@ textarea.tm-ff-input { width: 100%; resize: vertical; min-height: 88px; }
 /* ============================================================
    画像の名称（キャプション）＋ 拡大表示（ライトボックス）
    ============================================================ */
+/* 回り込みさせた画像が枠の外へはみ出さないように、内側で回り込みを解除する */
+.tm-content-body::after, .tm-editor::after { content: ''; display: block; clear: both; }
 .tm-content-body .tm-figure { margin: 8px 0; }
 .tm-content-body .tm-figure img { margin: 0; }
+/* キャプション付き画像の大きさ・回り込みは figure ごと効かせる（中の画像は枠いっぱい） */
+.tm-content-body figure.tm-img-s { max-width: min(200px, 60%); }
+.tm-content-body figure.tm-img-m { max-width: min(380px, 80%); }
+.tm-content-body figure.tm-img-s img, .tm-content-body figure.tm-img-m img,
+.tm-content-body figure.tm-img-wrap img { max-width: 100%; }
+.tm-content-body figure.tm-img-wrap { float: left; margin: 4px 14px 8px 0; max-width: min(300px, 50%); }
+@media (max-width: 480px) {
+  .tm-content-body figure.tm-img-wrap { float: none; margin: 8px 0; max-width: 100%; }
+}
 .tm-figcaption {
   margin-top: 4px;
   font-size: 12px;
@@ -2206,6 +2242,21 @@ textarea.tm-ff-input { width: 100%; resize: vertical; min-height: 88px; }
 /* 画像名ダイアログのプレビュー */
 .tm-imgname-prevwrap { text-align: center; margin-bottom: 6px; }
 .tm-imgname-preview { max-width: 100%; max-height: 34vh; border-radius: 6px; border: 1px solid var(--tm-line); }
+/* 本文での大きさの選択（小・中・大） */
+.tm-imgsize-row { display: flex; gap: 6px; }
+.tm-imgsize {
+  flex: 1 1 0; font: inherit; font-size: 13px; cursor: pointer;
+  color: var(--tm-text); background: var(--tm-panel-solid);
+  border: 1px solid var(--tm-line); border-radius: 6px; padding: 8px 0;
+  transition: color .15s, border-color .15s, background .15s;
+}
+.tm-imgsize:hover { border-color: var(--tm-cyan); color: var(--tm-cyan); }
+.tm-imgsize.is-on { color: #051417; background: var(--tm-cyan); border-color: var(--tm-cyan); font-weight: 700; }
+.tm-imgwrap-lbl {
+  display: flex; align-items: center; gap: 8px; margin-top: 10px;
+  font-size: 13px; color: var(--tm-text); cursor: pointer;
+}
+.tm-imgwrap-lbl input { accent-color: var(--tm-cyan); }
 
 /* ライトボックス（開いているときだけ表示。閉じている間は中身も出さない） */
 .tm-lightbox {
