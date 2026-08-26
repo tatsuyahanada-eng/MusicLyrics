@@ -140,7 +140,7 @@ def distances(origin_lat, origin_lng, places, mode, key):
 def main():
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("--address", required=True, help="基準となる住所（予定の場所欄の値）")
-    ap.add_argument("--radius", type=int, default=600, help="検索半径（メートル、既定 600）")
+    ap.add_argument("--radius", type=int, default=900, help="検索半径（メートル、既定 900）")
     ap.add_argument("--max", type=int, default=5, help="取得する駐車場の最大件数（既定 5）")
     ap.add_argument(
         "--query",
