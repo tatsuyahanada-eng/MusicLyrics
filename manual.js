@@ -2426,6 +2426,31 @@
     // カーソル位置を追いかける（画像をここへ差し込むため）
     ['keyup', 'mouseup', 'touchend', 'blur'].forEach((ev) =>
       nodeBodyEditor.addEventListener(ev, saveEditorRange));
+    // 右クリック → 独自メニュー（画像の切り取り・コピー／その場所へ貼り付け）
+    nodeBodyEditor.addEventListener('contextmenu', (e) => {
+      const img = e.target.closest('img');
+      if (!img && !imgClip) return; // 画像でもなく貼るものも無いときは、ブラウザ標準のメニューに任せる
+      e.preventDefault();
+      showImgCtx(e.clientX, e.clientY, img);
+    });
+    // タブレット・スマホ用：長押しでも同じメニューを出す
+    let lpTimer = null, lpFired = false;
+    nodeBodyEditor.addEventListener('touchstart', (e) => {
+      lpFired = false;
+      const t = e.touches && e.touches[0];
+      if (!t) return;
+      const img = e.target.closest('img');
+      if (!img && !imgClip) return;
+      const x = t.clientX, y = t.clientY;
+      clearTimeout(lpTimer);
+      lpTimer = setTimeout(() => { lpFired = true; showImgCtx(x, y, img); }, 550);
+    }, { passive: true });
+    ['touchmove', 'touchend', 'touchcancel'].forEach((ev) =>
+      nodeBodyEditor.addEventListener(ev, () => clearTimeout(lpTimer), { passive: true }));
+    // 長押しでメニューを出したときは、そのあとの通常タップ（名称ダイアログ）を止める
+    nodeBodyEditor.addEventListener('click', (e) => {
+      if (lpFired) { lpFired = false; e.preventDefault(); e.stopPropagation(); }
+    }, true);
     document.addEventListener('selectionchange', () => {
       if (document.activeElement === nodeBodyEditor) saveEditorRange();
     });
@@ -2553,6 +2578,66 @@
     }
     imgNameDialog.close();
   });
+  /* ---------- 画像の右クリック（長押し）メニュー：切り取り／コピー／貼り付け ----------
+     ブラウザ標準の右クリックメニューでは、本文の中で画像を思った場所へ移動できないため、
+     アプリ独自のメニューを出す。切り取った（コピーした）画像は覚えておき、
+     貼り付けたい場所で右クリック →「ここに貼り付け」で差し込む。
+     別の項目を開いてから貼り付けることもできる（項目をまたいだ画像の移動）。 */
+  const imgCtxMenu = $('#imgCtxMenu');
+  let imgClip = null;       // 切り取り／コピーした画像 { html, mode }
+  let ctxTargetImg = null;  // 右クリックした画像（画像以外なら null）
+  let ctxRange = null;      // 貼り付け先のカーソル位置
+  function hideImgCtx() { if (imgCtxMenu) imgCtxMenu.hidden = true; ctxTargetImg = null; }
+  function showImgCtx(x, y, img) {
+    if (!imgCtxMenu) return;
+    ctxTargetImg = img || null;
+    ctxRange = img ? null : editorRangeFromPoint(x, y);
+    // 画像の上なら「切り取り・コピー・削除」、それ以外の場所なら「貼り付け」
+    imgCtxMenu.querySelectorAll('[data-ctx]').forEach((b) => {
+      const forImg = ['cut', 'copy', 'delete'].indexOf(b.dataset.ctx) !== -1;
+      b.hidden = forImg ? !ctxTargetImg : !!ctxTargetImg;
+      if (b.dataset.ctx === 'paste') b.disabled = !imgClip;
+    });
+    imgCtxMenu.hidden = false;
+    // 画面からはみ出さない位置に出す
+    const r = imgCtxMenu.getBoundingClientRect();
+    imgCtxMenu.style.left = Math.max(8, Math.min(x, window.innerWidth - r.width - 8)) + 'px';
+    imgCtxMenu.style.top = Math.max(8, Math.min(y, window.innerHeight - r.height - 8)) + 'px';
+  }
+  if (imgCtxMenu) {
+    imgCtxMenu.addEventListener('click', (e) => {
+      const b = e.target.closest('[data-ctx]');
+      if (!b || b.disabled) return;
+      const k = b.dataset.ctx;
+      if ((k === 'cut' || k === 'copy') && ctxTargetImg) {
+        imgClip = { html: ctxTargetImg.outerHTML, mode: k };
+        if (k === 'cut') removeEditorEl(ctxTargetImg);
+        nodeError(k === 'cut'
+          ? '画像を切り取りました。貼り付けたい場所を右クリック（長押し）してください。'
+          : '画像をコピーしました。貼り付けたい場所を右クリック（長押し）してください。');
+      } else if (k === 'delete' && ctxTargetImg) {
+        const t = ctxTargetImg;
+        askConfirm('この画像を削除しますか？', () => removeEditorEl(t), '削除');
+      } else if (k === 'paste' && imgClip) {
+        if (ctxRange) editorRange = ctxRange;
+        placeEditorHtml(imgClip.html + '<br>');
+        if (imgClip.mode === 'cut') imgClip = null; // 切り取りは1回だけ貼れる
+        nodeError('画像を貼り付けました');
+      }
+      hideImgCtx();
+    });
+    document.addEventListener('click', (e) => {
+      if (!imgCtxMenu.hidden && !e.target.closest('#imgCtxMenu')) hideImgCtx();
+    });
+    // Escでメニューを閉じる。<dialog> はEscで閉じてしまうので、メニューが開いている
+    // ときは編集ダイアログごと閉じないよう、ここで食い止める（入力中の内容を守る）。
+    document.addEventListener('keydown', (e) => {
+      if (e.key !== 'Escape' || imgCtxMenu.hidden) return;
+      e.preventDefault();
+      e.stopPropagation();
+      hideImgCtx();
+    }, true);
+  }
   $('#imgNameCancel').addEventListener('click', () => imgNameDialog.close());
   $('#imgNameDelete').addEventListener('click', () => {
     if (!imgNameTarget) { imgNameDialog.close(); return; }

@@ -12,7 +12,7 @@
   <link rel="manifest" href="manifest.webmanifest">
   <link rel="icon" href="icon.svg" type="image/svg+xml">
   <link rel="apple-touch-icon" href="icon-192.png">
-  <link rel="stylesheet" href="manual.css?v=106">
+  <link rel="stylesheet" href="manual.css?v=107">
 </head>
 <body class="tm-body">
 
@@ -732,7 +732,7 @@
         <button type="button" id="nodeFileBtn" class="tm-btn tm-btn-outline tm-btn-sm">&#128206; ファイルを添付</button>
         <input type="file" id="nodeImgFile" accept="image/*" multiple hidden>
         <input type="file" id="nodeFileFile" accept=".pdf,.txt,.csv,.zip,.doc,.docx,.xls,.xlsx,.ppt,.pptx,image/*" multiple hidden>
-        <span class="tm-dialog-imghint">画像・ファイルは本文の下に追加されます（画像は貼り付けCtrl+Vも可）。追加した画像やファイルをタップすると削除できます。</span>
+        <span class="tm-dialog-imghint">画像はカーソルの位置に入ります（貼り付け Ctrl+V／ドラッグ＆ドロップも可）。画像をクリックで名称・大きさの変更、<b>右クリック（長押し）で切り取り・コピー・貼り付け</b>ができます。</span>
       </div>
 
       <p id="nodeError" class="tm-dialog-err" aria-live="polite"></p>
@@ -742,6 +742,15 @@
         <button type="submit" class="tm-btn tm-btn-primary">保存</button>
       </div>
     </form>
+
+    <!-- 画像の右クリック（長押し）メニュー。ダイアログの中に置くことで、
+         ダイアログより手前に表示されるようにしている。 -->
+    <div id="imgCtxMenu" class="tm-ctxmenu" hidden role="menu">
+      <button type="button" class="tm-ctxitem" data-ctx="cut">&#9986;&#65039; 切り取り</button>
+      <button type="button" class="tm-ctxitem" data-ctx="copy">&#128203; コピー</button>
+      <button type="button" class="tm-ctxitem" data-ctx="paste">&#128204; ここに貼り付け</button>
+      <button type="button" class="tm-ctxitem is-danger" data-ctx="delete">&#128465;&#65039; 削除</button>
+    </div>
   </dialog>
 
   <!-- ===== Append Dialog（既存の内容の上に追記する。更新（全文書き換え）とは別の操作） ===== -->
@@ -1549,6 +1558,6 @@
   </dialog>
 
   <script src="vendor/xlsx.full.min.js"></script>
-  <script src="manual.js?v=122"></script>
+  <script src="manual.js?v=123"></script>
 </body>
 </html>
