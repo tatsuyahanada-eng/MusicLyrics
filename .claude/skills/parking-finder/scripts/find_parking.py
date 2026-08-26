@@ -26,6 +26,7 @@ HTTP はこの環境のプロキシ設定をそのまま尊重するため curl 
 """
 import argparse
 import json
+import math
 import os
 import subprocess
 import sys
@@ -103,6 +104,16 @@ def search_parking(query, lat, lng, radius, key):
 
 def is_excluded(name):
     return any(kw in (name or "") for kw in EXCLUDE_KEYWORDS)
+
+
+def haversine_meters(lat1, lng1, lat2, lng2):
+    """2点間の直線距離（メートル）。Distance Matrix API を呼ぶ前の絞り込み専用。"""
+    r = 6371000
+    p1, p2 = math.radians(lat1), math.radians(lat2)
+    dp = math.radians(lat2 - lat1)
+    dl = math.radians(lng2 - lng1)
+    a = math.sin(dp / 2) ** 2 + math.cos(p1) * math.cos(p2) * math.sin(dl / 2) ** 2
+    return 2 * r * math.asin(math.sqrt(a))
 
 
 def distances(origin_lat, origin_lng, places, mode, key):
@@ -190,6 +201,20 @@ def main():
                 )
             )
             return
+
+        # Distance Matrix は呼び出しごとに (出発地数 × 目的地数) の「要素」を消費し、
+        # クォータは要素数ベース（例: 1日あたり100要素）で切られていることが多い。
+        # Places のテキスト検索は最大20件返るが、そのすべてに距離計算をかけると
+        # 1住所だけでクォータの大半を使い切ってしまうため、直線距離で
+        # 上位候補に絞ってから Distance Matrix を呼ぶ。
+        prefilter_cap = max(args.max + 3, 8)
+        if len(candidates) > prefilter_cap:
+            candidates.sort(
+                key=lambda p: haversine_meters(
+                    lat, lng, p["location"]["latitude"], p["location"]["longitude"]
+                )
+            )
+            candidates = candidates[:prefilter_cap]
 
         elems = distances(lat, lng, candidates, args.mode, key)
         results = []
