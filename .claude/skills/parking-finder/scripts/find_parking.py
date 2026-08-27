@@ -116,6 +116,22 @@ def haversine_meters(lat1, lng1, lat2, lng2):
     return 2 * r * math.asin(math.sqrt(a))
 
 
+def to_result_item(place, element):
+    item = {
+        "name": place.get("displayName", {}).get("text"),
+        "address": place.get("formattedAddress"),
+    }
+    if element.get("status") == "OK":
+        item["distance"] = element["distance"]["text"]
+        item["duration"] = element["duration"]["text"]
+        item["_distance_meters"] = element["distance"]["value"]
+    else:
+        item["distance"] = None
+        item["duration"] = None
+        item["_distance_meters"] = 10 ** 9
+    return item
+
+
 def distances(origin_lat, origin_lng, places, mode, key):
     dests = "|".join(
         f"{p['location']['latitude']},{p['location']['longitude']}" for p in places
@@ -204,34 +220,25 @@ def main():
 
         # Distance Matrix は呼び出しごとに (出発地数 × 目的地数) の「要素」を消費し、
         # クォータは要素数ベース（例: 1日あたり100要素）で切られていることが多い。
-        # Places のテキスト検索は最大20件返るが、そのすべてに距離計算をかけると
-        # 1住所だけでクォータの大半を使い切ってしまうため、直線距離で
-        # 上位候補に絞ってから Distance Matrix を呼ぶ。
-        prefilter_cap = max(args.max + 3, 8)
-        if len(candidates) > prefilter_cap:
-            candidates.sort(
-                key=lambda p: haversine_meters(
-                    lat, lng, p["location"]["latitude"], p["location"]["longitude"]
-                )
+        # まず直線距離（無料）で近い順に並べ、必要な件数（--max）ぶんだけ
+        # Distance Matrix に問い合わせる。実際の道路距離で半径内に収まった件数が
+        # 足りない場合に限り、次点の候補を追加で問い合わせる（無駄なら払わない）。
+        candidates.sort(
+            key=lambda p: haversine_meters(
+                lat, lng, p["location"]["latitude"], p["location"]["longitude"]
             )
-            candidates = candidates[:prefilter_cap]
+        )
+        reserve_size = 3
+        stage1 = candidates[: args.max]
+        reserve = candidates[args.max : args.max + reserve_size]
 
-        elems = distances(lat, lng, candidates, args.mode, key)
-        results = []
-        for p, e in zip(candidates, elems):
-            item = {
-                "name": p.get("displayName", {}).get("text"),
-                "address": p.get("formattedAddress"),
-            }
-            if e.get("status") == "OK":
-                item["distance"] = e["distance"]["text"]
-                item["duration"] = e["duration"]["text"]
-                item["_distance_meters"] = e["distance"]["value"]
-            else:
-                item["distance"] = None
-                item["duration"] = None
-                item["_distance_meters"] = 10 ** 9
-            results.append(item)
+        elems = distances(lat, lng, stage1, args.mode, key)
+        results = [to_result_item(p, e) for p, e in zip(stage1, elems)]
+
+        within = [r for r in results if r["_distance_meters"] <= args.radius]
+        if len(within) < args.max and reserve:
+            elems2 = distances(lat, lng, reserve, args.mode, key)
+            results += [to_result_item(p, e) for p, e in zip(reserve, elems2)]
 
         # 半径内のものだけに絞り、近い順に並べて上位 max 件を返す。
         results = [r for r in results if r["_distance_meters"] <= args.radius]
