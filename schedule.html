@@ -13,7 +13,7 @@
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="default">
   <meta name="apple-mobile-web-app-title" content="VertiCale">
-  <link rel="stylesheet" href="schedule.css?v=28">
+  <link rel="stylesheet" href="schedule.css?v=29">
 </head>
 <body class="sc-body">
 
@@ -200,6 +200,12 @@
           </select>
         </label>
         <label class="sc-field">
+          <span class="sc-field-label">案件で絞り込む（任意）</span>
+          <select id="icsProjectFilter" class="sc-input sc-input-sm">
+            <option value="">すべての案件</option>
+          </select>
+        </label>
+        <label class="sc-field">
           <span class="sc-field-label">予定名の先頭につける文字（任意）</span>
           <input id="icsPrefix" class="sc-input sc-input-sm" type="text" placeholder="例）【仕事】" autocomplete="off">
         </label>
@@ -355,6 +361,6 @@ Require valid-user</pre>
 
   <div id="toast" class="sc-toast" role="status" aria-live="polite" hidden></div>
 
-  <script src="schedule.js?v=28"></script>
+  <script src="schedule.js?v=29"></script>
 </body>
 </html>

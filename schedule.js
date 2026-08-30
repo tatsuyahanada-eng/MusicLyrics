@@ -275,6 +275,7 @@ const view = {
   selected: null,          // 'YYYY-MM-DD'
   slot: null,              // 選択中の時間帯ID（日付ラベルを選んだときは null）
   formOpen: false,         // 登録フォームを開いているか（ダブルクリックで開く）
+  popup: false,            // スマホでダブルタップしたときに、内容をポップアップで見せるか
   paint: null,             // null | 'available' | 'off' | 'clear' | 'multi'
   multi: new Set(),        // まとめて登録する枠（'YYYY-MM-DD|slotId'）
   editingId: null,
@@ -868,6 +869,7 @@ function renderSidePanel() {
   const f = view.form || blankForm();
 
   elSidePanel.innerHTML = `
+    <button type="button" class="sc-modal-close" data-modal-close aria-label="閉じる">✕</button>
     <div>
       <p class="sc-side-date">${formatDate(key, 'long')}${slot ? `　<span class="sc-slot-badge">${escapeHtml(slot.name)}</span>` : ''}</p>
       <p class="sc-side-date-sub">${slot ? `${slot.start}〜${slot.end}　` : ''}${hol ? '🎌 ' + escapeHtml(hol) : ''}${key < todayKey() ? ' （過去の日付）' : ''}</p>
@@ -891,7 +893,7 @@ function renderSidePanel() {
       ${cards || '<p class="sc-empty-note">まだ予定はありません。</p>'}
     </div>
 
-    ${view.formOpen ? `<button type="button" class="sc-modal-close" data-modal-close aria-label="閉じる">✕</button>${jobFormHtml(f)}` : `
+    ${view.formOpen ? jobFormHtml(f) : `
     <div class="sc-side-block">
       <button type="button" id="openForm" class="sc-btn sc-btn-block">＋ ${slot ? 'この枠' : 'この日'}に予定を登録</button>
       <p class="sc-hint" style="margin-top:6px">
@@ -1044,16 +1046,19 @@ const LIST_TARGET_NAMES = {
   confirmed: '確定した稼働日', tentative: '仮出勤の日',
 };
 
-/** 「確定した稼働日」「仮出勤の日」で使う案件の選択肢を作る（プリセット＋実際に使った案件名） */
+/** 案件の絞り込みで使う選択肢を作る（プリセット＋実際に使った案件名）。
+ *  「日付をコピー」とGoogleカレンダー登録、両方の案件セレクトに反映する。 */
 function refreshProjectFilterOptions() {
-  const sel = $('projectFilter');
-  if (!sel) return;
-  const prev = sel.value;
   const used = state.jobs.map((j) => (j.title || '').trim()).filter(Boolean);
   const all = Array.from(new Set(PROJECT_PRESETS.concat(used)));
-  sel.innerHTML = '<option value="">すべての案件</option>'
+  const optionsHtml = '<option value="">すべての案件</option>'
     + all.map((v) => `<option value="${escapeHtml(v)}">${escapeHtml(v)}</option>`).join('');
-  if (all.includes(prev)) sel.value = prev;
+  [$('projectFilter'), $('icsProjectFilter')].forEach((sel) => {
+    if (!sel) return;
+    const prev = sel.value;
+    sel.innerHTML = optionsHtml;
+    if (all.includes(prev)) sel.value = prev;
+  });
 }
 
 function listedDayKeys() {
@@ -1453,9 +1458,11 @@ function icsStamp() {
 /** 書き出し対象の予定 */
 function icsTargetJobs() {
   const scope = $('icsScope').value;
+  const project = $('icsProjectFilter') ? $('icsProjectFilter').value : '';
   const monthKeys = monthDayKeys();
   const today = todayKey();
   return state.jobs.filter((j) => {
+    if (project && j.title !== project) return false;
     if (scope === 'month-confirmed') return monthKeys.includes(j.date) && j.status !== 'tentative';
     if (scope === 'month-all') return monthKeys.includes(j.date);
     if (scope === 'future-confirmed') return j.date >= today && j.status !== 'tentative';
@@ -1965,7 +1972,7 @@ function submitJob(ev) {
   view.form = blankForm();
   // 狭い画面ではポップアップのまま残ると裏の操作ができなくなるため閉じる
   // （広い画面は続けて登録しやすいよう、これまでどおり開いたままにする）
-  if (window.innerWidth <= 900) view.formOpen = false;
+  if (window.innerWidth <= 900) { view.formOpen = false; view.popup = false; }
   saveState();
 
   // 確定させたときは、同じ時間帯に残っている仮出勤をまとめて取り消せるようにする
@@ -2041,6 +2048,8 @@ function deleteJob(id) {
     view.confirming = false;
     view.form = blankForm();
   }
+  // 狭い画面ではポップアップのまま残ると裏の操作ができなくなるため閉じる
+  if (window.innerWidth <= 900) { view.formOpen = false; view.popup = false; }
   saveState();
   renderAll();
   toast('予定を削除しました');
@@ -2215,6 +2224,7 @@ function selectDate(key, opts) {
   view.selected = key;
   view.slot = (opts && opts.slot) || null;
   view.formOpen = !!(opts && opts.openForm);
+  view.popup = !!(opts && opts.popup);
   view.editingId = null;
   view.confirming = false;
   view.ack = false;
@@ -2232,15 +2242,16 @@ function closeForm() {
   view.editingId = null;
   view.confirming = false;
   view.formOpen = false;
+  view.popup = false;
   view.ack = false;
   view.form = blankForm();
   renderSidePanel();
 }
 
-/** 狭い画面では登録フォームをカレンダーの上に重ねて表示する */
+/** 狭い画面では、ダブルタップしたときの内容をカレンダーの上に重ねて表示する */
 function updateSideModalState() {
   if (!elSideAside) return;
-  const open = view.formOpen && view.paint !== 'multi' && window.innerWidth <= 900;
+  const open = (view.formOpen || view.popup) && view.paint !== 'multi' && window.innerWidth <= 900;
   elSideAside.classList.toggle('sc-side-modal-open', open);
   document.body.classList.toggle('sc-modal-open-body', open);
 }
@@ -2377,7 +2388,7 @@ function bindEvents() {
       lastTapAt = now;
       const [d, sid] = pick.split('|');
       const openForm = isDouble && !jobsInSlot(d, sid).length;
-      selectDate(d, { slot: sid, openForm });
+      selectDate(d, { slot: sid, openForm, popup: isDouble });
       if (openForm) {
         const el = $('fTitle');
         if (el) el.focus();
@@ -2418,7 +2429,7 @@ function bindEvents() {
     lastTapKey = key;
     lastTapAt = now;
     const openForm = isDouble && !jobsOn(dateBtn.dataset.date).length;
-    selectDate(dateBtn.dataset.date, { openForm });
+    selectDate(dateBtn.dataset.date, { openForm, popup: isDouble });
   });
 
   // スマホでポップアップ表示中は、背景（枠外）をタップすると閉じる
@@ -2574,6 +2585,7 @@ function bindEvents() {
 
   // Googleカレンダー用ファイル
   $('icsScope').addEventListener('change', renderIcsPreview);
+  $('icsProjectFilter').addEventListener('change', renderIcsPreview);
   $('icsPrefix').addEventListener('input', renderIcsPreview);
   $('downloadIcs').addEventListener('click', downloadIcs);
 
