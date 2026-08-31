@@ -37,9 +37,6 @@ const SLOTS = [
   { id: 'night', name: '夜間', start: '18:00', end: '23:00', from: '17:30', to: '24:00' },
 ];
 
-/** 早い開始があり得る枠（キー）と、その手前の枠（値＝そこに少しだけ色をにじませる） */
-const PEEK_NEXT = { early: 'am', p2: 'night' };
-
 function slotById(id) {
   for (let i = 0; i < SLOTS.length; i++) if (SLOTS[i].id === id) return SLOTS[i];
   return null;
@@ -98,15 +95,17 @@ function shortTime(hhmm) {
 }
 
 /**
- * 標準の開始時刻との違い。
- * 早い開始（AMの8:00、夜間の17:30）を見分けられるようにする。
+ * 予定バーが主の枠から何枠分ぶん続けて表示されるか。
+ * 日をまたぐ夜勤は日付をまたいだ側の枠（早朝など）が離れて含まれることがあるため、
+ * 主の枠から連続している範囲だけをバーの長さとする（離れた分は枠の色だけで示す）。
  */
-function startDiff(job, slot) {
-  if (!slot || job.allDay) return null;
-  const s = toMinutes(job.start);
-  const std = toMinutes(slot.start);
-  if (s === null || std === null || s === std) return null;
-  return { kind: s < std ? 'early' : 'late', label: shortTime(job.start) };
+function jobBarSpan(job, primaryId) {
+  const ids = new Set(jobSlots(job));
+  const startIdx = SLOTS.findIndex((s2) => s2.id === primaryId);
+  if (startIdx < 0) return 1;
+  let span = 0;
+  for (let k = startIdx; k < SLOTS.length && ids.has(SLOTS[k].id); k++) span++;
+  return Math.max(1, span);
 }
 
 /** その日・その枠に掛かっている予定 */
@@ -597,58 +596,36 @@ function renderCalendar() {
       if (view.multi.has(pick)) cls.push('sc-vcell-multi');
       if (view.selected === key && view.slot === slot.id) cls.push('sc-vcell-selected');
 
-      const inner = list.map((j) => {
-        const isPrimary = j.allDay || primarySlotId(j) === slot.id;
-        const diff = isPrimary ? startDiff(j, slot) : null;
-        const cls = ['sc-vpill'];
-        cls.push(j.status === 'tentative' ? 'sc-vpill-tentative' : 'sc-vpill-confirmed');
-        if (!isPrimary) cls.push('sc-vpill-cont');       // 前の枠から続いている
-        if (diff) cls.push('sc-vpill-' + diff.kind);
-
-        const tag = j.status === 'tentative' ? '<span class="sc-vpill-mark">仮</span>' : '';
-        const time = diff
-          ? `<span class="sc-vtime sc-vtime-${diff.kind}">${diff.kind === 'early' ? '◀' : ''}${escapeHtml(diff.label)}</span>`
-          : '';
-        const tip = [formatDate(j.date), j.allDay ? '終日' : j.start + '〜' + j.end,
-          j.title, j.workType, j.client, j.place, j.address].filter(Boolean).join(' / ')
-          + (diff ? `（この枠の標準 ${slot.start} より${diff.kind === 'early' ? '早い' : '遅い'}開始）` : '')
-          + (isPrimary ? '' : '（前の枠から続いています）');
-
-        return `<span class="${cls.join(' ')}" title="${escapeHtml(tip)}">`
-          + `${tag}${time}${escapeHtml(j.title || '(無題)')}</span>`;
-      }).join('');
-
-      // この枠が空きで、次の枠（AM／夜間）に早い開始の予定があれば、少しだけ色をにじませる
-      let peek = '';
-      const nextId = PEEK_NEXT[slot.id];
-      if (!list.length && nextId) {
-        const nextSlot = slotById(nextId);
-        const early = slotJobs[nextId].find((j) => {
-          if (j.allDay || primarySlotId(j) !== nextId) return false;
-          const d2 = startDiff(j, nextSlot);
-          return d2 && d2.kind === 'early';
-        });
-        if (early) {
-          // 30分刻みのマスに区切って、そのうち何マス分早いかで幅を決める
-          // （他の枠のバーと同じ塗りで、あくまで1本のバーに見えるようにする）
-          const std = toMinutes(nextSlot.start);
-          const totalUnits = (std - toMinutes(slot.start)) / 30;
-          const units = Math.min(totalUnits, Math.max(1, Math.round((std - toMinutes(early.start)) / 30)));
-          const width = Math.round((units / totalUnits) * 100);
-          const cls2 = early.status === 'tentative' ? 'sc-vpeek-tentative' : 'sc-vpeek-confirmed';
-          const tip = `${escapeHtml(early.title || '(無題)')}が${escapeHtml(shortTime(early.start))}から（${escapeHtml(nextSlot.name)}）`;
-          peek = `<span class="sc-vpeek ${cls2}" style="width:${width}%" title="${tip}"></span>`;
-        }
-      }
-
       const label = `${view.month + 1}月${d}日 ${slot.name}`
         + (list.length ? ' ' + list.map((j) => j.title || '(無題)').join('、') : ' 空き');
 
       return `<button type="button" class="${cls.join(' ')}" data-date="${key}" data-slot="${slot.id}"`
         + ` data-pick="${pick}" aria-label="${escapeHtml(label)}">`
-        + `${inner || peek || '<span class="sc-vcell-empty"></span>'}`
+        + (list.length ? '' : '<span class="sc-vcell-empty"></span>')
         + (view.multi.has(pick) ? '<span class="sc-vcell-check">✓</span>' : '')
         + `</button>`;
+    }).join('');
+
+    // 予定バー：案件が掛かる枠をひとつながりの棒で表す（枠ごとに案件名を繰り返さない）
+    const barGroups = {};
+    dayJobs.forEach((j) => {
+      const pid = j.allDay ? SLOTS[0].id : primarySlotId(j);
+      if (!pid) return;
+      (barGroups[pid] = barGroups[pid] || []).push(j);
+    });
+    const bars = Object.keys(barGroups).map((pid) => {
+      const idx = SLOTS.findIndex((s2) => s2.id === pid);
+      if (idx < 0) return '';
+      const col = idx + 2;   // 1列目は日付列
+      const jobsHere = barGroups[pid];
+      if (jobsHere.length === 1) {
+        const span = jobBarSpan(jobsHere[0], pid);
+        return jobBarHtml(jobsHere[0], key, pid, conflicts, `grid-column:${col} / span ${span};`);
+      }
+      // 重複を承知で同じ枠に重ねた予定は、その枠の中にまとめて縦に並べる
+      const inner = jobsHere.map((j) => jobBarHtml(j, key, pid, conflicts, '')).join('');
+      return `<div class="sc-vbar-stack" data-date="${key}" data-slot="${pid}"`
+        + ` style="grid-column:${col} / span 1;">${inner}</div>`;
     }).join('');
 
     const rcls = ['sc-vrow'];
@@ -657,10 +634,26 @@ function renderCalendar() {
     // 休み希望の日は、枠まで含めて行ごと赤くする
     if (wish === WISH_OFF) rcls.push('sc-vrow-off');
     if (key === today) rcls.push('sc-vrow-today');
-    rows.push(`<div class="${rcls.join(' ')}">${dateCell}${cells}</div>`);
+    rows.push(`<div class="${rcls.join(' ')}">${dateCell}${cells}${bars}</div>`);
   }
 
   elCalendar.innerHTML = head + rows.join('');
+}
+
+/** 予定バー（縦型カレンダー）のHTML。案件名の下に実際の時間帯を小さく添える */
+function jobBarHtml(j, dateKey, slotId, conflicts, style) {
+  const cls = ['sc-vbar'];
+  cls.push(j.status === 'tentative' ? 'sc-vbar-tentative' : 'sc-vbar-confirmed');
+  if (conflicts.has(j.id)) cls.push('sc-vbar-conflict');
+  const tag = j.status === 'tentative' ? '<span class="sc-vbar-mark">仮</span>' : '';
+  const timeLabel = j.allDay ? '終日' : `${shortTime(j.start)}〜${shortTime(j.end)}`;
+  const tip = [formatDate(j.date), j.allDay ? '終日' : j.start + '〜' + j.end,
+    j.title, j.workType, j.client, j.place, j.address].filter(Boolean).join(' / ');
+  return `<div class="${cls.join(' ')}" data-date="${dateKey}" data-slot="${slotId}"`
+    + ` style="${style}" title="${escapeHtml(tip)}">`
+    + `<span class="sc-vbar-title">${tag}${escapeHtml(j.title || '(無題)')}</span>`
+    + `<span class="sc-vbar-time">${escapeHtml(timeLabel)}</span>`
+    + `</div>`;
 }
 
 /** 予定の入力フォーム（単日・複数日で共用） */

@@ -338,6 +338,14 @@ textarea.sc-input { resize: vertical; line-height: 1.5; min-height: 2.6em; }
   border-bottom: 1px solid var(--sc-border);
 }
 .sc-vrow:last-child { border-bottom: 0; }
+/* 日付列・枠列は常に決まった行・列に固定する
+   （予定バーが明示的に行・列を指定するため、指定しないままだと自動配置がずれてしまう） */
+.sc-vrow > .sc-vdate { grid-column: 1; grid-row: 1; }
+.sc-vrow > .sc-vcell:nth-of-type(2) { grid-column: 2; grid-row: 1; }
+.sc-vrow > .sc-vcell:nth-of-type(3) { grid-column: 3; grid-row: 1; }
+.sc-vrow > .sc-vcell:nth-of-type(4) { grid-column: 4; grid-row: 1; }
+.sc-vrow > .sc-vcell:nth-of-type(5) { grid-column: 5; grid-row: 1; }
+.sc-vrow > .sc-vcell:nth-of-type(6) { grid-column: 6; grid-row: 1; }
 .sc-vrow-sun { background: #fdf6f7; }
 .sc-vrow-sat { background: #f5f8fd; }
 /* 休み希望の日は行ごと赤くする（曜日の色より優先） */
@@ -457,75 +465,78 @@ textarea.sc-input { resize: vertical; line-height: 1.5; min-height: 2.6em; }
   line-height: 1.4;
 }
 
-.sc-vpill {
-  font-size: 0.66rem;
-  line-height: 1.35;
-  border-radius: 4px;
-  padding: 1px 5px;
+/* 予定バー：案件が掛かる枠をまたいで1本の棒として表示する（グリッド列を指定して重ねる） */
+.sc-vbar {
+  position: relative;
+  grid-row: 1;
+  align-self: stretch;
+  justify-self: stretch;
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 1px;
+  margin: 2px 1px;
+  padding: 2px 6px;
+  border-radius: 5px;
   overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  font-weight: 700;
+  text-align: center;
+  pointer-events: none;
 }
-.sc-vpill-confirmed { background: var(--sc-confirmed); color: #fff; }
-.sc-vpill-tentative {
+.sc-vbar-confirmed { background: var(--sc-confirmed); color: #fff; }
+.sc-vbar-tentative {
   background: #fff;
   border: 1px dashed var(--sc-tentative);
   color: #92400e;
 }
-.sc-vpill-mark {
+.sc-vbar-conflict { box-shadow: inset 0 0 0 2px var(--sc-conflict); }
+.sc-vbar-title {
+  max-width: 100%;
+  font-size: 0.72rem;
+  font-weight: 800;
+  line-height: 1.2;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.sc-vbar-time {
+  font-size: 0.6rem;
+  font-weight: 600;
+  line-height: 1;
+  opacity: 0.82;
+  font-variant-numeric: tabular-nums;
+}
+.sc-vbar-mark {
   background: var(--sc-tentative);
   color: #fff;
   border-radius: 3px;
   padding: 0 3px;
   margin-right: 3px;
   font-size: 0.56rem;
+  vertical-align: middle;
 }
 
-/* 標準の開始時刻と違うときに出す時刻 */
-.sc-vtime {
-  display: inline-block;
-  border-radius: 3px;
-  padding: 0 3px;
-  margin-right: 3px;
-  font-size: 0.58rem;
-  font-weight: 800;
-  font-variant-numeric: tabular-nums;
-}
-/* 標準より早い開始（AMの8:00、夜間の17:30 など）— はっきり目立たせる */
-.sc-vtime-early { background: #fde68a; color: #7c2d12; }
-.sc-vpill-confirmed .sc-vtime-early { background: #fbbf24; color: #4a2506; }
-/* 標準より遅い開始 */
-.sc-vtime-late { background: rgba(255, 255, 255, 0.35); color: inherit; }
-.sc-vpill-tentative .sc-vtime-late { background: var(--sc-surface-2); }
-
-/* 早い開始の予定は左端にも印を出す */
-.sc-vpill-early { box-shadow: inset 3px 0 0 #d97706; padding-left: 6px; }
-
-/* 次の枠が早い開始のとき、手前の枠にも他の予定バーと同じ塗りで少しだけ色を差し込む
-   （隣の枠のバーからそのまま続いているように見せる。右端はマスの外まで伸ばして隙間を消す） */
-.sc-vpeek {
-  position: absolute;
-  top: 50%;
-  right: -3px;
-  height: 16.5px;
-  transform: translateY(-50%);
-  border-radius: 4px 0 0 4px;
+/* 重複を承知で同じ枠に重ねた予定は、枠の中にまとめて縦に並べる */
+.sc-vbar-stack {
+  position: relative;
+  grid-row: 1;
+  align-self: stretch;
+  justify-self: stretch;
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 2px;
   pointer-events: none;
 }
-.sc-vpeek-confirmed { background: var(--sc-confirmed); }
-.sc-vpeek-tentative { background: var(--sc-tentative-bg); border: 1px dashed var(--sc-tentative); border-right: 0; }
-
-/* 前の枠から続いている予定は控えめに */
-.sc-vpill-cont {
-  opacity: 0.5;
-  font-weight: 600;
+.sc-vbar-stack .sc-vbar {
+  flex: 1 1 0;
+  min-height: 0;
+  margin: 0;
 }
-.sc-vpill-cont.sc-vpill-confirmed {
-  background: transparent;
-  color: var(--sc-confirmed-strong);
-  border: 1px dashed var(--sc-confirmed);
-}
+.sc-vbar-stack .sc-vbar-title { font-size: 0.62rem; }
+.sc-vbar-stack .sc-vbar-time { font-size: 0.52rem; }
 
 .sc-slot-badge {
   background: var(--sc-primary);
@@ -1119,7 +1130,10 @@ textarea.sc-input { resize: vertical; line-height: 1.5; min-height: 2.6em; }
   .sc-vdate-hol { display: none; }
   .sc-vdate-marks { width: 100%; margin-left: 0; }
   .sc-vcell { min-height: 40px; padding: 2px; }
-  .sc-vpill { font-size: 0.56rem; padding: 0 3px; }
+  .sc-vbar-title { font-size: 0.6rem; }
+  .sc-vbar-time { font-size: 0.5rem; }
+  .sc-vbar-stack .sc-vbar-title { font-size: 0.54rem; }
+  .sc-vbar-stack .sc-vbar-time { font-size: 0.46rem; }
   .sc-vdate-head, .sc-vslot-head { font-size: 0.66rem; padding: 5px 2px; }
   .sc-vslot-time { font-size: 0.5rem; }
   .sc-form-row { grid-template-columns: 1fr; }
@@ -1184,9 +1198,13 @@ textarea.sc-input { resize: vertical; line-height: 1.5; min-height: 2.6em; }
   .sc-vdate-hol { display: none; }
   .sc-vslot-head, .sc-vdate-head { font-size: 7px; padding: 1.5px 2px; }
   .sc-vslot-time { font-size: 5.5px; }
-  .sc-vpill { font-size: 6px; padding: 0 2px; line-height: 1.2; }
-  .sc-vtime { font-size: 5.5px; padding: 0 1px; }
-  .sc-vpill-mark { font-size: 5px; padding: 0 1px; }
+  .sc-vbar { margin: 0.5px; padding: 0px 2px; border-radius: 2px; gap: 0; }
+  .sc-vbar-title { font-size: 6px; line-height: 1.15; }
+  .sc-vbar-time { font-size: 5px; }
+  .sc-vbar-mark { font-size: 5px; padding: 0 1px; }
+  .sc-vbar-stack { gap: 0.5px; padding: 0.5px; }
+  .sc-vbar-stack .sc-vbar-title { font-size: 5px; }
+  .sc-vbar-stack .sc-vbar-time { font-size: 4.3px; }
 
   .sc-legend {
     margin-top: 3px;
