@@ -121,13 +121,51 @@ function jobBarTailSpill(job, primaryId, span) {
   const nextSlot = SLOTS[nextIdx];
   const ov = slotOverlapMinutes(job, nextSlot);
   if (ov <= 0 || ov > SLOT_EDGE_MINUTES) return 0;
-  const dur = toMinutes(nextSlot.to) - toMinutes(nextSlot.from);
+  const dur = toMinutes(nextSlot.end) - toMinutes(nextSlot.start);
   return dur > 0 ? Math.min(1, ov / dur) : 0;
+}
+
+/**
+ * 主の枠の標準の開始（見出しに出ている時刻）より実際の開始が早いとき、
+ * その分だけ手前の枠に少しだけバーを伸ばす（AMの8:00開始・夜間の17:30開始など）。
+ * 実際にその枠に掛かっているわけではないが、標準より早いことが一目で分かるようにするための表現で、
+ * 返り値は0〜1の割合。
+ */
+function jobBarLeadBleed(job, primaryId) {
+  if (job.allDay) return 0;
+  const idx = SLOTS.findIndex((s2) => s2.id === primaryId);
+  if (idx <= 0) return 0;   // 一番左の枠には手前の枠が無い
+  const slot = SLOTS[idx];
+  const s = toMinutes(job.start);
+  const std = toMinutes(slot.start);
+  if (s === null || std === null || s >= std) return 0;
+  const early = std - s;
+  const prevSlot = SLOTS[idx - 1];
+  const dur = toMinutes(prevSlot.end) - toMinutes(prevSlot.start);
+  return dur > 0 ? Math.min(1, early / dur) : 0;
 }
 
 /** その日・その枠に掛かっている予定 */
 function jobsInSlot(dateKey, slotId) {
   return jobsOn(dateKey).filter((j) => jobSlots(j).indexOf(slotId) >= 0);
+}
+
+/**
+ * 予定バーのgrid配置スタイル。掛かる枠の幅に加えて、
+ * 前後の枠への少しのにじみ（早い開始・短い掛かり）があれば、その分だけ広げる。
+ */
+function jobBarPlacementStyle(job, primaryId, col) {
+  const span = jobBarSpan(job, primaryId);
+  const lead = jobBarLeadBleed(job, primaryId);
+  const tail = jobBarTailSpill(job, primaryId, span);
+  if (lead <= 0 && tail <= 0) return `grid-column:${col} / span ${span};`;
+
+  const totalCols = span + (lead > 0 ? 1 : 0) + (tail > 0 ? 1 : 0);
+  const startCol = col - (lead > 0 ? 1 : 0);
+  const marginLeftPct = lead > 0 ? ((1 - lead) / totalCols) * 100 : 0;
+  const marginRightPct = tail > 0 ? ((1 - tail) / totalCols) * 100 : 0;
+  return `grid-column:${startCol} / span ${totalCols};`
+    + ` margin-left:${marginLeftPct.toFixed(2)}%; margin-right:${marginRightPct.toFixed(2)}%;`;
 }
 
 /* ------------------------------------------------------------
@@ -638,11 +676,7 @@ function renderCalendar() {
       const col = idx + 2;   // 1列目は日付列
       const jobsHere = barGroups[pid];
       if (jobsHere.length === 1) {
-        const span = jobBarSpan(jobsHere[0], pid);
-        const spill = jobBarTailSpill(jobsHere[0], pid, span);
-        const style = spill > 0
-          ? `grid-column:${col} / span ${span + 1}; justify-self:start; width:${(((span + spill) / (span + 1)) * 100).toFixed(2)}%;`
-          : `grid-column:${col} / span ${span};`;
+        const style = jobBarPlacementStyle(jobsHere[0], pid, col);
         return jobBarHtml(jobsHere[0], key, pid, conflicts, style);
       }
       // 重複を承知で同じ枠に重ねた予定は、その枠の中にまとめて縦に並べる
