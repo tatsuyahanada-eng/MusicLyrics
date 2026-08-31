@@ -16,7 +16,8 @@ const WORK_TYPE_PRESETS = [
   '現場作業', '設置・工事', '点検・保守', '訪問対応', '打ち合わせ', '研修', '事務作業', 'その他',
 ];
 
-/** 案件名の選択肢。これ以外は「フリー」を選んで自由入力する */
+/** 案件名の選択肢の初期値（設定画面の「案件名の登録・削除」で追加・削除できる。
+ *  実際の選択肢は state.settings.projects） */
 const PROJECT_PRESETS = [
   'リテイルオンサイト', 'JCOM', 'JT', '自社案件', 'くらしのマーケット', 'ミツモア', 'OES入替',
 ];
@@ -257,7 +258,11 @@ const TOMBSTONE_DAYS = 180;
 function defaultState() {
   return {
     version: 2,
-    settings: { bufferMin: 0, defStart: '09:00', defEnd: '18:00', senderName: '' },
+    settings: {
+      bufferMin: 0, defStart: '09:00', defEnd: '18:00', senderName: '',
+      projects: PROJECT_PRESETS.slice(),   // 案件名の選択肢（登録・削除できる）
+      projectCalendar: {},                 // 案件ごとのGoogleカレンダー登録内容のカスタマイズ
+    },
     settingsAt: EPOCH0,
     wishes: {},      // 'YYYY-MM-DD' → 'available' | 'off'
     wishMeta: {},    // 'YYYY-MM-DD' → 更新時刻（未定に戻した日も記録する）
@@ -678,7 +683,7 @@ function jobFormHtml(f) {
           <span class="sc-field-label">案件名 <span aria-hidden="true">*</span></span>
           <select id="fTitle" class="sc-input">
             <option value="" ${f.titleSel === '' ? 'selected' : ''}>選択してください</option>
-            ${PROJECT_PRESETS.map((p) =>
+            ${state.settings.projects.map((p) =>
               `<option value="${escapeHtml(p)}" ${f.titleSel === p ? 'selected' : ''}>${escapeHtml(p)}</option>`).join('')}
             <option value="${PROJECT_FREE}" ${f.titleSel === PROJECT_FREE ? 'selected' : ''}>フリー（自由入力）</option>
           </select>
@@ -746,7 +751,7 @@ function jobFormHtml(f) {
 
         <label class="sc-field">
           <span class="sc-field-label">メモ</span>
-          <input id="fNote" class="sc-input" type="text" value="${escapeHtml(f.note)}" autocomplete="off">
+          <textarea id="fNote" class="sc-input" rows="3">${escapeHtml(f.note)}</textarea>
         </label>
 
         <div id="formAlert"></div>
@@ -853,7 +858,7 @@ function renderSidePanel() {
       ${j.workType ? `<p class="sc-job-meta"><span class="sc-worktype-tag">${escapeHtml(j.workType)}</span></p>` : ''}
       ${meta ? `<p class="sc-job-meta">${meta}</p>` : ''}
       ${j.address ? `<p class="sc-job-meta">📍 ${escapeHtml(j.address)}</p>` : ''}
-      ${j.note ? `<p class="sc-job-meta">📝 ${escapeHtml(j.note)}</p>` : ''}
+      ${j.note ? `<p class="sc-job-meta sc-job-note">📝 ${escapeHtml(j.note)}</p>` : ''}
       ${warn}
       <div class="sc-job-actions">
         ${tentative ? `<button type="button" class="sc-btn sc-btn-sm sc-btn-confirm" data-confirm="${j.id}">✓ 確定にする</button>` : ''}
@@ -1050,7 +1055,7 @@ const LIST_TARGET_NAMES = {
  *  「日付をコピー」とGoogleカレンダー登録、両方の案件セレクトに反映する。 */
 function refreshProjectFilterOptions() {
   const used = state.jobs.map((j) => (j.title || '').trim()).filter(Boolean);
-  const all = Array.from(new Set(PROJECT_PRESETS.concat(used)));
+  const all = Array.from(new Set(state.settings.projects.concat(used)));
   const optionsHtml = '<option value="">すべての案件</option>'
     + all.map((v) => `<option value="${escapeHtml(v)}">${escapeHtml(v)}</option>`).join('');
   [$('projectFilter'), $('icsProjectFilter')].forEach((sel) => {
@@ -1059,6 +1064,151 @@ function refreshProjectFilterOptions() {
     sel.innerHTML = optionsHtml;
     if (all.includes(prev)) sel.value = prev;
   });
+
+  // 案件名の一覧が変わりうる操作（同期・バックアップ読込など）はすべてここを通るため、
+  // 設定画面の「案件名」「案件ごとの登録内容」もあわせて最新にしておく
+  renderProjectChips();
+  refreshProjectCalendarOptions();
+}
+
+/* ------------------------------------------------------------
+   案件名の登録・削除（設定画面）
+   ------------------------------------------------------------ */
+
+function renderProjectChips() {
+  const box = $('projectChips');
+  if (!box) return;
+  box.innerHTML = state.settings.projects.length
+    ? state.settings.projects.map((p) =>
+        `<button type="button" class="sc-proj-chip" data-project="${escapeHtml(p)}" title="削除">${escapeHtml(p)} ✕</button>`).join('')
+    : '<p class="sc-empty-note">まだ案件名が登録されていません。</p>';
+}
+
+function addProject(name) {
+  const v = name.trim();
+  if (!v) return;
+  if (v === PROJECT_FREE) { toast('その名前は使えません', true); return; }
+  if (state.settings.projects.includes(v)) { toast('すでに登録されています', true); return; }
+  state.settings.projects.push(v);
+  state.settingsAt = nowIso();
+  saveState();
+  refreshProjectFilterOptions();
+  toast(`「${v}」を追加しました`);
+}
+
+function removeProject(name) {
+  if (!confirm(`案件名「${name}」を選択肢から削除します。すでに登録した予定には影響しません。よろしいですか？`)) return;
+  state.settings.projects = state.settings.projects.filter((p) => p !== name);
+  delete state.settings.projectCalendar[name];
+  state.settingsAt = nowIso();
+  saveState();
+  refreshProjectFilterOptions();
+  toast(`「${name}」を削除しました`);
+}
+
+/* ------------------------------------------------------------
+   案件ごとのGoogleカレンダー登録内容（設定画面）
+   ------------------------------------------------------------ */
+
+/** 選択中の案件のカスタム設定（未登録なら空のひな形） */
+function currentPcConfig() {
+  const p = $('pcProject').value;
+  return state.settings.projectCalendar[p] || { title: '', address: '', description: '', clientOverrides: {} };
+}
+
+function refreshProjectCalendarOptions() {
+  const sel = $('pcProject');
+  if (!sel) return;
+  const prev = sel.value;
+  sel.innerHTML = state.settings.projects.map((p) => `<option value="${escapeHtml(p)}">${escapeHtml(p)}</option>`).join('');
+  if (state.settings.projects.includes(prev)) sel.value = prev;
+  loadProjectCalendarEditor();
+}
+
+function loadProjectCalendarEditor() {
+  if (!$('pcProject') || !$('pcProject').value) {
+    if ($('pcTitle')) { $('pcTitle').value = ''; $('pcAddress').value = ''; $('pcDescription').value = ''; }
+    if ($('pcOverrideList')) $('pcOverrideList').innerHTML = '<p class="sc-empty-note">案件名を登録すると設定できます。</p>';
+    return;
+  }
+  const cfg = currentPcConfig();
+  $('pcTitle').value = cfg.title || '';
+  $('pcAddress').value = cfg.address || '';
+  $('pcDescription').value = cfg.description || '';
+  renderOverrideList();
+}
+
+function renderOverrideList() {
+  const box = $('pcOverrideList');
+  if (!box) return;
+  const cfg = currentPcConfig();
+  const clients = Object.keys(cfg.clientOverrides || {});
+  box.innerHTML = clients.length
+    ? clients.map((c) => `<div class="sc-override-item">
+        <div class="sc-override-head">
+          <strong>${escapeHtml(c)}</strong>
+          <button type="button" class="sc-btn sc-btn-sm sc-btn-outline" data-override-edit="${escapeHtml(c)}">編集</button>
+          <button type="button" class="sc-btn sc-btn-sm sc-btn-outline sc-btn-danger" data-override-del="${escapeHtml(c)}">削除</button>
+        </div>
+        <p class="sc-override-text">${escapeHtml(cfg.clientOverrides[c])}</p>
+      </div>`).join('')
+    : '<p class="sc-empty-note">まだ上書きはありません。</p>';
+}
+
+function saveProjectCalendar() {
+  const p = $('pcProject').value;
+  if (!p) { toast('案件がありません。先に案件名を登録してください', true); return; }
+  const prev = state.settings.projectCalendar[p] || {};
+  state.settings.projectCalendar[p] = {
+    title: $('pcTitle').value.trim(),
+    address: $('pcAddress').value.trim(),
+    description: $('pcDescription').value.trim(),
+    clientOverrides: prev.clientOverrides || {},
+  };
+  state.settingsAt = nowIso();
+  saveState();
+  toast(`「${p}」の登録内容を保存しました`);
+}
+
+function addOrUpdateOverride() {
+  const p = $('pcProject').value;
+  if (!p) { toast('案件がありません。先に案件名を登録してください', true); return; }
+  const client = $('pcOverrideClient').value.trim();
+  const text = $('pcOverrideText').value.trim();
+  if (!client) { toast('依頼元名を入力してください', true); return; }
+  if (!text) { toast('説明文を入力してください', true); return; }
+  if (!state.settings.projectCalendar[p]) {
+    state.settings.projectCalendar[p] = { title: '', address: '', description: '', clientOverrides: {} };
+  }
+  if (!state.settings.projectCalendar[p].clientOverrides) state.settings.projectCalendar[p].clientOverrides = {};
+  state.settings.projectCalendar[p].clientOverrides[client] = text;
+  state.settingsAt = nowIso();
+  saveState();
+  $('pcOverrideClient').value = '';
+  $('pcOverrideText').value = '';
+  renderOverrideList();
+  toast(`「${client}」の上書きを保存しました`);
+}
+
+function removeOverride(client) {
+  const p = $('pcProject').value;
+  const cfg = state.settings.projectCalendar[p];
+  if (!cfg || !cfg.clientOverrides) return;
+  if (!confirm(`「${client}」の説明文の上書きを削除します。よろしいですか？`)) return;
+  delete cfg.clientOverrides[client];
+  state.settingsAt = nowIso();
+  saveState();
+  renderOverrideList();
+  toast(`「${client}」の上書きを削除しました`);
+}
+
+function editOverride(client) {
+  const cfg = currentPcConfig();
+  const text = (cfg.clientOverrides || {})[client];
+  if (text == null) return;
+  $('pcOverrideClient').value = client;
+  $('pcOverrideText').value = text;
+  $('pcOverrideClient').focus();
 }
 
 function listedDayKeys() {
@@ -1470,9 +1620,53 @@ function icsTargetJobs() {
   }).sort((a, b) => jobRange(a).s - jobRange(b).s);
 }
 
+/**
+ * タイトル・住所・説明文のテンプレートに、その予定の内容を差し込む。
+ * {案件名}{依頼元}{業務内容}{場所}{住所}{日付}{開始}{終了}{メモ} が使える。
+ */
+function fillTemplate(tpl, job) {
+  const map = {
+    '案件名': job.title || '',
+    '依頼元': job.client || '',
+    '業務内容': job.workType || '',
+    '場所': job.place || '',
+    '住所': job.address || '',
+    '日付': formatDate(job.date, 'long'),
+    '開始': job.allDay ? '' : (job.start || ''),
+    '終了': job.allDay ? '' : (job.end || ''),
+    'メモ': job.note || '',
+  };
+  return String(tpl).replace(/\{(案件名|依頼元|業務内容|場所|住所|日付|開始|終了|メモ)\}/g, (m, key) => map[key]);
+}
+
 function icsSummary(job, prefix) {
   const tentative = job.status === 'tentative';
-  return (prefix ? prefix : '') + (tentative ? '【仮】' : '') + (job.title || '(無題)');
+  const cfg = state.settings.projectCalendar[job.title];
+  const base = (cfg && cfg.title && cfg.title.trim()) ? fillTemplate(cfg.title, job) : (job.title || '(無題)');
+  return (prefix ? prefix : '') + (tentative ? '【仮】' : '') + base;
+}
+
+/** Googleカレンダー登録用の「場所」。案件ごとのカスタム住所があればそちらを使う */
+function icsLocation(job) {
+  const cfg = state.settings.projectCalendar[job.title];
+  if (cfg && cfg.address && cfg.address.trim()) return fillTemplate(cfg.address, job);
+  return jobLocation(job);
+}
+
+/** Googleカレンダー登録用の説明文。依頼元ごとの上書き→案件のカスタム説明文→既定の順で使う */
+function icsDescription(job) {
+  const cfg = state.settings.projectCalendar[job.title];
+  if (cfg) {
+    const override = cfg.clientOverrides && job.client ? cfg.clientOverrides[job.client] : null;
+    if (override && override.trim()) return fillTemplate(override, job);
+    if (cfg.description && cfg.description.trim()) return fillTemplate(cfg.description, job);
+  }
+  return [
+    job.workType ? '業務内容: ' + job.workType : '',
+    job.client ? '依頼元: ' + job.client : '',
+    job.note ? 'メモ: ' + job.note : '',
+    job.status === 'tentative' ? '※ 未確定（仮出勤）' : '',
+  ].filter(Boolean).join('\n');
 }
 
 /** 予定の配列から .ics 本文を組み立てる */
@@ -1503,12 +1697,7 @@ function buildIcs(jobs, prefix) {
       timeLines.push('DTEND:' + icsLocalDateTime(job.date, e));
     }
 
-    const desc = [
-      job.workType ? '業務内容: ' + job.workType : '',
-      job.client ? '依頼元: ' + job.client : '',
-      job.note ? 'メモ: ' + job.note : '',
-      job.status === 'tentative' ? '※ 未確定（仮出勤）' : '',
-    ].filter(Boolean).join('\n');
+    const desc = icsDescription(job);
 
     lines.push('BEGIN:VEVENT');
     lines.push('UID:' + job.id + '@shift-calendar');
@@ -1517,7 +1706,7 @@ function buildIcs(jobs, prefix) {
     timeLines.forEach((l) => lines.push(l));
     lines.push('SUMMARY:' + icsEscape(icsSummary(job, prefix)));
     if (desc) lines.push('DESCRIPTION:' + icsEscape(desc));
-    if (jobLocation(job)) lines.push('LOCATION:' + icsEscape(jobLocation(job)));
+    if (icsLocation(job)) lines.push('LOCATION:' + icsEscape(icsLocation(job)));
     if (job.workType) lines.push('CATEGORIES:' + icsEscape(job.workType));
     lines.push('STATUS:' + (job.status === 'tentative' ? 'TENTATIVE' : 'CONFIRMED'));
     lines.push('END:VEVENT');
@@ -1598,19 +1787,14 @@ function googleCalendarUrl(job) {
     if (e <= s) e += 1440;
     dates = icsLocalDateTime(job.date, s) + '/' + icsLocalDateTime(job.date, e);
   }
-  const details = [
-    job.workType ? '業務内容: ' + job.workType : '',
-    job.client ? '依頼元: ' + job.client : '',
-    job.note ? 'メモ: ' + job.note : '',
-    job.status === 'tentative' ? '※ 未確定（仮出勤）' : '',
-  ].filter(Boolean).join('\n');
+  const details = icsDescription(job);
 
   return 'https://calendar.google.com/calendar/render?action=TEMPLATE'
     + '&text=' + encodeURIComponent(icsSummary(job, ''))
     + '&dates=' + dates
     + '&ctz=Asia/Tokyo'
     + (details ? '&details=' + encodeURIComponent(details) : '')
-    + (jobLocation(job) ? '&location=' + encodeURIComponent(jobLocation(job)) : '');
+    + (icsLocation(job) ? '&location=' + encodeURIComponent(icsLocation(job)) : '');
 }
 
 /* ------------------------------------------------------------
@@ -1630,7 +1814,7 @@ function blankForm() {
 
 function formFromJob(job) {
   const title = job.title || '';
-  const preset = PROJECT_PRESETS.includes(title);
+  const preset = state.settings.projects.includes(title);
   return {
     date: job.date,
     titleSel: title ? (preset ? title : PROJECT_FREE) : '',
@@ -2588,6 +2772,34 @@ function bindEvents() {
   $('icsProjectFilter').addEventListener('change', renderIcsPreview);
   $('icsPrefix').addEventListener('input', renderIcsPreview);
   $('downloadIcs').addEventListener('click', downloadIcs);
+
+  // 案件ごとのGoogleカレンダー登録内容
+  $('pcProject').addEventListener('change', loadProjectCalendarEditor);
+  $('pcSave').addEventListener('click', saveProjectCalendar);
+  $('pcOverrideAdd').addEventListener('click', addOrUpdateOverride);
+  $('pcOverrideList').addEventListener('click', (ev) => {
+    const editBtn = ev.target.closest('[data-override-edit]');
+    if (editBtn) { editOverride(editBtn.dataset.overrideEdit); return; }
+    const delBtn = ev.target.closest('[data-override-del]');
+    if (delBtn) removeOverride(delBtn.dataset.overrideDel);
+  });
+
+  // 案件名の登録・削除
+  $('addProjectBtn').addEventListener('click', () => {
+    addProject($('newProjectName').value);
+    $('newProjectName').value = '';
+    $('newProjectName').focus();
+  });
+  $('newProjectName').addEventListener('keydown', (ev) => {
+    if (ev.key !== 'Enter') return;
+    ev.preventDefault();
+    addProject($('newProjectName').value);
+    $('newProjectName').value = '';
+  });
+  $('projectChips').addEventListener('click', (ev) => {
+    const chip = ev.target.closest('[data-project]');
+    if (chip) removeProject(chip.dataset.project);
+  });
 
   $('copyJobs').addEventListener('click', async () => {
     const ok = await copyText(buildJobsText());

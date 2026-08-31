@@ -233,6 +233,7 @@
 }
 .sc-input:focus { outline: 2px solid var(--sc-primary); outline-offset: -1px; }
 .sc-input-sm { padding: 5px 8px; font-size: 0.8rem; }
+textarea.sc-input { resize: vertical; line-height: 1.5; min-height: 2.6em; }
 
 .sc-status-select { font-weight: 700; }
 
@@ -650,6 +651,20 @@
 }
 .sc-date-chip:hover { background: var(--sc-conflict-bg); border-color: var(--sc-conflict); color: #b91c1c; }
 
+.sc-proj-chip {
+  background: var(--sc-surface-2);
+  border: 1px solid var(--sc-border);
+  border-radius: 999px;
+  color: var(--sc-text);
+  font-family: inherit;
+  font-size: 0.76rem;
+  font-weight: 700;
+  padding: 3px 10px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.sc-proj-chip:hover { background: var(--sc-conflict-bg); border-color: var(--sc-conflict); color: #b91c1c; }
+
 .sc-wish-btn {
   flex: 1;
   background: #fff;
@@ -743,10 +758,22 @@
 }
 
 .sc-job-meta { font-size: 0.74rem; color: var(--sc-muted); word-break: break-word; }
+.sc-job-note { white-space: pre-wrap; }
 .sc-job-warn { font-size: 0.74rem; color: #b91c1c; margin-top: 3px; font-weight: 700; }
 .sc-job-actions { display: flex; gap: 5px; margin-top: 6px; flex-wrap: wrap; }
 
 .sc-empty-note { font-size: 0.78rem; color: var(--sc-muted); }
+
+.sc-override-item {
+  background: var(--sc-surface-2);
+  border: 1px solid var(--sc-border);
+  border-radius: 8px;
+  padding: 8px 10px;
+  margin-bottom: 6px;
+}
+.sc-override-head { display: flex; align-items: center; gap: 8px; }
+.sc-override-head strong { flex: 1; font-size: 0.86rem; }
+.sc-override-text { margin-top: 4px; font-size: 0.78rem; color: var(--sc-muted); white-space: pre-wrap; }
 
 /* 業務内容タグ */
 .sc-worktype-tag {
@@ -799,6 +826,10 @@
 /* ---- セクション ---- */
 .sc-section { border-top: 1px solid var(--sc-border); background: var(--sc-surface); }
 .sc-section:nth-of-type(even) { background: var(--sc-bg); }
+
+/* 設定はひとつの独立した区画として、少しはっきり区切る */
+.sc-settings-hub { border-top: 4px solid var(--sc-primary); }
+.sc-settings-hub .sc-section-title { font-size: 1.15rem; }
 .sc-section-inner { max-width: 1180px; margin: 0 auto; padding: 16px; }
 /* 最後のセクションも画面の上まで送れるように余白を確保する */
 .sc-section:last-of-type .sc-section-inner { padding-bottom: 45vh; }

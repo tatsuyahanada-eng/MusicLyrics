@@ -13,7 +13,7 @@
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="default">
   <meta name="apple-mobile-web-app-title" content="VertiCale">
-  <link rel="stylesheet" href="schedule.css?v=29">
+  <link rel="stylesheet" href="schedule.css?v=30">
 </head>
 <body class="sc-body">
 
@@ -177,15 +177,65 @@
     </div>
   </section>
 
-  <!-- 設定・データ -->
-  <section class="sc-section">
+  <!-- 設定 -->
+  <section class="sc-section sc-settings-hub">
     <div class="sc-section-inner">
       <div class="sc-section-head">
-        <h3 class="sc-section-title" id="sec-settings">⚙️ 設定とデータ</h3>
+        <h3 class="sc-section-title" id="sec-settings">⚙️ 設定</h3>
+      </div>
+      <p class="sc-note">データの共有・Googleカレンダーへの移行・案件名の管理など、この画面ですべて設定できます。</p>
+
+      <details class="sc-settings-block" id="syncBlock">
+        <summary>🔄 データ共有（端末間で同期）</summary>
+
+      <p class="sc-settings-note"><span id="syncStatus" class="sc-sync-status">未設定</span></p>
+
+      <div class="sc-export-opts">
+        <label class="sc-field">
+          <span class="sc-field-label">保存先のURL（sync.php の場所）</span>
+          <input id="syncUrl" class="sc-input sc-input-sm" type="text" placeholder="sync.php" autocomplete="off">
+        </label>
+        <label class="sc-field">
+          <span class="sc-field-label">合言葉（PC・スマホで同じもの）</span>
+          <input id="syncKey" class="sc-input sc-input-sm" type="text" placeholder="12文字以上" autocomplete="off" spellcheck="false">
+        </label>
+        <button id="genKey" class="sc-btn sc-btn-sm sc-btn-outline" type="button">合言葉を作る</button>
+        <label class="sc-check">
+          <input id="syncAuto" type="checkbox" checked>
+          <span>自動で同期する</span>
+        </label>
       </div>
 
+      <div class="sc-export-actions">
+        <button id="syncNowBtn" class="sc-btn">🔄 今すぐ同期</button>
+        <button id="syncTest" class="sc-btn sc-btn-outline">接続テスト</button>
+      </div>
+      <p class="sc-note">
+        同期は「送る」「取り込む」ではなく、両方の内容を突き合わせて<strong>1件ずつ新しいほうを残します</strong>。
+        PCとスマホで別々に登録しても、どちらの予定も消えません。削除した予定は他の端末からも消えます。
+      </p>
+
+      <details class="sc-help">
+        <summary>設定のしかた</summary>
+        <ol class="sc-help-list">
+          <li><strong>sync.php をアップロード</strong>：schedule.html と同じフォルダに置きます。
+            データを入れるフォルダは初回に自動で作られます。</li>
+          <li><strong>合言葉を決める</strong>：PCでこの画面を開き、「合言葉を作る」を押します。
+            自動で作られた文字列をメモしてください。</li>
+          <li><strong>スマホでも同じ合言葉を入れる</strong>：スマホで同じページを開き、
+            同じ合言葉を入力して「⬇️ 保存されている内容を取り込む」を押します。</li>
+          <li>以降は、変更するたびに自動で保存され、ページを開いたときに自動で取り込まれます。</li>
+        </ol>
+        <p class="sc-note">
+          合言葉を知っている人だけがデータを読み書きできます。長い合言葉のままお使いください。
+          さらに厳重にする場合は、フォルダごと Basic 認証（.htaccess）で保護してください。設定例は下の
+          「アクセス制限」に記載しています。
+        </p>
+      </details>
+      </details>
+
       <details class="sc-settings-block" id="gcalBlock">
-        <summary>📆 Googleカレンダーに一括登録</summary>
+        <summary>📆 Googleカレンダーへの移行</summary>
 
       <p class="sc-settings-note"><span id="icsCount" class="sc-section-count"></span></p>
 
@@ -233,91 +283,101 @@
           個別に1件だけ登録したいときは、予定カードの「📆 追加」からスマホでも登録できます。
         </p>
       </details>
+
+      <div class="sc-side-block sc-project-cal">
+        <p class="sc-side-block-title">案件ごとの登録内容を調整（任意）</p>
+        <p class="sc-note">
+          タイトル・住所・説明文には <code>{案件名}</code> <code>{依頼元}</code> <code>{業務内容}</code>
+          <code>{場所}</code> <code>{住所}</code> <code>{日付}</code> <code>{開始}</code> <code>{終了}</code>
+          <code>{メモ}</code> を差し込めます。空欄のままなら、これまでどおりの内容で登録されます。
+        </p>
+        <label class="sc-field">
+          <span class="sc-field-label">調整する案件</span>
+          <select id="pcProject" class="sc-input sc-input-sm"></select>
+        </label>
+        <label class="sc-field">
+          <span class="sc-field-label">タイトル（空欄で既定のまま）</span>
+          <input id="pcTitle" class="sc-input sc-input-sm" type="text" placeholder="例）【OES】{場所}　{依頼元}" autocomplete="off">
+        </label>
+        <label class="sc-field">
+          <span class="sc-field-label">住所（空欄で既定のまま）</span>
+          <input id="pcAddress" class="sc-input sc-input-sm" type="text" autocomplete="off">
+        </label>
+        <label class="sc-field">
+          <span class="sc-field-label">説明文（空欄で既定のまま）</span>
+          <textarea id="pcDescription" class="sc-input" rows="4" placeholder="例）機器入替作業&#10;依頼元：{依頼元}&#10;業務内容：{業務内容}"></textarea>
+        </label>
+        <div class="sc-export-actions">
+          <button id="pcSave" class="sc-btn sc-btn-sm" type="button">この案件の設定を保存</button>
+        </div>
+
+        <p class="sc-side-block-title" style="margin-top:14px">依頼元ごとに説明文を変える（任意）</p>
+        <p class="sc-note">同じ案件でも、依頼元（例：はま寿司／すき家）ごとに説明文を変えたいときに使います。上の説明文より優先されます。</p>
+        <div id="pcOverrideList"></div>
+        <label class="sc-field">
+          <span class="sc-field-label">依頼元名</span>
+          <input id="pcOverrideClient" class="sc-input sc-input-sm" type="text" placeholder="例）はま寿司" autocomplete="off">
+        </label>
+        <label class="sc-field">
+          <span class="sc-field-label">この依頼元のときの説明文</span>
+          <textarea id="pcOverrideText" class="sc-input" rows="3"></textarea>
+        </label>
+        <div class="sc-export-actions">
+          <button id="pcOverrideAdd" class="sc-btn sc-btn-sm sc-btn-outline" type="button">＋ この上書きを追加・更新</button>
+        </div>
+      </div>
       </details>
 
-      <details class="sc-settings-block" id="syncBlock">
-        <summary>🔄 端末間でデータを共有</summary>
+      <details class="sc-settings-block" id="projectsBlock">
+        <summary>🏷 案件名の登録・削除</summary>
+        <p class="sc-note">ここで登録した案件名が、予定の登録画面の「案件名」の選択肢になります。</p>
+        <div id="projectChips" class="sc-chip-row"></div>
+        <div class="sc-form-row">
+          <input id="newProjectName" class="sc-input sc-input-sm" type="text" placeholder="新しい案件名" autocomplete="off">
+          <button id="addProjectBtn" class="sc-btn sc-btn-sm" type="button">＋ 追加</button>
+        </div>
+      </details>
 
-      <p class="sc-settings-note"><span id="syncStatus" class="sc-sync-status">未設定</span></p>
+      <details class="sc-settings-block" id="defaultsBlock">
+        <summary>⏱ 稼働の既定値</summary>
+        <div class="sc-settings">
+          <label class="sc-field">
+            <span class="sc-field-label">移動・準備の余裕時間（予定の間があいているとき用。続けて入る予定は対象外）</span>
+            <select id="bufferMin" class="sc-input sc-input-sm">
+              <option value="0">なし（時間が重なる時だけ警告）／既定</option>
+              <option value="30">30分</option>
+              <option value="60">60分</option>
+              <option value="90">90分</option>
+              <option value="120">120分</option>
+            </select>
+          </label>
+          <label class="sc-field">
+            <span class="sc-field-label">既定の開始時刻</span>
+            <input id="defStart" class="sc-input sc-input-sm" type="time">
+          </label>
+          <label class="sc-field">
+            <span class="sc-field-label">既定の終了時刻</span>
+            <input id="defEnd" class="sc-input sc-input-sm" type="time">
+          </label>
+        </div>
+      </details>
 
-      <div class="sc-export-opts">
-        <label class="sc-field">
-          <span class="sc-field-label">保存先のURL（sync.php の場所）</span>
-          <input id="syncUrl" class="sc-input sc-input-sm" type="text" placeholder="sync.php" autocomplete="off">
-        </label>
-        <label class="sc-field">
-          <span class="sc-field-label">合言葉（PC・スマホで同じもの）</span>
-          <input id="syncKey" class="sc-input sc-input-sm" type="text" placeholder="12文字以上" autocomplete="off" spellcheck="false">
-        </label>
-        <button id="genKey" class="sc-btn sc-btn-sm sc-btn-outline" type="button">合言葉を作る</button>
-        <label class="sc-check">
-          <input id="syncAuto" type="checkbox" checked>
-          <span>自動で同期する</span>
-        </label>
-      </div>
-
-      <div class="sc-export-actions">
-        <button id="syncNowBtn" class="sc-btn">🔄 今すぐ同期</button>
-        <button id="syncTest" class="sc-btn sc-btn-outline">接続テスト</button>
-      </div>
-      <p class="sc-note">
-        同期は「送る」「取り込む」ではなく、両方の内容を突き合わせて<strong>1件ずつ新しいほうを残します</strong>。
-        PCとスマホで別々に登録しても、どちらの予定も消えません。削除した予定は他の端末からも消えます。
-      </p>
-
-      <details class="sc-help">
-        <summary>設定のしかた</summary>
-        <ol class="sc-help-list">
-          <li><strong>sync.php をアップロード</strong>：schedule.html と同じフォルダに置きます。
-            データを入れるフォルダは初回に自動で作られます。</li>
-          <li><strong>合言葉を決める</strong>：PCでこの画面を開き、「合言葉を作る」を押します。
-            自動で作られた文字列をメモしてください。</li>
-          <li><strong>スマホでも同じ合言葉を入れる</strong>：スマホで同じページを開き、
-            同じ合言葉を入力して「⬇️ 保存されている内容を取り込む」を押します。</li>
-          <li>以降は、変更するたびに自動で保存され、ページを開いたときに自動で取り込まれます。</li>
-        </ol>
+      <details class="sc-settings-block" id="backupBlock">
+        <summary>💾 バックアップとデータ削除</summary>
+        <div class="sc-data-actions">
+          <button id="exportJson" class="sc-btn sc-btn-sm sc-btn-outline">💾 バックアップ保存</button>
+          <label class="sc-btn sc-btn-sm sc-btn-outline sc-file-label">
+            📂 バックアップ読込
+            <input id="importJson" type="file" accept="application/json,.json" hidden>
+          </label>
+          <button id="resetAll" class="sc-btn sc-btn-sm sc-btn-outline sc-btn-danger">🗑 全データ削除</button>
+        </div>
         <p class="sc-note">
-          合言葉を知っている人だけがデータを読み書きできます。長い合言葉のままお使いください。
-          さらに厳重にする場合は、フォルダごと Basic 認証（.htaccess）で保護してください。設定例は下の
-          「設定とデータ」の説明に記載しています。
+          データはこのブラウザ内に保存されます。上の「データ共有」を設定すると、サーバ経由で
+          他の端末にも反映されます。設定していない場合は端末ごとに別々のデータになるため、
+          バックアップ保存をおすすめします。
         </p>
       </details>
-      </details>
-
-      <div class="sc-settings">
-        <label class="sc-field">
-          <span class="sc-field-label">移動・準備の余裕時間（予定の間があいているとき用。続けて入る予定は対象外）</span>
-          <select id="bufferMin" class="sc-input sc-input-sm">
-            <option value="0">なし（時間が重なる時だけ警告）／既定</option>
-            <option value="30">30分</option>
-            <option value="60">60分</option>
-            <option value="90">90分</option>
-            <option value="120">120分</option>
-          </select>
-        </label>
-        <label class="sc-field">
-          <span class="sc-field-label">既定の開始時刻</span>
-          <input id="defStart" class="sc-input sc-input-sm" type="time">
-        </label>
-        <label class="sc-field">
-          <span class="sc-field-label">既定の終了時刻</span>
-          <input id="defEnd" class="sc-input sc-input-sm" type="time">
-        </label>
-      </div>
-
-      <div class="sc-data-actions">
-        <button id="exportJson" class="sc-btn sc-btn-sm sc-btn-outline">💾 バックアップ保存</button>
-        <label class="sc-btn sc-btn-sm sc-btn-outline sc-file-label">
-          📂 バックアップ読込
-          <input id="importJson" type="file" accept="application/json,.json" hidden>
-        </label>
-        <button id="resetAll" class="sc-btn sc-btn-sm sc-btn-outline sc-btn-danger">🗑 全データ削除</button>
-      </div>
-      <p class="sc-note">
-        データはこのブラウザ内に保存されます。上の「端末間でデータを共有」を設定すると、サーバ経由で
-        他の端末にも反映されます。設定していない場合は端末ごとに別々のデータになるため、
-        バックアップ保存をおすすめします。
-      </p>
 
       <details class="sc-help">
         <summary>他の人に見られないようにする（Basic認証の設定例）</summary>
@@ -361,6 +421,6 @@ Require valid-user</pre>
 
   <div id="toast" class="sc-toast" role="status" aria-live="polite" hidden></div>
 
-  <script src="schedule.js?v=29"></script>
+  <script src="schedule.js?v=30"></script>
 </body>
 </html>
