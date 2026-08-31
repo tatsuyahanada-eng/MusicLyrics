@@ -38,6 +38,8 @@
 
   --sc-sun: #b3273f;
   --sc-sat: #1d4ed8;
+  /* 今日 */
+  --sc-today-bg: #dce6fb;
 }
 
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
@@ -355,7 +357,7 @@ textarea.sc-input { resize: vertical; line-height: 1.5; min-height: 2.6em; }
 }
 .sc-vrow-off .sc-vcell { border-left-color: var(--sc-off-border); }
 .sc-vrow-off .sc-vdate { border-right-color: var(--sc-off); }
-.sc-vrow-today { box-shadow: inset 0 0 0 2px var(--sc-primary); }
+.sc-vrow-today { background: var(--sc-today-bg); box-shadow: inset 0 0 0 3px var(--sc-primary); }
 
 /* 見出し行 */
 .sc-vhead {
@@ -419,7 +421,21 @@ textarea.sc-input { resize: vertical; line-height: 1.5; min-height: 2.6em; }
 .sc-vdate-sun .sc-vdate-num, .sc-vdate-sun .sc-vdate-wd { color: var(--sc-sun); }
 .sc-vdate-sat .sc-vdate-num, .sc-vdate-sat .sc-vdate-wd { color: var(--sc-sat); }
 .sc-vdate-past { opacity: 0.55; }
-.sc-vdate-today { box-shadow: inset 3px 0 0 var(--sc-primary); }
+.sc-vdate-today {
+  background: var(--sc-primary);
+  box-shadow: none;
+}
+.sc-vdate-today:hover { background: var(--sc-primary-hover); }
+.sc-vdate-today .sc-vdate-num, .sc-vdate-today .sc-vdate-wd, .sc-vdate-today .sc-vdate-hol { color: #fff; }
+.sc-vdate-today-badge {
+  background: #fff;
+  color: var(--sc-primary);
+  font-size: 0.56rem;
+  font-weight: 800;
+  border-radius: 3px;
+  padding: 0 4px;
+  line-height: 1.5;
+}
 .sc-vdate-available { background: var(--sc-available-bg); }
 .sc-vdate-off { background: var(--sc-off-bg); box-shadow: inset 4px 0 0 var(--sc-off); }
 .sc-vdate-empty { background: var(--sc-empty-bg); }
@@ -486,10 +502,11 @@ textarea.sc-input { resize: vertical; line-height: 1.5; min-height: 2.6em; }
 }
 .sc-vbar-confirmed { background: var(--sc-confirmed); color: #fff; }
 .sc-vbar-tentative {
-  background: #fff;
-  border: 1px dashed var(--sc-tentative);
-  color: #92400e;
+  background: var(--sc-tentative-bg);
+  border: 2px dashed var(--sc-tentative);
+  color: #7c3a04;
 }
+.sc-vbar-tentative .sc-vbar-title { font-weight: 800; }
 .sc-vbar-conflict { box-shadow: inset 0 0 0 2px var(--sc-conflict); }
 .sc-vbar-title {
   max-width: 100%;
@@ -576,8 +593,6 @@ textarea.sc-input { resize: vertical; line-height: 1.5; min-height: 2.6em; }
 .sc-chip-confirmed { background: var(--sc-confirmed); color: #fff; }
 .sc-chip-tentative { background: #fff; color: var(--sc-tentative); border: 1px dashed var(--sc-tentative); }
 .sc-chip-conflict { background: var(--sc-conflict-bg); color: var(--sc-conflict); border: 1px solid var(--sc-conflict); }
-.sc-chip-early { background: #fbbf24; color: #4a2506; }
-.sc-chip-cont { background: transparent; color: var(--sc-confirmed-strong); border: 1px dashed var(--sc-confirmed); opacity: 0.7; }
 
 .sc-stats {
   display: flex;
@@ -663,18 +678,41 @@ textarea.sc-input { resize: vertical; line-height: 1.5; min-height: 2.6em; }
 .sc-date-chip:hover { background: var(--sc-conflict-bg); border-color: var(--sc-conflict); color: #b91c1c; }
 
 .sc-proj-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
   background: var(--sc-surface-2);
   border: 1px solid var(--sc-border);
   border-radius: 999px;
-  color: var(--sc-text);
+  padding: 3px 4px;
+  white-space: nowrap;
+}
+.sc-proj-color {
+  width: 17px;
+  height: 17px;
+  padding: 0;
+  border: 1px solid var(--sc-border);
+  border-radius: 50%;
+  cursor: pointer;
+  background: none;
+  -webkit-appearance: none;
+  appearance: none;
+}
+.sc-proj-color::-webkit-color-swatch-wrapper { padding: 0; border-radius: 50%; }
+.sc-proj-color::-webkit-color-swatch { border: none; border-radius: 50%; }
+.sc-proj-color::-moz-color-swatch { border: none; border-radius: 50%; }
+.sc-proj-chip-name {
+  background: transparent;
+  border: 0;
   font-family: inherit;
   font-size: 0.76rem;
   font-weight: 700;
-  padding: 3px 10px;
+  color: var(--sc-text);
+  padding: 3px 6px 3px 2px;
   cursor: pointer;
   white-space: nowrap;
 }
-.sc-proj-chip:hover { background: var(--sc-conflict-bg); border-color: var(--sc-conflict); color: #b91c1c; }
+.sc-proj-chip-name:hover { color: #b91c1c; }
 
 .sc-wish-btn {
   flex: 1;

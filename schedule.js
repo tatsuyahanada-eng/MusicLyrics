@@ -108,6 +108,23 @@ function jobBarSpan(job, primaryId) {
   return Math.max(1, span);
 }
 
+/**
+ * バーの直後の枠に、1枠分にするほどではない短い掛かり（30分以内）があれば、
+ * その分だけバーの長さに少しだけ足す（早朝・夜間の端で特に効く）。
+ * 見た目上のバーの長さが実際の時間により近づくようにするための微調整で、返り値は0〜1の割合。
+ */
+function jobBarTailSpill(job, primaryId, span) {
+  if (job.allDay) return 0;
+  const startIdx = SLOTS.findIndex((s2) => s2.id === primaryId);
+  const nextIdx = startIdx + span;
+  if (startIdx < 0 || nextIdx >= SLOTS.length) return 0;
+  const nextSlot = SLOTS[nextIdx];
+  const ov = slotOverlapMinutes(job, nextSlot);
+  if (ov <= 0 || ov > SLOT_EDGE_MINUTES) return 0;
+  const dur = toMinutes(nextSlot.to) - toMinutes(nextSlot.from);
+  return dur > 0 ? Math.min(1, ov / dur) : 0;
+}
+
 /** その日・その枠に掛かっている予定 */
 function jobsInSlot(dateKey, slotId) {
   return jobsOn(dateKey).filter((j) => jobSlots(j).indexOf(slotId) >= 0);
@@ -261,6 +278,7 @@ function defaultState() {
       bufferMin: 0, defStart: '09:00', defEnd: '18:00', senderName: '',
       projects: PROJECT_PRESETS.slice(),   // 案件名の選択肢（登録・削除できる）
       projectCalendar: {},                 // 案件ごとのGoogleカレンダー登録内容のカスタマイズ
+      projectColors: {},                   // 案件ごとのカレンダーのバーの色（未設定なら既定の色）
     },
     settingsAt: EPOCH0,
     wishes: {},      // 'YYYY-MM-DD' → 'available' | 'off'
@@ -578,6 +596,7 @@ function renderCalendar() {
       + ` aria-label="${escapeHtml(`${view.month + 1}月${d}日 ${WD[dow]}曜日`)}">`
       + `<span class="sc-vdate-num">${d}</span>`
       + `<span class="sc-vdate-wd">${WD[dow]}</span>`
+      + (key === today ? '<span class="sc-vdate-today-badge">今日</span>' : '')
       + `<span class="sc-vdate-marks">${marks.join('')}</span>`
       + (hol ? `<span class="sc-vdate-hol">${escapeHtml(hol)}</span>` : '')
       + `</button>`;
@@ -620,7 +639,11 @@ function renderCalendar() {
       const jobsHere = barGroups[pid];
       if (jobsHere.length === 1) {
         const span = jobBarSpan(jobsHere[0], pid);
-        return jobBarHtml(jobsHere[0], key, pid, conflicts, `grid-column:${col} / span ${span};`);
+        const spill = jobBarTailSpill(jobsHere[0], pid, span);
+        const style = spill > 0
+          ? `grid-column:${col} / span ${span + 1}; justify-self:start; width:${(((span + spill) / (span + 1)) * 100).toFixed(2)}%;`
+          : `grid-column:${col} / span ${span};`;
+        return jobBarHtml(jobsHere[0], key, pid, conflicts, style);
       }
       // 重複を承知で同じ枠に重ねた予定は、その枠の中にまとめて縦に並べる
       const inner = jobsHere.map((j) => jobBarHtml(j, key, pid, conflicts, '')).join('');
@@ -640,17 +663,51 @@ function renderCalendar() {
   elCalendar.innerHTML = head + rows.join('');
 }
 
+/** '#rrggbb' → {r,g,b}（不正な値はnull） */
+function hexToRgb(hex) {
+  const m = /^#([0-9a-f]{6})$/i.exec(hex || '');
+  if (!m) return null;
+  const n = parseInt(m[1], 16);
+  return { r: (n >> 16) & 255, g: (n >> 8) & 255, b: n & 255 };
+}
+
+/** WCAGの相対輝度（0〜1。大きいほど明るい色） */
+function relativeLuminance(rgb) {
+  const f = (c) => { c /= 255; return c <= 0.03928 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4); };
+  return 0.2126 * f(rgb.r) + 0.7152 * f(rgb.g) + 0.0722 * f(rgb.b);
+}
+
+/** 白との合成（ratio=0で白、1で元の色。仮予定の背景を薄く作るのに使う） */
+function tintWithWhite(rgb, ratio) {
+  const mix = (c) => Math.round(255 * (1 - ratio) + c * ratio);
+  return `rgb(${mix(rgb.r)}, ${mix(rgb.g)}, ${mix(rgb.b)})`;
+}
+
 /** 予定バー（縦型カレンダー）のHTML。案件名の下に実際の時間帯を小さく添える */
 function jobBarHtml(j, dateKey, slotId, conflicts, style) {
   const cls = ['sc-vbar'];
   cls.push(j.status === 'tentative' ? 'sc-vbar-tentative' : 'sc-vbar-confirmed');
   if (conflicts.has(j.id)) cls.push('sc-vbar-conflict');
+
+  let colorStyle = '';
+  const customHex = state.settings.projectColors[j.title];
+  const rgb = customHex && hexToRgb(customHex);
+  if (rgb) {
+    if (j.status === 'tentative') {
+      const textColor = relativeLuminance(rgb) > 0.6 ? '#3a2a06' : customHex;
+      colorStyle = `background:${tintWithWhite(rgb, 0.22)};border-color:${customHex};color:${textColor};`;
+    } else {
+      const textColor = relativeLuminance(rgb) > 0.55 ? '#1f2937' : '#fff';
+      colorStyle = `background:${customHex};color:${textColor};`;
+    }
+  }
+
   const tag = j.status === 'tentative' ? '<span class="sc-vbar-mark">仮</span>' : '';
   const timeLabel = j.allDay ? '終日' : `${shortTime(j.start)}〜${shortTime(j.end)}`;
   const tip = [formatDate(j.date), j.allDay ? '終日' : j.start + '〜' + j.end,
     j.title, j.workType, j.client, j.place, j.address].filter(Boolean).join(' / ');
   return `<div class="${cls.join(' ')}" data-date="${dateKey}" data-slot="${slotId}"`
-    + ` style="${style}" title="${escapeHtml(tip)}">`
+    + ` style="${style}${colorStyle}" title="${escapeHtml(tip)}">`
     + `<span class="sc-vbar-title">${tag}${escapeHtml(j.title || '(無題)')}</span>`
     + `<span class="sc-vbar-time">${escapeHtml(timeLabel)}</span>`
     + `</div>`;
@@ -1068,12 +1125,20 @@ function refreshProjectFilterOptions() {
    案件名の登録・削除（設定画面）
    ------------------------------------------------------------ */
 
+/** 案件のバーの色（未設定時に色選択欄へ出す既定色。確定予定の既定色と同じ） */
+const DEFAULT_BAR_COLOR = '#1d4ed8';
+
 function renderProjectChips() {
   const box = $('projectChips');
   if (!box) return;
   box.innerHTML = state.settings.projects.length
-    ? state.settings.projects.map((p) =>
-        `<button type="button" class="sc-proj-chip" data-project="${escapeHtml(p)}" title="削除">${escapeHtml(p)} ✕</button>`).join('')
+    ? state.settings.projects.map((p) => {
+        const color = state.settings.projectColors[p] || DEFAULT_BAR_COLOR;
+        return `<span class="sc-proj-chip">`
+          + `<input type="color" class="sc-proj-color" data-project-color="${escapeHtml(p)}" value="${color}" title="「${escapeHtml(p)}」のバーの色">`
+          + `<button type="button" class="sc-proj-chip-name" data-project="${escapeHtml(p)}" title="削除">${escapeHtml(p)} ✕</button>`
+          + `</span>`;
+      }).join('')
     : '<p class="sc-empty-note">まだ案件名が登録されていません。</p>';
 }
 
@@ -1093,10 +1158,24 @@ function removeProject(name) {
   if (!confirm(`案件名「${name}」を選択肢から削除します。すでに登録した予定には影響しません。よろしいですか？`)) return;
   state.settings.projects = state.settings.projects.filter((p) => p !== name);
   delete state.settings.projectCalendar[name];
+  delete state.settings.projectColors[name];
   state.settingsAt = nowIso();
   saveState();
   refreshProjectFilterOptions();
   toast(`「${name}」を削除しました`);
+}
+
+/** 案件のバーの色を変える（既定色と同じにしたときは設定を消して既定に戻す） */
+function setProjectColor(name, color) {
+  if (!state.settings.projects.includes(name)) return;
+  if (!/^#[0-9a-f]{6}$/i.test(color) || color.toLowerCase() === DEFAULT_BAR_COLOR) {
+    delete state.settings.projectColors[name];
+  } else {
+    state.settings.projectColors[name] = color.toLowerCase();
+  }
+  state.settingsAt = nowIso();
+  saveState();
+  renderCalendar();
 }
 
 /* ------------------------------------------------------------
@@ -1124,10 +1203,16 @@ function loadProjectCalendarEditor() {
     if ($('pcOverrideList')) $('pcOverrideList').innerHTML = '<p class="sc-empty-note">案件名を登録すると設定できます。</p>';
     return;
   }
-  const cfg = currentPcConfig();
-  $('pcTitle').value = cfg.title || '';
-  $('pcAddress').value = cfg.address || '';
-  $('pcDescription').value = cfg.description || '';
+  // 同期などをきっかけに呼ばれても、入力中のフィールドは上書きしない
+  // （案件を切り替えたときは選択肢＝select側にフォーカスがあるので、この判定には掛からない）
+  const active = document.activeElement;
+  const editing = active && ['pcTitle', 'pcAddress', 'pcDescription'].includes(active.id);
+  if (!editing) {
+    const cfg = currentPcConfig();
+    $('pcTitle').value = cfg.title || '';
+    $('pcAddress').value = cfg.address || '';
+    $('pcDescription').value = cfg.description || '';
+  }
   renderOverrideList();
 }
 
@@ -1352,6 +1437,9 @@ function syncPayload() {
       defStart: state.settings.defStart,
       defEnd: state.settings.defEnd,
       senderName: state.settings.senderName,
+      projects: state.settings.projects,
+      projectCalendar: state.settings.projectCalendar,
+      projectColors: state.settings.projectColors,
     },
     settingsAt: state.settingsAt,
     wishes: state.wishes,
@@ -2790,8 +2878,12 @@ function bindEvents() {
     $('newProjectName').value = '';
   });
   $('projectChips').addEventListener('click', (ev) => {
-    const chip = ev.target.closest('[data-project]');
+    const chip = ev.target.closest('.sc-proj-chip-name');
     if (chip) removeProject(chip.dataset.project);
+  });
+  $('projectChips').addEventListener('input', (ev) => {
+    const picker = ev.target.closest('[data-project-color]');
+    if (picker) setProjectColor(picker.dataset.projectColor, picker.value);
   });
 
   $('copyJobs').addEventListener('click', async () => {
