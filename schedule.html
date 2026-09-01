@@ -13,7 +13,7 @@
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="default">
   <meta name="apple-mobile-web-app-title" content="VertiCale">
-  <link rel="stylesheet" href="schedule.css?v=33">
+  <link rel="stylesheet" href="schedule.css?v=34">
 </head>
 <body class="sc-body">
 
@@ -360,6 +360,34 @@
         </div>
       </details>
 
+      <details class="sc-settings-block" id="notifyBlock">
+        <summary>🔔 予定の通知</summary>
+        <p class="sc-settings-note"><span id="notifyStatus" class="sc-sync-status">未設定</span></p>
+        <div class="sc-settings">
+          <label class="sc-check">
+            <input id="notifyEnabled" type="checkbox">
+            <span>予定の時間になったら通知する</span>
+          </label>
+          <label class="sc-field">
+            <span class="sc-field-label">何分前に知らせるか</span>
+            <select id="notifyLead" class="sc-input sc-input-sm">
+              <option value="0">開始時刻ちょうど</option>
+              <option value="5">5分前</option>
+              <option value="10">10分前</option>
+              <option value="15">15分前</option>
+              <option value="30">30分前</option>
+            </select>
+          </label>
+        </div>
+        <div class="sc-export-actions">
+          <button id="notifyPermBtn" class="sc-btn sc-btn-sm sc-btn-outline" type="button">🔔 通知を許可する</button>
+        </div>
+        <p class="sc-note">
+          この画面（タブ）を開いている間だけ働きます。タブやブラウザを閉じると通知は届きません。
+          スマホでは、ホーム画面に追加してその画面を開いたままにしておくと届きやすくなります。
+        </p>
+      </details>
+
       <details class="sc-settings-block" id="backupBlock">
         <summary>💾 バックアップとデータ削除</summary>
         <div class="sc-data-actions">
@@ -419,6 +447,6 @@ Require valid-user</pre>
 
   <div id="toast" class="sc-toast" role="status" aria-live="polite" hidden></div>
 
-  <script src="schedule.js?v=33"></script>
+  <script src="schedule.js?v=34"></script>
 </body>
 </html>

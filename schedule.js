@@ -317,6 +317,7 @@ function defaultState() {
       projects: PROJECT_PRESETS.slice(),   // 案件名の選択肢（登録・削除できる）
       projectCalendar: {},                 // 案件ごとのGoogleカレンダー登録内容のカスタマイズ
       projectColors: {},                   // 案件ごとのカレンダーのバーの色（未設定なら既定の色）
+      notify: { enabled: false, leadMinutes: 0 },   // 予定の時間の通知（この画面を開いている間だけ）
     },
     settingsAt: EPOCH0,
     wishes: {},      // 'YYYY-MM-DD' → 'available' | 'off'
@@ -950,6 +951,7 @@ function renderSidePanel() {
         ${loc ? `<a class="sc-btn sc-btn-sm sc-btn-outline" href="${escapeHtml(mapUrl('google', loc))}" target="_blank" rel="noopener">📍 Googleマップ</a>` : ''}
         ${loc ? `<a class="sc-btn sc-btn-sm sc-btn-outline" href="${escapeHtml(mapUrl('yahoo', loc))}" target="_blank" rel="noopener">📍 Yahoo!地図</a>` : ''}
         <button type="button" class="sc-btn sc-btn-sm sc-btn-outline" data-edit="${j.id}">編集</button>
+        <button type="button" class="sc-btn sc-btn-sm sc-btn-outline" data-dup="${j.id}">複製</button>
         <button type="button" class="sc-btn sc-btn-sm sc-btn-outline sc-btn-danger" data-del="${j.id}">削除</button>
       </div>
     </div>`;
@@ -1474,6 +1476,7 @@ function syncPayload() {
       projects: state.settings.projects,
       projectCalendar: state.settings.projectCalendar,
       projectColors: state.settings.projectColors,
+      notify: state.settings.notify,
     },
     settingsAt: state.settingsAt,
     wishes: state.wishes,
@@ -1560,6 +1563,7 @@ async function syncNow(silent, attempt) {
       syncSettingsInputs();
       refreshWorkTypeOptions();
       refreshProjectFilterOptions();
+      ensureNotifyChecker();
       renderAll();
     }
 
@@ -1886,7 +1890,7 @@ function jobLocation(job) {
 function mapUrl(kind, address) {
   const q = encodeURIComponent(address);
   if (kind === 'google') return `https://www.google.com/maps/search/?api=1&query=${q}`;
-  if (kind === 'yahoo') return `https://map.yahoo.co.jp/search?p=${q}`;
+  if (kind === 'yahoo') return `https://map.yahoo.co.jp/search?q=${q}`;
   return null;
 }
 
@@ -2337,6 +2341,25 @@ function startEdit(id) {
   if (el) el.focus();
 }
 
+/** 予定を複製する。同じ内容の新規登録フォームを開くだけで、その場ではまだ登録しない */
+function startDuplicate(id) {
+  const job = state.jobs.find((j) => j.id === id);
+  if (!job) return;
+  view.selected = job.date;
+  view.editingId = null;
+  view.confirming = false;
+  view.formOpen = true;
+  view.ack = false;
+  view.form = formFromJob(job);
+  const d = fromKey(job.date);
+  view.year = d.getFullYear();
+  view.month = d.getMonth();
+  renderAll();
+  toast('内容を複製しました。日時を確認して登録してください');
+  const el = $('fDate');
+  if (el) el.focus();
+}
+
 function deleteJob(id) {
   const job = state.jobs.find((j) => j.id === id);
   if (!job) return;
@@ -2477,6 +2500,7 @@ function importJson(file) {
       syncSettingsInputs();
       refreshWorkTypeOptions();
       refreshProjectFilterOptions();
+      ensureNotifyChecker();
       renderAll();
       toast('バックアップを読み込みました');
     } catch (err) {
@@ -2490,6 +2514,101 @@ function syncSettingsInputs() {
   $('bufferMin').value = String(state.settings.bufferMin);
   $('defStart').value = state.settings.defStart;
   $('defEnd').value = state.settings.defEnd;
+  $('notifyEnabled').checked = !!state.settings.notify.enabled;
+  $('notifyLead').value = String(state.settings.notify.leadMinutes || 0);
+  renderNotifyStatus();
+}
+
+/* ------------------------------------------------------------
+   予定の時間の通知（この画面を開いている間だけ働く）
+   ------------------------------------------------------------ */
+
+const NOTIFIED_STORE = 'ms-schedule-notified-v1';
+let notifyTimer = null;
+
+function notifySupported() {
+  return typeof Notification !== 'undefined';
+}
+
+function renderNotifyStatus() {
+  const el = $('notifyStatus');
+  if (!el) return;
+  if (!notifySupported()) { el.textContent = 'この端末・ブラウザは通知に対応していません'; return; }
+  if (Notification.permission === 'denied') { el.textContent = '通知がブロックされています（ブラウザの設定から許可してください）'; return; }
+  if (Notification.permission !== 'granted') { el.textContent = '未許可（「通知を許可する」を押してください）'; return; }
+  el.textContent = state.settings.notify.enabled ? '有効（この画面を開いている間だけ届きます）' : '許可済み（オフになっています）';
+}
+
+/** ブラウザに通知の許可を求める（ボタン操作からのみ呼べる） */
+async function requestNotifyPermission() {
+  if (!notifySupported()) { toast('この端末・ブラウザは通知に対応していません', true); return; }
+  const perm = await Notification.requestPermission();
+  renderNotifyStatus();
+  if (perm === 'granted') {
+    toast('通知を許可しました');
+    ensureNotifyChecker();
+  } else {
+    toast('通知が許可されませんでした', true);
+  }
+}
+
+/** 通知済みの予定の記録（この端末だけの記録。予定データとは別に保存する） */
+function loadNotifiedSet() {
+  try {
+    const raw = localStorage.getItem(NOTIFIED_STORE);
+    return new Set(raw ? JSON.parse(raw) : []);
+  } catch (err) { return new Set(); }
+}
+
+function saveNotifiedSet(set) {
+  try {
+    // 2日より前の記録は捨てて、際限なく増えないようにする
+    const limit = toKey(addDays(new Date(), -2));
+    const kept = Array.from(set).filter((k) => k.slice(k.indexOf('@') + 1) >= limit);
+    localStorage.setItem(NOTIFIED_STORE, JSON.stringify(kept));
+  } catch (err) { /* 保存できなくても動作には影響しない */ }
+}
+
+/** 通知が必要な予定があれば、その場でブラウザ通知を出す（nowを渡すと動作確認しやすい） */
+function checkUpcomingNotifications(nowArg) {
+  if (!notifySupported() || Notification.permission !== 'granted' || !state.settings.notify.enabled) return;
+  const lead = Number(state.settings.notify.leadMinutes) || 0;
+  const now = nowArg || new Date();
+  const today = toKey(now);
+  const nowMin = now.getHours() * 60 + now.getMinutes();
+  const notified = loadNotifiedSet();
+  let changed = false;
+
+  jobsOn(today).forEach((j) => {
+    if (j.allDay) return;
+    const s = toMinutes(j.start);
+    if (s === null) return;
+    const notifyAt = s - lead;
+    // 通知の対象時刻を過ぎていて、かつ大きく過ぎすぎていない（10分以内）ものだけ対象にする
+    if (nowMin < notifyAt || nowMin - notifyAt > 10) return;
+    const key = j.id + '@' + today;
+    if (notified.has(key)) return;
+    notified.add(key);
+    changed = true;
+    const remain = s - nowMin;
+    const timing = remain > 0 ? `あと${remain}分で開始` : remain < 0 ? `${-remain}分前に開始` : 'まもなく開始';
+    const body = [j.workType, j.client, j.place].filter(Boolean).join(' / ') || `${j.start}〜${j.end}`;
+    try {
+      const n = new Notification(`${j.title || '予定'}（${timing}）`, { body, tag: key });
+      n.onclick = () => { window.focus(); n.close(); };
+    } catch (err) { /* 通知が出せなくても動作には影響しない */ }
+  });
+
+  if (changed) saveNotifiedSet(notified);
+}
+
+/** 通知の定期チェックを、必要なときだけ動かす */
+function ensureNotifyChecker() {
+  clearInterval(notifyTimer);
+  notifyTimer = null;
+  if (!notifySupported() || Notification.permission !== 'granted' || !state.settings.notify.enabled) return;
+  checkUpcomingNotifications();
+  notifyTimer = setInterval(checkUpcomingNotifications, 30000);
 }
 
 /* ------------------------------------------------------------
@@ -2806,6 +2925,9 @@ function bindEvents() {
     const editBtn = ev.target.closest('[data-edit]');
     if (editBtn) { startEdit(editBtn.dataset.edit); return; }
 
+    const dupBtn = ev.target.closest('[data-dup]');
+    if (dupBtn) { startDuplicate(dupBtn.dataset.dup); return; }
+
     const delBtn = ev.target.closest('[data-del]');
     if (delBtn) { deleteJob(delBtn.dataset.del); return; }
 
@@ -2939,6 +3061,21 @@ function bindEvents() {
     state.settings.defEnd = $('defEnd').value || '18:00';
     saveState();
   });
+  $('notifyEnabled').addEventListener('change', () => {
+    state.settings.notify.enabled = $('notifyEnabled').checked;
+    saveState();
+    renderNotifyStatus();
+    if (state.settings.notify.enabled && notifySupported() && Notification.permission !== 'granted') {
+      requestNotifyPermission();
+    } else {
+      ensureNotifyChecker();
+    }
+  });
+  $('notifyLead').addEventListener('change', () => {
+    state.settings.notify.leadMinutes = Number($('notifyLead').value) || 0;
+    saveState();
+  });
+  $('notifyPermBtn').addEventListener('click', requestNotifyPermission);
 
   // 端末間の同期
   // 入力し終えたら、そのまま同期を始める（設定直後に待たされないように）
@@ -3014,6 +3151,7 @@ function bindEvents() {
     syncSettingsInputs();
     refreshWorkTypeOptions();
     refreshProjectFilterOptions();
+    ensureNotifyChecker();
     renderAll();
 
     if (alsoServer) {
@@ -3144,6 +3282,7 @@ function init() {
   // 起動時に、他の端末で更新されていないか確認する
   if (sync.auto && syncConfigured()) syncNow(true);
   startSyncPolling();
+  ensureNotifyChecker();
 
   // アプリとして追加できるようにする（file:// で開いた場合は動かないので黙って見送る）
   if ('serviceWorker' in navigator && location.protocol.indexOf('http') === 0) {
