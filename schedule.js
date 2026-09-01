@@ -812,22 +812,15 @@ function jobBarHtml(j, dateKey, slotId, conflicts, style) {
 }
 
 /** 訪問先1件分の入力欄（場所・住所・小さな地図ボタン）。primaryはID固定、追加分はrowKeyで連番にする */
-function visitRowHtml(rowKey, place, address, removable) {
-  const placeId = rowKey === 'primary' ? 'fPlace' : `fExtraPlace-${rowKey}`;
+function visitRowHtml(rowKey, address, removable) {
   const addrId = rowKey === 'primary' ? 'fAddress' : `fExtraAddress-${rowKey}`;
   const hasAddr = (address || '').trim();
   return `<div class="sc-visit-row">
-    <div class="sc-visit-fields">
-      <label class="sc-field">
-        <span class="sc-field-label">場所</span>
-        <input id="${placeId}" class="sc-input" type="text" value="${escapeHtml(place)}" autocomplete="off">
-      </label>
-      <label class="sc-field sc-field-grow">
-        <span class="sc-field-label">住所</span>
-        <input id="${addrId}" class="sc-input" type="text" value="${escapeHtml(address)}"
-          placeholder="例）東京都渋谷区〇〇1-2-3" autocomplete="off">
-      </label>
-    </div>
+    <label class="sc-field sc-field-grow">
+      <span class="sc-field-label">住所</span>
+      <input id="${addrId}" class="sc-input" type="text" value="${escapeHtml(address)}"
+        placeholder="例）東京都渋谷区〇〇1-2-3" autocomplete="off">
+    </label>
     <div class="sc-visit-actions">
       <button type="button" class="sc-icon-btn" data-map="google" data-map-row="${rowKey}" title="Googleマップで開く" ${hasAddr ? '' : 'hidden'}>🗺️</button>
       <button type="button" class="sc-icon-btn" data-map="yahoo" data-map-row="${rowKey}" title="Yahoo!地図で開く" ${hasAddr ? '' : 'hidden'}>📍</button>
@@ -925,8 +918,8 @@ function jobFormHtml(f) {
 
         <div class="sc-field-label" style="margin-top:4px">訪問先</div>
         <div class="sc-visit-list">
-          ${visitRowHtml('primary', f.place, f.address, false)}
-          ${(f.extraAddresses || []).map((a, i) => visitRowHtml(String(i), a.place, a.address, true)).join('')}
+          ${visitRowHtml('primary', f.address, false)}
+          ${(f.extraAddresses || []).map((a, i) => visitRowHtml(String(i), a, true)).join('')}
         </div>
         <div class="sc-export-actions" style="margin-top:2px">
           <button type="button" id="addVisitBtn" class="sc-btn sc-btn-sm sc-btn-outline">＋ 訪問先を追加</button>
@@ -1031,16 +1024,10 @@ function renderSidePanel() {
     const warn = others.length
       ? `<p class="sc-job-warn">⚠ ${others.map((c) => (c.type === 'overlap' ? '時間が重複' : '移動時間が不足') + '：' + formatDate(c.job.date) + ' ' + escapeHtml(c.job.title || '(無題)')).join(' / ')}</p>`
       : '';
-    const visitLines = jobVisits(j).map((v, i) => {
-      // 主の訪問先は場所名を上のmeta行ですでに表示しているので、ここでは住所だけ示す
-      const text = i === 0 ? v.address : [v.place, v.address].filter(Boolean).join(' ');
-      if (!text) return '';
-      const q = [v.place, v.address].filter(Boolean).join(' ');
-      const icons = v.address
-        ? `<a class="sc-map-icon" href="${escapeHtml(mapUrl('google', q))}" target="_blank" rel="noopener" title="Googleマップで開く">🗺️</a>` +
-          `<a class="sc-map-icon" href="${escapeHtml(mapUrl('yahoo', q))}" target="_blank" rel="noopener" title="Yahoo!地図で開く">📍</a>`
-        : '';
-      return `<div class="sc-job-visit"><p class="sc-job-meta">📍 ${escapeHtml(text)}</p>${icons}</div>`;
+    const visitLines = jobVisits(j).map((addr) => {
+      const icons = `<a class="sc-map-icon" href="${escapeHtml(mapUrl('google', addr))}" target="_blank" rel="noopener" title="Googleマップで開く">🗺️</a>` +
+        `<a class="sc-map-icon" href="${escapeHtml(mapUrl('yahoo', addr))}" target="_blank" rel="noopener" title="Yahoo!地図で開く">📍</a>`;
+      return `<div class="sc-job-visit"><p class="sc-job-meta">📍 ${escapeHtml(addr)}</p>${icons}</div>`;
     }).join('');
     return `<div class="${cls.join(' ')}">
       <div class="sc-job-card-top">
@@ -1847,8 +1834,9 @@ function icsTargetJobs() {
 
 /**
  * タイトル・住所・説明文のテンプレートに、その予定の内容を差し込む。
- * {案件名}{業態}{店舗名}{業務内容}{場所}{住所}{日付}{開始}{終了}{メモ} が使える
- * （{依頼元}は{業態}、{開始時間}{終了時間}は{開始}{終了}と同じ意味で使える）。
+ * {案件名}{業態}{店舗名}{業務内容}{住所}{日付}{開始}{終了}{メモ} が使える
+ * （{依頼元}は{業態}、{開始時間}{終了時間}は{開始}{終了}と同じ意味で使える。
+ * 　{場所}も過去との互換のため残しているが、入力欄が無いため常に空になる）。
  */
 function fillTemplate(tpl, job) {
   const map = {
@@ -1993,18 +1981,18 @@ function downloadIcs() {
   toast(`${jobs.length}件を書き出しました。Googleカレンダーの設定→インポートから取り込めます`);
 }
 
-/** 訪問先の一覧（主の場所・住所を先頭に、追加の訪問先を続ける） */
+/** 訪問先の住所の一覧（主の住所を先頭に、追加の訪問先を続ける。空欄は含めない） */
 function jobVisits(job) {
-  const primary = { place: job.place || '', address: job.address || '' };
-  const extra = (Array.isArray(job.extraAddresses) ? job.extraAddresses : [])
-    .filter((a) => a && ((a.place || '').trim() || (a.address || '').trim()))
-    .map((a) => ({ place: a.place || '', address: a.address || '' }));
-  return [primary].concat(extra);
+  const list = [job.address].concat(
+    (Array.isArray(job.extraAddresses) ? job.extraAddresses : [])
+      .map((a) => (typeof a === 'string' ? a : (a && a.address) || ''))
+  );
+  return list.map((a) => (a || '').trim()).filter(Boolean);
 }
 
-/** 場所と住所をまとめた表示・地図検索用の文字列（複数の訪問先があれば「／」でつなげる） */
+/** 表示・地図検索用の文字列（複数の訪問先があれば「／」でつなげる） */
 function jobLocation(job) {
-  return jobVisits(job).map((v) => [v.place, v.address].filter(Boolean).join(' ')).filter(Boolean).join(' ／ ');
+  return jobVisits(job).join(' ／ ');
 }
 
 /** 住所を地図アプリで開くURL（スマホでは該当のアプリが開く） */
@@ -2072,7 +2060,7 @@ function formFromJob(job) {
     place: job.place || '',
     address: job.address || '',
     extraAddresses: (Array.isArray(job.extraAddresses) ? job.extraAddresses : [])
-      .map((a) => ({ place: (a && a.place) || '', address: (a && a.address) || '' })),
+      .map((a) => (typeof a === 'string' ? a : (a && a.address) || '')),
     note: job.note || '',
   };
 }
@@ -2081,8 +2069,8 @@ function readForm() {
   if (!$('jobForm')) return null;
   const dateEl = $('fDate');
   const extraAddresses = [];
-  for (let i = 0; $('fExtraPlace-' + i); i++) {
-    extraAddresses.push({ place: $('fExtraPlace-' + i).value, address: ($('fExtraAddress-' + i) || {}).value || '' });
+  for (let i = 0; $('fExtraAddress-' + i); i++) {
+    extraAddresses.push($('fExtraAddress-' + i).value);
   }
   return {
     date: dateEl ? dateEl.value : (view.selected || ''),
@@ -2096,7 +2084,8 @@ function readForm() {
     clientSel: $('fClient').value,
     clientFree: $('fClientFree').value,
     storeName: $('fStoreName').value,
-    place: $('fPlace').value,
+    // 「場所」欄は廃止したが、過去に登録済みの値は編集で消えないよう保持する
+    place: (view.form && view.form.place) || '',
     address: $('fAddress').value,
     extraAddresses: extraAddresses,
     note: $('fNote').value,
@@ -2134,11 +2123,11 @@ function draftJob() {
     workType: f.workType.trim(),
     client: formClient(f),
     storeName: f.storeName.trim(),
-    place: f.place.trim(),
+    place: (f.place || '').trim(),
     address: f.address.trim(),
     extraAddresses: (f.extraAddresses || [])
-      .map((a) => ({ place: (a.place || '').trim(), address: (a.address || '').trim() }))
-      .filter((a) => a.place || a.address),
+      .map((a) => (a || '').trim())
+      .filter(Boolean),
     note: f.note.trim(),
     status: f.status,
   };
@@ -3055,9 +3044,8 @@ function bindEvents() {
     const mapBtn = ev.target.closest('[data-map]');
     if (mapBtn) {
       const row = mapBtn.dataset.mapRow;
-      const placeEl = row === 'primary' ? $('fPlace') : $('fExtraPlace-' + row);
       const addrEl = row === 'primary' ? $('fAddress') : $('fExtraAddress-' + row);
-      const loc = [placeEl ? placeEl.value.trim() : '', addrEl ? addrEl.value.trim() : ''].filter(Boolean).join(' ');
+      const loc = addrEl ? addrEl.value.trim() : '';
       if (!loc) { toast('住所を入力してください', true); if (addrEl) addrEl.focus(); return; }
       window.open(mapUrl(mapBtn.dataset.map, loc), '_blank', 'noopener');
       return;
@@ -3065,10 +3053,10 @@ function bindEvents() {
 
     if (ev.target.id === 'addVisitBtn') {
       view.form = readForm();
-      view.form.extraAddresses = (view.form.extraAddresses || []).concat([{ place: '', address: '' }]);
+      view.form.extraAddresses = (view.form.extraAddresses || []).concat(['']);
       renderSidePanel();
       const idx = view.form.extraAddresses.length - 1;
-      const el = $('fExtraPlace-' + idx);
+      const el = $('fExtraAddress-' + idx);
       if (el) el.focus();
       return;
     }

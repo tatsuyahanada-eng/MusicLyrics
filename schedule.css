@@ -882,9 +882,7 @@ textarea.sc-input { resize: vertical; line-height: 1.5; min-height: 2.6em; }
   border-radius: var(--sc-radius);
   padding: 8px;
 }
-.sc-visit-fields { display: flex; gap: 6px; flex: 1 1 auto; min-width: 0; flex-wrap: wrap; }
-.sc-visit-fields .sc-field { flex: 1 1 90px; min-width: 90px; }
-.sc-field-grow { flex: 2 1 160px !important; min-width: 140px; }
+.sc-field-grow { flex: 1 1 auto; min-width: 0; }
 .sc-visit-actions { display: flex; gap: 4px; flex: 0 0 auto; }
 
 .sc-icon-btn {

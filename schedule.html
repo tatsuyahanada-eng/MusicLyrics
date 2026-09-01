@@ -13,7 +13,7 @@
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="default">
   <meta name="apple-mobile-web-app-title" content="VertiCale">
-  <link rel="stylesheet" href="schedule.css?v=37">
+  <link rel="stylesheet" href="schedule.css?v=38">
 </head>
 <body class="sc-body">
 
@@ -281,62 +281,62 @@
           個別に1件だけ登録したいときは、予定カードの「📆 追加」からスマホでも登録できます。
         </p>
       </details>
-
-      <div class="sc-side-block sc-project-cal">
-        <p class="sc-side-block-title">案件ごとの登録内容を調整（任意）</p>
-        <p class="sc-note">
-          タイトル・住所・説明文には <code>{案件名}</code> <code>{業態}</code> <code>{店舗名}</code> <code>{業務内容}</code>
-          <code>{場所}</code> <code>{住所}</code> <code>{日付}</code> <code>{開始}</code> <code>{終了}</code>
-          <code>{メモ}</code> を差し込めます（<code>{開始時間}</code> <code>{終了時間}</code> も同じ意味で使えます）。
-          空欄のままなら、これまでどおりの内容で登録されます。
-        </p>
-        <label class="sc-field">
-          <span class="sc-field-label">調整する案件</span>
-          <select id="pcProject" class="sc-input sc-input-sm"></select>
-        </label>
-        <label class="sc-field">
-          <span class="sc-field-label">タイトル（空欄で既定のまま）</span>
-          <input id="pcTitle" class="sc-input sc-input-sm" type="text" placeholder="例）【OES】{店舗名}　{業態}" autocomplete="off">
-        </label>
-        <label class="sc-field">
-          <span class="sc-field-label">住所（空欄で既定のまま）</span>
-          <input id="pcAddress" class="sc-input sc-input-sm" type="text" autocomplete="off">
-        </label>
-        <label class="sc-field">
-          <span class="sc-field-label">説明文（空欄で既定のまま）</span>
-          <textarea id="pcDescription" class="sc-input" rows="4" placeholder="例）機器入替作業&#10;業態：{業態}&#10;業務内容：{業務内容}"></textarea>
-        </label>
-        <div class="sc-export-actions">
-          <button id="pcSave" class="sc-btn sc-btn-sm" type="button">この案件の設定を保存</button>
-        </div>
-
-        <p class="sc-side-block-title" style="margin-top:14px">業態ごとに説明文を変える（任意）</p>
-        <p class="sc-note">
-          同じ案件でも、業態（例：はま寿司／すき家）ごとに説明文を変えたいときに使います。上の説明文より優先されます。
-          ここで登録した業態は、予定の登録画面でもプルダウンから選べるようになり、選ぶと自動でメモに貼り付けられます。
-        </p>
-        <div id="pcOverrideList"></div>
-        <label class="sc-field">
-          <span class="sc-field-label">業態名</span>
-          <input id="pcOverrideClient" class="sc-input sc-input-sm" type="text" placeholder="例）はま寿司" autocomplete="off">
-        </label>
-        <label class="sc-field">
-          <span class="sc-field-label">この業態のときの説明文（メモへの定型文としても使われます）</span>
-          <textarea id="pcOverrideText" class="sc-input" rows="3"></textarea>
-        </label>
-        <div class="sc-export-actions">
-          <button id="pcOverrideAdd" class="sc-btn sc-btn-sm sc-btn-outline" type="button">＋ この上書きを追加・更新</button>
-        </div>
-      </div>
       </details>
 
       <details class="sc-settings-block" id="projectsBlock">
         <summary>🏷 案件名の登録・削除</summary>
-        <p class="sc-note">ここで登録した案件名が、予定の登録画面の「案件名」の選択肢になります。</p>
+        <p class="sc-note">ここで登録した案件名が、予定の登録画面の「案件名」の選択肢になります。色もここで変えられます。</p>
         <div id="projectChips" class="sc-chip-row"></div>
         <div class="sc-form-row">
           <input id="newProjectName" class="sc-input sc-input-sm" type="text" placeholder="新しい案件名" autocomplete="off">
           <button id="addProjectBtn" class="sc-btn sc-btn-sm" type="button">＋ 追加</button>
+        </div>
+
+        <div class="sc-side-block sc-project-cal" style="margin-top:16px">
+          <p class="sc-side-block-title">案件ごとのGoogleカレンダー登録内容を調整（任意）</p>
+          <p class="sc-note">
+            タイトル・住所・説明文には <code>{案件名}</code> <code>{業態}</code> <code>{店舗名}</code> <code>{業務内容}</code>
+            <code>{住所}</code> <code>{日付}</code> <code>{開始}</code> <code>{終了}</code>
+            <code>{メモ}</code> を差し込めます（<code>{開始時間}</code> <code>{終了時間}</code> も同じ意味で使えます）。
+            空欄のままなら、これまでどおりの内容で登録されます。
+          </p>
+          <label class="sc-field">
+            <span class="sc-field-label">調整する案件</span>
+            <select id="pcProject" class="sc-input sc-input-sm"></select>
+          </label>
+          <label class="sc-field">
+            <span class="sc-field-label">タイトル（空欄で既定のまま）</span>
+            <input id="pcTitle" class="sc-input sc-input-sm" type="text" placeholder="例）【OES】{店舗名}　{業態}" autocomplete="off">
+          </label>
+          <label class="sc-field">
+            <span class="sc-field-label">住所（空欄で既定のまま）</span>
+            <input id="pcAddress" class="sc-input sc-input-sm" type="text" autocomplete="off">
+          </label>
+          <label class="sc-field">
+            <span class="sc-field-label">説明文（空欄で既定のまま）</span>
+            <textarea id="pcDescription" class="sc-input" rows="4" placeholder="例）機器入替作業&#10;業態：{業態}&#10;業務内容：{業務内容}"></textarea>
+          </label>
+          <div class="sc-export-actions">
+            <button id="pcSave" class="sc-btn sc-btn-sm" type="button">この案件の設定を保存</button>
+          </div>
+
+          <p class="sc-side-block-title" style="margin-top:14px">業態ごとに説明文を変える（任意）</p>
+          <p class="sc-note">
+            同じ案件でも、業態（例：はま寿司／すき家）ごとに説明文を変えたいときに使います。上の説明文より優先されます。
+            ここで登録した業態は、予定の登録画面でもプルダウンから選べるようになり、選ぶと自動でメモに貼り付けられます。
+          </p>
+          <div id="pcOverrideList"></div>
+          <label class="sc-field">
+            <span class="sc-field-label">業態名</span>
+            <input id="pcOverrideClient" class="sc-input sc-input-sm" type="text" placeholder="例）はま寿司" autocomplete="off">
+          </label>
+          <label class="sc-field">
+            <span class="sc-field-label">この業態のときの説明文（メモへの定型文としても使われます）</span>
+            <textarea id="pcOverrideText" class="sc-input" rows="3"></textarea>
+          </label>
+          <div class="sc-export-actions">
+            <button id="pcOverrideAdd" class="sc-btn sc-btn-sm sc-btn-outline" type="button">＋ この上書きを追加・更新</button>
+          </div>
         </div>
       </details>
 
@@ -451,6 +451,6 @@ Require valid-user</pre>
 
   <div id="toast" class="sc-toast" role="status" aria-live="polite" hidden></div>
 
-  <script src="schedule.js?v=37"></script>
+  <script src="schedule.js?v=38"></script>
 </body>
 </html>
