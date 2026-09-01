@@ -426,6 +426,43 @@ function normalizeState(parsed) {
 }
 
 /**
+ * 案件名の一覧を突き合わせる。片方の端末にしか無い案件名も残す
+ * （新しい機能を知らない古い端末が同期しても、他の端末で登録した案件名を消さないため）。
+ */
+function mergeProjectNames(olderNames, newerNames) {
+  const seen = new Set();
+  const out = [];
+  (newerNames || []).concat(olderNames || []).forEach((p) => {
+    if (!seen.has(p)) { seen.add(p); out.push(p); }
+  });
+  return out;
+}
+
+/**
+ * 案件ごとのGoogleカレンダー設定を突き合わせる。タイトル・住所・説明文は新しいほうを採用しつつ、
+ * 業態ごとの上書きは案件・業態ごとに両方残す（片方の端末にしか無い上書きを消さないため）。
+ */
+function mergeProjectCalendar(olderPc, newerPc) {
+  const older = olderPc || {};
+  const newer = newerPc || {};
+  const out = {};
+  Object.keys(older).concat(Object.keys(newer)).forEach((name) => {
+    if (out[name]) return;
+    const a = older[name];
+    const b = newer[name];
+    out[name] = (a && b)
+      ? Object.assign({}, a, b, { clientOverrides: Object.assign({}, a.clientOverrides || {}, b.clientOverrides || {}) })
+      : (b || a);
+  });
+  return out;
+}
+
+/** 案件ごとのバーの色を突き合わせる（片方の端末にしか無い分も残す） */
+function mergeProjectColors(olderColors, newerColors) {
+  return Object.assign({}, olderColors || {}, newerColors || {});
+}
+
+/**
  * 2つの状態を1件ずつ突き合わせて統合する。
  * 予定・希望それぞれについて更新時刻が新しいほうを採用するため、
  * どちらか一方の入力だけが消えることはない。
@@ -473,9 +510,15 @@ function mergeStates(a, b) {
     if (winner.wishes[d]) out.wishes[d] = winner.wishes[d];
   });
 
-  /* ---- 設定（新しいほうをまとめて採用） ---- */
+  /* ---- 設定（基本は新しいほうを採用。案件名・案件ごとの設定・バーの色は
+     片方の端末にしか無い分も消えないよう、それぞれ突き合わせて残す） ---- */
   const newer = left.settingsAt >= right.settingsAt ? left : right;
-  out.settings = Object.assign(out.settings, newer.settings);
+  const older = newer === left ? right : left;
+  out.settings = Object.assign({}, newer.settings, {
+    projects: mergeProjectNames(older.settings.projects, newer.settings.projects),
+    projectCalendar: mergeProjectCalendar(older.settings.projectCalendar, newer.settings.projectCalendar),
+    projectColors: mergeProjectColors(older.settings.projectColors, newer.settings.projectColors),
+  });
   out.settingsAt = newer.settingsAt;
 
   return out;
