@@ -22,6 +22,26 @@ const PROJECT_PRESETS = [
   'リテイルオンサイト', 'JCOM', 'JT', '自社案件', 'くらしのマーケット', 'ミツモア', 'OES入替',
 ];
 const PROJECT_FREE = '__free__';
+const CLIENT_FREE = '__client_free__';
+
+/** 選んだ案件に登録されている業態（依頼元ごとの上書き）の選択肢一覧 */
+function businessTypesForProject(project) {
+  const cfg = project ? state.settings.projectCalendar[project] : null;
+  return cfg && cfg.clientOverrides ? Object.keys(cfg.clientOverrides) : [];
+}
+
+/** 案件名（#fTitle）を変えたときに、業態（#fClient）の選択肢を選び直したその案件のものに更新する */
+function refreshClientOptions() {
+  const sel = $('fClient');
+  if (!sel) return;
+  const f = view.form || blankForm();
+  const options = businessTypesForProject(formTitle(f));
+  const prevValue = sel.value;
+  sel.innerHTML = '<option value="">選択してください</option>'
+    + options.map((c) => `<option value="${escapeHtml(c)}">${escapeHtml(c)}</option>`).join('')
+    + `<option value="${CLIENT_FREE}">自由入力</option>`;
+  sel.value = (options.includes(prevValue) || prevValue === CLIENT_FREE) ? prevValue : '';
+}
 
 /**
  * 1日を分ける時間帯（縦型カレンダーの列）
@@ -740,7 +760,7 @@ function jobBarHtml(j, dateKey, slotId, conflicts, style) {
   const tag = j.status === 'tentative' ? '<span class="sc-vbar-mark">仮</span>' : '';
   const timeLabel = j.allDay ? '終日' : `${shortTime(j.start)}〜${shortTime(j.end)}`;
   const tip = [formatDate(j.date), j.allDay ? '終日' : j.start + '〜' + j.end,
-    j.title, j.workType, j.client, j.place, j.address].filter(Boolean).join(' / ');
+    j.title, j.workType, j.client, j.storeName, j.place, j.address].filter(Boolean).join(' / ');
   return `<div class="${cls.join(' ')}" data-date="${dateKey}" data-slot="${slotId}"`
     + ` style="${style}${colorStyle}" title="${escapeHtml(tip)}">`
     + `<span class="sc-vbar-title">${tag}${escapeHtml(j.title || '(無題)')}</span>`
@@ -815,14 +835,30 @@ function jobFormHtml(f) {
 
         <div class="sc-form-row">
           <label class="sc-field">
-            <span class="sc-field-label">依頼元</span>
-            <input id="fClient" class="sc-input" type="text" value="${escapeHtml(f.client)}" autocomplete="off">
+            <span class="sc-field-label">業態</span>
+            <select id="fClient" class="sc-input">
+              <option value="" ${f.clientSel === '' ? 'selected' : ''}>選択してください</option>
+              ${businessTypesForProject(formTitle(f)).map((c) =>
+                `<option value="${escapeHtml(c)}" ${f.clientSel === c ? 'selected' : ''}>${escapeHtml(c)}</option>`).join('')}
+              <option value="${CLIENT_FREE}" ${f.clientSel === CLIENT_FREE ? 'selected' : ''}>自由入力</option>
+            </select>
           </label>
           <label class="sc-field">
-            <span class="sc-field-label">場所</span>
-            <input id="fPlace" class="sc-input" type="text" value="${escapeHtml(f.place)}" autocomplete="off">
+            <span class="sc-field-label">店舗名</span>
+            <input id="fStoreName" class="sc-input" type="text" value="${escapeHtml(f.storeName)}" autocomplete="off">
           </label>
         </div>
+
+        <label class="sc-field" id="clientFreeRow" ${f.clientSel === CLIENT_FREE ? '' : 'hidden'}>
+          <span class="sc-field-label">業態を入力</span>
+          <input id="fClientFree" class="sc-input" type="text" value="${escapeHtml(f.clientFree)}"
+            placeholder="例）はま寿司" autocomplete="off">
+        </label>
+
+        <label class="sc-field">
+          <span class="sc-field-label">場所</span>
+          <input id="fPlace" class="sc-input" type="text" value="${escapeHtml(f.place)}" autocomplete="off">
+        </label>
 
         <label class="sc-field">
           <span class="sc-field-label">住所</span>
@@ -927,7 +963,7 @@ function renderSidePanel() {
     cls.push(tentative ? 'sc-job-card-tentative' : 'sc-job-card-confirmed');
     if (conflicts.has(j.id)) cls.push('sc-job-card-conflict');
     const time = j.allDay ? '終日' : `${j.start}〜${j.end}`;
-    const meta = [j.client, j.place].filter(Boolean).map(escapeHtml).join(' / ');
+    const meta = [j.client, j.storeName, j.place].filter(Boolean).map(escapeHtml).join(' / ');
     const gcalUrl = googleCalendarUrl(j);
     const others = findConflicts(j, null);
     const warn = others.length
@@ -1103,7 +1139,7 @@ function renderJobList() {
     cls.push(tentative ? 'sc-joblist-row-tentative' : 'sc-joblist-row-confirmed');
     if (conflicts.has(j.id)) cls.push('sc-joblist-row-conflict');
     const time = j.allDay ? '終日' : `${j.start}〜${j.end}`;
-    const meta = [j.client, j.place, j.address, j.note].filter(Boolean).map(escapeHtml).join(' / ');
+    const meta = [j.client, j.storeName, j.place, j.address, j.note].filter(Boolean).map(escapeHtml).join(' / ');
     return `<div class="${cls.join(' ')}" data-goto="${j.date}">
       <span class="sc-joblist-badge ${tentative ? 'sc-badge-tentative' : 'sc-badge-confirmed'}">${tentative ? '仮出勤' : '確定'}</span>
       <span class="sc-joblist-date">${formatDate(j.date)}</span>
@@ -1289,7 +1325,7 @@ function addOrUpdateOverride() {
   if (!p) { toast('案件がありません。先に案件名を登録してください', true); return; }
   const client = $('pcOverrideClient').value.trim();
   const text = $('pcOverrideText').value.trim();
-  if (!client) { toast('依頼元名を入力してください', true); return; }
+  if (!client) { toast('業態名を入力してください', true); return; }
   if (!text) { toast('説明文を入力してください', true); return; }
   if (!state.settings.projectCalendar[p]) {
     state.settings.projectCalendar[p] = { title: '', address: '', description: '', clientOverrides: {} };
@@ -1397,7 +1433,7 @@ function buildJobsText() {
   ];
   list.forEach((j) => {
     const time = j.allDay ? '終日' : `${j.start}〜${j.end}`;
-    const meta = [j.workType, j.client, j.place, j.address].filter(Boolean).join(' / ');
+    const meta = [j.workType, j.client, j.storeName, j.place, j.address].filter(Boolean).join(' / ');
     lines.push(`・[${j.status === 'tentative' ? '仮出勤' : '確定'}] ${formatDate(j.date)} ${time} ${j.title || '(無題)'}`
       + (meta ? `（${meta}）` : ''));
   });
@@ -1741,21 +1777,26 @@ function icsTargetJobs() {
 
 /**
  * タイトル・住所・説明文のテンプレートに、その予定の内容を差し込む。
- * {案件名}{依頼元}{業務内容}{場所}{住所}{日付}{開始}{終了}{メモ} が使える。
+ * {案件名}{業態}{店舗名}{業務内容}{場所}{住所}{日付}{開始}{終了}{メモ} が使える
+ * （{依頼元}は{業態}、{開始時間}{終了時間}は{開始}{終了}と同じ意味で使える）。
  */
 function fillTemplate(tpl, job) {
   const map = {
     '案件名': job.title || '',
     '依頼元': job.client || '',
+    '業態': job.client || '',
     '業務内容': job.workType || '',
     '場所': job.place || '',
+    '店舗名': job.storeName || '',
     '住所': job.address || '',
     '日付': formatDate(job.date, 'long'),
     '開始': job.allDay ? '' : (job.start || ''),
     '終了': job.allDay ? '' : (job.end || ''),
+    '開始時間': job.allDay ? '' : (job.start || ''),
+    '終了時間': job.allDay ? '' : (job.end || ''),
     'メモ': job.note || '',
   };
-  return String(tpl).replace(/\{(案件名|依頼元|業務内容|場所|住所|日付|開始|終了|メモ)\}/g, (m, key) => map[key]);
+  return String(tpl).replace(/\{(案件名|依頼元|業態|業務内容|場所|店舗名|住所|日付|開始時間|終了時間|開始|終了|メモ)\}/g, (m, key) => map[key]);
 }
 
 function icsSummary(job, prefix) {
@@ -1772,7 +1813,7 @@ function icsLocation(job) {
   return jobLocation(job);
 }
 
-/** Googleカレンダー登録用の説明文。依頼元ごとの上書き→案件のカスタム説明文→既定の順で使う */
+/** Googleカレンダー登録用の説明文。業態ごとの上書き→案件のカスタム説明文→既定の順で使う */
 function icsDescription(job) {
   const cfg = state.settings.projectCalendar[job.title];
   if (cfg) {
@@ -1782,7 +1823,8 @@ function icsDescription(job) {
   }
   return [
     job.workType ? '業務内容: ' + job.workType : '',
-    job.client ? '依頼元: ' + job.client : '',
+    job.client ? '業態: ' + job.client : '',
+    job.storeName ? '店舗名: ' + job.storeName : '',
     job.note ? 'メモ: ' + job.note : '',
     job.status === 'tentative' ? '※ 未確定（仮出勤）' : '',
   ].filter(Boolean).join('\n');
@@ -1927,13 +1969,15 @@ function blankForm() {
     titleSel: '', titleFree: '', workType: '', status: 'confirmed', allDay: false,
     start: slot ? slot.start : state.settings.defStart,
     end: slot ? slot.end : state.settings.defEnd,
-    client: '', place: '', address: '', note: '',
+    clientSel: '', clientFree: '', storeName: '', place: '', address: '', note: '',
   };
 }
 
 function formFromJob(job) {
   const title = job.title || '';
   const preset = state.settings.projects.includes(title);
+  const client = job.client || '';
+  const knownClient = businessTypesForProject(title).includes(client);
   return {
     date: job.date,
     titleSel: title ? (preset ? title : PROJECT_FREE) : '',
@@ -1943,7 +1987,9 @@ function formFromJob(job) {
     allDay: !!job.allDay,
     start: job.start || state.settings.defStart,
     end: job.end || state.settings.defEnd,
-    client: job.client || '',
+    clientSel: client ? (knownClient ? client : CLIENT_FREE) : '',
+    clientFree: knownClient ? '' : client,
+    storeName: job.storeName || '',
     place: job.place || '',
     address: job.address || '',
     note: job.note || '',
@@ -1962,7 +2008,9 @@ function readForm() {
     allDay: $('fAllDay').checked,
     start: $('fStart').value,
     end: $('fEnd').value,
-    client: $('fClient').value,
+    clientSel: $('fClient').value,
+    clientFree: $('fClientFree').value,
+    storeName: $('fStoreName').value,
     place: $('fPlace').value,
     address: $('fAddress').value,
     note: $('fNote').value,
@@ -1982,6 +2030,11 @@ function formTitle(f) {
   return f.titleSel === PROJECT_FREE ? f.titleFree.trim() : f.titleSel;
 }
 
+/** 選択中の業態（自由入力ならその内容） */
+function formClient(f) {
+  return f.clientSel === CLIENT_FREE ? f.clientFree.trim() : f.clientSel;
+}
+
 /** フォームの現在値から仮の予定オブジェクトを作る */
 function draftJob() {
   const f = view.form || blankForm();
@@ -1993,7 +2046,8 @@ function draftJob() {
     end: f.end || state.settings.defEnd,
     title: formTitle(f),
     workType: f.workType.trim(),
-    client: f.client.trim(),
+    client: formClient(f),
+    storeName: f.storeName.trim(),
     place: f.place.trim(),
     address: f.address.trim(),
     note: f.note.trim(),
@@ -2592,7 +2646,7 @@ function checkUpcomingNotifications(nowArg) {
     changed = true;
     const remain = s - nowMin;
     const timing = remain > 0 ? `あと${remain}分で開始` : remain < 0 ? `${-remain}分前に開始` : 'まもなく開始';
-    const body = [j.workType, j.client, j.place].filter(Boolean).join(' / ') || `${j.start}〜${j.end}`;
+    const body = [j.workType, j.client, j.storeName, j.place].filter(Boolean).join(' / ') || `${j.start}〜${j.end}`;
     try {
       const n = new Notification(`${j.title || '予定'}（${timing}）`, { body, tag: key });
       n.onclick = () => { window.focus(); n.close(); };
@@ -2966,6 +3020,26 @@ function bindEvents() {
       const row = $('titleFreeRow');
       if (row) row.hidden = ev.target.value !== PROJECT_FREE;
       if (ev.target.value === PROJECT_FREE) $('fTitleFree').focus();
+      refreshClientOptions();
+      view.form = readForm();
+      updateFormAlert();
+    }
+    // 業態を選ぶと、その業態の説明文テンプレートをメモへ自動で入れる
+    if (ev.target.id === 'fClient') {
+      view.form = readForm();
+      const row = $('clientFreeRow');
+      if (row) row.hidden = ev.target.value !== CLIENT_FREE;
+      if (ev.target.value === CLIENT_FREE) {
+        $('fClientFree').focus();
+      } else if (ev.target.value) {
+        const project = formTitle(view.form);
+        const cfg = state.settings.projectCalendar[project];
+        const tpl = cfg && cfg.clientOverrides ? cfg.clientOverrides[ev.target.value] : null;
+        if (tpl && tpl.trim()) {
+          $('fNote').value = fillTemplate(tpl, draftJob());
+          view.form.note = $('fNote').value;
+        }
+      }
       updateFormAlert();
     }
   });
