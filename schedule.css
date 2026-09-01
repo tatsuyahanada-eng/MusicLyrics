@@ -620,6 +620,8 @@ textarea.sc-input { resize: vertical; line-height: 1.5; min-height: 2.6em; }
 .sc-stat-confirmed .sc-stat-value { color: var(--sc-confirmed-strong); }
 .sc-stat-tentative { background: var(--sc-tentative-bg); border-color: var(--sc-tentative); }
 .sc-stat-tentative .sc-stat-value { color: #92400e; }
+.sc-stat-empty { background: var(--sc-empty-bg); border-color: var(--sc-empty-border); }
+.sc-stat-empty .sc-stat-value { color: #57606f; }
 
 /* ---- サイドパネル ---- */
 .sc-side {
@@ -806,7 +808,7 @@ textarea.sc-input { resize: vertical; line-height: 1.5; min-height: 2.6em; }
   border: 1px solid var(--sc-tentative);
 }
 
-.sc-job-meta { font-size: 0.74rem; color: var(--sc-muted); word-break: break-word; }
+.sc-job-meta { font-size: 0.74rem; color: var(--sc-text); word-break: break-word; }
 .sc-job-note { white-space: pre-wrap; }
 .sc-job-warn { font-size: 0.74rem; color: #b91c1c; margin-top: 3px; font-weight: 700; }
 .sc-job-actions { display: flex; gap: 5px; margin-top: 6px; flex-wrap: wrap; }
@@ -869,8 +871,50 @@ textarea.sc-input { resize: vertical; line-height: 1.5; min-height: 2.6em; }
 .sc-form-actions { display: flex; gap: 6px; }
 .sc-form-actions .sc-btn { flex: 1; }
 
-.sc-map-actions { display: flex; gap: 6px; flex-wrap: wrap; margin: -6px 0 12px; }
-.sc-map-actions .sc-btn { flex: 1 1 auto; }
+/* ---- 訪問先（住所を複数登録できる） ---- */
+.sc-visit-list { display: flex; flex-direction: column; gap: 8px; margin-top: 2px; }
+.sc-visit-row {
+  display: flex;
+  align-items: flex-end;
+  gap: 6px;
+  background: var(--sc-surface-2);
+  border: 1px solid var(--sc-border);
+  border-radius: var(--sc-radius);
+  padding: 8px;
+}
+.sc-visit-fields { display: flex; gap: 6px; flex: 1 1 auto; min-width: 0; flex-wrap: wrap; }
+.sc-visit-fields .sc-field { flex: 1 1 90px; min-width: 90px; }
+.sc-field-grow { flex: 2 1 160px !important; min-width: 140px; }
+.sc-visit-actions { display: flex; gap: 4px; flex: 0 0 auto; }
+
+.sc-icon-btn {
+  width: 32px;
+  height: 32px;
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: #fff;
+  border: 1px solid var(--sc-border);
+  border-radius: var(--sc-radius);
+  font-size: 0.95rem;
+  line-height: 1;
+  cursor: pointer;
+}
+.sc-icon-btn:hover { background: var(--sc-surface-2); }
+.sc-icon-btn-danger { color: #b91c1c; border-color: #f0c2c2; }
+.sc-icon-btn-danger:hover { background: var(--sc-conflict-bg); }
+
+.sc-job-visit { display: flex; align-items: baseline; gap: 4px; flex-wrap: wrap; }
+.sc-job-visit .sc-job-meta { flex: 1 1 auto; margin: 0; }
+.sc-map-icon {
+  font-size: 0.8rem;
+  text-decoration: none;
+  line-height: 1;
+  flex: 0 0 auto;
+  opacity: 0.85;
+}
+.sc-map-icon:hover { opacity: 1; }
 
 /* ---- セクション ---- */
 .sc-section { border-top: 1px solid var(--sc-border); background: var(--sc-surface); }

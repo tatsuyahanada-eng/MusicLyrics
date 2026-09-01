@@ -811,6 +811,31 @@ function jobBarHtml(j, dateKey, slotId, conflicts, style) {
     + `</div>`;
 }
 
+/** 訪問先1件分の入力欄（場所・住所・小さな地図ボタン）。primaryはID固定、追加分はrowKeyで連番にする */
+function visitRowHtml(rowKey, place, address, removable) {
+  const placeId = rowKey === 'primary' ? 'fPlace' : `fExtraPlace-${rowKey}`;
+  const addrId = rowKey === 'primary' ? 'fAddress' : `fExtraAddress-${rowKey}`;
+  const hasAddr = (address || '').trim();
+  return `<div class="sc-visit-row">
+    <div class="sc-visit-fields">
+      <label class="sc-field">
+        <span class="sc-field-label">場所</span>
+        <input id="${placeId}" class="sc-input" type="text" value="${escapeHtml(place)}" autocomplete="off">
+      </label>
+      <label class="sc-field sc-field-grow">
+        <span class="sc-field-label">住所</span>
+        <input id="${addrId}" class="sc-input" type="text" value="${escapeHtml(address)}"
+          placeholder="例）東京都渋谷区〇〇1-2-3" autocomplete="off">
+      </label>
+    </div>
+    <div class="sc-visit-actions">
+      <button type="button" class="sc-icon-btn" data-map="google" data-map-row="${rowKey}" title="Googleマップで開く" ${hasAddr ? '' : 'hidden'}>🗺️</button>
+      <button type="button" class="sc-icon-btn" data-map="yahoo" data-map-row="${rowKey}" title="Yahoo!地図で開く" ${hasAddr ? '' : 'hidden'}>📍</button>
+      ${removable ? `<button type="button" class="sc-icon-btn sc-icon-btn-danger" data-remove-visit="${rowKey}" title="この訪問先を削除">✕</button>` : ''}
+    </div>
+  </div>`;
+}
+
 /** 予定の入力フォーム（単日・複数日で共用） */
 function jobFormHtml(f) {
   return `
@@ -898,19 +923,13 @@ function jobFormHtml(f) {
             placeholder="例）はま寿司" autocomplete="off">
         </label>
 
-        <label class="sc-field">
-          <span class="sc-field-label">場所</span>
-          <input id="fPlace" class="sc-input" type="text" value="${escapeHtml(f.place)}" autocomplete="off">
-        </label>
-
-        <label class="sc-field">
-          <span class="sc-field-label">住所</span>
-          <input id="fAddress" class="sc-input" type="text" value="${escapeHtml(f.address)}"
-            placeholder="例）東京都渋谷区〇〇1-2-3" autocomplete="off">
-        </label>
-        <div class="sc-map-actions" id="mapActions" ${f.address.trim() ? '' : 'hidden'}>
-          <button type="button" class="sc-btn sc-btn-sm sc-btn-outline" data-map="google">📍 Googleマップで開く</button>
-          <button type="button" class="sc-btn sc-btn-sm sc-btn-outline" data-map="yahoo">📍 Yahoo!地図で開く</button>
+        <div class="sc-field-label" style="margin-top:4px">訪問先</div>
+        <div class="sc-visit-list">
+          ${visitRowHtml('primary', f.place, f.address, false)}
+          ${(f.extraAddresses || []).map((a, i) => visitRowHtml(String(i), a.place, a.address, true)).join('')}
+        </div>
+        <div class="sc-export-actions" style="margin-top:2px">
+          <button type="button" id="addVisitBtn" class="sc-btn sc-btn-sm sc-btn-outline">＋ 訪問先を追加</button>
         </div>
 
         <label class="sc-field">
@@ -1012,7 +1031,17 @@ function renderSidePanel() {
     const warn = others.length
       ? `<p class="sc-job-warn">⚠ ${others.map((c) => (c.type === 'overlap' ? '時間が重複' : '移動時間が不足') + '：' + formatDate(c.job.date) + ' ' + escapeHtml(c.job.title || '(無題)')).join(' / ')}</p>`
       : '';
-    const loc = jobLocation(j);
+    const visitLines = jobVisits(j).map((v, i) => {
+      // 主の訪問先は場所名を上のmeta行ですでに表示しているので、ここでは住所だけ示す
+      const text = i === 0 ? v.address : [v.place, v.address].filter(Boolean).join(' ');
+      if (!text) return '';
+      const q = [v.place, v.address].filter(Boolean).join(' ');
+      const icons = v.address
+        ? `<a class="sc-map-icon" href="${escapeHtml(mapUrl('google', q))}" target="_blank" rel="noopener" title="Googleマップで開く">🗺️</a>` +
+          `<a class="sc-map-icon" href="${escapeHtml(mapUrl('yahoo', q))}" target="_blank" rel="noopener" title="Yahoo!地図で開く">📍</a>`
+        : '';
+      return `<div class="sc-job-visit"><p class="sc-job-meta">📍 ${escapeHtml(text)}</p>${icons}</div>`;
+    }).join('');
     return `<div class="${cls.join(' ')}">
       <div class="sc-job-card-top">
         <span class="sc-job-status">${tentative ? '仮出勤' : '確定'}</span>
@@ -1021,14 +1050,12 @@ function renderSidePanel() {
       </div>
       ${j.workType ? `<p class="sc-job-meta"><span class="sc-worktype-tag">${escapeHtml(j.workType)}</span></p>` : ''}
       ${meta ? `<p class="sc-job-meta">${meta}</p>` : ''}
-      ${j.address ? `<p class="sc-job-meta">📍 ${escapeHtml(j.address)}</p>` : ''}
+      ${visitLines}
       ${j.note ? `<p class="sc-job-meta sc-job-note">📝 ${escapeHtml(j.note)}</p>` : ''}
       ${warn}
       <div class="sc-job-actions">
         ${tentative ? `<button type="button" class="sc-btn sc-btn-sm sc-btn-confirm" data-confirm="${j.id}">✓ 確定にする</button>` : ''}
         ${gcalUrl ? `<a class="sc-btn sc-btn-sm sc-btn-outline" href="${escapeHtml(gcalUrl)}" target="_blank" rel="noopener">📆 追加</a>` : ''}
-        ${loc ? `<a class="sc-btn sc-btn-sm sc-btn-outline" href="${escapeHtml(mapUrl('google', loc))}" target="_blank" rel="noopener">📍 Googleマップ</a>` : ''}
-        ${loc ? `<a class="sc-btn sc-btn-sm sc-btn-outline" href="${escapeHtml(mapUrl('yahoo', loc))}" target="_blank" rel="noopener">📍 Yahoo!地図</a>` : ''}
         <button type="button" class="sc-btn sc-btn-sm sc-btn-outline" data-edit="${j.id}">編集</button>
         <button type="button" class="sc-btn sc-btn-sm sc-btn-outline" data-dup="${j.id}">複製</button>
         <button type="button" class="sc-btn sc-btn-sm sc-btn-outline sc-btn-danger" data-del="${j.id}">削除</button>
@@ -1077,17 +1104,17 @@ function renderSidePanel() {
 
 function renderStats() {
   const days = monthDayKeys();
-  let avail = 0, off = 0, confirmedDays = 0, confirmed = 0, tentative = 0, hours = 0;
+  const today = todayKey();
+  let avail = 0, off = 0, confirmedDays = 0, confirmed = 0, tentative = 0, undecided = 0;
   days.forEach((key) => {
     const w = state.wishes[key];
     if (w === WISH_AVAILABLE) avail++;
     if (w === WISH_OFF) off++;
     const js = jobsOn(key);
     if (js.some((j) => j.status !== 'tentative')) confirmedDays++;
-    js.forEach((j) => {
-      if (j.status === 'tentative') tentative++;
-      else { confirmed++; hours += jobDuration(j); }
-    });
+    js.forEach((j) => { if (j.status === 'tentative') tentative++; else confirmed++; });
+    // 稼働可でも休み希望でもなく、予定も無い、今日以降のまだ決めていない日
+    if (key >= today && !w && !js.length) undecided++;
   });
 
   const stat = (label, value, unit, cls) =>
@@ -1098,9 +1125,9 @@ function renderStats() {
     stat('確定', confirmed, '件', 'sc-stat-confirmed') +
     stat('仮出勤', tentative, '件', 'sc-stat-tentative') +
     stat('確定の稼働日', confirmedDays, '日') +
-    stat('確定の稼働時間', Math.round(hours * 10) / 10, 'h') +
     stat('稼働可能', avail, '日') +
-    stat('休み希望', off, '日');
+    stat('休み希望', off, '日') +
+    stat('未定', undecided, '日', 'sc-stat-empty');
 }
 
 /** 今月の業務内容ごとの件数・時間 */
@@ -1966,9 +1993,18 @@ function downloadIcs() {
   toast(`${jobs.length}件を書き出しました。Googleカレンダーの設定→インポートから取り込めます`);
 }
 
-/** 場所と住所をまとめた表示・地図検索用の文字列 */
+/** 訪問先の一覧（主の場所・住所を先頭に、追加の訪問先を続ける） */
+function jobVisits(job) {
+  const primary = { place: job.place || '', address: job.address || '' };
+  const extra = (Array.isArray(job.extraAddresses) ? job.extraAddresses : [])
+    .filter((a) => a && ((a.place || '').trim() || (a.address || '').trim()))
+    .map((a) => ({ place: a.place || '', address: a.address || '' }));
+  return [primary].concat(extra);
+}
+
+/** 場所と住所をまとめた表示・地図検索用の文字列（複数の訪問先があれば「／」でつなげる） */
 function jobLocation(job) {
-  return [job.place, job.address].filter(Boolean).join(' ');
+  return jobVisits(job).map((v) => [v.place, v.address].filter(Boolean).join(' ')).filter(Boolean).join(' ／ ');
 }
 
 /** 住所を地図アプリで開くURL（スマホでは該当のアプリが開く） */
@@ -2012,7 +2048,7 @@ function blankForm() {
     titleSel: '', titleFree: '', workType: '', status: 'confirmed', allDay: false,
     start: slot ? slot.start : state.settings.defStart,
     end: slot ? slot.end : state.settings.defEnd,
-    clientSel: '', clientFree: '', storeName: '', place: '', address: '', note: '',
+    clientSel: '', clientFree: '', storeName: '', place: '', address: '', extraAddresses: [], note: '',
   };
 }
 
@@ -2035,6 +2071,8 @@ function formFromJob(job) {
     storeName: job.storeName || '',
     place: job.place || '',
     address: job.address || '',
+    extraAddresses: (Array.isArray(job.extraAddresses) ? job.extraAddresses : [])
+      .map((a) => ({ place: (a && a.place) || '', address: (a && a.address) || '' })),
     note: job.note || '',
   };
 }
@@ -2042,6 +2080,10 @@ function formFromJob(job) {
 function readForm() {
   if (!$('jobForm')) return null;
   const dateEl = $('fDate');
+  const extraAddresses = [];
+  for (let i = 0; $('fExtraPlace-' + i); i++) {
+    extraAddresses.push({ place: $('fExtraPlace-' + i).value, address: ($('fExtraAddress-' + i) || {}).value || '' });
+  }
   return {
     date: dateEl ? dateEl.value : (view.selected || ''),
     titleSel: $('fTitle').value,
@@ -2056,6 +2098,7 @@ function readForm() {
     storeName: $('fStoreName').value,
     place: $('fPlace').value,
     address: $('fAddress').value,
+    extraAddresses: extraAddresses,
     note: $('fNote').value,
   };
 }
@@ -2093,6 +2136,9 @@ function draftJob() {
     storeName: f.storeName.trim(),
     place: f.place.trim(),
     address: f.address.trim(),
+    extraAddresses: (f.extraAddresses || [])
+      .map((a) => ({ place: (a.place || '').trim(), address: (a.address || '').trim() }))
+      .filter((a) => a.place || a.address),
     note: f.note.trim(),
     status: f.status,
   };
@@ -3008,11 +3054,31 @@ function bindEvents() {
 
     const mapBtn = ev.target.closest('[data-map]');
     if (mapBtn) {
-      const addrEl = $('fAddress');
-      const placeEl = $('fPlace');
+      const row = mapBtn.dataset.mapRow;
+      const placeEl = row === 'primary' ? $('fPlace') : $('fExtraPlace-' + row);
+      const addrEl = row === 'primary' ? $('fAddress') : $('fExtraAddress-' + row);
       const loc = [placeEl ? placeEl.value.trim() : '', addrEl ? addrEl.value.trim() : ''].filter(Boolean).join(' ');
       if (!loc) { toast('住所を入力してください', true); if (addrEl) addrEl.focus(); return; }
       window.open(mapUrl(mapBtn.dataset.map, loc), '_blank', 'noopener');
+      return;
+    }
+
+    if (ev.target.id === 'addVisitBtn') {
+      view.form = readForm();
+      view.form.extraAddresses = (view.form.extraAddresses || []).concat([{ place: '', address: '' }]);
+      renderSidePanel();
+      const idx = view.form.extraAddresses.length - 1;
+      const el = $('fExtraPlace-' + idx);
+      if (el) el.focus();
+      return;
+    }
+
+    const removeVisitBtn = ev.target.closest('[data-remove-visit]');
+    if (removeVisitBtn) {
+      view.form = readForm();
+      const idx = Number(removeVisitBtn.dataset.removeVisit);
+      view.form.extraAddresses = (view.form.extraAddresses || []).filter((a, i) => i !== idx);
+      renderSidePanel();
       return;
     }
 
@@ -3031,15 +3097,33 @@ function bindEvents() {
     if (ev.target.id === 'fCancel') { closeForm(); }
   });
 
+  // 業務内容はすでに値が入っていると、その文字で始まる候補しか出せないブラウザの仕様上、
+  // 別の候補に選び直せなくなる。触れた時点で一度空にして、候補を選ばずに離れたら元に戻す。
+  let workTypeBeforeFocus = null;
+  elSidePanel.addEventListener('focusin', (ev) => {
+    if (ev.target.id !== 'fWorkType') return;
+    workTypeBeforeFocus = ev.target.value;
+    ev.target.value = '';
+  });
+  elSidePanel.addEventListener('focusout', (ev) => {
+    if (ev.target.id !== 'fWorkType') return;
+    if (!ev.target.value.trim() && workTypeBeforeFocus) ev.target.value = workTypeBeforeFocus;
+    workTypeBeforeFocus = null;
+    view.form = readForm();
+    updateFormAlert();
+  });
+
   elSidePanel.addEventListener('input', (ev) => {
     // 承知チェックは change 側で扱う（ここで警告欄を作り直すと反応が消えるため）
     if (ev.target.id === 'fAck') return;
     if (!ev.target.closest('#jobForm')) return;
     view.form = readForm();
     updateFormAlert();
-    if (ev.target.id === 'fAddress' || ev.target.id === 'fPlace') {
-      const mapActions = $('mapActions');
-      if (mapActions) mapActions.hidden = !($('fAddress').value.trim() || $('fPlace').value.trim());
+    const m = /^(?:fAddress|fExtraAddress-(\d+))$/.exec(ev.target.id);
+    if (m) {
+      const rowKey = ev.target.id === 'fAddress' ? 'primary' : m[1];
+      const hasAddr = !!ev.target.value.trim();
+      document.querySelectorAll(`[data-map-row="${rowKey}"]`).forEach((btn) => { btn.hidden = !hasAddr; });
     }
   });
 
