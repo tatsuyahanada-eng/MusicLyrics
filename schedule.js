@@ -364,6 +364,7 @@ const view = {
   jobFilter: 'all',        // 予定一覧の絞り込み
   ack: false,              // 「重複を承知で登録する」
   form: null,              // 入力途中の値を保持
+  autoNoteText: null,      // 業態の上書きテンプレートを自動で入れたメモの内容（手で書き換えたら追従をやめる）
 };
 
 let painting = false;
@@ -2133,6 +2134,26 @@ function draftJob() {
   };
 }
 
+/**
+ * 業態の上書きテンプレートをメモへ差し込む（店舗名などを後から入力・変更したときも追従する）。
+ * 手でメモを書き換えたあとは上書きしない（fNoteの内容が直前の自動挿入と一致する間だけ差し替える）。
+ */
+function applyClientOverrideNote() {
+  const noteEl = $('fNote');
+  if (!noteEl || !view.form) return;
+  const clientSel = view.form.clientSel;
+  if (!clientSel || clientSel === CLIENT_FREE) return;
+  const project = formTitle(view.form);
+  const cfg = state.settings.projectCalendar[project];
+  const tpl = cfg && cfg.clientOverrides ? cfg.clientOverrides[clientSel] : null;
+  if (!tpl || !tpl.trim()) return;
+  if (noteEl.value && noteEl.value !== view.autoNoteText) return;
+  const filled = fillTemplate(tpl, draftJob());
+  noteEl.value = filled;
+  view.form.note = filled;
+  view.autoNoteText = filled;
+}
+
 /** 重複・注意事項を再計算して警告欄だけを更新（入力中のフォーカスを維持） */
 function updateFormAlert() {
   const alertBox = $('formAlert');
@@ -3147,15 +3168,14 @@ function bindEvents() {
       if (ev.target.value === CLIENT_FREE) {
         $('fClientFree').focus();
       } else if (ev.target.value) {
-        const project = formTitle(view.form);
-        const cfg = state.settings.projectCalendar[project];
-        const tpl = cfg && cfg.clientOverrides ? cfg.clientOverrides[ev.target.value] : null;
-        if (tpl && tpl.trim()) {
-          $('fNote').value = fillTemplate(tpl, draftJob());
-          view.form.note = $('fNote').value;
-        }
+        applyClientOverrideNote();
       }
       updateFormAlert();
+    }
+    // 店舗名・業務内容をあとから入力・変更したときも、テンプレートのメモへ反映し直す
+    if (ev.target.id === 'fStoreName' || ev.target.id === 'fWorkType') {
+      view.form = readForm();
+      applyClientOverrideNote();
     }
   });
 
