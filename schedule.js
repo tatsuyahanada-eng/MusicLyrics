@@ -1836,7 +1836,7 @@ function icsTargetJobs() {
 /**
  * タイトル・住所・説明文のテンプレートに、その予定の内容を差し込む。
  * {案件名}{業態}{店舗名}{業務内容}{住所}{日付}{開始}{終了}{メモ} が使える
- * （{依頼元}は{業態}、{開始時間}{終了時間}は{開始}{終了}と同じ意味で使える。
+ * （{依頼元}は{業態}、{店舗}は{店舗名}、{開始時間}{終了時間}は{開始}{終了}と同じ意味で使える。
  * 　{場所}も過去との互換のため残しているが、入力欄が無いため常に空になる）。
  */
 function fillTemplate(tpl, job) {
@@ -1847,6 +1847,7 @@ function fillTemplate(tpl, job) {
     '業務内容': job.workType || '',
     '場所': job.place || '',
     '店舗名': job.storeName || '',
+    '店舗': job.storeName || '',
     '住所': job.address || '',
     '日付': formatDate(job.date, 'long'),
     '開始': job.allDay ? '' : (job.start || ''),
@@ -1855,7 +1856,7 @@ function fillTemplate(tpl, job) {
     '終了時間': job.allDay ? '' : (job.end || ''),
     'メモ': job.note || '',
   };
-  return String(tpl).replace(/\{(案件名|依頼元|業態|業務内容|場所|店舗名|住所|日付|開始時間|終了時間|開始|終了|メモ)\}/g, (m, key) => map[key]);
+  return String(tpl).replace(/\{(案件名|依頼元|業態|業務内容|場所|店舗名|店舗|住所|日付|開始時間|終了時間|開始|終了|メモ)\}/g, (m, key) => map[key]);
 }
 
 function icsSummary(job, prefix) {
