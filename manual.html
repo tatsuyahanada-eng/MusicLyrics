@@ -12,7 +12,7 @@
   <link rel="manifest" href="manifest.webmanifest">
   <link rel="icon" href="icon.svg" type="image/svg+xml">
   <link rel="apple-touch-icon" href="icon-192.png">
-  <link rel="stylesheet" href="manual.css?v=107">
+  <link rel="stylesheet" href="manual.css?v=108">
 </head>
 <body class="tm-body">
 
@@ -165,8 +165,20 @@
             <option value="month">月で検索</option>
             <option value="range">期間で検索</option>
           </select></label>
-        <label class="tm-field" id="tripMonthWrap"><span class="tm-field-label">月</span>
-          <input id="tripFilterMonth" class="tm-input" type="month"></label>
+        <!-- 月の指定は「年」「月」の選択式にしてある。ブラウザによっては
+             type="month" のカレンダーが出なかったり、一度選ぶと選び直しづらい
+             ことがあるため、どの端末でも確実に何度でも変えられるようにしたもの。
+             実際に検索へ渡す値は #tripFilterMonth（YYYY-MM）に入れている。 -->
+        <div class="tm-field" id="tripMonthWrap"><span class="tm-field-label">年・月</span>
+          <div class="tm-monthpick">
+            <button type="button" id="tripMonthPrev" class="tm-btn tm-btn-outline tm-monthpick-arrow" title="前の月" aria-label="前の月">&#9664;</button>
+            <select id="tripFilterYear" class="tm-input tm-monthpick-sel" aria-label="年"></select>
+            <select id="tripFilterMon" class="tm-input tm-monthpick-sel" aria-label="月"></select>
+            <button type="button" id="tripMonthNext" class="tm-btn tm-btn-outline tm-monthpick-arrow" title="次の月" aria-label="次の月">&#9654;</button>
+            <button type="button" id="tripMonthThis" class="tm-btn tm-btn-outline tm-monthpick-now">今月</button>
+          </div>
+          <input id="tripFilterMonth" type="hidden">
+        </div>
         <label class="tm-field" id="tripFromWrap" hidden><span class="tm-field-label">開始日</span>
           <input id="tripFilterFrom" class="tm-input" type="date"></label>
         <label class="tm-field" id="tripToWrap" hidden><span class="tm-field-label">終了日</span>
@@ -1558,6 +1570,6 @@
   </dialog>
 
   <script src="vendor/xlsx.full.min.js"></script>
-  <script src="manual.js?v=123"></script>
+  <script src="manual.js?v=124"></script>
 </body>
 </html>

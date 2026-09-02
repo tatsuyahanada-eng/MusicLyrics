@@ -3906,22 +3906,87 @@
 
   // 履歴検索はアプリ内のポップアップ（モーダル）で開く
   const tripHistoryDialog = $('#tripHistoryDialog');
+  let tripFilterReady = false;  // 年・月の選択肢を作ったか
+  let tripSearched = false;     // このポップアップで一度でも検索したか
+  function thisMonthYM() {
+    const n = new Date();
+    return n.getFullYear() + '-' + String(n.getMonth() + 1).padStart(2, '0');
+  }
+  // 年・月の選択肢を用意する（年は「今年の4年前〜来年」）
+  function tripBuildMonthPicker() {
+    if (tripFilterReady) return;
+    const ys = $('#tripFilterYear'), ms = $('#tripFilterMon');
+    if (!ys || !ms) return;
+    const y0 = new Date().getFullYear();
+    let o = '';
+    for (let y = y0 - 4; y <= y0 + 1; y++) o += `<option value="${y}">${y}年</option>`;
+    ys.innerHTML = o;
+    o = '';
+    for (let m = 1; m <= 12; m++) o += `<option value="${String(m).padStart(2, '0')}">${m}月</option>`;
+    ms.innerHTML = o;
+    tripFilterReady = true;
+  }
+  // 選択されている年・月を YYYY-MM にして隠し入力へ写す（検索・Excel出力はこれを見る）
+  function tripMonthSync() {
+    const ys = $('#tripFilterYear'), ms = $('#tripFilterMon'), h = $('#tripFilterMonth');
+    if (!ys || !ms || !h) return '';
+    const ym = (ys.value || '') + '-' + (ms.value || '');
+    h.value = /^\d{4}-\d{2}$/.test(ym) ? ym : '';
+    return h.value;
+  }
+  // YYYY-MM を年・月のプルダウンに反映する。選択肢に無い年は足しておく
+  function tripMonthSet(ym) {
+    tripBuildMonthPicker();
+    const ys = $('#tripFilterYear'), ms = $('#tripFilterMon');
+    if (!ys || !ms) return;
+    const m = String(ym || '').match(/^(\d{4})-(\d{2})$/);
+    const y = m ? m[1] : String(new Date().getFullYear());
+    const mo = m ? m[2] : String(new Date().getMonth() + 1).padStart(2, '0');
+    if (!Array.prototype.some.call(ys.options, (op) => op.value === y)) {
+      const op = document.createElement('option');
+      op.value = y; op.textContent = y + '年';
+      ys.appendChild(op);
+      // 年が昇順に並ぶよう並べ替える
+      const sorted = Array.prototype.slice.call(ys.options).sort((a, b) => Number(a.value) - Number(b.value));
+      sorted.forEach((op2) => ys.appendChild(op2));
+    }
+    ys.value = y; ms.value = mo;
+    tripMonthSync();
+  }
+  function tripMonthGet() { return tripMonthSync() || thisMonthYM(); }
+  // 前月・翌月へ1つずらす
+  function tripMonthStep(diff) {
+    const m = tripMonthGet().match(/^(\d{4})-(\d{2})$/);
+    if (!m) return;
+    const d = new Date(Number(m[1]), Number(m[2]) - 1 + diff, 1);
+    tripMonthSet(d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0'));
+    tripFilterChanged();
+  }
+  // 条件を変えたら、すでに一度検索している場合はそのまま一覧を出し直す。
+  // （日付だけ変えて「検索」を押し忘れ、変わっていないように見えるのを防ぐ）
+  function tripFilterChanged() {
+    if (tripSearched) tripSearch();
+  }
   function openTripHistory() {
     if (!tripHistoryDialog || !session) return;
     const uw = $('#tripFilterUserWrap'); if (uw) uw.hidden = !(session && session.isAdmin);
-    const now = new Date();
-    const ym = now.getFullYear() + '-' + String(now.getMonth() + 1).padStart(2, '0');
-    if ($('#tripFilterMonth')) $('#tripFilterMonth').value = ym;
-    // 期間検索の初期値は「今月の1日〜今日」
-    if ($('#tripFilterFrom')) $('#tripFilterFrom').value = ym + '-01';
-    if ($('#tripFilterTo')) $('#tripFilterTo').value = todayISO();
-    if ($('#tripFilterKind')) $('#tripFilterKind').value = ''; // 移動手段は「すべて」から
+    tripBuildMonthPicker();
+    // 前回選んだ条件はそのまま残す（閉じて開き直すたびに今月へ戻ると、
+    // 日付を選び直せないように見えるため）。初回だけ今月を入れる。
+    if (!tstr('tripFilterMonth')) {
+      const ym = thisMonthYM();
+      tripMonthSet(ym);
+      // 期間検索の初期値は「今月の1日〜今日」
+      if ($('#tripFilterFrom')) $('#tripFilterFrom').value = ym + '-01';
+      if ($('#tripFilterTo')) $('#tripFilterTo').value = todayISO();
+    }
     tripSyncFilterMode();
     // 開いた時点では検索しない（件数が多いと表示に時間がかかるため）。
     // 月・対象者を選んで「検索」を押したときに初めて一覧を読み込む。
     const wrap = $('#tripTableWrap');
     if (wrap) wrap.innerHTML = '<div class="tm-trip-empty">月（と対象者）を選んで「検索」を押すと、一覧が表示されます。</div>';
     tripListData = [];
+    tripSearched = false;
     tripHistoryDialog.showModal();
     // ポップアップは必ず先頭（上部）から表示する
     tripHistoryDialog.scrollTop = 0;
@@ -3939,7 +4004,18 @@
   if (tripHistoryDialog) {
     tripHistoryDialog.addEventListener('close', () => { syncTrap(); });
     { const c = $('#tripHistoryClose'); if (c) c.addEventListener('click', () => tripHistoryDialog.close()); }
-    { const m = $('#tripFilterMode'); if (m) m.addEventListener('change', tripSyncFilterMode); }
+    { const m = $('#tripFilterMode'); if (m) m.addEventListener('change', () => { tripSyncFilterMode(); tripFilterChanged(); }); }
+    ['tripFilterYear', 'tripFilterMon'].forEach((id) => {
+      const el = $('#' + id);
+      if (el) el.addEventListener('change', () => { tripMonthSync(); tripFilterChanged(); });
+    });
+    ['tripFilterFrom', 'tripFilterTo', 'tripFilterKind'].forEach((id) => {
+      const el = $('#' + id);
+      if (el) el.addEventListener('change', tripFilterChanged);
+    });
+    { const b = $('#tripMonthPrev'); if (b) b.addEventListener('click', () => tripMonthStep(-1)); }
+    { const b = $('#tripMonthNext'); if (b) b.addEventListener('click', () => tripMonthStep(1)); }
+    { const b = $('#tripMonthThis'); if (b) b.addEventListener('click', () => { tripMonthSet(thisMonthYM()); tripFilterChanged(); }); }
   }
 
   // 「Yahoo!路線で運賃を調べる」：出発駅→到着駅…をYahoo!路線情報で別タブに開く
@@ -4075,6 +4151,12 @@
       await apiCall('trip_save', { method: 'POST', body });
       tripEditingId = '';
       tripEditDialog.close();
+      // 日付を別の月に変えた場合、そのままだと絞り込みから外れて記録が
+      // 消えたように見える。編集した記録の月へ絞り込みを合わせておく。
+      const ym = String(body.trip_date || '').slice(0, 7);
+      if (/^\d{4}-\d{2}$/.test(ym) && tstr('tripFilterMode') !== 'range' && ym !== tripMonthGet()) {
+        tripMonthSet(ym);
+      }
       tripSearch(); // 履歴ポップアップの一覧を更新
       showCenterToast('更新完了', 'TRAVEL EXPENSE');
     } catch (e) { teMsg('更新に失敗：' + e.message, true); }
@@ -4156,6 +4238,7 @@
   }
   async function tripSearch() {
     const wrap = $('#tripTableWrap');
+    tripSearched = true;
     if (wrap) wrap.innerHTML = '<div class="tm-trip-empty">読み込み中…</div>';
     if (!serverMode()) { if (wrap) wrap.innerHTML = '<div class="tm-trip-empty">一覧はサーバー接続時のみ表示できます。</div>'; return; }
     const body = {};
@@ -4165,7 +4248,7 @@
       if (t) body.to = t;
       if (!f && !t) { if (wrap) wrap.innerHTML = '<div class="tm-trip-empty">開始日・終了日のどちらかを指定してください。</div>'; return; }
     } else {
-      const m = tstr('tripFilterMonth'); if (m) body.month = m;
+      const m = tripMonthGet(); if (m) body.month = m;
     }
     if (session && session.isAdmin) { const u = tstr('tripFilterUser'); if (u) body.username = u; }
     { const k = tstr('tripFilterKind'); if (k) body.mode = k; } // 車／電車の絞り込み
