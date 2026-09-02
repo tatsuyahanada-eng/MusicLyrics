@@ -1995,18 +1995,21 @@ textarea.tm-ff-input { width: 100%; resize: vertical; min-height: 88px; }
 .tm-trip-filterbtns { justify-content: flex-end; }
 /* 年・月の選び直し（◀ 前月／翌月 ▶／今月）。type="month" のカレンダーに
    頼らず、どの端末でも何度でも月を変えられるようにするためのもの。 */
-.tm-monthpick { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
-.tm-monthpick-sel { flex: 1 1 78px; width: auto; min-width: 78px; padding-left: 8px; padding-right: 8px; }
-.tm-monthpick-arrow { flex: 0 0 auto; padding: 8px 10px; line-height: 1; font-size: 12px; }
-.tm-monthpick-now { flex: 0 0 auto; padding: 8px 12px; line-height: 1; font-size: 12px; white-space: nowrap; }
-#tripMonthWrap { min-width: min(316px, 100%); max-width: 100%; }
+.tm-monthpick { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+/* 高さ・文字サイズは、ほかの入力欄（.tm-input）と揃えて小さく見えないようにする */
+.tm-monthpick-sel { flex: 1 1 100px; width: auto; min-width: 92px; padding-left: 10px; padding-right: 10px; }
+.tm-monthpick-arrow { flex: 0 0 auto; padding: 11px 14px; line-height: 1; font-size: 14px; }
+.tm-monthpick-now { flex: 0 0 auto; padding: 11px 16px; line-height: 1; font-size: 13px; white-space: nowrap; }
+#tripMonthWrap { min-width: min(380px, 100%); max-width: 100%; }
 /* 行数が多いと表全体が縦に伸び、横スクロールバー（表の下端）を掴むために
    ダイアログを一番下までスクロールしないといけなくなっていた。ここ自体に
    高さの上限と縦スクロールを持たせることで、横スクロールバーが常に
    ダイアログ上部の見える位置にとどまるようにする。 */
 .tm-trip-tablewrap {
   overflow-x: auto; overflow-y: auto; -webkit-overflow-scrolling: touch;
-  max-height: min(54vh, 420px);
+  /* 一度に見える行数を増やすため、縦に高くとる。ポップアップ自体は
+     max-height: 92vh なので、見出しと絞り込みのぶんを残して収まる高さ。 */
+  max-height: min(66vh, 700px);
   scrollbar-width: thin; scrollbar-color: var(--tm-cyan-dim) transparent;
 }
 .tm-trip-tablewrap::-webkit-scrollbar { height: 8px; width: 8px; }
@@ -2109,9 +2112,6 @@ textarea.tm-ff-input { width: 100%; resize: vertical; min-height: 88px; }
 .tm-searchbtn:hover { background: rgba(255, 207, 63, 0.12); box-shadow: 0 0 12px rgba(255, 207, 63, 0.25); }
 
 .tm-search-dialog { width: min(680px, 94vw); max-width: 94vw; }
-/* 交通費の履歴検索は絞り込み（年・月の選び直しを含む）と表が横に広いので、
-   ほかの検索ポップアップより少し幅を取る。 */
-#tripHistoryDialog { width: min(860px, 96vw); max-width: 96vw; }
 .tm-search-form { gap: 12px; }
 .tm-search-head { display: flex; align-items: center; gap: 8px; }
 .tm-search-ico { font-size: 18px; color: var(--tm-cyan); flex-shrink: 0; }
