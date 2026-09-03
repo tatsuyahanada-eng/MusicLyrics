@@ -61,3 +61,20 @@ define('GEMINI_MODEL',   'gemini-flash-latest'); // 使うモデル（例: gemin
    起点（TRAVEL_ORIGIN）は既定で「日本リテイル（東京都台東区台東2-1-1）」。変更可。 */
 define('GOOGLE_MAPS_API_KEY', '');
 define('TRAVEL_ORIGIN',       '東京都台東区台東2-1-1');
+
+/* ---------- 自動バックアップ ----------
+   毎日の完全バックアップ（backups/backup-YYYY-MM-DD.json）の設定です。
+
+   ■ 時刻を決めて実行したい場合（さくら等の cron）
+     cron で次のファイルを実行してください：  backup-cron.php
+       例）cd /home/アカウント名/www/casebycase && php backup-cron.php
+     cron が動くようになったら、下の AUTO_BACKUP_ON_ACCESS を false にすると、
+     「誰かが画面を開いたとき」のバックアップは行わなくなります（cronだけになる）。
+     ※ true のままでも二重にはなりません（1日1ファイルのため）。
+
+   ■ cron を使わない場合
+     これまでどおり、正午を過ぎた最初のアクセスで自動作成されます。
+*/
+define('AUTO_BACKUP_ON_ACCESS', true);  // 画面を開いたときの自動バックアップ（cronに任せるなら false）
+define('BACKUP_KEEP_DAYS',      0);     // 何日分残すか。0 = 消さない。例）90 で90日より古いものを自動削除
+define('BACKUP_CRON_TOKEN',     '');    // URLで backup-cron.php を実行したいときの合言葉（cronでphpを直接実行するなら空でOK）

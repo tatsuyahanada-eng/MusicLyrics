@@ -13,6 +13,7 @@ header('X-Content-Type-Options: nosniff');
 $cfgFile = __DIR__ . '/config.php';
 if (is_file($cfgFile)) require_once $cfgFile;
 require_once __DIR__ . '/db.php';
+require_once __DIR__ . '/backup.php'; // 完全バックアップの作成（cronのbackup-cron.phpと共用）
 
 if (!defined('API_TOKEN'))        define('API_TOKEN', '');
 if (!defined('ADMIN_PW'))         define('ADMIN_PW', 'Welsys1234');
@@ -152,63 +153,6 @@ function cbc_setting_set($pdo, $k, $v) {
   try { $pdo->prepare('DELETE FROM app_settings WHERE k = ?')->execute(array($k));
     $pdo->prepare('INSERT INTO app_settings (k, v) VALUES (?, ?)')->execute(array($k, $v)); }
   catch (Throwable $e) { /* 保存失敗は致命ではない */ }
-}
-
-/* ---------- 完全バックアップ（手動エクスポート／自動バックアップ 共通） ---------- */
-// 色・文字サイズ・入力欄（本文HTML）・ユーザー権限（パスワードハッシュ含む）・
-// 在庫・交通費・設定を、無加工でそのまま書き出す。
-function cbc_build_backup_array($pdo) {
-  $nodes    = $pdo->query('SELECT id, parent_id, sort_order, title, body, created_by, updated_by, updated_at, created_at, lock_hash FROM nodes ORDER BY parent_id, sort_order, created_at')->fetchAll();
-  $users    = $pdo->query('SELECT username, display_name, pass_hash, is_admin, allowed, created_at, updated_at FROM users ORDER BY username')->fetchAll();
-  $invItems = $pdo->query('SELECT id, name, model, qty, note, sort_order, created_at, updated_at FROM inv_items ORDER BY sort_order, created_at')->fetchAll();
-  $invLogs  = $pdo->query('SELECT id, item_id, action, qty, balance, person, note, created_at FROM inv_logs ORDER BY created_at, id')->fetchAll();
-  $trips    = array();
-  try {
-    $trips = $pdo->query('SELECT id, username, display_name, trip_date, case_name, mode, origin, destination, one_way_km, round_trip, gas_rate, gas_cost, fare_cost, toll_cost, parking_cost, other_cost, total, cost_details, note, created_at, updated_at FROM trips ORDER BY trip_date, created_at')->fetchAll();
-  } catch (Throwable $e) { /* trips 未作成でも致命ではない */ }
-  $settings = $pdo->query('SELECT k, v FROM app_settings')->fetchAll();
-  return array(
-    'app'         => 'case-by-case',
-    'version'     => 1,
-    'exported_at' => now_ms(),
-    'nodes'       => $nodes,
-    'users'       => $users,
-    'inv_items'   => $invItems,
-    'inv_logs'    => $invLogs,
-    'trips'       => $trips,
-    'settings'    => $settings,
-  );
-}
-
-/* ---------- 自動バックアップ（毎日正午をすぎた最初のアクセスで、完全バックアップを backups/ に保存） ---------- */
-function cbc_backup_filename($ymd) { return 'backup-' . $ymd . '.json'; }
-function cbc_backup_path($ymd) { return rtrim(BACKUP_DIR, '/') . '/' . cbc_backup_filename($ymd); }
-// 今日ぶんの自動バックアップがまだ無く、正午（サーバー時刻）を過ぎていれば作成する。
-// アクセスのたびに呼ばれる想定のため、通常は file_exists のチェックのみで即戻る（軽量）。
-// 失敗してもアプリの動作に影響させない（ベストエフォート）。
-function cbc_maybe_auto_backup($pdo) {
-  try {
-    if ((int)date('G') < 12) return; // 正午（12時）より前は対象外
-    $ymd = date('Y-m-d');
-    $path = cbc_backup_path($ymd);
-    if (file_exists($path)) return;
-    if (!is_dir(BACKUP_DIR)) @mkdir(BACKUP_DIR, 0775, true);
-    // 複数リクエストがほぼ同時に条件を満たしても二重作成しないよう、簡易ロックする
-    $lockPath = rtrim(BACKUP_DIR, '/') . '/.lock';
-    $fh = @fopen($lockPath, 'c');
-    if (!$fh) return;
-    if (!flock($fh, LOCK_EX | LOCK_NB)) { fclose($fh); return; }
-    try {
-      if (!file_exists($path)) {
-        $data = cbc_build_backup_array($pdo);
-        $data['auto'] = true;
-        @file_put_contents($path, json_encode($data, JSON_UNESCAPED_UNICODE), LOCK_EX);
-      }
-    } catch (Throwable $e) {
-    }
-    flock($fh, LOCK_UN);
-    fclose($fh);
-  } catch (Throwable $e) { /* 自動バックアップの失敗はアプリ動作に影響させない */ }
 }
 
 /* 1モデルに対して1回だけ generateContent を呼ぶ。戻り値: array(httpCode, responseBody, networkError) */
@@ -737,7 +681,7 @@ function cbc_gemini($pdo, $prompt, $jsonMode = false, $maxTokens = 1024) {
   if ($err !== null) fail($err, $code);
   return $text;
 }
-function now_ms() { return (int) round(microtime(true) * 1000); }
+if (!function_exists('now_ms')) { function now_ms() { return (int) round(microtime(true) * 1000); } } // backup.php でも定義しているため二重定義を避ける
 
 /* 汎用 HTTP GET（curl があれば curl、無ければ file_get_contents）。戻り値: array($code, $body, $err) */
 function cbc_http_get($url) {
