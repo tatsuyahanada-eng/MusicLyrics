@@ -9,7 +9,7 @@ $apps = Permissions::allowedApps($user);
 View::head('ポータル', $user, 'portal');
 ?>
 <main class="container">
-  <?php View::pageTitle(
+  <?php View::pageTitleWithIcon(
       'ご利用いただけるアプリケーション',
       ($user['display_name'] ?: $user['username']) . ' さんに許可されているアプリの一覧です。'
   ); ?>

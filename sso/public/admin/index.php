@@ -15,7 +15,7 @@ $recent       = Audit::recent(10);
 View::head('ダッシュボード', $admin, '');
 ?>
 <main class="container">
-  <?php View::pageTitle('User Management', '共通ユーザーデータベースとシングルサインオンの管理コンソールです。'); ?>
+  <?php View::pageTitleWithIcon('User Management', '共通ユーザーデータベースとシングルサインオンの管理コンソールです。'); ?>
 
   <div class="grid">
     <div class="card card--stat">

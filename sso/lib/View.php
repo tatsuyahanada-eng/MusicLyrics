@@ -31,7 +31,20 @@ final class View
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="robots" content="noindex, nofollow">
 <title><?= h($title) ?></title>
-<link rel="icon" href="<?= h($asset) ?>/img/welsys-mark.png">
+
+<!-- PWA -->
+<link rel="manifest" href="<?= h(Config::baseUrl('manifest.php')) ?>">
+<meta name="theme-color" content="#552583">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="<?= h(self::PRODUCT_NAME) ?>">
+
+<link rel="icon" type="image/png" sizes="32x32" href="<?= h($asset) ?>/img/favicon-32.png">
+<link rel="icon" type="image/png" sizes="16x16" href="<?= h($asset) ?>/img/favicon-16.png">
+<link rel="shortcut icon" href="<?= h($asset) ?>/img/favicon.ico">
+<link rel="apple-touch-icon" href="<?= h($asset) ?>/img/apple-touch-icon.png">
+
 <link rel="stylesheet" href="<?= h($asset) ?>/style.css">
 </head>
 <body>
@@ -82,6 +95,15 @@ final class View
     <span>&copy; <?= date('Y') ?> WELSYS &mdash; <?= h(self::PRODUCT_NAME) ?></span>
   </div>
 </footer>
+<script>
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', function () {
+    navigator.serviceWorker.register('<?= h(Config::baseUrl('sw.js')) ?>').catch(function () {
+      // インストール不可でも通常の画面利用に支障はないため、静かに諦める
+    });
+  });
+}
+</script>
 </body>
 </html>
         <?php
@@ -101,6 +123,22 @@ final class View
             echo '<p class="page-head__lead">' . h($lead) . '</p>';
         }
         echo '</div>';
+    }
+
+    /**
+     * PWAアプリアイコンを添えた見出し。ポータルと管理ダッシュボードなど、
+     * この仕組みの「入口」となる画面でのみ使う。
+     */
+    public static function pageTitleWithIcon(string $title, string $lead = ''): void
+    {
+        $icon = Config::baseUrl('assets') . '/img/icon-192.png';
+        echo '<div class="page-head page-head--icon">'
+           . '<img class="page-head__icon" src="' . h($icon) . '" alt="" width="56" height="56">'
+           . '<div><h1 class="page-head__title">' . h($title) . '</h1>';
+        if ($lead !== '') {
+            echo '<p class="page-head__lead">' . h($lead) . '</p>';
+        }
+        echo '</div></div>';
     }
 
     /** 許可 / 拒否 / 既定 のバッジ。 */

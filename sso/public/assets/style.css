@@ -111,6 +111,11 @@ a:hover { color: var(--purple-deep); }
 .container { max-width: 1180px; margin: 0 auto; padding: 26px 20px 60px; }
 .container--narrow { max-width: 720px; }
 .page-head { margin-bottom: 20px; }
+.page-head--icon { display: flex; align-items: flex-start; gap: 14px; }
+.page-head__icon {
+  width: 56px; height: 56px; border-radius: 14px; flex: none;
+  box-shadow: 0 2px 8px rgba(43, 15, 74, .25);
+}
 .page-head__title {
   font-size: 21px;
   margin: 0 0 8px;

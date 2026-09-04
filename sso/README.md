@@ -109,7 +109,32 @@ sequenceDiagram
 
 - PHP 8.1 以上（`pdo_mysql` / `mbstring` / `json`。`curl` があれば使用）
 - MySQL 5.7.8 以上 または MariaDB 10.2 以上
-- 本番環境では **HTTPS 必須**（Cookie を Secure 属性で発行するため）
+- 本番環境では **HTTPS 必須**（Cookie を Secure 属性で発行するため。PWA のインストールにも HTTPS が要ります）
+
+---
+
+## PWA（ホーム画面への追加）
+
+認証サーバー側の画面（ログイン・ポータル・管理コンソール）は PWA として構成してあり、
+スマートフォンやPCのホーム画面・デスクトップにアイコン付きで追加できます。
+
+| ファイル | 役割 |
+|---|---|
+| `public/manifest.php` | マニフェスト。`config.php` の `base_url` から絶対URLを組み立てて返す |
+| `public/sw.js` | Service Worker。CSS・アイコンなど見た目のための静的資産だけをキャッシュする |
+| `public/assets/img/icon-*.png` | 各サイズのアプリアイコン（192 / 512 / maskable / Apple Touch / favicon） |
+
+**ログイン画面や管理画面のHTMLはキャッシュしません。** ログイン状態や権限判定を扱う
+管理コンソールという性質上、「オフラインで古い画面が開けてしまう」事故を避けるため、
+Service Worker はネットワークを常に優先し、静的資産だけをキャッシュする設計にしています。
+
+アプリアイコンはポータル画面・管理ダッシュボードの見出し脇にも表示され、
+ブラウザのタブ・ホーム画面のアイコンと同じ絵柄で統一されます。
+
+アイコンを差し替えたい場合は、`public/assets/img/` の該当ファイルを置き換えるだけで、
+マニフェスト・ページ内表示・ブラウザアイコンのすべてに反映されます
+（`icon-192.png` / `icon-512.png` が通常用、`icon-maskable-*.png` は
+Android の角丸マスクに合わせて安全領域を空けた版です）。
 
 ---
 
@@ -396,7 +421,9 @@ sso/
 │   ├── login.php  logout.php  password.php  index.php
 │   ├── authorize.php       SSO の入口（アプリはここへ利用者を送る）
 │   ├── validate.php        チケット引き換え・有効性確認（サーバー間, JSON）
-│   ├── assets/             スタイルとロゴ
+│   ├── manifest.php        PWA マニフェスト（動的生成）
+│   ├── sw.js               PWA Service Worker
+│   ├── assets/             スタイル・ロゴ・PWAアイコン一式
 │   └── admin/              User Management 管理画面
 │       ├── index.php users.php user_edit.php users_import.php
 │       └── apps.php app_edit.php permissions.php logs.php
