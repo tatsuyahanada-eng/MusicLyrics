@@ -69,7 +69,7 @@ CREATE TABLE IF NOT EXISTS lp_updates (
   updated_on      DATE         NOT NULL COMMENT '更新日',
   updated_time    TIME         NOT NULL COMMENT '更新時間',
   author          VARCHAR(60)  NOT NULL COMMENT '対応者（表示名）',
-  author_user_id  INT              NULL COMMENT '登録した利用者',
+  author_user_id  INT              NULL COMMENT '登録した利用者のID（共通ユーザーDB運用時は共通側のID）',
   update_kind     VARCHAR(20)  NOT NULL COMMENT '機能追加 / 不具合修正 / 改善 / 資料改訂 / 初版公開',
   version         VARCHAR(20)      NULL COMMENT '版数',
   summary         VARCHAR(500) NOT NULL COMMENT '更新内容',
@@ -81,9 +81,7 @@ CREATE TABLE IF NOT EXISTS lp_updates (
   KEY idx_upd_date (updated_on DESC),
   KEY idx_upd_author (author),
   CONSTRAINT fk_upd_item FOREIGN KEY (item_id)
-    REFERENCES lp_items (item_id) ON DELETE CASCADE,
-  CONSTRAINT fk_upd_user FOREIGN KEY (author_user_id)
-    REFERENCES lp_users (user_id) ON DELETE SET NULL
+    REFERENCES lp_items (item_id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='更新履歴';
 
 -- ============================================================

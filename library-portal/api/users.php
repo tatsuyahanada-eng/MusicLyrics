@@ -1,14 +1,18 @@
 <?php
 /**
  * 利用者管理 API（すべて管理者のみ）
- *   GET    api/users.php              … 利用者一覧
- *   POST   api/users.php              … 新規登録
- *   PATCH  api/users.php?id=3         … 権限・氏名・状態・パスワードの変更
- *   DELETE api/users.php?id=3         … 削除
+ *   GET    api/users.php              … 利用者一覧（このアプリでの権限つき）
+ *   POST   api/users.php              … 新規登録 ※ローカル運用時のみ
+ *   PATCH  api/users.php?id=3         … 権限の変更（共通DB運用時はこれのみ）
+ *   DELETE api/users.php?id=3         … 削除 ※ローカル運用時のみ
+ *
+ * 共通ユーザーデータベース運用（auth_mode = 'central'）のとき：
+ *   ・アカウント自体の作成・削除・停止・パスワード変更は共通の利用者管理側で行います
+ *   ・この画面からは「このアプリでの権限（管理者／閲覧のみ／権限なし）」だけを変更します
  *
  * 安全策：
- *   ・最後の管理者を「閲覧のみ」に変更／停止／削除することはできません
- *   ・自分自身の権限変更・停止・削除はできません（誤操作で締め出されるのを防ぐため）
+ *   ・最後の管理者を降格／停止／削除／権限取消することはできません
+ *   ・自分自身の権限変更・停止・削除はできません
  */
 declare(strict_types=1);
 require_once __DIR__ . '/../includes/auth.php';
@@ -16,48 +20,45 @@ require_once __DIR__ . '/../includes/auth.php';
 $me     = api_require_admin();
 $method = $_SERVER['REQUEST_METHOD'] ?? 'GET';
 
-/** 有効な管理者の人数 */
-function active_admin_count(): int
-{
-    return (int)db()->query("SELECT COUNT(*) FROM lp_users WHERE role = 'admin' AND is_active = 1")->fetchColumn();
-}
-
 function fetch_user(int $id): ?array
 {
-    $st = db()->prepare('SELECT * FROM lp_users WHERE user_id = ?');
-    $st->execute([$id]);
-    $row = $st->fetch();
-    return $row ?: null;
+    return provider_get_user($id);
 }
 
 // ---------------------------------------------------------- 一覧
 if ($method === 'GET') {
-    $rows = db()->query(
-        'SELECT user_id, login_id, display_name, email, dept, role, is_active,
-                must_change_pw, last_login_at, created_at
-           FROM lp_users ORDER BY role DESC, login_id'
-    )->fetchAll();
+    $rows = provider_list_users();
 
     $out = array_map(static fn(array $r): array => [
-        'userId'      => (int)$r['user_id'],
-        'loginId'     => $r['login_id'],
-        'name'        => $r['display_name'],
-        'email'       => $r['email'] ?? '',
-        'dept'        => $r['dept'] ?? '',
-        'role'        => $r['role'],
-        'isActive'    => (int)$r['is_active'] === 1,
-        'mustChangePw' => (int)$r['must_change_pw'] === 1,
-        'lastLoginAt' => $r['last_login_at'],
-        'createdAt'   => $r['created_at'],
+        'userId'       => (int)$r['user_id'],
+        'loginId'      => $r['login_id'],
+        'name'         => $r['display_name'],
+        'email'        => $r['email'] ?? '',
+        'dept'         => $r['dept'] ?? '',
+        'role'         => $r['role'] ?? '',          // 空文字＝このアプリの権限なし
+        'isActive'     => (int)$r['is_active'] === 1,
+        'mustChangePw' => (int)($r['must_change_pw'] ?? 0) === 1,
+        'lastLoginAt'  => $r['last_login_at'],
+        'createdAt'    => $r['created_at'],
     ], $rows);
 
-    json_out(['me' => (int)$me['user_id'], 'users' => $out]);
+    json_out([
+        'me'      => (int)$me['user_id'],
+        'authMode' => lp_auth_mode(),                 // local / central
+        'appKey'  => lp_app_key(),
+        'canManageAccounts' => can_manage_accounts(), // central では false
+        'defaultRole' => lp_default_role(),           // 権限行が無い利用者の既定
+        'users'   => $out,
+    ]);
 }
 
 api_verify_csrf();
 
 // ---------------------------------------------------------- 新規登録
 if ($method === 'POST') {
+    if (!can_manage_accounts()) {
+        json_error('共通ユーザーデータベース運用のため、アカウントの新規作成は共通の利用者管理から行ってください。', 400);
+    }
     $b       = json_body();
     $loginId = s($b, 'loginId', 64);
     $name    = s($b, 'name', 60);
@@ -109,36 +110,52 @@ if ($method === 'PATCH' || $method === 'PUT') {
     }
     $isSelf = $id === (int)$me['user_id'];
     $b = json_body();
+    $currentRole = resolve_role($id);
+
+    // ---- 権限（このアプリでの role）。共通DB運用でも変更できる ----
+    if (array_key_exists('role', $b)) {
+        $role = s($b, 'role', 10);
+        $revoke = ($role === '' || $role === 'none');
+        if (!$revoke && !in_array($role, ['admin', 'viewer'], true)) {
+            json_error('権限の指定が不正です。');
+        }
+        if ($revoke && lp_auth_mode() === 'local') {
+            json_error('この運用形態では権限の取り消しはできません。停止または削除をご利用ください。');
+        }
+        if (($revoke ? null : $role) !== $currentRole) {
+            if ($isSelf) {
+                json_error('自分自身の権限は変更できません。他の管理者に依頼してください。');
+            }
+            if ($currentRole === 'admin' && active_admin_count() <= 1) {
+                json_error('このアプリの管理者が0人になるため変更できません。先に他の利用者を管理者にしてください。');
+            }
+            if ($revoke) {
+                revoke_role($id);
+                audit('role.revoke', $target['login_id'], 'app=' . lp_app_key());
+            } else {
+                assign_role($id, $role, (int)$me['user_id']);
+                audit('role.assign', $target['login_id'], 'app=' . lp_app_key() . ' role=' . $role);
+            }
+        }
+    }
+
+    // ---- ここから下はアカウント自体の情報。共通DB運用では共通側で管理する ----
+    $accountFields = ['isActive', 'name', 'email', 'dept', 'password'];
+    $touchesAccount = (bool)array_intersect($accountFields, array_keys($b));
+    if ($touchesAccount && !can_manage_accounts()) {
+        json_error('共通ユーザーデータベース運用のため、氏名・停止・パスワードの変更は共通の利用者管理から行ってください。', 400);
+    }
 
     $sets = [];
     $args = [];
 
-    // 権限
-    if (array_key_exists('role', $b)) {
-        $role = s($b, 'role', 10);
-        if (!in_array($role, ['admin', 'viewer'], true)) {
-            json_error('権限の指定が不正です。');
-        }
-        if ($role !== $target['role']) {
-            if ($isSelf) {
-                json_error('自分自身の権限は変更できません。他の管理者に依頼してください。');
-            }
-            if ($target['role'] === 'admin' && $role === 'viewer' && active_admin_count() <= 1) {
-                json_error('管理者が0人になるため変更できません。先に他の利用者を管理者にしてください。');
-            }
-            $sets[] = 'role = ?';
-            $args[] = $role;
-        }
-    }
-
-    // 有効／停止
     if (array_key_exists('isActive', $b)) {
         $active = !empty($b['isActive']) ? 1 : 0;
         if ($active !== (int)$target['is_active']) {
             if ($isSelf && $active === 0) {
                 json_error('自分自身を停止することはできません。');
             }
-            if ($active === 0 && $target['role'] === 'admin' && active_admin_count() <= 1) {
+            if ($active === 0 && $currentRole === 'admin' && active_admin_count() <= 1) {
                 json_error('管理者が0人になるため停止できません。');
             }
             $sets[] = 'is_active = ?';
@@ -164,7 +181,6 @@ if ($method === 'PATCH' || $method === 'PUT') {
         }
     }
 
-    // パスワード再設定
     if (!empty($b['password'])) {
         $pw = (string)$b['password'];
         if ($problem = password_problem($pw)) {
@@ -177,15 +193,13 @@ if ($method === 'PATCH' || $method === 'PUT') {
         $sets[] = 'locked_until = NULL';
     }
 
-    if (!$sets) {
-        json_out(['ok' => true, 'changed' => false]);
+    if ($sets) {
+        $args[] = $id;
+        $st = db()->prepare('UPDATE lp_users SET ' . implode(', ', $sets) . ' WHERE user_id = ?');
+        $st->execute($args);
+        audit('user.update', $target['login_id'], implode(' / ', $sets));
     }
 
-    $args[] = $id;
-    $st = db()->prepare('UPDATE lp_users SET ' . implode(', ', $sets) . ' WHERE user_id = ?');
-    $st->execute($args);
-
-    audit('user.update', $target['login_id'], implode(' / ', $sets));
     json_out(['ok' => true, 'changed' => true]);
 }
 
@@ -199,7 +213,11 @@ if ($method === 'DELETE') {
     if ($id === (int)$me['user_id']) {
         json_error('自分自身は削除できません。');
     }
-    if ($target['role'] === 'admin' && (int)$target['is_active'] === 1 && active_admin_count() <= 1) {
+    if (!can_manage_accounts()) {
+        json_error('共通ユーザーデータベース運用のため、アカウントの削除は共通の利用者管理から行ってください。'
+                 . 'このアプリを使わせない場合は、権限を「権限なし」に変更してください。', 400);
+    }
+    if (resolve_role($id) === 'admin' && (int)$target['is_active'] === 1 && active_admin_count() <= 1) {
         json_error('管理者が0人になるため削除できません。');
     }
     $st = db()->prepare('DELETE FROM lp_users WHERE user_id = ?');

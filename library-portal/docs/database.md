@@ -137,7 +137,18 @@ WHERE u.item_id = 'APP-001' AND u.target_feature LIKE '%CSV出力%'
 ORDER BY u.updated_on DESC;
 ```
 
-## 6. 今後の拡張余地（現時点では未実装）
+## 6. 共通ユーザーデータベースを使う場合
+
+複数の Web アプリで利用者を共通化する場合、`lp_users` の代わりに
+共通DB（`auth_users` / `auth_app_roles`）を参照する運用に切り替えられます。
+`config.php` の `auth_mode` を `'central'` にするだけで、画面・API の権限判定は
+そのまま機能します（検証済み）。詳細は `sso-central-users.md`、DDL は
+`sql/schema_central_auth.sql`、移行は `sql/migrate_local_to_central.sql` を参照。
+
+なお `lp_updates.author_user_id` には**外部キー制約を張っていません**。
+共通DB運用時は参照先が別データベースになるためです。
+
+## 7. 今後の拡張余地（現時点では未実装）
 
 - 更新履歴の訂正・取り消し（物理削除ではなく訂正履歴を残す方式を推奨）
 - 関連会社ごとのデータ分離（`lp_items` に会社コード列を追加し、利用者の所属で絞り込む）

@@ -16,9 +16,8 @@ $b       = json_body();
 $current = isset($b['current']) ? (string)$b['current'] : '';
 $next    = isset($b['next']) ? (string)$b['next'] : '';
 
-$st = db()->prepare('SELECT password_hash FROM lp_users WHERE user_id = ?');
-$st->execute([$me['user_id']]);
-$hash = (string)$st->fetchColumn();
+$row  = provider_get_user((int)$me['user_id']);
+$hash = (string)($row['password_hash'] ?? '');
 
 if (!password_verify($current, $hash)) {
     json_error('現在のパスワードが正しくありません。');
@@ -30,8 +29,7 @@ if (password_verify($next, $hash)) {
     json_error('現在と異なるパスワードを設定してください。');
 }
 
-$up = db()->prepare('UPDATE lp_users SET password_hash = ?, must_change_pw = 0 WHERE user_id = ?');
-$up->execute([password_hash($next, PASSWORD_DEFAULT), $me['user_id']]);
+provider_set_password((int)$me['user_id'], password_hash($next, PASSWORD_DEFAULT), false);
 $_SESSION['user']['must_change_pw'] = false;
 
 audit('password.change', $me['login_id']);

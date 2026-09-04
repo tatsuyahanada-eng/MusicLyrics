@@ -536,3 +536,15 @@
   }
   .lp-row-actions { grid-column: 1 / -1; justify-content: flex-start; }
 }
+
+/* ---------- 共通ユーザーDB運用時 ---------- */
+.lp-help-central { border-left-color: var(--lp-red); }
+.lp-help code {
+  font-family: ui-monospace, Menlo, Consolas, monospace;
+  background: #f1f4f7; border: 1px solid var(--lp-line);
+  border-radius: 4px; padding: 0 5px; font-size: .93em;
+}
+.lp-roleswitch.is-none .lp-roleswitch-btn.is-on { background: var(--lp-ink); color: #fff; }
+.lp-listhead-users, .lp-row-head-user {
+  grid-template-columns: minmax(150px, 1.3fr) 120px 100px 210px 96px 128px auto;
+}

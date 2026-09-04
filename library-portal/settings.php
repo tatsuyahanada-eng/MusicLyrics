@@ -20,7 +20,11 @@ if (($user['role'] ?? '') !== 'admin') {
     <?php
     exit;
 }
-$csrf = csrf_token();
+$csrf     = csrf_token();
+$mode     = lp_auth_mode();
+$central  = $mode === 'central';
+$canAcct  = can_manage_accounts();
+$defRole  = lp_default_role();
 ?>
 <!DOCTYPE html>
 <html lang="ja">
@@ -47,7 +51,9 @@ $csrf = csrf_token();
       </h1>
       <div class="lp-header-actions">
         <a class="lp-btn lp-btn-ghost lp-btn-sm" href="index.php">← ライブラリ一覧</a>
-        <button id="btnNewUser" class="lp-btn lp-btn-primary" type="button">＋ 利用者を追加</button>
+        <?php if ($canAcct): ?>
+          <button id="btnNewUser" class="lp-btn lp-btn-primary" type="button">＋ 利用者を追加</button>
+        <?php endif; ?>
       </div>
     </div>
   </header>
@@ -62,6 +68,20 @@ $csrf = csrf_token();
       <strong>閲覧のみ</strong>は一覧と更新履歴の閲覧・ダウンロードのみが行えます。
       権限は行の中のスイッチでいつでも切り替えられます。
     </p>
+
+    <?php if ($central): ?>
+      <p class="lp-help lp-help-central">
+        <strong>共通ユーザーデータベース運用中</strong>（アプリ識別子：<code><?= h(lp_app_key()) ?></code>）。
+        アカウントの作成・停止・削除・パスワード再設定は<strong>共通の利用者管理</strong>で行います。
+        この画面では<strong>このアプリでの権限</strong>だけを変更します。権限は共通DBにアプリ単位で保存されるため、
+        他のアプリの権限には影響しません。
+        <?php if ($defRole === null): ?>
+          権限を付与していない利用者は、このアプリにログインできません。
+        <?php else: ?>
+          権限を付与していない利用者は「<?= h($defRole === 'admin' ? '管理者' : '閲覧のみ') ?>」として扱われます。
+        <?php endif; ?>
+      </p>
+    <?php endif; ?>
 
     <div class="lp-listhead lp-listhead-users" aria-hidden="true">
       <span>利用者</span><span>ログインID</span><span>所属</span>
@@ -146,7 +166,9 @@ $csrf = csrf_token();
     window.LP = {
       apiBase: 'api',
       csrf: <?= json_encode($csrf) ?>,
-      user: { id: <?= (int)$user['user_id'] ?>, loginId: <?= json_encode($user['login_id']) ?> }
+      user: { id: <?= (int)$user['user_id'] ?>, loginId: <?= json_encode($user['login_id']) ?> },
+      authMode: <?= json_encode($mode) ?>,
+      canManageAccounts: <?= $canAcct ? 'true' : 'false' ?>
     };
   </script>
   <script src="assets/settings.js?v=1"></script>

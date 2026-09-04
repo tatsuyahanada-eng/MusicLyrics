@@ -8,6 +8,8 @@ const API = window.LP.apiBase;
 const ME = window.LP.user.id;
 
 let users = [];
+let meta = { authMode: 'local', canManageAccounts: true, defaultRole: 'viewer', appKey: 'library' };
+const canAcct = () => meta.canManageAccounts;
 
 const $ = (id) => document.getElementById(id);
 function esc(str) {
@@ -45,12 +47,39 @@ async function api(path, method = 'GET', body = null) {
 async function loadUsers() {
   const data = await api('users.php');
   users = data.users || [];
+  meta = {
+    authMode: data.authMode || 'local',
+    canManageAccounts: data.canManageAccounts !== false,
+    defaultRole: data.defaultRole || null,
+    appKey: data.appKey || 'library'
+  };
 }
 
 /* ---------- 描画 ---------- */
 function userRow(u) {
   const isSelf = u.userId === ME;
   const admin = u.role === 'admin';
+  const none = !u.role;                       // このアプリでの権限なし（共通DB運用時のみ発生）
+  const central = meta.authMode === 'central';
+
+  // 権限スイッチ：共通DB運用では「権限なし」も選べる
+  const roleBtn = (value, label) => `
+    <button type="button" class="lp-roleswitch-btn${(value === 'admin' ? admin : value === 'viewer' ? (!admin && !none) : none) ? ' is-on' : ''}"
+            data-role="${value}" data-id="${u.userId}" ${isSelf ? 'disabled' : ''}>${label}</button>`;
+
+  const roleSwitch = `
+    <span class="lp-roleswitch${admin ? ' is-admin' : ''}${none ? ' is-none' : ''}" role="group" aria-label="権限の切り替え">
+      ${roleBtn('admin', '管理者')}${roleBtn('viewer', '閲覧のみ')}${central ? roleBtn('none', '権限なし') : ''}
+    </span>`;
+
+  const actions = canAcct()
+    ? `<button class="lp-btn lp-btn-ghost lp-btn-sm" type="button" data-edit="${u.userId}">編集</button>
+       <button class="lp-btn lp-btn-ghost lp-btn-sm" type="button" data-active="${u.userId}"
+               ${isSelf ? 'disabled' : ''}>${u.isActive ? '停止' : '再開'}</button>
+       <button class="lp-btn lp-btn-danger lp-btn-sm" type="button" data-del="${u.userId}"
+               ${isSelf ? 'disabled' : ''}>削除</button>`
+    : '<span class="lp-row-id">アカウント設定は共通の利用者管理から</span>';
+
   return `
   <article class="lp-row lp-row-user${u.isActive ? '' : ' is-inactive'}" data-user="${u.userId}">
     <div class="lp-row-head lp-row-head-user">
@@ -60,26 +89,13 @@ function userRow(u) {
       </span>
       <span class="lp-mono">${esc(u.loginId)}</span>
       <span class="lp-row-author">${esc(u.dept) || '—'}</span>
-      <span>
-        <span class="lp-roleswitch${admin ? ' is-admin' : ''}" role="group" aria-label="権限の切り替え">
-          <button type="button" class="lp-roleswitch-btn${admin ? ' is-on' : ''}"
-                  data-role="admin" data-id="${u.userId}" ${isSelf ? 'disabled' : ''}>管理者</button>
-          <button type="button" class="lp-roleswitch-btn${admin ? '' : ' is-on'}"
-                  data-role="viewer" data-id="${u.userId}" ${isSelf ? 'disabled' : ''}>閲覧のみ</button>
-        </span>
-      </span>
+      <span>${roleSwitch}</span>
       <span>
         <span class="lp-status ${u.isActive ? 'is-active' : 'is-stopped'}">${u.isActive ? '有効' : '停止中'}</span>
         ${u.mustChangePw ? '<span class="lp-row-id">初期PW未変更</span>' : ''}
       </span>
       <span class="lp-row-date">${fmtDateTime(u.lastLoginAt)}</span>
-      <span class="lp-row-actions">
-        <button class="lp-btn lp-btn-ghost lp-btn-sm" type="button" data-edit="${u.userId}">編集</button>
-        <button class="lp-btn lp-btn-ghost lp-btn-sm" type="button" data-active="${u.userId}"
-                ${isSelf ? 'disabled' : ''}>${u.isActive ? '停止' : '再開'}</button>
-        <button class="lp-btn lp-btn-danger lp-btn-sm" type="button" data-del="${u.userId}"
-                ${isSelf ? 'disabled' : ''}>削除</button>
-      </span>
+      <span class="lp-row-actions">${actions}</span>
     </div>
   </article>`;
 }
@@ -161,12 +177,18 @@ async function submitUser(ev) {
 /* ---------- 行内の操作 ---------- */
 async function changeRole(id, role) {
   const user = users.find((u) => u.userId === Number(id));
-  if (!user || user.role === role) return;
+  if (!user) return;
+  const nextRole = role === 'none' ? '' : role;
+  if ((user.role || '') === nextRole) return;
+
+  const label = { admin: '管理者', viewer: '閲覧のみ', none: '権限なし' }[role];
+  if (role === 'none' && !confirm(`${user.name} さんからこのアプリの利用権限を外します。よろしいですか？`)) return;
+
   try {
-    await api(`users.php?id=${id}`, 'PATCH', { role });
+    await api(`users.php?id=${id}`, 'PATCH', { role: nextRole });
     await loadUsers();
     render();
-    toast(`${user.name} さんの権限を「${role === 'admin' ? '管理者' : '閲覧のみ'}」に変更しました`);
+    toast(`${user.name} さんの権限を「${label}」に変更しました`);
   } catch (e) {
     toast(e.message || '権限の変更に失敗しました');
   }
@@ -220,7 +242,8 @@ async function init() {
   }
   render();
 
-  $('btnNewUser').addEventListener('click', () => openUserModal(null));
+  const btnNew = $('btnNewUser');
+  if (btnNew) btnNew.addEventListener('click', () => openUserModal(null));
   $('btnCloseUserModal').addEventListener('click', closeModal);
   $('btnUserCancel').addEventListener('click', closeModal);
   $('modalOverlay').addEventListener('click', closeModal);

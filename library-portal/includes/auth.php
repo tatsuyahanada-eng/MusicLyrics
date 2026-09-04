@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 require_once __DIR__ . '/db.php';
 require_once __DIR__ . '/helpers.php';
+require_once __DIR__ . '/auth_provider.php';
 
 /** セッション開始（クッキー設定込み） */
 function lp_session_start(): void
@@ -97,9 +98,8 @@ function api_require_admin(): array
 function lp_login(string $loginId, string $password)
 {
     $c = lp_config();
-    $st = db()->prepare('SELECT * FROM lp_users WHERE login_id = ? LIMIT 1');
-    $st->execute([$loginId]);
-    $user = $st->fetch();
+    // 認証情報の取得（ローカル or 共通ユーザーDB）
+    $user = provider_find_user($loginId);
 
     // 利用者が存在しない場合も同じ処理時間になるようダミー検証を行う
     if (!$user) {
@@ -119,26 +119,28 @@ function lp_login(string $loginId, string $password)
             $lockUntil = date('Y-m-d H:i:s', time() + (int)($c['lock_minutes'] ?? 10) * 60);
             $failed = 0;
         }
-        $up = db()->prepare('UPDATE lp_users SET failed_count = ?, locked_until = ? WHERE user_id = ?');
-        $up->execute([$failed, $lockUntil, $user['user_id']]);
+        provider_record_failure((int)$user['user_id'], $failed, $lockUntil);
         return 'ログインIDまたはパスワードが正しくありません。';
     }
 
-    // 成功
+    // 認可：このアプリでの権限を求める（共通ユーザーDBでも app_key 単位で判定）
+    $role = resolve_role((int)$user['user_id']);
+    if ($role === null) {
+        return 'このアプリケーションの利用権限が付与されていません。管理者にお問い合わせください。';
+    }
+
     session_regenerate_id(true);
     $_SESSION['user'] = [
-        'user_id'      => (int)$user['user_id'],
-        'login_id'     => $user['login_id'],
-        'display_name' => $user['display_name'],
-        'role'         => $user['role'],
-        'must_change_pw' => (int)$user['must_change_pw'] === 1,
+        'user_id'        => (int)$user['user_id'],
+        'login_id'       => $user['login_id'],
+        'display_name'   => $user['display_name'],
+        'role'           => $role,
+        'must_change_pw' => (int)($user['must_change_pw'] ?? 0) === 1,
     ];
     $_SESSION['last_seen'] = time();
 
-    $up = db()->prepare('UPDATE lp_users SET failed_count = 0, locked_until = NULL, last_login_at = NOW() WHERE user_id = ?');
-    $up->execute([$user['user_id']]);
-
-    audit('login', $user['login_id']);
+    provider_record_success((int)$user['user_id']);
+    audit('login', $user['login_id'], 'mode=' . lp_auth_mode() . ' role=' . $role);
     return true;
 }
 
@@ -152,21 +154,28 @@ function lp_logout(): void
     session_destroy();
 }
 
-/** セッション上の権限情報を DB の最新値へ更新（自分の権限が変更された場合に反映） */
+/**
+ * セッション上の権限情報を最新の状態へ更新する。
+ * 画面を開くたびに呼ばれるため、共通ユーザーDB側で権限が変更・停止された場合は
+ * 次の画面遷移で即座に反映されます。
+ */
 function refresh_current_user(): void
 {
     $u = current_user();
     if ($u === null) {
         return;
     }
-    $st = db()->prepare('SELECT role, display_name, is_active FROM lp_users WHERE user_id = ? LIMIT 1');
-    $st->execute([$u['user_id']]);
-    $row = $st->fetch();
+    $row = provider_get_user((int)$u['user_id']);
     if (!$row || (int)$row['is_active'] !== 1) {
         lp_logout();
         return;
     }
-    $_SESSION['user']['role'] = $row['role'];
+    $role = resolve_role((int)$u['user_id']);
+    if ($role === null) {          // このアプリの利用権限が取り消された
+        lp_logout();
+        return;
+    }
+    $_SESSION['user']['role'] = $role;
     $_SESSION['user']['display_name'] = $row['display_name'];
 }
 
