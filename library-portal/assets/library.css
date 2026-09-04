@@ -285,6 +285,13 @@
 
 .lp-row-date { font-family: ui-monospace, Menlo, Consolas, monospace; font-size: .8rem; white-space: nowrap; }
 .lp-row-time { display: block; font-size: .68rem; color: var(--lp-ink-soft); }
+/* いまの版数を一覧にも出しておく（開かなくても現行版が分かるように） */
+.lp-row-ver {
+  display: inline-block; margin-top: 3px;
+  font-size: .66rem; font-weight: 700;
+  color: var(--lp-deep); background: var(--lp-green-soft);
+  border: 1px solid var(--lp-green-line); border-radius: 4px; padding: 0 6px;
+}
 .lp-row-summary {
   font-size: .84rem;
   display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical;
@@ -383,29 +390,6 @@
   background: var(--lp-white);
 }
 
-/* パネル上部：概要 */
-.lp-meta {
-  display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
-  gap: 12px 22px; padding: 14px 0 16px;
-}
-.lp-meta-item { font-size: .82rem; }
-.lp-meta-label { display: block; font-size: .68rem; font-weight: 700; letter-spacing: .04em; color: var(--lp-ink-soft); }
-.lp-meta-desc { grid-column: 1 / -1; color: #3b4741; }
-
-.lp-dl {
-  display: inline-flex; align-items: center; gap: 6px;
-  font-weight: 600; font-size: .78rem; text-decoration: none;
-  color: #fff; background: var(--lp-green);
-  border-radius: 7px; padding: 7px 14px; margin-top: 3px;
-  transition: background .16s var(--lp-ease);
-}
-.lp-dl:hover { background: var(--lp-green-bright); }
-.lp-dl-url {
-  display: block; margin-top: 5px;
-  font-family: ui-monospace, Menlo, Consolas, monospace; font-size: .68rem;
-  color: var(--lp-ink-soft); word-break: break-all;
-}
-
 /* ---------- 履歴タイムライン ---------- */
 .lp-panel-title {
   position: relative;
@@ -430,117 +414,290 @@
 }
 
 /* ============================================================
-   更新履歴：Linux の tree コマンドと同じ形の系統図
-   罫線は文字ではなく CSS の線で引く（フォントに依存せず桁が揃うため）
+   展開パネル ①：いまの姿（現況カード）
+   「この行を開いたら、まず今どうなっているかが分かる」ための帯
    ============================================================ */
-.lp-tree {
-  --lp-tree-line: #9cc4ad;
-  --lp-tree-elbow: 15px;   /* 縦線から横線が分岐する高さ */
-  font-size: .8rem;
-  padding-bottom: 2px;
+.lp-now {
+  position: relative;
+  margin: 14px 0 0;
+  padding: 15px 18px 16px;
+  background: linear-gradient(180deg, #f3f9f5 0%, var(--lp-white) 100%);
+  border: 1px solid var(--lp-green-line);
+  border-left: 4px solid var(--lp-green);
+  border-radius: 9px;
 }
-.lp-tree-root {
-  display: flex; align-items: center; gap: 8px;
-  font-weight: 700; font-size: .84rem; color: var(--lp-deep);
-  padding-bottom: 2px;
+.lp-now-head {
+  display: flex; align-items: center; flex-wrap: wrap; gap: 10px;
 }
-.lp-tree-root-icon { color: var(--lp-green); display: inline-flex; }
-.lp-tree-root-id {
+.lp-now-label {
+  font-size: .64rem; font-weight: 700; letter-spacing: .14em;
+  color: #fff; background: var(--lp-deep);
+  border-radius: 4px; padding: 3px 8px;
+}
+.lp-now-ver {
   font-family: ui-monospace, Menlo, Consolas, monospace;
-  font-size: .7rem; font-weight: 600; color: var(--lp-ink-soft);
+  font-size: 1.35rem; font-weight: 700; line-height: 1.1;
+  color: var(--lp-deep); letter-spacing: -.01em;
+}
+.lp-now-when { font-size: .72rem; color: var(--lp-ink-soft); }
+.lp-now-head .lp-dl { margin: 0 0 0 auto; }
+.lp-now-desc {
+  margin-top: 11px; font-size: .82rem; line-height: 1.75; color: #33403a;
+}
+.lp-now-facts {
+  display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: 10px 20px; margin-top: 13px;
+  padding-top: 12px; border-top: 1px dashed var(--lp-green-line);
+}
+.lp-now-facts dt {
+  font-size: .66rem; font-weight: 700; letter-spacing: .04em; color: var(--lp-ink-soft);
+}
+.lp-now-facts dd { margin: 2px 0 0; font-size: .84rem; font-weight: 600; color: var(--lp-ink); }
+.lp-now .lp-dl-url {
+  margin-top: 10px; padding-top: 9px; border-top: 1px dashed var(--lp-green-line);
 }
 
-.lp-tree ul { list-style: none; margin: 0; padding: 0; }
-.lp-tree > ul { padding-left: 3px; }
-.lp-tree li { position: relative; padding-left: 24px; }
-/* 縦の幹 */
-.lp-tree li::before {
-  content: ""; position: absolute; left: 0; top: 0; bottom: 0;
-  width: 2px; background: var(--lp-tree-line);
+.lp-dl {
+  display: inline-flex; align-items: center; gap: 6px;
+  font-weight: 700; font-size: .78rem; text-decoration: none;
+  color: #fff; background: var(--lp-green);
+  border-radius: 7px; padding: 7px 14px;
+  transition: background .16s var(--lp-ease), box-shadow .16s var(--lp-ease);
+}
+.lp-dl:hover { background: var(--lp-green-bright); box-shadow: 0 4px 14px rgba(0, 227, 92, .35); }
+.lp-dl-url {
+  display: block;
+  font-family: ui-monospace, Menlo, Consolas, monospace; font-size: .68rem;
+  color: var(--lp-ink-soft); word-break: break-all;
+}
+
+/* ============================================================
+   展開パネル ②：版数の道のり（出発点 → … → いま）
+   ============================================================ */
+.lp-road { margin-top: 16px; }
+.lp-road-label {
+  display: block; font-size: .66rem; font-weight: 700; letter-spacing: .1em;
+  color: var(--lp-ink-soft); margin-bottom: 8px;
+}
+.lp-road-track {
+  list-style: none; margin: 0; padding: 0 0 4px;
+  /* 折り返すと矢羽根のつながりが切れるので、横に流して必要なら横スクロールさせる */
+  display: flex; flex-wrap: nowrap; gap: 0;
+  overflow-x: auto; scrollbar-width: thin;
+}
+.lp-road-step {
+  position: relative; flex: none;
+  padding: 7px 16px 7px 18px;
+  background: #f2f6f3; border: 1px solid var(--lp-line-strong);
+  border-left: none;
+  display: flex; flex-direction: column; gap: 1px; min-width: 96px;
+}
+.lp-road-step:first-child {
+  border-left: 1px solid var(--lp-line-strong);
+  border-radius: 7px 0 0 7px; padding-left: 13px;
+}
+.lp-road-step:last-child { border-radius: 0 7px 7px 0; }
+.lp-road-step:first-child:last-child { border-radius: 7px; }
+/* 段と段のあいだの「く」の字（矢羽根）を、線ではなく面で作る */
+.lp-road-step:not(:first-child)::before {
+  content: ""; position: absolute; left: -1px; top: 50%;
+  width: 9px; height: 9px; margin-top: -5px;
+  border-top: 1px solid var(--lp-line-strong);
+  border-right: 1px solid var(--lp-line-strong);
+  transform: rotate(45deg);
+  background: inherit;
+}
+.lp-road-ver {
+  font-family: ui-monospace, Menlo, Consolas, monospace;
+  font-size: .8rem; font-weight: 700; color: var(--lp-ink);
+}
+.lp-road-when { font-size: .65rem; color: var(--lp-ink-soft); }
+.lp-road-kind { font-size: .65rem; color: var(--lp-ink-soft); }
+.lp-road-step.is-now {
+  background: var(--lp-green); border-color: var(--lp-green);
+}
+.lp-road-step.is-now::before { border-color: var(--lp-green); }
+.lp-road-step.is-now .lp-road-ver { color: #fff; }
+.lp-road-step.is-now .lp-road-when,
+.lp-road-step.is-now .lp-road-kind { color: rgba(255, 255, 255, .82); }
+.lp-road-step.is-now .lp-road-kind { font-weight: 700; letter-spacing: .08em; }
+
+/* ============================================================
+   展開パネル ③：ここに至るまでの更新
+   一本の幹（縦線）に更新がぶら下がり、その先に「直したファイル」の表が付く
+   ============================================================ */
+.lp-panel-title-sub {
+  margin-left: auto; font-size: .68rem; font-weight: 500; color: var(--lp-ink-soft);
+  letter-spacing: 0;
+}
+
+.lp-hist {
+  --lp-spine: #c2ddcd;
+  list-style: none; margin: 0; padding: 0;
+}
+.lp-hist-item {
+  position: relative;
+  padding: 0 0 16px 30px;
+}
+/* 幹：更新と更新をつなぐ縦線 */
+.lp-hist-item::before {
+  content: ""; position: absolute; left: 10px; top: 6px; bottom: -2px;
+  width: 2px; background: var(--lp-spine);
   transform-origin: top center;
 }
-/* 最後の枝は「└」になるよう、縦線を分岐点で止める */
-.lp-tree li:last-child::before { bottom: auto; height: var(--lp-tree-elbow); }
-/* 横の枝 */
-.lp-tree li::after {
-  content: ""; position: absolute; left: 0; top: var(--lp-tree-elbow);
-  width: 17px; height: 2px; background: var(--lp-tree-line);
-  transform-origin: left center;
-}
-.lp-tree-row {
-  display: flex; align-items: baseline; flex-wrap: wrap; gap: 7px;
-  padding: 4px 0 5px;
-  min-height: calc(var(--lp-tree-elbow) + 8px);
-}
-
-/* 更新（第1階層）の行 */
-.lp-tree-update > .lp-tree-row { padding-top: 5px; }
-.lp-tree-date {
+.lp-hist-item:last-child::before { display: none; }
+/* 節：何回目の更新か */
+.lp-hist-no {
+  position: absolute; left: 0; top: 0;
+  width: 22px; height: 22px; border-radius: 50%;
+  display: grid; place-items: center;
   font-family: ui-monospace, Menlo, Consolas, monospace;
-  font-weight: 700; font-size: .78rem; color: var(--lp-ink);
+  font-size: .68rem; font-weight: 700;
+  color: var(--lp-ink-soft); background: #fff;
+  border: 2px solid var(--lp-spine);
+  z-index: 1;
 }
-.lp-tree-author { font-size: .75rem; color: var(--lp-ink-soft); }
-.lp-tree-latest {
-  font-size: .64rem; font-weight: 700; letter-spacing: .06em;
-  background: var(--lp-gold); color: var(--lp-ink);
-  border-radius: 4px; padding: 1px 6px;
+.lp-hist-item.is-latest > .lp-hist-no {
+  color: #fff; background: var(--lp-green); border-color: var(--lp-green);
+  box-shadow: 0 0 0 4px rgba(0, 227, 92, .18);
 }
-/* 最新の更新は枝を濃い緑にして目立たせる（幹はつなぎ役なので控えめに） */
-.lp-tree-update.is-latest::after { background: var(--lp-green); height: 3px; }
-.lp-tree-update.is-latest::before { background: var(--lp-green-line); }
+.lp-hist-item.is-first > .lp-hist-no { border-style: dashed; }
 
-/* 属性（第2階層：更新内容・対象機能・修正ファイル） */
-.lp-tree-key {
-  font-size: .66rem; font-weight: 700; letter-spacing: .04em;
-  color: var(--lp-ink-soft);
-  background: #eef3f0; border: 1px solid var(--lp-line);
-  border-radius: 4px; padding: 1px 7px; white-space: nowrap;
+.lp-hist-card {
+  background: var(--lp-white);
+  border: 1px solid var(--lp-line-strong);
+  border-radius: 9px;
+  padding: 12px 15px 13px;
+  transition: border-color .18s var(--lp-ease), box-shadow .18s var(--lp-ease);
 }
-.lp-tree-val { font-size: .8rem; color: #33403a; }
-.lp-tree-val-strong { font-weight: 600; color: var(--lp-ink); }
+.lp-hist-card:hover {
+  border-color: var(--lp-green-line);
+  box-shadow: 0 4px 18px rgba(0, 122, 51, .10);
+}
+.lp-hist-item.is-latest > .lp-hist-card {
+  border-color: var(--lp-green);
+  box-shadow: 0 4px 18px rgba(0, 122, 51, .12);
+}
 
-/* ファイル（第3階層） */
-.lp-tree-file > .lp-tree-row { padding: 2px 0 3px; }
-.lp-tree-path {
+.lp-hist-head {
+  display: flex; align-items: center; flex-wrap: wrap; gap: 8px;
+  padding-bottom: 9px; border-bottom: 1px solid var(--lp-line);
+}
+.lp-hist-when {
   font-family: ui-monospace, Menlo, Consolas, monospace;
-  font-size: .71rem; color: #46554d; word-break: break-word;
+  font-size: .76rem; font-weight: 700; color: var(--lp-ink);
 }
-.lp-tree-path b { font-weight: 700; color: var(--lp-deep); }
+.lp-hist-time { margin-left: 6px; font-weight: 500; color: var(--lp-ink-soft); }
+.lp-hist-tags { margin-left: auto; display: inline-flex; gap: 6px; }
+.lp-hist-tag {
+  font-size: .63rem; font-weight: 700; letter-spacing: .06em;
+  border-radius: 4px; padding: 2px 7px; white-space: nowrap;
+}
+.lp-hist-tag-now { background: var(--lp-green); color: #fff; }
+.lp-hist-tag-start { background: var(--lp-gold-soft); border: 1px solid var(--lp-gold-line); color: var(--lp-gold-dark); }
 
-/* tree コマンドの末尾表示にならった集計行 */
-.lp-tree-foot {
+/* 版数の遷移 v1.2.0 → v1.4.0 */
+.lp-jump {
+  display: inline-flex; align-items: center; gap: 5px;
+  font-family: ui-monospace, Menlo, Consolas, monospace; font-size: .72rem;
+  background: #f2f6f3; border: 1px solid var(--lp-line-strong);
+  border-radius: 5px; padding: 2px 8px;
+}
+.lp-jump-from { color: var(--lp-ink-soft); text-decoration: line-through; text-decoration-thickness: 1px; }
+.lp-jump-arrow { display: inline-flex; color: var(--lp-green); }
+.lp-jump-to { font-weight: 700; color: var(--lp-deep); }
+
+/* この更新で何をしたのか（一番読ませたい一文） */
+.lp-hist-what {
+  margin: 11px 0 0;
+  font-size: .92rem; font-weight: 600; line-height: 1.7; color: var(--lp-ink);
+}
+.lp-hist-meta { display: flex; flex-wrap: wrap; gap: 7px; margin-top: 10px; }
+.lp-hist-chip {
+  display: inline-flex; align-items: center; gap: 6px;
+  font-size: .74rem; color: #33403a;
+  background: #f4f7f5; border: 1px solid var(--lp-line);
+  border-radius: 999px; padding: 3px 11px 3px 4px;
+}
+.lp-hist-chip > span {
+  font-size: .63rem; font-weight: 700; letter-spacing: .04em;
+  color: var(--lp-ink-soft); background: #fff;
+  border: 1px solid var(--lp-line); border-radius: 999px; padding: 1px 7px;
+}
+
+/* 実際に直したプログラム・ファイル */
+.lp-hist-files { margin-top: 12px; }
+.lp-hist-files-cap {
+  display: inline-flex; align-items: center; gap: 7px;
+  font-size: .68rem; font-weight: 700; letter-spacing: .04em; color: var(--lp-deep);
+}
+.lp-hist-files-cap::before {
+  content: ""; width: 12px; height: 2px; background: var(--lp-green); border-radius: 1px;
+}
+.lp-files {
+  width: 100%; margin-top: 7px;
+  border-collapse: separate; border-spacing: 0;
+  border: 1px solid var(--lp-line-strong); border-radius: 7px;
+  overflow: hidden;
+  table-layout: fixed;
+}
+.lp-files th {
+  text-align: left;
+  font-size: .63rem; font-weight: 700; letter-spacing: .06em;
+  color: #fff; background: var(--lp-deep);
+  padding: 5px 11px;
+}
+.lp-files th:first-child { width: 46%; }
+.lp-files td {
+  padding: 7px 11px; font-size: .76rem; color: #33403a;
+  border-top: 1px solid var(--lp-line);
+  vertical-align: top; word-break: break-word;
+}
+.lp-files tbody tr:nth-child(even) td { background: #f8fbf9; }
+.lp-files tbody tr:hover td { background: var(--lp-neon-soft); }
+.lp-files-path code {
   font-family: ui-monospace, Menlo, Consolas, monospace;
-  font-size: .69rem; color: var(--lp-ink-soft);
-  padding: 8px 0 0 3px;
+  font-size: .74rem; font-weight: 600; color: var(--lp-deep);
+}
+.lp-files-round {
+  display: inline-block; margin-left: 7px;
+  font-size: .62rem; font-weight: 700;
+  color: var(--lp-gold-dark); background: var(--lp-gold-soft);
+  border: 1px solid var(--lp-gold-line); border-radius: 999px; padding: 0 7px;
+}
+.lp-files-none, .lp-hist-empty {
+  margin-top: 7px; font-size: .76rem; color: var(--lp-ink-soft);
 }
 
-/* ---- 展開時：幹→枝→葉の順に、木が描かれていくように表示する ---- */
-@keyframes lp-tree-row-in {
-  from { opacity: 0; transform: translateX(-8px); }
+/* ---- 展開時：上から順に、幹が伸びて記録が現れる ---- */
+@keyframes lp-hist-in {
+  from { opacity: 0; transform: translateX(-10px); }
   to   { opacity: 1; transform: translateX(0); }
 }
-@keyframes lp-tree-spine-in { from { transform: scaleY(0); } to { transform: scaleY(1); } }
-@keyframes lp-tree-elbow-in { from { transform: scaleX(0); } to { transform: scaleX(1); } }
-
-.lp-row.is-open .lp-tree-row {
-  animation: lp-tree-row-in .34s var(--lp-ease) both;
-  animation-delay: calc(200ms + var(--d, 0) * 45ms);
+@keyframes lp-hist-spine {
+  from { transform: scaleY(0); }
+  to   { transform: scaleY(1); }
 }
-.lp-row.is-open .lp-tree li::before {
-  animation: lp-tree-spine-in .3s var(--lp-ease) both;
-  animation-delay: calc(170ms + var(--d, 0) * 45ms);
+@keyframes lp-road-in {
+  from { opacity: 0; transform: translateY(6px); }
+  to   { opacity: 1; transform: translateY(0); }
 }
-.lp-row.is-open .lp-tree li::after {
-  animation: lp-tree-elbow-in .24s var(--lp-ease) both;
-  animation-delay: calc(200ms + var(--d, 0) * 45ms);
+.lp-row.is-open .lp-hist-card,
+.lp-row.is-open .lp-hist-no {
+  animation: lp-hist-in .34s var(--lp-ease) both;
+  animation-delay: calc(210ms + var(--d, 0) * 70ms);
 }
-.lp-row.is-open .lp-tree-root {
-  animation: lp-tree-row-in .3s var(--lp-ease) both;
-  animation-delay: 130ms;
+.lp-row.is-open .lp-hist-item::before {
+  animation: lp-hist-spine .34s var(--lp-ease) both;
+  animation-delay: calc(250ms + var(--d, 0) * 70ms);
 }
-.lp-row.is-open .lp-tree-foot {
-  animation: lp-tree-row-in .3s var(--lp-ease) both;
-  animation-delay: calc(240ms + var(--dmax, 0) * 45ms);
+.lp-row.is-open .lp-now {
+  animation: lp-road-in .34s var(--lp-ease) both;
+  animation-delay: 70ms;
+}
+.lp-row.is-open .lp-road-step {
+  animation: lp-road-in .3s var(--lp-ease) both;
+  animation-delay: calc(150ms + var(--d, 0) * 55ms);
 }
 
 .lp-target-name { font-weight: 600; }
@@ -603,6 +760,12 @@
 .lp-field { display: flex; flex-direction: column; gap: 5px; flex: 1; }
 .lp-field-row { display: flex; gap: 12px; flex-wrap: wrap; }
 .lp-field-label { font-size: .75rem; font-weight: 700; color: var(--lp-ink-soft); }
+.lp-field-hint { display: block; margin-top: 5px; font-size: .7rem; line-height: 1.7; color: var(--lp-ink-soft); }
+.lp-field-hint code {
+  font-family: ui-monospace, Menlo, Consolas, monospace; font-size: .69rem;
+  background: #f2f6f3; border: 1px solid var(--lp-line); border-radius: 4px; padding: 0 5px;
+  color: var(--lp-deep);
+}
 .lp-field-label em {
   font-style: normal; font-size: .65rem; color: var(--lp-danger);
   border: 1px solid var(--lp-danger-line); background: var(--lp-danger-soft);

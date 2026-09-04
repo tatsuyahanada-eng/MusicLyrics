@@ -33,6 +33,10 @@ const ICON_ROOT = `<svg viewBox="0 0 24 24" width="14" height="14" fill="none" s
   stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
   <path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg>`;
 
+/* 版数の遷移（v1.2.0 → v1.4.0）に使う矢印 */
+const ICON_ARROW = `<svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor"
+  stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h13"/><path d="m12 5 7 7-7 7"/></svg>`;
+
 /* 種別ごとのアイコン（一覧で種類をひと目で見分けられるように） */
 const SVG = (paths) => `<svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor"
   stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round">${paths}</svg>`;
@@ -107,7 +111,8 @@ async function loadItems() {
 
 /* ---------- 絞り込み ---------- */
 function historyMatches(h, q) {
-  return [h.summary, h.target, h.author, h.kind, h.version, h.ticket, (h.files || []).join(' ')]
+  const files = normFiles(h).map((f) => `${f.path} ${f.note}`).join(' ');
+  return [h.summary, h.target, h.author, h.kind, h.version, h.ticket, files]
     .join(' ').toLowerCase().includes(q);
 }
 
@@ -132,83 +137,169 @@ function visibleItems() {
   return list;
 }
 
-/* ---------- 更新履歴のツリー（tree コマンド風） ----------
-   ・幹／枝の罫線は CSS で描く（library.css の .lp-tree を参照）
+/* ---------- 更新履歴 ----------
+   「何を、どのファイルで直して、いまの版に至ったのか」を軸に組み立てる。
+   ・幹（縦線）と枝は CSS の罫線で描く（library.css の .lp-hist / .lp-files）
    ・--d には上から数えた表示順を入れ、開いたときに順に描かれるようにする   */
-function historyTree(it) {
-  let seq = 0;                                   // 表示順（描画アニメーションの順番）
-  const step = () => Math.min(seq++, 16);        // 件数が多くても待ち時間が延びすぎないよう上限を設ける
 
-  // 「ファイル名 : 修正内容」を分けて表示する
-  const filePath = (f) => {
-    const m = String(f).split(/\s+:\s+/);
-    return m.length > 1
-      ? `<b>${esc(m[0])}</b> : ${esc(m.slice(1).join(' : '))}`
-      : `<b>${esc(f)}</b>`;
-  };
+/** files は旧形式（"パス : 内容" の文字列）と新形式（{path, note}）の両方を受ける */
+function normFiles(h) {
+  return (h.files || []).map((f) => {
+    if (f && typeof f === 'object') return { path: String(f.path || ''), note: String(f.note || '') };
+    const parts = String(f).split(/\s+:\s+/);
+    return { path: parts[0], note: parts.slice(1).join(' : ') };
+  }).filter((f) => f.path);
+}
 
-  const updates = it.history.map((e, i) => {
-    const d = step();                            // 更新そのもの（第1階層）
-    const attrs = [];
+/** 同じファイルを何度直したか（古い順に 1, 2, 3 …）を数えておく */
+function fileRounds(it) {
+  const seen = new Map();
+  const rounds = new Map();                        // 「古い順の位置 + パス」→ 何回目か
+  [...it.history].reverse().forEach((h, oldIdx) => {
+    normFiles(h).forEach((f) => {
+      const n = (seen.get(f.path) || 0) + 1;
+      seen.set(f.path, n);
+      rounds.set(oldIdx + ' ' + f.path, n);
+    });
+  });
+  return { rounds, total: seen };
+}
 
-    const dSummary = step();
-    attrs.push(`
-      <li class="lp-tree-attr"><span class="lp-tree-row" style="--d:${dSummary}">
-        <span class="lp-tree-key">更新内容</span>
-        <span class="lp-tree-val lp-tree-val-strong">${esc(e.summary)}</span>
-      </span></li>`);
+/** 版数の道のり（出発点 → … → いま）。版数が一つも無いときは出さない */
+function versionRoad(it) {
+  const chain = [...it.history].reverse()
+    .filter((h) => h.version)
+    .filter((h, i, arr) => i === 0 || h.version !== arr[i - 1].version);
+  if (chain.length < 2) return '';                 // 版が1つだけなら「道のり」にならないので出さない
 
-    const dTarget = step();
-    attrs.push(`
-      <li class="lp-tree-attr"><span class="lp-tree-row" style="--d:${dTarget}">
-        <span class="lp-tree-key">対象機能</span>
-        <span class="lp-tree-val">${esc(e.target)}</span>
-      </span></li>`);
-
-    if (e.files && e.files.length) {
-      const dFiles = step();
-      const files = e.files.map((f) => `
-        <li class="lp-tree-file"><span class="lp-tree-row" style="--d:${step()}">
-          <span class="lp-tree-path">${filePath(f)}</span>
-        </span></li>`).join('');
-      attrs.push(`
-        <li class="lp-tree-attr"><span class="lp-tree-row" style="--d:${dFiles}">
-          <span class="lp-tree-key">修正ファイル</span>
-          <span class="lp-tree-val">${e.files.length} 件</span>
-        </span>
-        <ul>${files}</ul></li>`);
-    }
-
+  const steps = chain.map((h, i) => {
+    const isNow = i === chain.length - 1;
     return `
-      <li class="lp-tree-update${i === 0 ? ' is-latest' : ''}">
-        <span class="lp-tree-row" style="--d:${d}">
-          <span class="lp-tree-date">${fmtDate(e.date)} ${esc(e.time)}</span>
-          ${kindBadge(e.kind)}
-          ${e.version ? `<span class="lp-ver">${esc(e.version)}</span>` : ''}
-          <span class="lp-tree-author">${esc(e.author)}</span>
-          ${e.ticket ? `<span class="lp-ticket">${esc(e.ticket)}</span>` : ''}
-          ${i === 0 ? '<span class="lp-tree-latest">最新</span>' : ''}
-        </span>
-        <ul>${attrs.join('')}</ul>
+      <li class="lp-road-step${isNow ? ' is-now' : ''}" style="--d:${i}">
+        <span class="lp-road-ver">${esc(h.version)}</span>
+        <span class="lp-road-when">${fmtDate(h.date)}</span>
+        <span class="lp-road-kind">${isNow ? 'いま' : esc(h.kind)}</span>
       </li>`;
   }).join('');
 
-  const fileCount = it.history.reduce((n, e) => n + ((e.files && e.files.length) || 0), 0);
-  const body = it.history.length
-    ? `<ul>${updates}</ul>
-       <p class="lp-tree-foot" style="--dmax:${seq}">更新 ${it.history.length} 件、修正ファイル ${fileCount} 件</p>`
-    : `<ul><li class="lp-tree-attr"><span class="lp-tree-row" style="--d:0">
-         <span class="lp-tree-val lp-muted">更新履歴はまだ登録されていません。</span>
-       </span></li></ul>`;
+  return `
+    <div class="lp-road">
+      <span class="lp-road-label">版数の道のり</span>
+      <ol class="lp-road-track">${steps}</ol>
+    </div>`;
+}
+
+/** 1件の更新で直したファイルの一覧表 */
+function fileTable(files, oldIdx, rounds, total) {
+  if (!files.length) return '<p class="lp-files-none">ファイル単位の記録はありません。</p>';
+
+  const rows = files.map((f) => {
+    const n = rounds.get(oldIdx + ' ' + f.path) || 1;
+    const many = (total.get(f.path) || 1) > 1;
+    return `
+      <tr>
+        <td class="lp-files-path">
+          <code>${esc(f.path)}</code>
+          ${many ? `<span class="lp-files-round" title="このファイルを直した回数">${n} 回目</span>` : ''}
+        </td>
+        <td class="lp-files-note">${f.note ? esc(f.note) : '<span class="lp-muted">—</span>'}</td>
+      </tr>`;
+  }).join('');
 
   return `
-    <div class="lp-tree">
-      <div class="lp-tree-root">
-        <span class="lp-tree-root-icon">${ICON_ROOT}</span>
-        <span>${esc(it.name)}</span>
-        <span class="lp-tree-root-id">${esc(it.id)}</span>
+    <table class="lp-files">
+      <thead><tr><th>直したファイル</th><th>直した内容</th></tr></thead>
+      <tbody>${rows}</tbody>
+    </table>`;
+}
+
+/** 更新の記録（新しい順に、幹でつないだ一本の流れとして並べる） */
+function historyList(it) {
+  if (!it.history.length) {
+    return '<p class="lp-hist-empty">更新履歴はまだ登録されていません。</p>';
+  }
+
+  const { rounds, total } = fileRounds(it);
+  const n = it.history.length;
+
+  const rows = it.history.map((e, i) => {
+    const oldIdx = n - 1 - i;                      // 古い順に数えたときの位置
+    const prev = it.history[i + 1] || null;        // ひとつ前（より古い）の更新
+    const files = normFiles(e);
+    const d = Math.min(i, 12);                     // 件数が多くても待ち時間が延びないよう上限
+
+    // 同じ版のままの修正では「→」を出さない（v2.3.0 → v2.3.0 と見えてしまうため）
+    const from = prev && prev.version !== e.version ? prev.version : '';
+    const jump = e.version
+      ? `<span class="lp-jump">${from
+            ? `<span class="lp-jump-from">${esc(from)}</span><span class="lp-jump-arrow" aria-hidden="true">${ICON_ARROW}</span>`
+            : ''}<span class="lp-jump-to">${esc(e.version)}</span></span>`
+      : '';
+
+    const tags =
+      (i === 0 ? '<span class="lp-hist-tag lp-hist-tag-now">いまの姿</span>' : '') +
+      (prev ? '' : '<span class="lp-hist-tag lp-hist-tag-start">出発点</span>');
+
+    return `
+      <li class="lp-hist-item${i === 0 ? ' is-latest' : ''}${prev ? '' : ' is-first'}" style="--d:${d}">
+        <span class="lp-hist-no" aria-hidden="true">${oldIdx + 1}</span>
+        <div class="lp-hist-card">
+          <div class="lp-hist-head">
+            <span class="lp-hist-when">${fmtDate(e.date)}<span class="lp-hist-time">${esc(e.time)}</span></span>
+            ${kindBadge(e.kind)}
+            ${jump}
+            ${tags ? `<span class="lp-hist-tags">${tags}</span>` : ''}
+          </div>
+
+          <p class="lp-hist-what">${esc(e.summary)}</p>
+
+          <div class="lp-hist-meta">
+            <span class="lp-hist-chip"><span>対象機能</span>${esc(e.target)}</span>
+            <span class="lp-hist-chip"><span>対応者</span>${esc(e.author)}</span>
+            ${e.ticket ? `<span class="lp-hist-chip"><span>管理番号</span>${esc(e.ticket)}</span>` : ''}
+          </div>
+
+          <div class="lp-hist-files">
+            <span class="lp-hist-files-cap">実際に直したプログラム・ファイル（${files.length} 件）</span>
+            ${fileTable(files, oldIdx, rounds, total)}
+          </div>
+        </div>
+      </li>`;
+  }).join('');
+
+  return `<ol class="lp-hist">${rows}</ol>`;
+}
+
+/** パネル冒頭：このアイテムが「いま」どうなっているか */
+function nowCard(it) {
+  const h = latest(it);
+  const url = safeUrl(it.downloadUrl);
+  const fileCount = it.history.reduce((sum, e) => sum + normFiles(e).length, 0);
+  const touched = new Set();
+  it.history.forEach((e) => normFiles(e).forEach((f) => touched.add(f.path)));
+
+  return `
+    <div class="lp-now">
+      <div class="lp-now-head">
+        <span class="lp-now-label">いまの版</span>
+        <span class="lp-now-ver">${h && h.version ? esc(h.version) : '版数なし'}</span>
+        <span class="lp-now-when">${h
+          ? `${fmtDate(h.date)} ${esc(h.time)} の更新まで反映`
+          : 'まだ更新は登録されていません'}</span>
+        ${url ? `<a class="lp-dl" href="${esc(url)}" target="_blank" rel="noopener">${ICON_EXTERNAL}<span>開く</span></a>` : ''}
       </div>
-      ${body}
+
+      ${it.description ? `<p class="lp-now-desc">${esc(it.description)}</p>` : ''}
+
+      <dl class="lp-now-facts">
+        <div><dt>公開開始</dt><dd>${fmtDate(it.createdAt)}</dd></div>
+        <div><dt>これまでの更新</dt><dd>${it.history.length} 回</dd></div>
+        <div><dt>直したファイル</dt><dd>延べ ${fileCount} 件 ／ ${touched.size} 種類</dd></div>
+        <div><dt>作成者</dt><dd>${esc(it.creator)}</dd></div>
+        <div><dt>最終対応者</dt><dd>${h ? esc(h.author) : '—'}</dd></div>
+      </dl>
+
+      ${url ? `<p class="lp-dl-url">${esc(url)}</p>` : ''}
     </div>`;
 }
 
@@ -227,7 +318,8 @@ function rowHtml(it) {
         <span class="lp-row-name">${esc(it.name)}</span>
         <span class="lp-row-id">${esc(it.id)} ／ ${esc(it.creator)}</span>
       </span>
-      <span class="lp-row-date">${h ? fmtDate(h.date) : '—'}<span class="lp-row-time">${h ? esc(h.time) : ''}</span></span>
+      <span class="lp-row-date">${h ? fmtDate(h.date) : '—'}<span class="lp-row-time">${h ? esc(h.time) : ''}</span>
+        ${h && h.version ? `<span class="lp-row-ver">${esc(h.version)}</span>` : ''}</span>
       <span>
         <span class="lp-row-summary">${h ? esc(h.summary) : '更新履歴なし'}</span>
         ${h ? `<span class="lp-row-target">対象機能：${esc(h.target)}</span>` : ''}
@@ -244,22 +336,14 @@ function rowHtml(it) {
     <div class="lp-panel" id="panel-${esc(it.id)}" role="region">
       <div class="lp-panel-inner">
         <div class="lp-panel-body">
-          <div class="lp-meta">
-            <span class="lp-meta-item lp-meta-desc">
-              <span class="lp-meta-label">説明</span>${esc(it.description) || '—'}
-            </span>
-            <span class="lp-meta-item"><span class="lp-meta-label">作成日</span>${fmtDate(it.createdAt)}</span>
-            <span class="lp-meta-item"><span class="lp-meta-label">作成者</span>${esc(it.creator)}</span>
-            <span class="lp-meta-item"><span class="lp-meta-label">更新件数</span>${it.history.length} 件</span>
-            <span class="lp-meta-item">
-              <span class="lp-meta-label">URL</span>
-              ${url ? `<a class="lp-dl" href="${esc(url)}" target="_blank" rel="noopener">🔗 開く</a>
-                       <span class="lp-dl-url">${esc(url)}</span>` : 'URL 未設定'}
-            </span>
-          </div>
+          ${nowCard(it)}
+          ${versionRoad(it)}
 
-          <h3 class="lp-panel-title">更新履歴（${it.history.length} 件）</h3>
-          ${historyTree(it)}
+          <h3 class="lp-panel-title">
+            ここに至るまでの更新
+            <span class="lp-panel-title-sub">新しい順／${it.history.length} 件</span>
+          </h3>
+          ${historyList(it)}
 
           ${CAN_EDIT ? `<div class="lp-panel-actions">
             <button class="lp-btn lp-btn-ghost lp-btn-sm" type="button" data-add="${esc(it.id)}">＋ このアイテムの更新を登録</button>

@@ -32,12 +32,13 @@ if ($method === 'GET') {
         'SELECT update_id, file_path, change_note FROM lp_update_files ORDER BY update_id, sort_no, file_id'
     )->fetchAll();
 
+    // 「どのファイルを、どう直したか」を分けて返す（画面側で表にして見せるため）
     $filesByUpdate = [];
     foreach ($files as $f) {
-        $line = $f['change_note'] !== null && $f['change_note'] !== ''
-            ? $f['file_path'] . ' : ' . $f['change_note']
-            : $f['file_path'];
-        $filesByUpdate[(int)$f['update_id']][] = $line;
+        $filesByUpdate[(int)$f['update_id']][] = [
+            'path' => $f['file_path'],
+            'note' => (string)($f['change_note'] ?? ''),
+        ];
     }
 
     $historyByItem = [];

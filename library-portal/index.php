@@ -23,7 +23,7 @@ $csrf    = csrf_token();
   <link rel="apple-touch-icon" href="assets/icon-192.png?v=5">
   <link rel="manifest" href="manifest.webmanifest">
   <meta name="theme-color" content="#007a33">
-  <link rel="stylesheet" href="assets/library.css?v=11">
+  <link rel="stylesheet" href="assets/library.css?v=12">
 </head>
 <body class="lp-body">
 
@@ -141,9 +141,13 @@ $csrf    = csrf_token();
                   placeholder="例）CSV出力に部署コード列を追加" required></textarea></label>
       <label class="lp-field"><span class="lp-field-label">対象機能 <em>必須</em></span>
         <input id="fTarget" class="lp-input" type="text" placeholder="例）CSV出力機能 / 月次集計処理" required></label>
-      <label class="lp-field"><span class="lp-field-label">修正したプログラム・ファイル（1行に1件）</span>
-        <textarea id="fFiles" class="lp-input lp-textarea" rows="3"
-                  placeholder="export/csvExporter.js : buildRow() に部署コードを追加&#10;db/schema/expense.sql : dept_code カラム追加"></textarea></label>
+      <label class="lp-field">
+        <span class="lp-field-label">実際に直したプログラム・ファイル</span>
+        <textarea id="fFiles" class="lp-input lp-textarea" rows="4"
+                  placeholder="export/csvExporter.js : buildRow() に部署コードを追加&#10;db/schema/expense.sql : dept_code カラム追加"></textarea>
+        <span class="lp-field-hint">1行に1件。<code>ファイルのパス</code> と <code>直した内容</code> を
+          <code> : </code>（半角スペース＋コロン＋半角スペース）で区切ると、履歴に表として並びます。</span>
+      </label>
       <label class="lp-field"><span class="lp-field-label">URL（変更がある場合のみ）</span>
         <input id="fUrl" class="lp-input" type="url" placeholder="https://share.example.co.jp/..."></label>
       <p class="lp-form-error" id="updateError" hidden></p>
@@ -226,7 +230,7 @@ $csrf    = csrf_token();
       canEdit: <?= $isAdmin ? 'true' : 'false' ?>
     };
   </script>
-  <script src="assets/library.js?v=11"></script>
+  <script src="assets/library.js?v=12"></script>
   <script src="assets/pwa.js?v=2"></script>
   <script>
     // インストール導線：すぐに実行できる端末ではその場で、それ以外は案内ページへ
