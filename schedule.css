@@ -422,11 +422,13 @@ textarea.sc-input { resize: vertical; line-height: 1.5; min-height: 2.6em; }
 .sc-vdate-sat .sc-vdate-num, .sc-vdate-sat .sc-vdate-wd { color: var(--sc-sat); }
 .sc-vdate-past { opacity: 0.55; }
 .sc-vdate-today {
-  background: var(--sc-primary);
   box-shadow: none;
 }
-.sc-vdate-today:hover { background: var(--sc-primary-hover); }
-.sc-vdate-today .sc-vdate-num, .sc-vdate-today .sc-vdate-wd, .sc-vdate-today .sc-vdate-hol { color: #fff; }
+/* 稼働可／休み希望／未定と重なっても、今日は必ず塗りつぶしが勝つようにする */
+.sc-vdate.sc-vdate-today { background: var(--sc-primary); }
+.sc-vdate.sc-vdate-today:hover { background: var(--sc-primary-hover); }
+.sc-vdate-today .sc-vdate-num, .sc-vdate-today .sc-vdate-wd, .sc-vdate-today .sc-vdate-hol,
+.sc-vdate-today .sc-mark-available, .sc-vdate-today .sc-mark-off, .sc-vdate-today .sc-mark-empty { color: #fff; }
 .sc-vdate-today-badge {
   background: #fff;
   color: var(--sc-primary);
