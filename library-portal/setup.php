@@ -55,7 +55,8 @@ $csrf = csrf_token();
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>初回セットアップ ｜ ライブラリポータル</title>
-  <link rel="stylesheet" href="assets/library.css?v=3">
+  <meta name="theme-color" content="#007a33">
+  <link rel="stylesheet" href="assets/library.css?v=4">
 </head>
 <body class="lp-body lp-body-auth">
   <main class="lp-auth">

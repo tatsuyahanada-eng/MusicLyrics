@@ -36,8 +36,8 @@ $to   = (string)($_GET['to'] ?? ($_POST['to'] ?? ''));
   <title>ログイン ｜ ライブラリポータル</title>
   <link rel="icon" href="assets/welsys-logo.jpg">
   <link rel="manifest" href="manifest.webmanifest">
-  <meta name="theme-color" content="#1257a8">
-  <link rel="stylesheet" href="assets/library.css?v=3">
+  <meta name="theme-color" content="#007a33">
+  <link rel="stylesheet" href="assets/library.css?v=4">
 </head>
 <body class="lp-body lp-body-auth">
   <main class="lp-auth">

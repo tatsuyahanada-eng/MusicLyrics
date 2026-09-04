@@ -21,8 +21,8 @@ $csrf    = csrf_token();
   <link rel="icon" href="assets/welsys-logo.jpg">
   <link rel="apple-touch-icon" href="assets/icon-192.png">
   <link rel="manifest" href="manifest.webmanifest">
-  <meta name="theme-color" content="#1257a8">
-  <link rel="stylesheet" href="assets/library.css?v=3">
+  <meta name="theme-color" content="#007a33">
+  <link rel="stylesheet" href="assets/library.css?v=4">
 </head>
 <body class="lp-body">
 
@@ -216,7 +216,7 @@ $csrf    = csrf_token();
       canEdit: <?= $isAdmin ? 'true' : 'false' ?>
     };
   </script>
-  <script src="assets/library.js?v=3"></script>
+  <script src="assets/library.js?v=4"></script>
   <script src="assets/pwa.js?v=1"></script>
 </body>
 </html>

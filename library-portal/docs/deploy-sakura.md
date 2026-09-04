@@ -107,7 +107,7 @@ HTTPS で表示していれば、そのままアプリとして追加できま�
 データを端末に残さない方針としています。オフライン時は案内画面（offline.html）を表示します。
 
 **更新の反映**：CSS / JS を修正した場合は、各ファイルを読み込んでいる箇所の
-`?v=3` の数字を上げ、`service-worker.js` の `CACHE = 'library-portal-v3'` も
+`?v=4` の数字を上げ、`service-worker.js` の `CACHE = 'library-portal-v4'` も
 同時に上げてください。次回アクセス時に新しいキャッシュへ切り替わります。
 
 ---
