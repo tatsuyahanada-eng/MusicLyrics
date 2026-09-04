@@ -51,7 +51,6 @@ final class View
 <header class="site-header">
   <div class="site-header__inner">
     <a class="brand" href="<?= h(Config::baseUrl('index.php')) ?>">
-      <img class="brand__mark" src="<?= h($asset) ?>/img/welsys-mark.png" alt="WELSYS">
       <span class="brand__title"><?= h(self::PRODUCT_NAME) ?></span>
     </a>
     <?php if ($user !== null): ?>
@@ -91,8 +90,8 @@ final class View
         ?>
 <footer class="site-footer">
   <div class="site-footer__inner">
-    <img class="site-footer__logo" src="<?= h(Config::baseUrl('assets')) ?>/img/welsys-wordmark-light.png" alt="WELSYS">
-    <span>&copy; <?= date('Y') ?> WELSYS &mdash; <?= h(self::PRODUCT_NAME) ?></span>
+    <img class="site-footer__mark" src="<?= h(Config::baseUrl('assets')) ?>/img/welsys-mark.png" alt="WELSYS">
+    <span class="site-footer__copyright">Copyright &copy; <?= date('Y') ?> ウェルシス株式会社. All rights reserved.</span>
   </div>
 </footer>
 <script>
