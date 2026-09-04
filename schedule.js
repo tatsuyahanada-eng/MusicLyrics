@@ -2115,7 +2115,7 @@ function formClient(f) {
 /** フォームの現在値から仮の予定オブジェクトを作る */
 function draftJob() {
   const f = view.form || blankForm();
-  return {
+  const draft = {
     id: view.editingId || '__draft__',
     date: f.date != null ? f.date : (view.selected || ''),
     allDay: !!f.allDay,
@@ -2133,6 +2133,10 @@ function draftJob() {
     note: f.note.trim(),
     status: f.status,
   };
+  // メモに {店舗名} などの差し込み文字が残っていても、保存時点の内容で解決しておく
+  // （業態を先に選んでからあとで店舗名を直した場合などに、古い予定を編集し直しても反映されるように）
+  draft.note = fillTemplate(draft.note, draft);
+  return draft;
 }
 
 /**
