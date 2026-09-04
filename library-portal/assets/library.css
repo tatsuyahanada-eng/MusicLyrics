@@ -165,7 +165,7 @@
 /* ---------- Column labels ---------- */
 .lp-listhead, .lp-row-head {
   display: grid;
-  grid-template-columns: 86px minmax(180px, 1.25fr) 116px minmax(230px, 2fr) 92px 78px 30px;
+  grid-template-columns: 86px minmax(180px, 1.25fr) 116px minmax(230px, 2fr) 92px 92px 30px;
   gap: 14px;
   align-items: center;
 }
@@ -179,28 +179,43 @@
 .lp-list { display: flex; flex-direction: column; gap: 7px; }
 
 .lp-row {
+  position: relative;
   background: var(--lp-white);
   border: 1px solid var(--lp-line);
-  border-left: 3px solid transparent;
   border-radius: var(--lp-radius);
   overflow: hidden;
   transform: translateY(0);
   /* 閉じる時は素直なイージングで元の位置へ戻す */
-  transition: border-color .22s var(--lp-ease), box-shadow .26s var(--lp-ease), transform .26s var(--lp-ease);
+  transition: background .22s var(--lp-ease), box-shadow .26s var(--lp-ease), transform .26s var(--lp-ease);
+}
+/* 選択のハイライト線：ホバー／展開時に左端から描き出す */
+.lp-row::before {
+  content: "";
+  position: absolute; left: 0; top: 0; bottom: 0; width: 4px;
+  background: var(--lp-green-bright);
+  transform: scaleY(0);
+  transform-origin: center;
+  transition: transform .16s var(--lp-ease), background .16s var(--lp-ease);
 }
 .lp-row:hover {
-  border-left-color: var(--lp-green-bright);
   background: var(--lp-green-soft);
   box-shadow: 0 4px 16px rgba(14, 19, 17, .10);
   transform: translateY(-1px);
 }
+.lp-row:hover::before { transform: scaleY(1); }
 .lp-row.is-open {
-  border-left-color: var(--lp-gold);
-  box-shadow: 0 10px 26px rgba(14, 19, 17, .14);
+  background: #ddf1e6;
+  box-shadow: 0 12px 30px rgba(0, 122, 51, .18);
   transform: translateY(-2px);
   /* 開く時だけ、わずかに弾む「バック」イージングでポップさせる */
-  transition: border-color .22s var(--lp-ease), box-shadow .38s var(--lp-ease),
+  transition: background .3s var(--lp-ease), box-shadow .38s var(--lp-ease),
               transform .46s cubic-bezier(.34, 1.56, .64, 1);
+}
+.lp-row.is-open::before {
+  transform: scaleY(1);
+  background: var(--lp-green);
+  /* ハイライトの線が中央から上下へ伸びるように、少し遅れてゆっくり描く */
+  transition: transform .5s cubic-bezier(.22, .61, .36, 1), background .2s var(--lp-ease);
 }
 
 .lp-row-head {
@@ -214,22 +229,6 @@
 .lp-row-name { font-weight: 700; font-size: .93rem; color: var(--lp-ink); }
 .lp-row-id { display: block; font-family: ui-monospace, Menlo, Consolas, monospace; font-size: .68rem; color: var(--lp-ink-soft); }
 
-/* 一覧の時点でアプリの入口（URL）へ直接アクセスできるリンク */
-.lp-row-link {
-  display: inline-flex; align-items: center; justify-content: center;
-  width: 22px; height: 22px; margin-left: 7px;
-  border-radius: 50%;
-  background: var(--lp-green-soft); color: var(--lp-green);
-  font-size: .78rem; text-decoration: none; vertical-align: -5px;
-  border: 1px solid var(--lp-green-line);
-  transition: background .15s var(--lp-ease), color .15s var(--lp-ease),
-              transform .15s var(--lp-ease), box-shadow .15s var(--lp-ease);
-}
-.lp-row-link:hover, .lp-row-link:focus-visible {
-  background: var(--lp-green); color: #fff; border-color: var(--lp-green);
-  transform: scale(1.12);
-  box-shadow: 0 3px 10px rgba(0, 122, 51, .35);
-}
 .lp-row-date { font-family: ui-monospace, Menlo, Consolas, monospace; font-size: .8rem; white-space: nowrap; }
 .lp-row-time { display: block; font-size: .68rem; color: var(--lp-ink-soft); }
 .lp-row-summary {
@@ -239,6 +238,25 @@
 }
 .lp-row-target { font-size: .7rem; color: var(--lp-ink-soft); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .lp-row-author { font-size: .8rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+/* 一覧の時点でアプリの入口（URL）へ直接アクセスできるリンク */
+.lp-row-url { justify-self: start; }
+.lp-url-link {
+  display: inline-flex; align-items: center; gap: 5px;
+  padding: 5px 11px;
+  border-radius: 999px;
+  background: var(--lp-green-soft); color: var(--lp-green);
+  font-size: .74rem; font-weight: 700; text-decoration: none; white-space: nowrap;
+  border: 1px solid var(--lp-green-line);
+  transition: background .15s var(--lp-ease), color .15s var(--lp-ease),
+              transform .15s var(--lp-ease), box-shadow .15s var(--lp-ease), border-color .15s var(--lp-ease);
+}
+.lp-url-link svg { flex-shrink: 0; }
+.lp-url-link:hover, .lp-url-link:focus-visible {
+  background: var(--lp-green); color: #fff; border-color: var(--lp-green);
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(0, 122, 51, .32);
+}
 
 .lp-cat {
   display: inline-block; font-size: .7rem; font-weight: 700;
@@ -271,8 +289,8 @@
 }
 .lp-row.is-open .lp-chev {
   transform: rotate(180deg);
-  background: var(--lp-gold-soft);
-  color: var(--lp-gold-dark);
+  background: var(--lp-green);
+  color: #fff;
   /* 開く方向は 180° を少し通り越してから収まる、弾みのある回転に */
   transition: transform .55s cubic-bezier(.34, 1.56, .64, 1), background .2s var(--lp-ease), color .2s var(--lp-ease);
 }
@@ -380,25 +398,32 @@
 .lp-ticket { font-family: ui-monospace, Menlo, Consolas, monospace; font-size: .68rem; color: var(--lp-ink-soft); }
 .lp-tl-summary { font-size: .86rem; font-weight: 600; margin-top: 4px; }
 
-/* 各更新の内訳（対象機能・修正ファイル）を、幹から分かれる枝として表示 */
+/* 各更新の内訳（対象機能・修正ファイル）を、幹（タイムライン）から分かれる枝として表示 */
 .lp-tl-branch {
   list-style: none;
-  margin: 9px 0 0 2px;
-  padding-left: 17px;
-  border-left: 2px dashed var(--lp-green-line);
+  position: relative;
+  margin: 8px 0 0 -18px;
+  padding-left: 21px;
+  border-left: 2px solid var(--lp-green-line);
+}
+/* 幹の丸印から、この枝の起点まで滑らかにつながって見えるように継ぎ目を作る */
+.lp-tl-branch::before {
+  content: "";
+  position: absolute; left: -2px; top: -8px; width: 2px; height: 8px;
+  background: var(--lp-green-line);
 }
 .lp-branch-node {
   position: relative;
-  padding: 0 0 11px 15px;
+  padding: 0 0 11px 16px;
   font-size: .78rem;
 }
 .lp-branch-node:last-child { padding-bottom: 0; }
 .lp-branch-node::before {
-  content: ""; position: absolute; left: -17px; top: 9px;
-  width: 13px; height: 2px; background: var(--lp-green-line);
+  content: ""; position: absolute; left: -21px; top: 9px;
+  width: 17px; height: 2px; background: var(--lp-green-line);
 }
 .lp-branch-node::after {
-  content: ""; position: absolute; left: -20px; top: 6px;
+  content: ""; position: absolute; left: -24px; top: 6px;
   width: 7px; height: 7px; border-radius: 50%;
   background: var(--lp-white); border: 2px solid var(--lp-green-bright);
 }

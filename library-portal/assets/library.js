@@ -21,6 +21,14 @@ const KIND_CLASS = {
 };
 const CAT_CLASS = { 'アプリ': 'app', 'プログラム': 'prg', '資料': 'doc', 'マニュアル': 'man' };
 
+/* 絵文字ではなく線画のアイコンを使用（サイズ・太さを他要素と揃えるため） */
+const ICON_CHEVRON = `<svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor"
+  stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg>`;
+const ICON_EXTERNAL = `<svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor"
+  stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round">
+  <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/>
+  <path d="M15 3h6v6"/><path d="M10 14 21 3"/></svg>`;
+
 /* ---------- 状態 ---------- */
 let items = [];
 const openIds = new Set();
@@ -146,8 +154,6 @@ function rowHtml(it) {
       <span><span class="lp-cat lp-cat-${CAT_CLASS[it.category] || 'prg'}">${esc(it.category)}</span></span>
       <span>
         <span class="lp-row-name">${esc(it.name)}</span>
-        ${url ? `<a class="lp-row-link" href="${esc(url)}" target="_blank" rel="noopener"
-                    title="開く（新しいタブ）" aria-label="${esc(it.name)} を開く">🔗</a>` : ''}
         <span class="lp-row-id">${esc(it.id)} ／ ${esc(it.creator)}</span>
       </span>
       <span class="lp-row-date">${h ? fmtDate(h.date) : '—'}<span class="lp-row-time">${h ? esc(h.time) : ''}</span></span>
@@ -155,9 +161,13 @@ function rowHtml(it) {
         <span class="lp-row-summary">${h ? esc(h.summary) : '更新履歴なし'}</span>
         ${h ? `<span class="lp-row-target">対象機能：${esc(h.target)}</span>` : ''}
       </span>
-      <span class="lp-row-author">${h ? esc(h.author) : '—'}</span>
-      <span>${h && h.version ? `<span class="lp-ver">${esc(h.version)}</span>` : ''}</span>
-      <span class="lp-chev" aria-hidden="true">▼</span>
+      <span class="lp-row-author">${esc(it.creator)}</span>
+      <span class="lp-row-url">
+        ${url ? `<a class="lp-url-link" href="${esc(url)}" target="_blank" rel="noopener"
+                    aria-label="${esc(it.name)} を開く">${ICON_EXTERNAL}<span>開く</span></a>`
+              : '<span class="lp-muted">—</span>'}
+      </span>
+      <span class="lp-chev" aria-hidden="true">${ICON_CHEVRON}</span>
     </div>
 
     <div class="lp-panel" id="panel-${esc(it.id)}" role="region">
@@ -382,7 +392,7 @@ async function init() {
   });
 
   $('list').addEventListener('click', (e) => {
-    if (e.target.closest('.lp-row-link')) return;   // URLを直接開く。行の開閉はしない
+    if (e.target.closest('.lp-url-link')) return;   // URLを直接開く。行の開閉はしない
     const add = e.target.closest('[data-add]');
     if (add) { openUpdateModal(add.dataset.add); return; }
     const head = e.target.closest('[data-toggle]');
@@ -392,7 +402,7 @@ async function init() {
   // 行の見出しは role="button" の div のため、Enter / Space での開閉を自前で処理する
   $('list').addEventListener('keydown', (e) => {
     if (e.key !== 'Enter' && e.key !== ' ') return;
-    if (e.target.closest('.lp-row-link')) return;    // リンク自体のキー操作は既定の動作に任せる
+    if (e.target.closest('.lp-url-link')) return;    // リンク自体のキー操作は既定の動作に任せる
     const head = e.target.closest('[data-toggle]');
     if (!head) return;
     e.preventDefault();
