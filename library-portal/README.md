@@ -49,10 +49,14 @@ WELSYS ロゴを並べて表示しています。アイコン画像を更新し�
 `docs/deploy-sakura.md` を参照してください。要点は次の 5 つです。
 
 1. さくらのコントロールパネルで MySQL データベースを作成
-2. phpMyAdmin で `sql/schema.sql` をインポート
+2. phpMyAdmin で `sql/schema.sql` → `sql/seed_admin.sql` の順にインポート
+   （ログインID `welsys` / パスワード `Password` の初期管理者が作成されます）
 3. このフォルダの中身を公開ディレクトリへ転送（`preview.html` は不要）
 4. `includes/config.sample.php` を `includes/config.php` にコピーして接続情報を記入
-5. `setup.php` で最初の管理者を作成 → **setup.php を削除**
+5. `welsys` / `Password` でログイン → **すぐにパスワードを変更** → `setup.php` を削除
+
+`seed_admin.sql` を使わず自分で最初の管理者を決めたい場合は、代わりに
+`setup.php` を実行してください（`docs/deploy-sakura.md` の手順5に両方を記載）。
 
 ## ファイル構成
 
