@@ -1,5 +1,8 @@
 <?php
-/** ログアウト用。アプリのログアウトリンクをここへ向ける。 */
+/**
+ * ログアウト用。アプリのログアウトリンクを /sso/sso_logout.php へ向ける。
+ * 他のクライアントファイルと同じ <アプリの公開ディレクトリ>/sso/ に置く。
+ */
 declare(strict_types=1);
 
 require_once __DIR__ . '/SsoClient.php';

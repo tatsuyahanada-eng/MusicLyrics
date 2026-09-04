@@ -54,7 +54,7 @@ echo "<?php\nreturn [\n";
 echo "    'idp_url'      => '" . Config::baseUrl() . "',\n";
 echo "    'app_key'      => '" . $app['app_key'] . "',\n";
 echo "    'app_secret'   => '" . $app['app_secret'] . "',\n";
-echo "    'callback_url' => '" . $app['base_url'] . "/sso_callback.php',\n";
+echo "    'callback_url' => '" . $app['base_url'] . "/sso/sso_callback.php',\n";
 echo "];\n";
 echo "-------------------------------------------\n\n";
 echo "共有秘密鍵は再表示できます（管理画面 > アプリ > 該当アプリ）。公開しないでください。\n";

@@ -135,7 +135,7 @@ View::head($isNew ? 'アプリの登録' : 'アプリの編集', $admin, 'apps')
         . "    'idp_url'      => '" . Config::baseUrl() . "',\n"
         . "    'app_key'      => '" . $app['app_key'] . "',\n"
         . "    'app_secret'   => '" . $app['app_secret'] . "',\n"
-        . "    'callback_url' => '" . $app['base_url'] . "/sso_callback.php',\n"
+        . "    'callback_url' => '" . $app['base_url'] . "/sso/sso_callback.php',\n"
         . "];\n";
     ?>
     <div class="card">
@@ -163,7 +163,7 @@ View::head($isNew ? 'アプリの登録' : 'アプリの編集', $admin, 'apps')
              . "こんにちは、<?= htmlspecialchars(\$SSO_USER['display_name']) ?> さん");
       ?></textarea>
       <p class="muted" style="margin-top:10px">
-        戻り先ページ <code><?= h($app['base_url']) ?>/sso_callback.php</code> の設置も必要です。
+        戻り先ページ <code><?= h($app['base_url']) ?>/sso/sso_callback.php</code> の設置も必要です。
         詳しくは <code>sso/README.md</code> を参照してください。
       </p>
     </div>

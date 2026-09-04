@@ -7,12 +7,12 @@
 ```
 （アプリのドキュメントルート）/
 ├── index.php            ← 既存のページ。先頭に require を1行足すだけ
-├── sso/
-│   ├── SsoClient.php    ← client/SsoClient.php をコピー
-│   ├── sso_guard.php    ← client/sso_guard.php をコピー
-│   └── sso_config.php   ← 管理画面が表示する内容を貼り付け（公開しないこと）
-├── sso_callback.php     ← client/sso_callback.php をコピー（require のパスをsso/に合わせる）
-└── sso_logout.php       ← client/sso_logout.php をコピー
+└── sso/                 ← client/ の中身をそのままコピー
+    ├── SsoClient.php
+    ├── sso_guard.php
+    ├── sso_callback.php
+    ├── sso_logout.php
+    └── sso_config.php   ← 管理画面が表示する内容を貼り付け（公開しないこと）
 ```
 
 保護したいページの先頭に、次の1行を書きます。

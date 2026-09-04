@@ -18,16 +18,16 @@ View::head('ダッシュボード', $admin, '');
   <?php View::pageTitle('User Management', '共通ユーザーデータベースとシングルサインオンの管理コンソールです。'); ?>
 
   <div class="grid">
-    <div class="card">
+    <div class="card card--stat">
       <div class="muted">登録ユーザー</div>
       <div class="stat"><?= $userCount ?></div>
       <div class="muted">うち有効 <?= $activeCount ?></div>
     </div>
-    <div class="card">
+    <div class="card card--stat">
       <div class="muted">連携アプリ（有効）</div>
       <div class="stat"><?= $appCount ?></div>
     </div>
-    <div class="card">
+    <div class="card card--stat">
       <div class="muted">現在のログインセッション</div>
       <div class="stat"><?= $sessionCount ?></div>
     </div>
