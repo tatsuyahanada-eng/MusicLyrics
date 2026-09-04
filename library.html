@@ -1,0 +1,222 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta http-equiv="Cache-Control" content="no-store">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ライブラリポータル</title>
+  <link rel="icon" href="assets/welsys-logo.jpg">
+  <link rel="stylesheet" href="library.css?v=1">
+</head>
+<body class="lp-body">
+
+  <!-- ===== Header ===== -->
+  <header class="lp-header">
+    <div class="lp-header-inner">
+      <h1 class="lp-title">
+        <img class="lp-title-logo" src="assets/welsys-logo.jpg" alt="WELSYS ロゴ">
+        <span class="lp-title-text">
+          ライブラリポータル
+          <small class="lp-title-sub">関連会社 共有ライブラリ／更新履歴管理</small>
+        </span>
+      </h1>
+      <div class="lp-header-actions">
+        <span class="lp-updated">最終同期：<span id="syncTime">—</span></span>
+        <button id="btnNewUpdate" class="lp-btn lp-btn-primary" type="button">＋ 更新を登録</button>
+      </div>
+    </div>
+  </header>
+
+  <main class="lp-main">
+
+    <!-- ===== Summary ===== -->
+    <section class="lp-stats" aria-label="サマリー">
+      <div class="lp-stat">
+        <span class="lp-stat-label">登録アイテム</span>
+        <strong class="lp-stat-value" id="statItems">0</strong>
+        <span class="lp-stat-unit">件</span>
+      </div>
+      <div class="lp-stat">
+        <span class="lp-stat-label">更新履歴</span>
+        <strong class="lp-stat-value" id="statHistory">0</strong>
+        <span class="lp-stat-unit">件</span>
+      </div>
+      <div class="lp-stat">
+        <span class="lp-stat-label">今月の更新</span>
+        <strong class="lp-stat-value" id="statMonth">0</strong>
+        <span class="lp-stat-unit">件</span>
+      </div>
+      <div class="lp-stat">
+        <span class="lp-stat-label">対応者</span>
+        <strong class="lp-stat-value" id="statMembers">0</strong>
+        <span class="lp-stat-unit">名</span>
+      </div>
+    </section>
+
+    <!-- ===== Filter bar ===== -->
+    <section class="lp-toolbar" aria-label="検索・絞り込み">
+      <div class="lp-search">
+        <span class="lp-search-icon" aria-hidden="true">🔍</span>
+        <input id="searchInput" class="lp-input lp-search-input" type="search"
+               placeholder="名称・説明・更新内容・対象機能・対応者で検索" autocomplete="off">
+      </div>
+      <select id="filterCategory" class="lp-select" aria-label="種別で絞り込み">
+        <option value="">種別：すべて</option>
+      </select>
+      <select id="filterOwner" class="lp-select" aria-label="管理部署で絞り込み">
+        <option value="">管理部署：すべて</option>
+      </select>
+      <select id="filterAuthor" class="lp-select" aria-label="対応者で絞り込み">
+        <option value="">対応者：すべて</option>
+      </select>
+      <select id="sortSelect" class="lp-select" aria-label="並び替え">
+        <option value="updated_desc">更新日が新しい順</option>
+        <option value="updated_asc">更新日が古い順</option>
+        <option value="created_desc">作成日が新しい順</option>
+        <option value="name_asc">名称順</option>
+      </select>
+      <button id="btnReset" class="lp-btn lp-btn-ghost" type="button">条件クリア</button>
+    </section>
+
+    <!-- ===== Tabs ===== -->
+    <div class="lp-tabs" role="tablist" aria-label="表示切替">
+      <button class="lp-tab is-active" data-view="library" role="tab" aria-selected="true">📚 ライブラリ一覧</button>
+      <button class="lp-tab" data-view="history" role="tab" aria-selected="false">🕒 更新履歴（全件）</button>
+    </div>
+
+    <!-- ===== View: Library ===== -->
+    <section id="viewLibrary" class="lp-view" role="tabpanel">
+      <div class="lp-table-wrap">
+        <table class="lp-table">
+          <thead>
+            <tr>
+              <th class="lp-col-name">名称 / 種別</th>
+              <th class="lp-col-created">作成日</th>
+              <th class="lp-col-latest">最新更新（日付・時間・対応者）</th>
+              <th class="lp-col-content">最新の更新内容 / 対象機能</th>
+              <th class="lp-col-ver">版数</th>
+              <th class="lp-col-dl">ダウンロード</th>
+              <th class="lp-col-desc">説明</th>
+            </tr>
+          </thead>
+          <tbody id="libraryBody"></tbody>
+        </table>
+      </div>
+      <p id="libraryEmpty" class="lp-empty" hidden>条件に一致するアイテムがありません。</p>
+    </section>
+
+    <!-- ===== View: History ===== -->
+    <section id="viewHistory" class="lp-view" role="tabpanel" hidden>
+      <div class="lp-table-wrap">
+        <table class="lp-table">
+          <thead>
+            <tr>
+              <th class="lp-col-when">更新日 / 時間</th>
+              <th class="lp-col-item">対象アイテム</th>
+              <th class="lp-col-kind">区分</th>
+              <th class="lp-col-content">更新内容</th>
+              <th class="lp-col-target">対象機能 / 修正プログラム</th>
+              <th class="lp-col-ver">版数</th>
+              <th class="lp-col-author">対応者</th>
+            </tr>
+          </thead>
+          <tbody id="historyBody"></tbody>
+        </table>
+      </div>
+      <p id="historyEmpty" class="lp-empty" hidden>条件に一致する更新履歴がありません。</p>
+    </section>
+  </main>
+
+  <footer class="lp-footer">
+    <p>ライブラリポータル（サンプル画面） ／ データはブラウザ内（localStorage）にのみ保存されます。</p>
+  </footer>
+
+  <!-- ===== Detail drawer ===== -->
+  <div id="drawerOverlay" class="lp-overlay" hidden></div>
+  <aside id="detailDrawer" class="lp-drawer" aria-label="アイテム詳細" hidden>
+    <div class="lp-drawer-head">
+      <div>
+        <p class="lp-drawer-eyebrow" id="detailMeta">—</p>
+        <h2 class="lp-drawer-title" id="detailName">—</h2>
+      </div>
+      <button id="btnCloseDrawer" class="lp-icon-btn" type="button" aria-label="閉じる">✕</button>
+    </div>
+    <div class="lp-drawer-body" id="detailBody"></div>
+  </aside>
+
+  <!-- ===== Update modal ===== -->
+  <div id="modalOverlay" class="lp-overlay" hidden></div>
+  <div id="updateModal" class="lp-modal" role="dialog" aria-modal="true" aria-labelledby="modalTitle" hidden>
+    <div class="lp-modal-head">
+      <h2 class="lp-modal-title" id="modalTitle">更新内容の登録</h2>
+      <button id="btnCloseModal" class="lp-icon-btn" type="button" aria-label="閉じる">✕</button>
+    </div>
+    <form id="updateForm" class="lp-form">
+      <label class="lp-field">
+        <span class="lp-field-label">対象アイテム <em>必須</em></span>
+        <select id="fItem" class="lp-select lp-w-full" required></select>
+      </label>
+      <div class="lp-field-row">
+        <label class="lp-field">
+          <span class="lp-field-label">更新日 <em>必須</em></span>
+          <input id="fDate" class="lp-input" type="date" required>
+        </label>
+        <label class="lp-field">
+          <span class="lp-field-label">時間 <em>必須</em></span>
+          <input id="fTime" class="lp-input" type="time" required>
+        </label>
+        <label class="lp-field">
+          <span class="lp-field-label">区分</span>
+          <select id="fKind" class="lp-select">
+            <option>機能追加</option>
+            <option>不具合修正</option>
+            <option>改善</option>
+            <option>資料改訂</option>
+            <option>初版公開</option>
+          </select>
+        </label>
+      </div>
+      <div class="lp-field-row">
+        <label class="lp-field">
+          <span class="lp-field-label">対応者 <em>必須</em></span>
+          <input id="fAuthor" class="lp-input" type="text" placeholder="山田 太郎" required>
+        </label>
+        <label class="lp-field">
+          <span class="lp-field-label">版数</span>
+          <input id="fVersion" class="lp-input" type="text" placeholder="v1.2.0">
+        </label>
+        <label class="lp-field">
+          <span class="lp-field-label">管理番号</span>
+          <input id="fTicket" class="lp-input" type="text" placeholder="WLS-1234">
+        </label>
+      </div>
+      <label class="lp-field">
+        <span class="lp-field-label">更新内容 <em>必須</em></span>
+        <textarea id="fSummary" class="lp-input lp-textarea" rows="2"
+                  placeholder="例）CSV出力に部署コード列を追加" required></textarea>
+      </label>
+      <label class="lp-field">
+        <span class="lp-field-label">対象機能 <em>必須</em></span>
+        <input id="fTarget" class="lp-input" type="text" placeholder="例）CSV出力機能 / 月締め処理" required>
+      </label>
+      <label class="lp-field">
+        <span class="lp-field-label">修正したプログラム・ファイル（1行に1件）</span>
+        <textarea id="fFiles" class="lp-input lp-textarea" rows="3"
+                  placeholder="export.js : buildCsvRow() に部署コードを追加&#10;schema/expense.sql : dept_code カラム追加"></textarea>
+      </label>
+      <label class="lp-field">
+        <span class="lp-field-label">ダウンロード先URL（変更がある場合のみ）</span>
+        <input id="fUrl" class="lp-input" type="url" placeholder="https://share.example.co.jp/...">
+      </label>
+      <div class="lp-form-actions">
+        <button type="button" id="btnCancel" class="lp-btn lp-btn-ghost">キャンセル</button>
+        <button type="submit" class="lp-btn lp-btn-primary">登録する</button>
+      </div>
+    </form>
+  </div>
+
+  <div id="toast" class="lp-toast" hidden></div>
+
+  <script src="library.js?v=1"></script>
+</body>
+</html>
