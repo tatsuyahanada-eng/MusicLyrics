@@ -18,6 +18,8 @@
   --lp-green-bright: #0f9b48;   /* ホバー・強調 */
   --lp-green-soft: #e7f3ec;     /* 淡い緑の面 */
   --lp-green-line: #c2ddcd;     /* 淡い緑の枠線 */
+  --lp-neon: #00e35c;           /* 蛍光緑：マウスオーバーのハイライト */
+  --lp-neon-soft: #dcffec;      /* 蛍光緑の淡い面 */
   --lp-deep: #00401d;           /* ディープグリーン：見出しの強調・区切り */
   --lp-gold: #ba9653;           /* ゴールド：ハイライト・展開中の目印 */
   --lp-gold-dark: #8a6a2f;      /* ゴールド（文字用） */
@@ -162,70 +164,94 @@
 .lp-chip:hover { border-color: var(--lp-green); color: var(--lp-green); }
 .lp-chip.is-on { background: var(--lp-ink); color: #fff; border-color: var(--lp-ink); }
 
-/* ---------- Column labels ---------- */
+/* ---------- 一覧は表（テーブル）の見た目に統一する ---------- */
 .lp-listhead, .lp-row-head {
   display: grid;
-  grid-template-columns: 86px minmax(180px, 1.25fr) 116px minmax(230px, 2fr) 92px 92px 30px;
+  grid-template-columns: 104px minmax(180px, 1.25fr) 116px minmax(230px, 2fr) 92px 92px 30px;
   gap: 14px;
   align-items: center;
 }
+/* 表の見出し行 */
 .lp-listhead {
-  padding: 0 18px 7px;
-  font-size: .7rem; font-weight: 700; letter-spacing: .05em;
-  color: var(--lp-deep);
+  /* ヘッダー（88px）の直下に貼り付けて、スクロールしても列名が見えるようにする */
+  position: sticky; top: 88px; z-index: 6;
+  padding: 10px 16px;
+  background: linear-gradient(180deg, var(--lp-deep) 0%, #0a5227 100%);
+  color: #fff;
+  font-size: .71rem; font-weight: 700; letter-spacing: .08em;
+  border-radius: var(--lp-radius) var(--lp-radius) 0 0;
+  border: 1px solid var(--lp-deep); border-bottom: none;
+  box-shadow: 0 2px 8px rgba(14, 19, 17, .12);
 }
 
 /* ---------- List / rows ---------- */
-.lp-list { display: flex; flex-direction: column; gap: 7px; }
+.lp-list {
+  display: flex; flex-direction: column;
+  border: 1px solid var(--lp-line-strong);
+  border-top: none;
+  border-radius: 0 0 var(--lp-radius) var(--lp-radius);
+  overflow: hidden;
+  background: var(--lp-white);
+  box-shadow: 0 2px 14px rgba(14, 19, 17, .07);
+}
 
 .lp-row {
   position: relative;
   background: var(--lp-white);
-  border: 1px solid var(--lp-line);
-  border-radius: var(--lp-radius);
+  border-bottom: 1px solid var(--lp-line);
   overflow: hidden;
-  transform: translateY(0);
-  /* 閉じる時は素直なイージングで元の位置へ戻す */
-  transition: background .22s var(--lp-ease), box-shadow .26s var(--lp-ease), transform .26s var(--lp-ease);
+  transition: background .18s var(--lp-ease), box-shadow .22s var(--lp-ease);
 }
+.lp-row:last-child { border-bottom: none; }
+/* 1行おきにごく薄く色を敷いて、横に目で追いやすくする */
+.lp-row:nth-child(even) { background: #f8fbf9; }
+
 /* 選択のハイライト線：ホバー／展開時に左端から描き出す */
 .lp-row::before {
   content: "";
   position: absolute; left: 0; top: 0; bottom: 0; width: 4px;
-  background: var(--lp-green-bright);
+  background: var(--lp-neon);
   transform: scaleY(0);
   transform-origin: center;
-  transition: transform .16s var(--lp-ease), background .16s var(--lp-ease);
+  transition: transform .16s var(--lp-ease), background .16s var(--lp-ease),
+              box-shadow .16s var(--lp-ease);
+  z-index: 2;
 }
-.lp-row:hover {
-  background: var(--lp-green-soft);
-  box-shadow: 0 4px 16px rgba(14, 19, 17, .10);
-  transform: translateY(-1px);
+/* ホバー：蛍光緑のラインと、左から薄れていく光で行を際立たせる */
+.lp-row:hover,
+.lp-row:nth-child(even):hover {
+  background: linear-gradient(90deg, var(--lp-neon-soft) 0%, #f1fff7 55%, var(--lp-white) 100%);
+  box-shadow: inset 0 0 0 1px rgba(0, 227, 92, .30);
 }
-.lp-row:hover::before { transform: scaleY(1); }
-.lp-row.is-open {
+.lp-row:hover::before {
+  transform: scaleY(1);
+  box-shadow: 0 0 14px 1px rgba(0, 227, 92, .75);
+}
+.lp-row:hover .lp-row-name { color: var(--lp-deep); }
+.lp-row:hover .lp-chev { background: var(--lp-neon); color: var(--lp-ink); }
+.lp-row:hover .lp-url-link { border-color: var(--lp-neon); background: #fff; }
+
+.lp-row.is-open,
+.lp-row.is-open:nth-child(even) {
   background: #d7efe1;
-  border-color: var(--lp-green-line);
-  box-shadow: 0 16px 38px rgba(0, 122, 51, .22);
-  transform: translateY(-3px);
+  box-shadow: 0 14px 30px rgba(0, 122, 51, .20);
+  z-index: 3;
   /* 開いた瞬間だけ、背景がふわっと明るく差してから落ち着く */
   animation: lp-row-open .7s var(--lp-ease);
-  /* 開く時だけ、わずかに弾む「バック」イージングでポップさせる */
-  transition: background .3s var(--lp-ease), box-shadow .38s var(--lp-ease),
-              transform .46s cubic-bezier(.34, 1.56, .64, 1);
+  transition: background .3s var(--lp-ease), box-shadow .38s var(--lp-ease);
 }
 .lp-row.is-open::before {
   transform: scaleY(1);
   width: 6px;
   background: var(--lp-green);
-  box-shadow: 0 0 14px rgba(0, 122, 51, .55);
+  box-shadow: 0 0 16px 1px rgba(0, 227, 92, .8);
   /* ハイライトの線が中央から上下へ伸びるように、少し遅れてゆっくり描く */
   transition: transform .5s cubic-bezier(.22, .61, .36, 1), background .2s var(--lp-ease),
               width .3s var(--lp-ease), box-shadow .4s var(--lp-ease);
 }
 @keyframes lp-row-open {
-  0%   { background: #b7e4cb; }
-  60%  { background: #d7efe1; }
+  0%   { background: #a8f5c8; }
+  55%  { background: #d7efe1; }
   100% { background: #d7efe1; }
 }
 /* 開いた瞬間に、見出し行を光が横切る */
@@ -251,7 +277,10 @@
 }
 .lp-row-head:focus-visible { outline: 2px solid var(--lp-green); outline-offset: -3px; }
 
-.lp-row-name { font-weight: 700; font-size: .93rem; color: var(--lp-ink); }
+.lp-row-name {
+  font-weight: 700; font-size: .98rem; color: var(--lp-ink);
+  transition: color .16s var(--lp-ease);
+}
 .lp-row-id { display: block; font-family: ui-monospace, Menlo, Consolas, monospace; font-size: .68rem; color: var(--lp-ink-soft); }
 
 .lp-row-date { font-family: ui-monospace, Menlo, Consolas, monospace; font-size: .8rem; white-space: nowrap; }
@@ -284,10 +313,12 @@
 }
 
 .lp-cat {
-  display: inline-block; font-size: .7rem; font-weight: 700;
-  border-radius: 5px; padding: 3px 9px; white-space: nowrap;
+  display: inline-flex; align-items: center; gap: 5px;
+  font-size: .7rem; font-weight: 700;
+  border-radius: 5px; padding: 4px 9px; white-space: nowrap;
   border: 1px solid;
 }
+.lp-cat svg { flex-shrink: 0; opacity: .9; }
 .lp-cat-app  { background: var(--lp-green-soft); border-color: var(--lp-green-line); color: var(--lp-green); }
 .lp-cat-prg  { background: #eef1ef; border-color: #d9e0db; color: var(--lp-ink); }
 .lp-cat-doc  { background: var(--lp-gold-soft); border-color: var(--lp-gold-line); color: var(--lp-gold-dark); }

@@ -33,6 +33,16 @@ const ICON_ROOT = `<svg viewBox="0 0 24 24" width="14" height="14" fill="none" s
   stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
   <path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg>`;
 
+/* 種別ごとのアイコン（一覧で種類をひと目で見分けられるように） */
+const SVG = (paths) => `<svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor"
+  stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round">${paths}</svg>`;
+const CAT_ICON = {
+  'アプリ':     SVG('<rect x="3" y="3" width="18" height="18" rx="3"/><path d="M3 9h18M9 21V9"/>'),
+  'プログラム': SVG('<path d="m9 17-5-5 5-5"/><path d="m15 7 5 5-5 5"/>'),
+  '資料':       SVG('<path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5"/>'),
+  'マニュアル': SVG('<path d="M4 5.5A2.5 2.5 0 0 1 6.5 3H19v15H6.5A2.5 2.5 0 0 0 4 20.5z"/><path d="M4 20.5A2.5 2.5 0 0 1 6.5 18H19v3H6.5"/>')
+};
+
 /* ---------- 状態 ---------- */
 let items = [];
 const openIds = new Set();
@@ -212,7 +222,7 @@ function rowHtml(it) {
   <article class="lp-row${open ? ' is-open' : ''}" data-id="${esc(it.id)}">
     <div class="lp-row-head" role="button" tabindex="0" data-toggle="${esc(it.id)}"
          aria-expanded="${open}" aria-controls="panel-${esc(it.id)}">
-      <span><span class="lp-cat lp-cat-${CAT_CLASS[it.category] || 'prg'}">${esc(it.category)}</span></span>
+      <span><span class="lp-cat lp-cat-${CAT_CLASS[it.category] || 'prg'}">${CAT_ICON[it.category] || ''}${esc(it.category)}</span></span>
       <span>
         <span class="lp-row-name">${esc(it.name)}</span>
         <span class="lp-row-id">${esc(it.id)} ／ ${esc(it.creator)}</span>
