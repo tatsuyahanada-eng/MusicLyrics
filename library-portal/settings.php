@@ -13,7 +13,7 @@ if (($user['role'] ?? '') !== 'admin') {
     <!DOCTYPE html><html lang="ja"><head><meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>設定 ｜ ライブラリポータル</title>
-    <link rel="stylesheet" href="assets/library.css?v=13"></head>
+    <link rel="stylesheet" href="assets/library.css?v=14"></head>
     <body class="lp-body"><main class="lp-main">
       <p class="lp-empty">この画面は管理者のみ利用できます。<br><a href="index.php">ライブラリ一覧へ戻る</a></p>
     </main></body></html>
@@ -37,7 +37,7 @@ $defRole  = lp_default_role();
   <link rel="apple-touch-icon" href="assets/icon-192.png?v=5">
   <link rel="manifest" href="manifest.webmanifest">
   <meta name="theme-color" content="#007a33">
-  <link rel="stylesheet" href="assets/library.css?v=13">
+  <link rel="stylesheet" href="assets/library.css?v=14">
 </head>
 <body class="lp-body">
 
