@@ -1,10 +1,17 @@
 /* ============================================================
-   ライブラリポータル — library.js  v1
-   関連会社で共有する資料 / プログラム / アプリの更新履歴管理（サンプル）
+   ライブラリポータル — library.js  v2
+   1行 = 1アイテムのアコーディオン一覧（サンプル画面）
+
+   ■ データの供給元について
+     DATA_SOURCE = 'sample' … このファイル内のサンプル定義 + localStorage（現状）
+     DATA_SOURCE = 'api'    … バックエンド API 経由でデータベースを参照（本番想定）
+     API 接続時に必要なエンドポイントは docs/library-portal-db.md を参照。
    ============================================================ */
 'use strict';
 
-const STORAGE_KEY = 'welsys_library_portal_v1';
+const DATA_SOURCE = 'sample';           // 本番接続時は 'api' に変更
+const API_BASE = '/api/library';        // 例: https://portal.welsys.co.jp/api/library
+const STORAGE_KEY = 'welsys_library_portal_v2';
 
 /* ---------- サンプルデータ ----------
    history は新しい順に並べる（[0] が最新更新）           */
@@ -194,9 +201,17 @@ const KIND_CLASS = {
   '初版公開': 'initial'
 };
 
+const CAT_CLASS = {
+  'アプリ': 'app',
+  'プログラム': 'prg',
+  '資料': 'doc',
+  'マニュアル': 'man'
+};
+
 /* ---------- 状態 ---------- */
 let items = [];
-const state = { view: 'library', q: '', category: '', owner: '', author: '', sort: 'updated_desc' };
+const openIds = new Set();              // 開いている行の ID
+const state = { q: '', category: '', sort: 'updated_desc' };
 
 /* ---------- ユーティリティ ---------- */
 const $ = (id) => document.getElementById(id);
@@ -206,17 +221,10 @@ function esc(str) {
     ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 }
 
-function safeUrl(url) {
-  return /^https?:\/\//i.test(String(url || '')) ? url : '';
-}
-
-function latest(item) {
-  return item.history && item.history.length ? item.history[0] : null;
-}
-
-function sortHistory(item) {
-  item.history.sort((a, b) => (`${b.date} ${b.time}`).localeCompare(`${a.date} ${a.time}`));
-}
+const safeUrl = (url) => (/^https?:\/\//i.test(String(url || '')) ? url : '');
+const latest = (item) => (item.history && item.history.length ? item.history[0] : null);
+const sortHistory = (item) =>
+  item.history.sort((a, b) => `${b.date} ${b.time}`.localeCompare(`${a.date} ${a.time}`));
 
 function fmtDate(d) {
   if (!d) return '—';
@@ -224,49 +232,55 @@ function fmtDate(d) {
   return `${y}/${m}/${day}`;
 }
 
-function kindBadge(kind) {
-  const cls = KIND_CLASS[kind] || 'improve';
-  return `<span class="lp-badge lp-kind-${cls}">${esc(kind)}</span>`;
-}
+const kindBadge = (kind) =>
+  `<span class="lp-badge lp-kind-${KIND_CLASS[kind] || 'improve'}">${esc(kind)}</span>`;
 
-/* ---------- 保存 / 読込 ---------- */
-function load() {
+/* ---------- データ入出力 ----------
+   本番（DATA_SOURCE = 'api'）では localStorage ではなく API を呼ぶ。 */
+async function fetchItems() {
+  if (DATA_SOURCE === 'api') {
+    const res = await fetch(`${API_BASE}/items`, { headers: { Accept: 'application/json' } });
+    if (!res.ok) throw new Error(`GET /items ${res.status}`);
+    return res.json();                  // [{ id, name, category, owner, createdAt, downloadUrl, description, history: [...] }]
+  }
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
-    if (raw) {
-      const parsed = JSON.parse(raw);
-      if (Array.isArray(parsed) && parsed.length) { items = parsed; return; }
-    }
+    const parsed = raw ? JSON.parse(raw) : null;
+    if (Array.isArray(parsed) && parsed.length) return parsed;
   } catch (e) { /* 破損時はサンプルへフォールバック */ }
-  items = JSON.parse(JSON.stringify(SAMPLE_ITEMS));
+  return JSON.parse(JSON.stringify(SAMPLE_ITEMS));
 }
 
-function save() {
+async function persistUpdate(itemId, entry, newUrl) {
+  if (DATA_SOURCE === 'api') {
+    const res = await fetch(`${API_BASE}/items/${encodeURIComponent(itemId)}/updates`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ ...entry, downloadUrl: newUrl || undefined })
+    });
+    if (!res.ok) throw new Error(`POST /updates ${res.status}`);
+    return;
+  }
   try { localStorage.setItem(STORAGE_KEY, JSON.stringify(items)); }
   catch (e) { toast('保存に失敗しました（ブラウザの設定をご確認ください）'); }
 }
 
 /* ---------- 絞り込み ---------- */
-function historyMatchesQuery(h, q) {
+function historyMatches(h, q) {
   return [h.summary, h.target, h.author, h.kind, h.version, h.ticket, (h.files || []).join(' ')]
     .join(' ').toLowerCase().includes(q);
 }
 
-function filteredItems() {
+function visibleItems() {
   const q = state.q.trim().toLowerCase();
-  let list = items.filter((it) => {
+  const list = items.filter((it) => {
     if (state.category && it.category !== state.category) return false;
-    if (state.owner && it.owner !== state.owner) return false;
-    if (state.author && !it.history.some((h) => h.author === state.author)) return false;
     if (!q) return true;
     const base = [it.id, it.name, it.category, it.owner, it.description].join(' ').toLowerCase();
-    return base.includes(q) || it.history.some((h) => historyMatchesQuery(h, q));
+    return base.includes(q) || it.history.some((h) => historyMatches(h, q));
   });
 
-  const key = (it) => {
-    const h = latest(it);
-    return h ? `${h.date} ${h.time}` : '';
-  };
+  const key = (it) => { const h = latest(it); return h ? `${h.date} ${h.time}` : ''; };
   list.sort((a, b) => {
     switch (state.sort) {
       case 'updated_asc': return key(a).localeCompare(key(b));
@@ -278,116 +292,96 @@ function filteredItems() {
   return list;
 }
 
-function filteredHistory() {
-  const q = state.q.trim().toLowerCase();
-  const rows = [];
-  items.forEach((it) => {
-    if (state.category && it.category !== state.category) return;
-    if (state.owner && it.owner !== state.owner) return;
-    it.history.forEach((h) => {
-      if (state.author && h.author !== state.author) return;
-      if (q) {
-        const base = [it.id, it.name, it.category, it.owner, it.description].join(' ').toLowerCase();
-        if (!base.includes(q) && !historyMatchesQuery(h, q)) return;
-      }
-      rows.push({ item: it, h });
-    });
-  });
-  const asc = state.sort === 'updated_asc';
-  rows.sort((a, b) => {
-    const ka = `${a.h.date} ${a.h.time}`, kb = `${b.h.date} ${b.h.time}`;
-    return asc ? ka.localeCompare(kb) : kb.localeCompare(ka);
-  });
-  return rows;
+/* ---------- 描画 ---------- */
+function rowHtml(it) {
+  const h = latest(it);
+  const open = openIds.has(it.id);
+  const url = safeUrl(it.downloadUrl);
+
+  const timeline = it.history.map((e, i) => `
+    <li class="lp-tl-item${i === 0 ? ' is-latest' : ''}">
+      <div class="lp-tl-head">
+        <span class="lp-tl-date">${fmtDate(e.date)} ${esc(e.time)}</span>
+        ${kindBadge(e.kind)}
+        ${e.version ? `<span class="lp-ver">${esc(e.version)}</span>` : ''}
+        <span class="lp-tl-author">対応者：${esc(e.author)}</span>
+        ${e.ticket ? `<span class="lp-ticket">${esc(e.ticket)}</span>` : ''}
+      </div>
+      <p class="lp-tl-summary">${esc(e.summary)}</p>
+      <div class="lp-tl-target">
+        <span class="lp-tl-target-label">対象機能</span>
+        <span class="lp-target-name">${esc(e.target)}</span>
+        ${(e.files && e.files.length) ? `
+          <span class="lp-tl-target-label" style="margin-top:7px">修正したプログラム・ファイル</span>
+          <ul class="lp-files">${e.files.map((f) => `<li>${esc(f)}</li>`).join('')}</ul>` : ''}
+      </div>
+    </li>`).join('');
+
+  return `
+  <article class="lp-row${open ? ' is-open' : ''}" data-id="${esc(it.id)}">
+    <button class="lp-row-head" type="button" data-toggle="${esc(it.id)}"
+            aria-expanded="${open}" aria-controls="panel-${esc(it.id)}">
+      <span><span class="lp-cat lp-cat-${CAT_CLASS[it.category] || 'prg'}">${esc(it.category)}</span></span>
+      <span>
+        <span class="lp-row-name">${esc(it.name)}</span>
+        <span class="lp-row-id">${esc(it.id)} ／ ${esc(it.owner)}</span>
+      </span>
+      <span class="lp-row-date">${h ? fmtDate(h.date) : '—'}<span class="lp-row-time">${h ? esc(h.time) : ''}</span></span>
+      <span>
+        <span class="lp-row-summary">${h ? esc(h.summary) : '更新履歴なし'}</span>
+        ${h ? `<span class="lp-row-target">対象機能：${esc(h.target)}</span>` : ''}
+      </span>
+      <span class="lp-row-author">${h ? esc(h.author) : '—'}</span>
+      <span>${h && h.version ? `<span class="lp-ver">${esc(h.version)}</span>` : ''}</span>
+      <span class="lp-chev" aria-hidden="true">▼</span>
+    </button>
+
+    <div class="lp-panel" id="panel-${esc(it.id)}" role="region">
+      <div class="lp-panel-inner">
+        <div class="lp-panel-body">
+          <div class="lp-meta">
+            <span class="lp-meta-item lp-meta-desc">
+              <span class="lp-meta-label">説明</span>${esc(it.description)}
+            </span>
+            <span class="lp-meta-item"><span class="lp-meta-label">作成日</span>${fmtDate(it.createdAt)}</span>
+            <span class="lp-meta-item"><span class="lp-meta-label">管理部署</span>${esc(it.owner)}</span>
+            <span class="lp-meta-item"><span class="lp-meta-label">更新件数</span>${it.history.length} 件</span>
+            <span class="lp-meta-item">
+              <span class="lp-meta-label">ダウンロード</span>
+              ${url ? `<a class="lp-dl" href="${esc(url)}" target="_blank" rel="noopener">⬇ ダウンロード</a>
+                       <span class="lp-dl-url">${esc(url)}</span>`
+                    : 'URL 未設定'}
+            </span>
+          </div>
+
+          <h3 class="lp-panel-title">更新履歴（${it.history.length} 件）</h3>
+          <ol class="lp-timeline">${timeline}</ol>
+
+          <div class="lp-panel-actions">
+            <button class="lp-btn lp-btn-ghost lp-btn-sm" type="button" data-add="${esc(it.id)}">＋ このアイテムの更新を登録</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </article>`;
 }
 
-/* ---------- 描画 ---------- */
-function renderStats() {
-  const histCount = items.reduce((n, it) => n + it.history.length, 0);
-  const ym = new Date().toISOString().slice(0, 7);
-  const monthCount = items.reduce(
-    (n, it) => n + it.history.filter((h) => String(h.date).slice(0, 7) === ym).length, 0);
-  const members = new Set();
-  items.forEach((it) => it.history.forEach((h) => members.add(h.author)));
+function render() {
+  const list = visibleItems();
+  $('list').innerHTML = list.map(rowHtml).join('');
+  $('listEmpty').hidden = list.length > 0;
 
   $('statItems').textContent = items.length;
-  $('statHistory').textContent = histCount;
-  $('statMonth').textContent = monthCount;
-  $('statMembers').textContent = members.size;
+  $('statHistory').textContent = items.reduce((n, it) => n + it.history.length, 0);
 }
 
-function renderLibrary() {
-  const list = filteredItems();
-  $('libraryBody').innerHTML = list.map((it) => {
-    const h = latest(it);
-    const url = safeUrl(it.downloadUrl);
-    return `
-      <tr>
-        <td>
-          <button class="lp-name-link" data-detail="${esc(it.id)}">${esc(it.name)}</button>
-          <span class="lp-id">${esc(it.id)}</span>
-          <span class="lp-badge lp-badge-cat">${esc(it.category)}</span>
-          <span class="lp-id">${esc(it.owner)}</span>
-        </td>
-        <td class="lp-nowrap lp-time">${fmtDate(it.createdAt)}</td>
-        <td class="lp-nowrap">
-          ${h ? `<span class="lp-time">${fmtDate(h.date)} ${esc(h.time)}</span>
-                 <span class="lp-id">${esc(h.author)}</span>` : '<span class="lp-muted">—</span>'}
-        </td>
-        <td>
-          ${h ? `${kindBadge(h.kind)}
-                 <div class="lp-tl-summary">${esc(h.summary)}</div>
-                 <div class="lp-target-name lp-muted">対象機能：${esc(h.target)}</div>`
-              : '<span class="lp-muted">更新履歴なし</span>'}
-        </td>
-        <td class="lp-nowrap">${h && h.version ? `<span class="lp-ver">${esc(h.version)}</span>` : '<span class="lp-muted">—</span>'}</td>
-        <td>
-          ${url ? `<a class="lp-dl" href="${esc(url)}" target="_blank" rel="noopener">⬇ ダウンロード</a>
-                   <span class="lp-dl-url">${esc(url)}</span>`
-                : '<span class="lp-muted">URL 未設定</span>'}
-        </td>
-        <td class="lp-desc">${esc(it.description)}</td>
-      </tr>`;
-  }).join('');
-  $('libraryEmpty').hidden = list.length > 0;
-}
-
-function renderHistory() {
-  const rows = filteredHistory();
-  $('historyBody').innerHTML = rows.map(({ item, h }) => `
-    <tr>
-      <td class="lp-nowrap lp-time">${fmtDate(h.date)}<br>${esc(h.time)}</td>
-      <td>
-        <button class="lp-name-link" data-detail="${esc(item.id)}">${esc(item.name)}</button>
-        <span class="lp-id">${esc(item.id)} ／ ${esc(item.category)}</span>
-      </td>
-      <td>${kindBadge(h.kind)}</td>
-      <td>
-        <div class="lp-tl-summary">${esc(h.summary)}</div>
-        ${h.ticket ? `<span class="lp-ticket">管理番号：${esc(h.ticket)}</span>` : ''}
-      </td>
-      <td>
-        <span class="lp-target-name">${esc(h.target)}</span>
-        ${(h.files && h.files.length)
-          ? `<ul class="lp-files">${h.files.map((f) => `<li>${esc(f)}</li>`).join('')}</ul>` : ''}
-      </td>
-      <td class="lp-nowrap">${h.version ? `<span class="lp-ver">${esc(h.version)}</span>` : '<span class="lp-muted">—</span>'}</td>
-      <td class="lp-nowrap">${esc(h.author)}</td>
-    </tr>`).join('');
-  $('historyEmpty').hidden = rows.length > 0;
-}
-
-function renderFilters() {
-  const fill = (sel, values, label) => {
-    const cur = sel.value;
-    sel.innerHTML = `<option value="">${label}：すべて</option>` +
-      values.map((v) => `<option value="${esc(v)}">${esc(v)}</option>`).join('');
-    sel.value = values.includes(cur) ? cur : '';
-  };
-  const uniq = (arr) => [...new Set(arr)].sort((a, b) => a.localeCompare(b, 'ja'));
-  fill($('filterCategory'), uniq(items.map((i) => i.category)), '種別');
-  fill($('filterOwner'), uniq(items.map((i) => i.owner)), '管理部署');
-  fill($('filterAuthor'), uniq(items.flatMap((i) => i.history.map((h) => h.author))), '対応者');
+function renderChips() {
+  const cats = [...new Set(items.map((i) => i.category))].sort((a, b) => a.localeCompare(b, 'ja'));
+  $('chipRow').innerHTML =
+    [['', 'すべて'], ...cats.map((c) => [c, c])]
+      .map(([v, label]) =>
+        `<button class="lp-chip${state.category === v ? ' is-on' : ''}" type="button" data-cat="${esc(v)}">${esc(label)}</button>`)
+      .join('');
 }
 
 function renderItemOptions() {
@@ -395,72 +389,36 @@ function renderItemOptions() {
     .map((it) => `<option value="${esc(it.id)}">${esc(it.id)}：${esc(it.name)}</option>`).join('');
 }
 
-function render() {
-  renderStats();
-  if (state.view === 'library') renderLibrary(); else renderHistory();
-  $('viewLibrary').hidden = state.view !== 'library';
-  $('viewHistory').hidden = state.view !== 'history';
+/* ---------- アコーディオン ---------- */
+function toggleRow(id) {
+  const row = document.querySelector(`.lp-row[data-id="${CSS.escape(id)}"]`);
+  if (!row) return;
+  const open = !openIds.has(id);
+  if (open) openIds.add(id); else openIds.delete(id);
+  row.classList.toggle('is-open', open);
+  row.querySelector('.lp-row-head').setAttribute('aria-expanded', String(open));
 }
 
-/* ---------- 詳細ドロワー ---------- */
-function openDetail(id) {
-  const it = items.find((x) => x.id === id);
-  if (!it) return;
-  const url = safeUrl(it.downloadUrl);
-
-  $('detailMeta').textContent = `${it.id} ／ ${it.category} ／ 管理：${it.owner}`;
-  $('detailName').textContent = it.name;
-  $('detailBody').innerHTML = `
-    <dl class="lp-detail-grid">
-      <dt>説明</dt><dd>${esc(it.description)}</dd>
-      <dt>作成日</dt><dd>${fmtDate(it.createdAt)}</dd>
-      <dt>最終更新</dt><dd>${latest(it) ? `${fmtDate(latest(it).date)} ${esc(latest(it).time)}（${esc(latest(it).author)}）` : '—'}</dd>
-      <dt>現在の版数</dt><dd>${latest(it) && latest(it).version ? `<span class="lp-ver">${esc(latest(it).version)}</span>` : '—'}</dd>
-      <dt>入手先</dt>
-      <dd>${url ? `<a class="lp-dl" href="${esc(url)}" target="_blank" rel="noopener">⬇ ダウンロード</a>
-                   <span class="lp-dl-url">${esc(url)}</span>` : 'URL 未設定'}</dd>
-    </dl>
-    <h3 class="lp-section-title">更新履歴（${it.history.length} 件）</h3>
-    <ol class="lp-timeline">
-      ${it.history.map((h) => `
-        <li class="lp-tl-item">
-          <div class="lp-tl-head">
-            <span class="lp-tl-date">${fmtDate(h.date)} ${esc(h.time)}</span>
-            ${kindBadge(h.kind)}
-            ${h.version ? `<span class="lp-ver">${esc(h.version)}</span>` : ''}
-            <span class="lp-tl-author">対応者：${esc(h.author)}</span>
-            ${h.ticket ? `<span class="lp-ticket">${esc(h.ticket)}</span>` : ''}
-          </div>
-          <p class="lp-tl-summary">${esc(h.summary)}</p>
-          <div class="lp-tl-target">
-            <span class="lp-tl-target-label">対象機能</span>
-            <span class="lp-target-name">${esc(h.target)}</span>
-            ${(h.files && h.files.length) ? `
-              <span class="lp-tl-target-label" style="margin-top:6px">修正したプログラム・ファイル</span>
-              <ul class="lp-files">${h.files.map((f) => `<li>${esc(f)}</li>`).join('')}</ul>` : ''}
-          </div>
-        </li>`).join('')}
-    </ol>`;
-
-  $('detailDrawer').hidden = false;
-  $('drawerOverlay').hidden = false;
-}
-
-function closeDetail() {
-  $('detailDrawer').hidden = true;
-  $('drawerOverlay').hidden = true;
+function setAll(open) {
+  openIds.clear();
+  if (open) visibleItems().forEach((it) => openIds.add(it.id));
+  document.querySelectorAll('.lp-row').forEach((row) => {
+    row.classList.toggle('is-open', open);
+    row.querySelector('.lp-row-head').setAttribute('aria-expanded', String(open));
+  });
 }
 
 /* ---------- 更新登録モーダル ---------- */
-function openModal() {
+function openModal(itemId) {
   renderItemOptions();
+  if (itemId) $('fItem').value = itemId;
   const now = new Date();
   const pad = (n) => String(n).padStart(2, '0');
   $('fDate').value = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`;
   $('fTime').value = `${pad(now.getHours())}:${pad(now.getMinutes())}`;
   $('updateModal').hidden = false;
   $('modalOverlay').hidden = false;
-  $('fItem').focus();
+  $('fAuthor').focus();
 }
 
 function closeModal() {
@@ -469,7 +427,7 @@ function closeModal() {
   $('updateForm').reset();
 }
 
-function submitUpdate(ev) {
+async function submitUpdate(ev) {
   ev.preventDefault();
   const it = items.find((x) => x.id === $('fItem').value);
   if (!it) return;
@@ -485,14 +443,17 @@ function submitUpdate(ev) {
     files: $('fFiles').value.split('\n').map((s) => s.trim()).filter(Boolean),
     ticket: $('fTicket').value.trim()
   };
+  const newUrl = $('fUrl').value.trim();
+
   it.history.push(entry);
   sortHistory(it);
-
-  const newUrl = $('fUrl').value.trim();
   if (newUrl) it.downloadUrl = newUrl;
 
-  save();
-  renderFilters();
+  try { await persistUpdate(it.id, entry, newUrl); }
+  catch (e) { toast('サーバーへの保存に失敗しました'); }
+
+  openIds.add(it.id);                   // 登録したアイテムは開いた状態で表示
+  renderChips();
   render();
   closeModal();
   toast(`「${it.name}」に更新履歴を登録しました`);
@@ -509,60 +470,41 @@ function toast(msg) {
 }
 
 /* ---------- 初期化 ---------- */
-function init() {
-  load();
+async function init() {
+  try { items = await fetchItems(); }
+  catch (e) { items = JSON.parse(JSON.stringify(SAMPLE_ITEMS)); toast('データ取得に失敗したためサンプルを表示しています'); }
   items.forEach(sortHistory);
-  renderFilters();
+  renderChips();
   render();
 
-  const now = new Date();
-  $('syncTime').textContent =
-    `${now.getFullYear()}/${String(now.getMonth() + 1).padStart(2, '0')}/${String(now.getDate()).padStart(2, '0')} ` +
-    `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
-
   $('searchInput').addEventListener('input', (e) => { state.q = e.target.value; render(); });
-  $('filterCategory').addEventListener('change', (e) => { state.category = e.target.value; render(); });
-  $('filterOwner').addEventListener('change', (e) => { state.owner = e.target.value; render(); });
-  $('filterAuthor').addEventListener('change', (e) => { state.author = e.target.value; render(); });
   $('sortSelect').addEventListener('change', (e) => { state.sort = e.target.value; render(); });
+  $('btnExpandAll').addEventListener('click', () => setAll(true));
+  $('btnCollapseAll').addEventListener('click', () => setAll(false));
+  $('btnNewUpdate').addEventListener('click', () => openModal());
 
-  $('btnReset').addEventListener('click', () => {
-    Object.assign(state, { q: '', category: '', owner: '', author: '', sort: 'updated_desc' });
-    $('searchInput').value = '';
-    ['filterCategory', 'filterOwner', 'filterAuthor'].forEach((id) => { $(id).value = ''; });
-    $('sortSelect').value = 'updated_desc';
+  $('chipRow').addEventListener('click', (e) => {
+    const chip = e.target.closest('[data-cat]');
+    if (!chip) return;
+    state.category = chip.dataset.cat;
+    renderChips();
     render();
   });
 
-  document.querySelectorAll('.lp-tab').forEach((tab) => {
-    tab.addEventListener('click', () => {
-      state.view = tab.dataset.view;
-      document.querySelectorAll('.lp-tab').forEach((t) => {
-        const on = t === tab;
-        t.classList.toggle('is-active', on);
-        t.setAttribute('aria-selected', String(on));
-      });
-      render();
-    });
+  $('list').addEventListener('click', (e) => {
+    const add = e.target.closest('[data-add]');
+    if (add) { openModal(add.dataset.add); return; }
+    const head = e.target.closest('[data-toggle]');
+    if (head) toggleRow(head.dataset.toggle);
   });
 
-  document.addEventListener('click', (e) => {
-    const btn = e.target.closest('[data-detail]');
-    if (btn) openDetail(btn.dataset.detail);
-  });
-
-  $('btnCloseDrawer').addEventListener('click', closeDetail);
-  $('drawerOverlay').addEventListener('click', closeDetail);
-  $('btnNewUpdate').addEventListener('click', openModal);
   $('btnCloseModal').addEventListener('click', closeModal);
   $('btnCancel').addEventListener('click', closeModal);
   $('modalOverlay').addEventListener('click', closeModal);
   $('updateForm').addEventListener('submit', submitUpdate);
 
   document.addEventListener('keydown', (e) => {
-    if (e.key !== 'Escape') return;
-    if (!$('updateModal').hidden) closeModal();
-    else if (!$('detailDrawer').hidden) closeDetail();
+    if (e.key === 'Escape' && !$('updateModal').hidden) closeModal();
   });
 }
 
