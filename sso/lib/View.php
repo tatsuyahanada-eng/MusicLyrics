@@ -78,7 +78,7 @@ final class View
         ?>
 <footer class="site-footer">
   <div class="site-footer__inner">
-    <img class="site-footer__logo" src="<?= h(Config::baseUrl('assets')) ?>/img/welsys-wordmark.png" alt="WELSYS">
+    <img class="site-footer__logo" src="<?= h(Config::baseUrl('assets')) ?>/img/welsys-wordmark-light.png" alt="WELSYS">
     <span>&copy; <?= date('Y') ?> WELSYS &mdash; <?= h(self::PRODUCT_NAME) ?></span>
   </div>
 </footer>

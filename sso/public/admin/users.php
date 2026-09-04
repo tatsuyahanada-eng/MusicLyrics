@@ -60,7 +60,7 @@ View::head('ユーザー管理', $admin, 'users');
       </div>
       <button class="btn" type="submit">絞り込む</button>
       <div class="spacer"></div>
-      <a class="btn" href="<?= h(Config::baseUrl('admin/user_edit.php')) ?>">＋ ユーザーを追加</a>
+      <a class="btn btn--accent" href="<?= h(Config::baseUrl('admin/user_edit.php')) ?>">＋ ユーザーを追加</a>
       <a class="btn btn--ghost" href="<?= h(Config::baseUrl('admin/users_import.php')) ?>">CSV一括登録</a>
     </form>
   </div>

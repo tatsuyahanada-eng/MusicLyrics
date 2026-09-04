@@ -31,7 +31,7 @@ View::head('アプリケーション管理', $admin, 'apps');
   <div class="card">
     <div class="row">
       <div class="spacer"></div>
-      <a class="btn" href="<?= h(Config::baseUrl('admin/app_edit.php')) ?>">＋ アプリを登録</a>
+      <a class="btn btn--accent" href="<?= h(Config::baseUrl('admin/app_edit.php')) ?>">＋ アプリを登録</a>
     </div>
   </div>
 

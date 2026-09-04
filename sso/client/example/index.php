@@ -22,11 +22,16 @@ require dirname(__DIR__) . '/sso_guard.php';
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>組み込みサンプル</title>
 <style>
-  body { font-family: system-ui, sans-serif; max-width: 720px; margin: 60px auto; padding: 0 20px; line-height: 1.8; }
+  body {
+    font-family: "Hiragino Kaku Gothic ProN", "Yu Gothic", Meiryo, system-ui, sans-serif;
+    max-width: 720px; margin: 60px auto; padding: 0 20px; line-height: 1.8; color: #1F1B26;
+  }
+  h1 { color: #552583; border-bottom: 3px solid #FDB927; padding-bottom: 8px; }
   table { border-collapse: collapse; width: 100%; margin: 20px 0; }
-  th, td { border: 1px solid #dde5ea; padding: 8px 10px; text-align: left; }
-  th { background: #f7fafb; width: 12em; }
-  code { background: #f2f6f8; padding: 2px 6px; border-radius: 4px; }
+  th, td { border: 1px solid #E3DEEA; padding: 8px 10px; text-align: left; }
+  th { background: #F3EFF9; color: #552583; width: 12em; }
+  code { background: #F3EFF9; color: #3B1560; padding: 2px 6px; border-radius: 4px; }
+  a { color: #552583; }
 </style>
 </head>
 <body>

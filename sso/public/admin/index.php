@@ -20,23 +20,23 @@ View::head('ダッシュボード', $admin, '');
   <div class="grid">
     <div class="card">
       <div class="muted">登録ユーザー</div>
-      <div style="font-size:28px;font-weight:600"><?= $userCount ?></div>
+      <div class="stat"><?= $userCount ?></div>
       <div class="muted">うち有効 <?= $activeCount ?></div>
     </div>
     <div class="card">
       <div class="muted">連携アプリ（有効）</div>
-      <div style="font-size:28px;font-weight:600"><?= $appCount ?></div>
+      <div class="stat"><?= $appCount ?></div>
     </div>
     <div class="card">
       <div class="muted">現在のログインセッション</div>
-      <div style="font-size:28px;font-weight:600"><?= $sessionCount ?></div>
+      <div class="stat"><?= $sessionCount ?></div>
     </div>
   </div>
 
   <div class="card" style="margin-top:20px">
     <h2 class="card__title">操作</h2>
     <p>
-      <a class="btn" href="<?= h(Config::baseUrl('admin/user_edit.php')) ?>">＋ ユーザーを追加</a>
+      <a class="btn btn--accent" href="<?= h(Config::baseUrl('admin/user_edit.php')) ?>">＋ ユーザーを追加</a>
       <a class="btn btn--ghost" href="<?= h(Config::baseUrl('admin/users_import.php')) ?>">CSV一括登録</a>
       <a class="btn btn--ghost" href="<?= h(Config::baseUrl('admin/permissions.php')) ?>">権限マトリクス</a>
       <a class="btn btn--ghost" href="<?= h(Config::baseUrl('admin/app_edit.php')) ?>">＋ アプリを登録</a>

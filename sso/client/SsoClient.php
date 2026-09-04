@@ -313,13 +313,21 @@ final class SsoClient
         http_response_code(400);
         header('Content-Type: text/html; charset=UTF-8');
         $login = htmlspecialchars($this->config['idp_url'] . '/login.php', ENT_QUOTES, 'UTF-8');
+        // 認証サーバーのCSSに依存しないよう、最低限の装飾はここに直接書く
         echo '<!DOCTYPE html><html lang="ja"><meta charset="UTF-8">'
+           . '<meta name="viewport" content="width=device-width, initial-scale=1">'
            . '<title>ログインできませんでした</title>'
-           . '<body style="font-family:sans-serif;max-width:560px;margin:80px auto;line-height:1.8">'
-           . '<h1 style="font-size:20px">ログインできませんでした</h1>'
-           . '<p>' . htmlspecialchars($message, ENT_QUOTES, 'UTF-8') . '</p>'
-           . '<p><a href="' . $login . '">ログイン画面へ戻る</a></p>'
-           . '</body></html>';
+           . '<body style="margin:0;background:#F7F5FA;color:#1F1B26;'
+           . 'font-family:\'Hiragino Kaku Gothic ProN\',\'Yu Gothic\',Meiryo,system-ui,sans-serif;line-height:1.8">'
+           . '<div style="max-width:520px;margin:80px auto;padding:0 20px">'
+           . '<div style="background:#fff;border:1px solid #E3DEEA;border-top:5px solid #FDB927;'
+           . 'border-radius:10px;padding:26px;box-shadow:0 8px 24px rgba(43,15,74,.07)">'
+           . '<h1 style="font-size:20px;margin:0 0 12px;color:#552583">ログインできませんでした</h1>'
+           . '<p style="margin:0 0 18px">' . htmlspecialchars($message, ENT_QUOTES, 'UTF-8') . '</p>'
+           . '<p style="margin:0"><a href="' . $login . '" '
+           . 'style="display:inline-block;padding:8px 16px;border-radius:7px;background:#552583;'
+           . 'color:#fff;font-weight:600;text-decoration:none">ログイン画面へ戻る</a></p>'
+           . '</div></div></body></html>';
         exit;
     }
 }

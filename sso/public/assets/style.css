@@ -1,24 +1,38 @@
 /* =====================================================================
    WELSYS User Management — 画面共通スタイル
-   ロゴのグラデーション（青 → 緑）を基調にした配色
+
+   配色は Los Angeles Lakers をモチーフにした
+   「濃い紫 / ゴールド / 黒 / 白」の4色で統一する。
+   ベースは白。紫は主役（見出し・主要ボタン・強調）、
+   ゴールドはアクセント（境界線・許可バッジ・注意喚起）、
+   黒は締め（フッター・拒否・削除など強い操作）に使う。
+
+   ※ ゴールドは白地に対するコントラストが低いため、
+     「文字色」には使わず、必ず背景・罫線として使うこと。
    ===================================================================== */
 :root {
-  --brand-blue:  #2f6f9f;
-  --brand-teal:  #4a9a9b;
-  --brand-green: #74b79a;
-  --ink:         #1f2a33;
-  --ink-soft:    #5a6b78;
-  --line:        #dde5ea;
-  --bg:          #f4f7f9;
-  --surface:     #ffffff;
-  --allow:       #1f7a55;
-  --allow-bg:    #e4f4ec;
-  --deny:        #a63232;
-  --deny-bg:     #fbeaea;
-  --warn:        #8a6100;
-  --warn-bg:     #fdf3dc;
-  --radius:      10px;
-  --shadow:      0 1px 2px rgba(31, 42, 51, .06), 0 8px 24px rgba(31, 42, 51, .06);
+  /* ブランドカラー */
+  --purple:        #552583;   /* Lakers Purple */
+  --purple-deep:   #3B1560;   /* 濃い紫（グラデーションの締め） */
+  --purple-darker: #2B0F4A;   /* フッターなどの地色 */
+  --purple-tint:   #F3EFF9;   /* 紫のごく薄い面 */
+  --purple-tint-2: #E7DEF3;   /* 紫の薄い面（選択中など） */
+  --gold:          #FDB927;   /* Lakers Gold */
+  --gold-deep:     #E0A014;
+  --gold-tint:     #FFF6E0;
+  --gold-ink:      #6B4A00;   /* ゴールド系の面に載せる文字色 */
+  --black:         #17161A;
+  --black-soft:    #35323C;
+
+  /* 基本 */
+  --ink:      #1F1B26;
+  --ink-soft: #5F586B;
+  --line:     #E3DEEA;
+  --bg:       #F7F5FA;
+  --surface:  #FFFFFF;
+
+  --radius: 10px;
+  --shadow: 0 1px 2px rgba(43, 15, 74, .06), 0 8px 24px rgba(43, 15, 74, .07);
 }
 
 * { box-sizing: border-box; }
@@ -32,13 +46,14 @@ body {
   line-height: 1.7;
 }
 
-a { color: var(--brand-blue); }
+a { color: var(--purple); }
+a:hover { color: var(--purple-deep); }
 
 /* ── ヘッダー ─────────────────────────────────────────────────── */
 .site-header {
   background: var(--surface);
-  border-bottom: 1px solid var(--line);
-  box-shadow: 0 1px 2px rgba(31, 42, 51, .04);
+  border-bottom: 3px solid var(--gold);   /* レイカーズのゴールドライン */
+  box-shadow: 0 1px 2px rgba(43, 15, 74, .05);
 }
 .site-header__inner {
   max-width: 1180px;
@@ -59,12 +74,9 @@ a { color: var(--brand-blue); }
 .brand__mark { height: 38px; width: auto; display: block; }
 .brand__title {
   font-size: 20px;
-  font-weight: 600;
+  font-weight: 700;
   letter-spacing: .06em;
-  background: linear-gradient(100deg, var(--brand-blue), var(--brand-green));
-  -webkit-background-clip: text;
-  background-clip: text;
-  color: transparent;
+  color: var(--purple);
   white-space: nowrap;
 }
 .nav { display: flex; gap: 4px; flex-wrap: wrap; margin-right: auto; }
@@ -75,8 +87,11 @@ a { color: var(--brand-blue); }
   color: var(--ink-soft);
   font-weight: 500;
 }
-.nav__item:hover { background: #eef3f6; color: var(--ink); }
-.nav__item.is-active { background: #e8f1f5; color: var(--brand-blue); }
+.nav__item:hover { background: var(--purple-tint); color: var(--purple); }
+.nav__item.is-active {
+  background: var(--purple);
+  color: #fff;
+}
 .account { display: flex; align-items: center; gap: 12px; }
 .account__name { color: var(--ink-soft); }
 
@@ -84,7 +99,12 @@ a { color: var(--brand-blue); }
 .container { max-width: 1180px; margin: 0 auto; padding: 26px 20px 60px; }
 .container--narrow { max-width: 720px; }
 .page-head { margin-bottom: 20px; }
-.page-head__title { font-size: 21px; margin: 0 0 4px; font-weight: 600; }
+.page-head__title {
+  font-size: 21px;
+  margin: 0 0 4px;
+  font-weight: 700;
+  color: var(--purple);
+}
 .page-head__lead { margin: 0; color: var(--ink-soft); }
 
 .card {
@@ -95,7 +115,15 @@ a { color: var(--brand-blue); }
   padding: 22px;
   margin-bottom: 20px;
 }
-.card__title { margin: 0 0 14px; font-size: 16px; font-weight: 600; }
+.card__title {
+  margin: 0 0 14px;
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--purple);
+  padding-left: 11px;
+  border-left: 4px solid var(--gold);   /* 見出しの脇にゴールドの縦線 */
+  line-height: 1.5;
+}
 .card__note { color: var(--ink-soft); margin: 0 0 16px; }
 
 .grid { display: grid; gap: 16px; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); }
@@ -104,9 +132,9 @@ a { color: var(--brand-blue); }
 
 /* ── フォーム ─────────────────────────────────────────────────── */
 .field { margin-bottom: 14px; }
-.field__label { display: block; font-weight: 600; margin-bottom: 5px; }
+.field__label { display: block; font-weight: 600; margin-bottom: 5px; color: var(--ink); }
 .field__hint { color: var(--ink-soft); font-size: 12.5px; margin-top: 4px; }
-.field__error { color: var(--deny); font-size: 12.5px; margin-top: 4px; }
+.field__error { color: #A5162A; font-size: 12.5px; margin-top: 4px; font-weight: 600; }
 input[type=text], input[type=email], input[type=password], input[type=number],
 input[type=search], select, textarea {
   width: 100%;
@@ -118,31 +146,37 @@ input[type=search], select, textarea {
   color: inherit;
 }
 input:focus, select:focus, textarea:focus {
-  outline: 2px solid rgba(47, 111, 159, .35);
-  border-color: var(--brand-blue);
+  outline: 2px solid var(--purple);
+  outline-offset: 1px;
+  border-color: var(--purple);
 }
-.field--invalid input, .field--invalid select { border-color: var(--deny); }
+.field--invalid input, .field--invalid select { border-color: #A5162A; }
 textarea { min-height: 140px; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
 .checkbox { display: flex; align-items: center; gap: 8px; margin-bottom: 10px; }
-.checkbox input { width: auto; }
+.checkbox input { width: auto; accent-color: var(--purple); }
 
 .btn {
   display: inline-block;
   padding: 8px 16px;
   border: 1px solid transparent;
   border-radius: 7px;
-  background: linear-gradient(100deg, var(--brand-blue), var(--brand-teal));
+  background: linear-gradient(100deg, var(--purple), var(--purple-deep));
   color: #fff;
   font: inherit;
   font-weight: 600;
   text-decoration: none;
   cursor: pointer;
 }
-.btn:hover { filter: brightness(1.07); }
-.btn--ghost { background: #fff; color: var(--ink); border-color: var(--line); }
-.btn--ghost:hover { background: #f1f5f8; filter: none; }
-.btn--danger { background: #fff; color: var(--deny); border-color: #e6bcbc; }
-.btn--danger:hover { background: var(--deny-bg); filter: none; }
+.btn:hover { filter: brightness(1.15); color: #fff; }
+/* 副次的な操作：白地に紫の枠 */
+.btn--ghost { background: #fff; color: var(--purple); border-color: var(--purple-tint-2); }
+.btn--ghost:hover { background: var(--purple-tint); filter: none; color: var(--purple-deep); }
+/* 強調したい操作：ゴールド地に黒文字 */
+.btn--accent { background: var(--gold); color: var(--black); border-color: var(--gold-deep); }
+.btn--accent:hover { background: var(--gold-deep); filter: none; color: var(--black); }
+/* 取り返しのつかない操作：黒 */
+.btn--danger { background: #fff; color: var(--black); border-color: var(--black-soft); }
+.btn--danger:hover { background: var(--black); color: #fff; filter: none; }
 .btn--sm { padding: 5px 11px; font-size: 13px; }
 .btn[disabled] { opacity: .5; cursor: not-allowed; }
 
@@ -156,8 +190,13 @@ table.data th, table.data td {
   vertical-align: middle;
   white-space: nowrap;
 }
-table.data th { background: #f7fafb; font-weight: 600; color: var(--ink-soft); }
-table.data tbody tr:hover { background: #fafcfd; }
+table.data th {
+  background: var(--purple-tint);
+  font-weight: 700;
+  color: var(--purple);
+  border-bottom: 2px solid var(--purple-tint-2);
+}
+table.data tbody tr:hover { background: #FBFAFD; }
 table.data td.wrap, table.data th.wrap { white-space: normal; }
 .matrix th.matrix__app {
   writing-mode: vertical-rl; text-orientation: mixed;
@@ -167,37 +206,62 @@ table.data td.wrap, table.data th.wrap { white-space: normal; }
 .matrix td.matrix__cell select { width: auto; padding: 3px 6px; font-size: 12.5px; }
 .matrix .matrix__user { position: sticky; left: 0; background: #fff; width: auto; min-width: 200px; }
 
-/* ── バッジ・注意書き ─────────────────────────────────────────── */
+/* ── バッジ ───────────────────────────────────────────────────── */
 .badge {
   display: inline-block;
   padding: 2px 9px;
   border-radius: 999px;
   font-size: 12px;
-  font-weight: 600;
+  font-weight: 700;
   white-space: nowrap;
 }
-.badge--allow   { background: var(--allow-bg); color: var(--allow); }
-.badge--deny    { background: var(--deny-bg);  color: var(--deny); }
-.badge--default { background: #eef2f5;         color: var(--ink-soft); }
-.badge--admin   { background: #e7eefb;         color: #2f4f9f; }
-.badge--warn    { background: var(--warn-bg);  color: var(--warn); }
+/* 許可・有効：ゴールド地に濃い文字（前向きな状態を目立たせる） */
+.badge--allow   { background: var(--gold); color: var(--purple-darker); }
+/* 拒否・停止：黒地に白（閉じている状態） */
+.badge--deny    { background: var(--black); color: #fff; }
+/* 既定：無彩色 */
+.badge--default { background: #EDEAF2; color: var(--ink-soft); }
+/* 管理者：紫地に白 */
+.badge--admin   { background: var(--purple); color: #fff; }
+/* 注意：ゴールドの淡い面 */
+.badge--warn    { background: var(--gold-tint); color: var(--gold-ink); border: 1px solid var(--gold); }
 
+/* ── お知らせ帯 ───────────────────────────────────────────────── */
 .flash { border-bottom: 1px solid var(--line); }
-.flash__inner { max-width: 1180px; margin: 0 auto; padding: 11px 20px; font-weight: 600; }
-.flash--success { background: var(--allow-bg); color: var(--allow); }
-.flash--error   { background: var(--deny-bg);  color: var(--deny); }
-.flash--info    { background: #e8f1f5;         color: var(--brand-blue); }
-.flash--warn    { background: var(--warn-bg);  color: var(--warn); }
+.flash__inner { max-width: 1180px; margin: 0 auto; padding: 11px 20px; font-weight: 700; }
+.flash--success { background: var(--purple-tint-2); color: var(--purple-darker); }
+.flash--error   { background: var(--black);         color: var(--gold); }
+.flash--info    { background: var(--purple-tint);   color: var(--purple); }
+.flash--warn    { background: var(--gold);          color: var(--purple-darker); }
 
-.notice { padding: 12px 14px; border-radius: 8px; background: #eef3f6; color: var(--ink-soft); }
-.notice--warn { background: var(--warn-bg); color: var(--warn); }
+.notice {
+  padding: 12px 14px;
+  border-radius: 8px;
+  background: var(--purple-tint);
+  color: var(--ink-soft);
+  border-left: 4px solid var(--purple);
+}
+.notice--warn {
+  background: var(--gold-tint);
+  color: var(--gold-ink);
+  border-left-color: var(--gold);
+  font-weight: 600;
+}
 .secret {
   font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
-  background: #f2f6f8;
-  border: 1px solid var(--line);
+  background: var(--purple-tint);
+  border: 1px solid var(--purple-tint-2);
   border-radius: 6px;
   padding: 3px 7px;
   word-break: break-all;
+  font-size: 12.5px;
+}
+code {
+  background: var(--purple-tint);
+  color: var(--purple-deep);
+  border-radius: 4px;
+  padding: 1px 5px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
   font-size: 12.5px;
 }
 .muted { color: var(--ink-soft); }
@@ -206,39 +270,51 @@ table.data td.wrap, table.data th.wrap { white-space: normal; }
 /* ── ログイン画面 ─────────────────────────────────────────────── */
 .login-wrap { min-height: 78vh; display: flex; align-items: center; justify-content: center; padding: 30px 16px; }
 .login-card { width: 100%; max-width: 400px; }
+.login-card .card {
+  border-top: 5px solid var(--gold);      /* カード上端のゴールドライン */
+  padding-top: 26px;
+}
 .login-card .brand--stacked {
   display: flex; flex-direction: column; align-items: center; gap: 10px; margin-bottom: 22px;
 }
 .login-card .brand--stacked img { height: 96px; width: auto; }
 .login-card .brand--stacked .brand__title { font-size: 22px; }
-.login-app-hint {
-  text-align: center; color: var(--ink-soft); margin: -8px 0 16px;
-}
+.login-app-hint { text-align: center; color: var(--ink-soft); margin: -8px 0 16px; }
+.login-app-hint strong { color: var(--purple); }
 
 /* ── アプリ一覧（ポータル） ───────────────────────────────────── */
 .app-card {
   display: block;
   background: var(--surface);
   border: 1px solid var(--line);
+  border-left: 5px solid var(--purple);
   border-radius: var(--radius);
   box-shadow: var(--shadow);
   padding: 18px;
   text-decoration: none;
   color: inherit;
-  transition: transform .12s ease;
+  transition: transform .12s ease, border-left-color .12s ease;
 }
-.app-card:hover { transform: translateY(-2px); }
-.app-card__name { font-weight: 600; font-size: 16px; margin-bottom: 4px; }
+.app-card:hover { transform: translateY(-2px); border-left-color: var(--gold); color: inherit; }
+.app-card__name { font-weight: 700; font-size: 16px; margin-bottom: 4px; color: var(--purple); }
 .app-card__desc { color: var(--ink-soft); }
 .app-card__url  { color: var(--ink-soft); font-size: 12.5px; margin-top: 8px; word-break: break-all; }
 
+/* ── 数値カード（ダッシュボード） ─────────────────────────────── */
+.stat { font-size: 28px; font-weight: 700; color: var(--purple); line-height: 1.3; }
+
 /* ── フッター ─────────────────────────────────────────────────── */
-.site-footer { border-top: 1px solid var(--line); background: var(--surface); }
-.site-footer__inner {
-  max-width: 1180px; margin: 0 auto; padding: 16px 20px;
-  display: flex; align-items: center; gap: 12px; color: var(--ink-soft); font-size: 12.5px;
+.site-footer {
+  border-top: 3px solid var(--gold);
+  background: var(--purple-darker);
+  color: #fff;
 }
-.site-footer__logo { height: 16px; width: auto; opacity: .75; }
+.site-footer__inner {
+  max-width: 1180px; margin: 0 auto; padding: 18px 20px;
+  display: flex; align-items: center; gap: 12px; font-size: 12.5px;
+  color: rgba(255, 255, 255, .82);
+}
+.site-footer__logo { height: 16px; width: auto; opacity: .9; }
 
 @media (max-width: 640px) {
   .site-header__inner { gap: 12px; }
