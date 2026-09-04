@@ -13,7 +13,7 @@ if (($user['role'] ?? '') !== 'admin') {
     <!DOCTYPE html><html lang="ja"><head><meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>設定 ｜ ライブラリポータル</title>
-    <link rel="stylesheet" href="assets/library.css?v=6"></head>
+    <link rel="stylesheet" href="assets/library.css?v=7"></head>
     <body class="lp-body"><main class="lp-main">
       <p class="lp-empty">この画面は管理者のみ利用できます。<br><a href="index.php">ライブラリ一覧へ戻る</a></p>
     </main></body></html>
@@ -37,18 +37,20 @@ $defRole  = lp_default_role();
   <link rel="apple-touch-icon" href="assets/icon-192.png?v=5">
   <link rel="manifest" href="manifest.webmanifest">
   <meta name="theme-color" content="#007a33">
-  <link rel="stylesheet" href="assets/library.css?v=6">
+  <link rel="stylesheet" href="assets/library.css?v=7">
 </head>
 <body class="lp-body">
 
   <header class="lp-header">
     <div class="lp-header-inner">
       <h1 class="lp-title">
-        <img class="lp-app-icon" src="assets/app-icon.png" alt="ライブラリポータル アイコン">
-        <span class="lp-title-text">
-          設定 — 利用者管理
-          <small class="lp-title-sub">ライブラリポータル ／ 管理者のみ</small>
-        </span>
+        <a class="lp-title-link" href="index.php" title="TOPへ戻る">
+          <img class="lp-app-icon" src="assets/app-icon.png" alt="ライブラリポータル アイコン">
+          <span class="lp-title-text">
+            設定 — 利用者管理
+            <small class="lp-title-sub">ライブラリポータル ／ 管理者のみ</small>
+          </span>
+        </a>
       </h1>
       <div class="lp-header-actions">
         <a class="lp-btn lp-btn-ghost lp-btn-sm" href="index.php">← ライブラリ一覧</a>
@@ -66,7 +68,7 @@ $defRole  = lp_default_role();
 
     <p class="lp-help">
       <strong>管理者</strong>はアイテム・更新履歴の登録と利用者管理を含むすべての操作が行えます。
-      <strong>閲覧のみ</strong>は一覧と更新履歴の閲覧・ダウンロードのみが行えます。
+      <strong>閲覧のみ</strong>は一覧と更新履歴の閲覧、URLへのアクセスのみが行えます。
       権限は行の中のスイッチでいつでも切り替えられます。
     </p>
 
@@ -147,7 +149,7 @@ $defRole  = lp_default_role();
           <input type="radio" name="uRole" value="viewer" checked>
           <span class="lp-roleopt-body">
             <span class="lp-roleopt-title">閲覧のみ（一般利用者）</span>
-            <span class="lp-roleopt-desc">一覧・更新履歴の閲覧とダウンロードのみ。登録・変更の操作はできません。</span>
+            <span class="lp-roleopt-desc">一覧・更新履歴の閲覧とURLへのアクセスのみ。登録・変更の操作はできません。</span>
           </span>
         </label>
       </fieldset>

@@ -32,7 +32,7 @@ if ($author === '')      json_error('対応者は必須です。');
 if ($summary === '')     json_error('更新内容は必須です。');
 if ($target === '')      json_error('対象機能は必須です。');
 if (!in_array($kind, $allowedKind, true)) json_error('区分が不正です。');
-if (!valid_url($url))    json_error('ダウンロードURLは http:// または https:// で入力してください。');
+if (!valid_url($url))    json_error('URLは http:// または https:// で入力してください。');
 
 $chk = db()->prepare('SELECT 1 FROM lp_items WHERE item_id = ? AND is_active = 1');
 $chk->execute([$itemId]);

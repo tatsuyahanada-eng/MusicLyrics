@@ -23,18 +23,20 @@ $csrf    = csrf_token();
   <link rel="apple-touch-icon" href="assets/icon-192.png?v=5">
   <link rel="manifest" href="manifest.webmanifest">
   <meta name="theme-color" content="#007a33">
-  <link rel="stylesheet" href="assets/library.css?v=6">
+  <link rel="stylesheet" href="assets/library.css?v=7">
 </head>
 <body class="lp-body">
 
   <header class="lp-header">
     <div class="lp-header-inner">
       <h1 class="lp-title">
-        <img class="lp-app-icon" src="assets/app-icon.png" alt="ライブラリポータル アイコン">
-        <span class="lp-title-text">
-          ライブラリポータル
-          <small class="lp-title-sub">関連会社 共有ライブラリ ／ 更新履歴管理</small>
-        </span>
+        <a class="lp-title-link" href="index.php" title="TOPへ戻る">
+          <img class="lp-app-icon" src="assets/app-icon.png" alt="ライブラリポータル アイコン">
+          <span class="lp-title-text">
+            ライブラリポータル
+            <small class="lp-title-sub">関連会社 共有ライブラリ ／ 更新履歴管理</small>
+          </span>
+        </a>
       </h1>
       <div class="lp-header-actions">
         <span class="lp-count"><strong id="statItems">0</strong> 件 ／ 更新 <strong id="statHistory">0</strong> 件</span>
@@ -141,7 +143,7 @@ $csrf    = csrf_token();
       <label class="lp-field"><span class="lp-field-label">修正したプログラム・ファイル（1行に1件）</span>
         <textarea id="fFiles" class="lp-input lp-textarea" rows="3"
                   placeholder="export/csvExporter.js : buildRow() に部署コードを追加&#10;db/schema/expense.sql : dept_code カラム追加"></textarea></label>
-      <label class="lp-field"><span class="lp-field-label">ダウンロード先URL（変更がある場合のみ）</span>
+      <label class="lp-field"><span class="lp-field-label">URL（変更がある場合のみ）</span>
         <input id="fUrl" class="lp-input" type="url" placeholder="https://share.example.co.jp/..."></label>
       <p class="lp-form-error" id="updateError" hidden></p>
       <div class="lp-form-actions">
@@ -171,12 +173,12 @@ $csrf    = csrf_token();
       <div class="lp-field-row">
         <label class="lp-field"><span class="lp-field-label">名称 <em>必須</em></span>
           <input id="iName" class="lp-input" type="text" required></label>
-        <label class="lp-field"><span class="lp-field-label">管理部署 <em>必須</em></span>
-          <input id="iOwner" class="lp-input" type="text" required></label>
+        <label class="lp-field"><span class="lp-field-label">作成者 <em>必須</em></span>
+          <input id="iCreator" class="lp-input" type="text" required></label>
       </div>
       <label class="lp-field"><span class="lp-field-label">説明</span>
         <textarea id="iDesc" class="lp-input lp-textarea" rows="3"></textarea></label>
-      <label class="lp-field"><span class="lp-field-label">ダウンロード先URL</span>
+      <label class="lp-field"><span class="lp-field-label">URL（アプリの入口）</span>
         <input id="iUrl" class="lp-input" type="url" placeholder="https://share.example.co.jp/..."></label>
       <p class="lp-form-error" id="itemError" hidden></p>
       <div class="lp-form-actions">
@@ -223,7 +225,7 @@ $csrf    = csrf_token();
       canEdit: <?= $isAdmin ? 'true' : 'false' ?>
     };
   </script>
-  <script src="assets/library.js?v=5"></script>
+  <script src="assets/library.js?v=7"></script>
   <script src="assets/pwa.js?v=1"></script>
 </body>
 </html>

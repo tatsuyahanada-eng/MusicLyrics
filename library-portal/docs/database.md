@@ -73,7 +73,7 @@ lp_items 1 ──< lp_updates 1 ──< lp_update_files
     "id": "APP-001",
     "name": "交通費精算ツール",
     "category": "アプリ",
-    "owner": "管理部",
+    "creator": "花田 達也",
     "createdAt": "2024-04-18",
     "downloadUrl": "https://share.example.co.jp/apps/expense-tool/v2.3.1/setup.zip",
     "description": "訪問先の住所から交通費を自動計算し…",
@@ -104,7 +104,7 @@ lp_items 1 ──< lp_updates 1 ──< lp_update_files
 一覧表示（各アイテムの最新更新のみ）：
 
 ```sql
-SELECT i.item_id, i.name, i.category, i.owner_dept, i.download_url, i.created_date,
+SELECT i.item_id, i.name, i.category, i.created_by, i.download_url, i.created_date,
        u.updated_on, u.updated_time, u.author, u.update_kind, u.version,
        u.summary, u.target_feature
 FROM lp_items i

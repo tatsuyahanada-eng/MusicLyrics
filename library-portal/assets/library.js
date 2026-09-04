@@ -94,7 +94,7 @@ function visibleItems() {
   const list = items.filter((it) => {
     if (state.category && it.category !== state.category) return false;
     if (!q) return true;
-    const base = [it.id, it.name, it.category, it.owner, it.description].join(' ').toLowerCase();
+    const base = [it.id, it.name, it.category, it.creator, it.description].join(' ').toLowerCase();
     return base.includes(q) || it.history.some((h) => historyMatches(h, q));
   });
 
@@ -126,23 +126,29 @@ function rowHtml(it) {
         ${e.ticket ? `<span class="lp-ticket">${esc(e.ticket)}</span>` : ''}
       </div>
       <p class="lp-tl-summary">${esc(e.summary)}</p>
-      <div class="lp-tl-target">
-        <span class="lp-tl-target-label">対象機能</span>
-        <span class="lp-target-name">${esc(e.target)}</span>
+      <ul class="lp-tl-branch">
+        <li class="lp-branch-node">
+          <span class="lp-branch-label">対象機能</span>
+          <span class="lp-target-name">${esc(e.target)}</span>
+        </li>
         ${(e.files && e.files.length) ? `
-          <span class="lp-tl-target-label" style="margin-top:7px">修正したプログラム・ファイル</span>
-          <ul class="lp-files">${e.files.map((f) => `<li>${esc(f)}</li>`).join('')}</ul>` : ''}
-      </div>
+        <li class="lp-branch-node">
+          <span class="lp-branch-label">修正したプログラム・ファイル</span>
+          <ul class="lp-files-tree">${e.files.map((f) => `<li>${esc(f)}</li>`).join('')}</ul>
+        </li>` : ''}
+      </ul>
     </li>`).join('') : '<li class="lp-tl-item lp-muted">更新履歴はまだ登録されていません。</li>';
 
   return `
   <article class="lp-row${open ? ' is-open' : ''}" data-id="${esc(it.id)}">
-    <button class="lp-row-head" type="button" data-toggle="${esc(it.id)}"
-            aria-expanded="${open}" aria-controls="panel-${esc(it.id)}">
+    <div class="lp-row-head" role="button" tabindex="0" data-toggle="${esc(it.id)}"
+         aria-expanded="${open}" aria-controls="panel-${esc(it.id)}">
       <span><span class="lp-cat lp-cat-${CAT_CLASS[it.category] || 'prg'}">${esc(it.category)}</span></span>
       <span>
         <span class="lp-row-name">${esc(it.name)}</span>
-        <span class="lp-row-id">${esc(it.id)} ／ ${esc(it.owner)}</span>
+        ${url ? `<a class="lp-row-link" href="${esc(url)}" target="_blank" rel="noopener"
+                    title="開く（新しいタブ）" aria-label="${esc(it.name)} を開く">🔗</a>` : ''}
+        <span class="lp-row-id">${esc(it.id)} ／ ${esc(it.creator)}</span>
       </span>
       <span class="lp-row-date">${h ? fmtDate(h.date) : '—'}<span class="lp-row-time">${h ? esc(h.time) : ''}</span></span>
       <span>
@@ -152,7 +158,7 @@ function rowHtml(it) {
       <span class="lp-row-author">${h ? esc(h.author) : '—'}</span>
       <span>${h && h.version ? `<span class="lp-ver">${esc(h.version)}</span>` : ''}</span>
       <span class="lp-chev" aria-hidden="true">▼</span>
-    </button>
+    </div>
 
     <div class="lp-panel" id="panel-${esc(it.id)}" role="region">
       <div class="lp-panel-inner">
@@ -162,11 +168,11 @@ function rowHtml(it) {
               <span class="lp-meta-label">説明</span>${esc(it.description) || '—'}
             </span>
             <span class="lp-meta-item"><span class="lp-meta-label">作成日</span>${fmtDate(it.createdAt)}</span>
-            <span class="lp-meta-item"><span class="lp-meta-label">管理部署</span>${esc(it.owner)}</span>
+            <span class="lp-meta-item"><span class="lp-meta-label">作成者</span>${esc(it.creator)}</span>
             <span class="lp-meta-item"><span class="lp-meta-label">更新件数</span>${it.history.length} 件</span>
             <span class="lp-meta-item">
-              <span class="lp-meta-label">ダウンロード</span>
-              ${url ? `<a class="lp-dl" href="${esc(url)}" target="_blank" rel="noopener">⬇ ダウンロード</a>
+              <span class="lp-meta-label">URL</span>
+              ${url ? `<a class="lp-dl" href="${esc(url)}" target="_blank" rel="noopener">🔗 開く</a>
                        <span class="lp-dl-url">${esc(url)}</span>` : 'URL 未設定'}
             </span>
           </div>
@@ -303,7 +309,7 @@ async function submitItem(ev) {
     id: $('iId').value.trim(),
     name: $('iName').value.trim(),
     category: $('iCategory').value,
-    owner: $('iOwner').value.trim(),
+    creator: $('iCreator').value.trim(),
     createdAt: $('iCreated').value,
     description: $('iDesc').value.trim(),
     downloadUrl: $('iUrl').value.trim()
@@ -376,10 +382,21 @@ async function init() {
   });
 
   $('list').addEventListener('click', (e) => {
+    if (e.target.closest('.lp-row-link')) return;   // URLを直接開く。行の開閉はしない
     const add = e.target.closest('[data-add]');
     if (add) { openUpdateModal(add.dataset.add); return; }
     const head = e.target.closest('[data-toggle]');
     if (head) toggleRow(head.dataset.toggle);
+  });
+
+  // 行の見出しは role="button" の div のため、Enter / Space での開閉を自前で処理する
+  $('list').addEventListener('keydown', (e) => {
+    if (e.key !== 'Enter' && e.key !== ' ') return;
+    if (e.target.closest('.lp-row-link')) return;    // リンク自体のキー操作は既定の動作に任せる
+    const head = e.target.closest('[data-toggle]');
+    if (!head) return;
+    e.preventDefault();
+    toggleRow(head.dataset.toggle);
   });
 
   // 以下は index.php（ログイン後の画面）にのみ存在する要素

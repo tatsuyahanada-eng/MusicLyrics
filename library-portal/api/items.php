@@ -12,7 +12,7 @@ if ($method === 'GET') {
     api_require_login();
 
     $items = db()->query(
-        'SELECT item_id, name, category, owner_dept, description, download_url, created_date
+        'SELECT item_id, name, category, created_by, description, download_url, created_date
            FROM lp_items WHERE is_active = 1 ORDER BY item_id'
     )->fetchAll();
 
@@ -61,7 +61,7 @@ if ($method === 'GET') {
             'id'          => $i['item_id'],
             'name'        => $i['name'],
             'category'    => $i['category'],
-            'owner'       => $i['owner_dept'],
+            'creator'     => $i['created_by'],
             'createdAt'   => $i['created_date'],
             'downloadUrl' => $i['download_url'] ?? '',
             'description' => $i['description'] ?? '',
@@ -76,20 +76,20 @@ if ($method === 'POST') {
     api_verify_csrf();
 
     $b = json_body();
-    $id   = s($b, 'id', 20);
-    $name = s($b, 'name', 120);
-    $cat  = s($b, 'category', 20);
-    $dept = s($b, 'owner', 60);
-    $desc = s($b, 'description', 2000);
-    $url  = s($b, 'downloadUrl', 500);
-    $date = s($b, 'createdAt', 10);
+    $id      = s($b, 'id', 20);
+    $name    = s($b, 'name', 120);
+    $cat     = s($b, 'category', 20);
+    $creator = s($b, 'creator', 60);
+    $desc    = s($b, 'description', 2000);
+    $url     = s($b, 'downloadUrl', 500);
+    $date    = s($b, 'createdAt', 10);
 
     $allowedCat = ['アプリ', 'プログラム', '資料', 'マニュアル'];
     if ($id === '' || !preg_match('/^[A-Za-z0-9_-]{1,20}$/', $id)) {
         json_error('管理IDは半角英数字・ハイフンで入力してください。');
     }
-    if ($name === '' || $dept === '') {
-        json_error('名称と管理部署は必須です。');
+    if ($name === '' || $creator === '') {
+        json_error('名称と作成者は必須です。');
     }
     if (!in_array($cat, $allowedCat, true)) {
         json_error('種別が不正です。');
@@ -98,7 +98,7 @@ if ($method === 'POST') {
         json_error('作成日が不正です。');
     }
     if (!valid_url($url)) {
-        json_error('ダウンロードURLは http:// または https:// で入力してください。');
+        json_error('URLは http:// または https:// で入力してください。');
     }
 
     $exists = db()->prepare('SELECT 1 FROM lp_items WHERE item_id = ?');
@@ -108,10 +108,10 @@ if ($method === 'POST') {
     }
 
     $st = db()->prepare(
-        'INSERT INTO lp_items (item_id, name, category, owner_dept, description, download_url, created_date)
+        'INSERT INTO lp_items (item_id, name, category, created_by, description, download_url, created_date)
          VALUES (?, ?, ?, ?, ?, ?, ?)'
     );
-    $st->execute([$id, $name, $cat, $dept, $desc, $url !== '' ? $url : null, $date]);
+    $st->execute([$id, $name, $cat, $creator, $desc, $url !== '' ? $url : null, $date]);
     audit('item.create', $id, $name);
 
     json_out(['ok' => true, 'id' => $id], 201);
