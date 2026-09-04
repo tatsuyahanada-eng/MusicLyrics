@@ -23,7 +23,7 @@ $csrf    = csrf_token();
   <link rel="apple-touch-icon" href="assets/icon-192.png?v=5">
   <link rel="manifest" href="manifest.webmanifest">
   <meta name="theme-color" content="#007a33">
-  <link rel="stylesheet" href="assets/library.css?v=8">
+  <link rel="stylesheet" href="assets/library.css?v=9">
 </head>
 <body class="lp-body">
 
@@ -225,7 +225,7 @@ $csrf    = csrf_token();
       canEdit: <?= $isAdmin ? 'true' : 'false' ?>
     };
   </script>
-  <script src="assets/library.js?v=8"></script>
+  <script src="assets/library.js?v=9"></script>
   <script src="assets/pwa.js?v=1"></script>
 </body>
 </html>

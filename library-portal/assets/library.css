@@ -204,18 +204,43 @@
 }
 .lp-row:hover::before { transform: scaleY(1); }
 .lp-row.is-open {
-  background: #ddf1e6;
-  box-shadow: 0 12px 30px rgba(0, 122, 51, .18);
-  transform: translateY(-2px);
+  background: #d7efe1;
+  border-color: var(--lp-green-line);
+  box-shadow: 0 16px 38px rgba(0, 122, 51, .22);
+  transform: translateY(-3px);
+  /* 開いた瞬間だけ、背景がふわっと明るく差してから落ち着く */
+  animation: lp-row-open .7s var(--lp-ease);
   /* 開く時だけ、わずかに弾む「バック」イージングでポップさせる */
   transition: background .3s var(--lp-ease), box-shadow .38s var(--lp-ease),
               transform .46s cubic-bezier(.34, 1.56, .64, 1);
 }
 .lp-row.is-open::before {
   transform: scaleY(1);
+  width: 6px;
   background: var(--lp-green);
+  box-shadow: 0 0 14px rgba(0, 122, 51, .55);
   /* ハイライトの線が中央から上下へ伸びるように、少し遅れてゆっくり描く */
-  transition: transform .5s cubic-bezier(.22, .61, .36, 1), background .2s var(--lp-ease);
+  transition: transform .5s cubic-bezier(.22, .61, .36, 1), background .2s var(--lp-ease),
+              width .3s var(--lp-ease), box-shadow .4s var(--lp-ease);
+}
+@keyframes lp-row-open {
+  0%   { background: #b7e4cb; }
+  60%  { background: #d7efe1; }
+  100% { background: #d7efe1; }
+}
+/* 開いた瞬間に、見出し行を光が横切る */
+.lp-row.is-open::after {
+  content: "";
+  position: absolute; left: 0; right: 0; top: 0; height: 78px;
+  pointer-events: none;
+  background: linear-gradient(100deg,
+    rgba(255, 255, 255, 0) 25%, rgba(255, 255, 255, .78) 50%, rgba(255, 255, 255, 0) 75%);
+  transform: translateX(-100%);
+  animation: lp-row-sweep .85s cubic-bezier(.22, .61, .36, 1) .05s;
+}
+@keyframes lp-row-sweep {
+  from { transform: translateX(-100%); }
+  to   { transform: translateX(100%); }
 }
 
 .lp-row-head {
@@ -299,9 +324,13 @@
 .lp-panel {
   display: grid;
   grid-template-rows: 0fr;
-  transition: grid-template-rows .34s var(--lp-ease);
+  transition: grid-template-rows .3s var(--lp-ease);
 }
-.lp-row.is-open .lp-panel { grid-template-rows: 1fr; }
+.lp-row.is-open .lp-panel {
+  grid-template-rows: 1fr;
+  /* 開く時はゆったり伸ばして、中身が描かれる時間をつくる */
+  transition: grid-template-rows .44s cubic-bezier(.22, .61, .36, 1);
+}
 .lp-panel-inner {
   overflow: hidden;
   opacity: 0;
@@ -315,7 +344,13 @@
   transition: opacity .3s var(--lp-ease) .05s, transform .4s cubic-bezier(.22, .61, .36, 1) .05s;
 }
 
-.lp-panel-body { padding: 4px 18px 20px; border-top: 1px solid var(--lp-line); margin-top: 2px; }
+/* 展開部分は白地に戻して内容を読みやすくする（緑のハイライトは見出し行と左の線で示す） */
+.lp-panel-body {
+  padding: 4px 18px 20px;
+  border-top: 1px solid var(--lp-green-line);
+  margin-top: 2px;
+  background: var(--lp-white);
+}
 
 /* パネル上部：概要 */
 .lp-meta {
@@ -363,88 +398,121 @@
   transition: transform .6s cubic-bezier(.22, .61, .36, 1) .16s;
 }
 
-.lp-timeline { list-style: none; position: relative; padding-left: 19px; }
-.lp-timeline::before { content: ""; position: absolute; left: 4px; top: 5px; bottom: 5px; width: 2px; background: #dfe7e2; }
-.lp-tl-item { position: relative; padding-bottom: 17px; }
-.lp-tl-item:last-child { padding-bottom: 2px; }
-.lp-tl-item::before {
-  content: ""; position: absolute; left: -18px; top: 6px;
-  width: 9px; height: 9px; border-radius: 50%;
-  background: #fff; border: 2px solid var(--lp-green);
-  transition: transform .3s cubic-bezier(.34, 1.56, .64, 1);
+/* ============================================================
+   更新履歴：Linux の tree コマンドと同じ形の系統図
+   罫線は文字ではなく CSS の線で引く（フォントに依存せず桁が揃うため）
+   ============================================================ */
+.lp-tree {
+  --lp-tree-line: #9cc4ad;
+  --lp-tree-elbow: 15px;   /* 縦線から横線が分岐する高さ */
+  font-size: .8rem;
+  padding-bottom: 2px;
 }
-.lp-tl-item.is-latest::before { background: var(--lp-gold); border-color: var(--lp-gold-dark); }
+.lp-tree-root {
+  display: flex; align-items: center; gap: 8px;
+  font-weight: 700; font-size: .84rem; color: var(--lp-deep);
+  padding-bottom: 2px;
+}
+.lp-tree-root-icon { color: var(--lp-green); display: inline-flex; }
+.lp-tree-root-id {
+  font-family: ui-monospace, Menlo, Consolas, monospace;
+  font-size: .7rem; font-weight: 600; color: var(--lp-ink-soft);
+}
 
-/* 更新履歴の各行を、開いた瞬間に少しずつ間を空けて上から流し込む */
-@keyframes lp-tl-in {
-  from { opacity: 0; transform: translateY(10px); }
-  to   { opacity: 1; transform: translateY(0); }
+.lp-tree ul { list-style: none; margin: 0; padding: 0; }
+.lp-tree > ul { padding-left: 3px; }
+.lp-tree li { position: relative; padding-left: 24px; }
+/* 縦の幹 */
+.lp-tree li::before {
+  content: ""; position: absolute; left: 0; top: 0; bottom: 0;
+  width: 2px; background: var(--lp-tree-line);
+  transform-origin: top center;
 }
-.lp-row.is-open .lp-tl-item {
-  animation: lp-tl-in .38s var(--lp-ease) both;
-  animation-delay: calc(120ms + var(--i, 0) * 55ms);
+/* 最後の枝は「└」になるよう、縦線を分岐点で止める */
+.lp-tree li:last-child::before { bottom: auto; height: var(--lp-tree-elbow); }
+/* 横の枝 */
+.lp-tree li::after {
+  content: ""; position: absolute; left: 0; top: var(--lp-tree-elbow);
+  width: 17px; height: 2px; background: var(--lp-tree-line);
+  transform-origin: left center;
 }
-.lp-row.is-open .lp-tl-item::before {
-  animation: lp-tl-dot-in .3s cubic-bezier(.34, 1.56, .64, 1) both;
-  animation-delay: calc(160ms + var(--i, 0) * 55ms);
+.lp-tree-row {
+  display: flex; align-items: baseline; flex-wrap: wrap; gap: 7px;
+  padding: 4px 0 5px;
+  min-height: calc(var(--lp-tree-elbow) + 8px);
 }
-@keyframes lp-tl-dot-in {
-  from { transform: scale(0); }
-  to   { transform: scale(1); }
-}
-.lp-tl-head { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; font-size: .76rem; }
-.lp-tl-date { font-family: ui-monospace, Menlo, Consolas, monospace; font-weight: 700; }
-.lp-tl-author { color: var(--lp-ink-soft); }
-.lp-ticket { font-family: ui-monospace, Menlo, Consolas, monospace; font-size: .68rem; color: var(--lp-ink-soft); }
-.lp-tl-summary { font-size: .86rem; font-weight: 600; margin-top: 4px; }
 
-/* 各更新の内訳（対象機能・修正ファイル）を、幹（タイムライン）から分かれる枝として表示 */
-.lp-tl-branch {
-  list-style: none;
-  position: relative;
-  margin: 8px 0 0 -18px;
-  padding-left: 21px;
-  border-left: 2px solid var(--lp-green-line);
+/* 更新（第1階層）の行 */
+.lp-tree-update > .lp-tree-row { padding-top: 5px; }
+.lp-tree-date {
+  font-family: ui-monospace, Menlo, Consolas, monospace;
+  font-weight: 700; font-size: .78rem; color: var(--lp-ink);
 }
-/* 幹の丸印から、この枝の起点まで滑らかにつながって見えるように継ぎ目を作る */
-.lp-tl-branch::before {
-  content: "";
-  position: absolute; left: -2px; top: -8px; width: 2px; height: 8px;
-  background: var(--lp-green-line);
+.lp-tree-author { font-size: .75rem; color: var(--lp-ink-soft); }
+.lp-tree-latest {
+  font-size: .64rem; font-weight: 700; letter-spacing: .06em;
+  background: var(--lp-gold); color: var(--lp-ink);
+  border-radius: 4px; padding: 1px 6px;
 }
-.lp-branch-node {
-  position: relative;
-  padding: 0 0 11px 16px;
-  font-size: .78rem;
+/* 最新の更新は枝を濃い緑にして目立たせる（幹はつなぎ役なので控えめに） */
+.lp-tree-update.is-latest::after { background: var(--lp-green); height: 3px; }
+.lp-tree-update.is-latest::before { background: var(--lp-green-line); }
+
+/* 属性（第2階層：更新内容・対象機能・修正ファイル） */
+.lp-tree-key {
+  font-size: .66rem; font-weight: 700; letter-spacing: .04em;
+  color: var(--lp-ink-soft);
+  background: #eef3f0; border: 1px solid var(--lp-line);
+  border-radius: 4px; padding: 1px 7px; white-space: nowrap;
 }
-.lp-branch-node:last-child { padding-bottom: 0; }
-.lp-branch-node::before {
-  content: ""; position: absolute; left: -21px; top: 9px;
-  width: 17px; height: 2px; background: var(--lp-green-line);
+.lp-tree-val { font-size: .8rem; color: #33403a; }
+.lp-tree-val-strong { font-weight: 600; color: var(--lp-ink); }
+
+/* ファイル（第3階層） */
+.lp-tree-file > .lp-tree-row { padding: 2px 0 3px; }
+.lp-tree-path {
+  font-family: ui-monospace, Menlo, Consolas, monospace;
+  font-size: .71rem; color: #46554d; word-break: break-word;
 }
-.lp-branch-node::after {
-  content: ""; position: absolute; left: -24px; top: 6px;
-  width: 7px; height: 7px; border-radius: 50%;
-  background: var(--lp-white); border: 2px solid var(--lp-green-bright);
+.lp-tree-path b { font-weight: 700; color: var(--lp-deep); }
+
+/* tree コマンドの末尾表示にならった集計行 */
+.lp-tree-foot {
+  font-family: ui-monospace, Menlo, Consolas, monospace;
+  font-size: .69rem; color: var(--lp-ink-soft);
+  padding: 8px 0 0 3px;
 }
-.lp-branch-label { display: block; font-size: .66rem; font-weight: 700; letter-spacing: .04em; color: var(--lp-ink-soft); }
+
+/* ---- 展開時：幹→枝→葉の順に、木が描かれていくように表示する ---- */
+@keyframes lp-tree-row-in {
+  from { opacity: 0; transform: translateX(-8px); }
+  to   { opacity: 1; transform: translateX(0); }
+}
+@keyframes lp-tree-spine-in { from { transform: scaleY(0); } to { transform: scaleY(1); } }
+@keyframes lp-tree-elbow-in { from { transform: scaleX(0); } to { transform: scaleX(1); } }
+
+.lp-row.is-open .lp-tree-row {
+  animation: lp-tree-row-in .34s var(--lp-ease) both;
+  animation-delay: calc(200ms + var(--d, 0) * 45ms);
+}
+.lp-row.is-open .lp-tree li::before {
+  animation: lp-tree-spine-in .3s var(--lp-ease) both;
+  animation-delay: calc(170ms + var(--d, 0) * 45ms);
+}
+.lp-row.is-open .lp-tree li::after {
+  animation: lp-tree-elbow-in .24s var(--lp-ease) both;
+  animation-delay: calc(200ms + var(--d, 0) * 45ms);
+}
+.lp-row.is-open .lp-tree-root {
+  animation: lp-tree-row-in .3s var(--lp-ease) both;
+  animation-delay: 130ms;
+}
+.lp-row.is-open .lp-tree-foot {
+  animation: lp-tree-row-in .3s var(--lp-ease) both;
+  animation-delay: calc(240ms + var(--dmax, 0) * 45ms);
+}
+
 .lp-target-name { font-weight: 600; }
-
-/* 修正したプログラム・ファイル：さらに深い枝としてツリー表示 */
-.lp-files-tree {
-  list-style: none; margin-top: 5px;
-  font-family: ui-monospace, Menlo, Consolas, monospace; font-size: .71rem;
-  color: #46554d;
-}
-.lp-files-tree li {
-  position: relative; padding-left: 22px;
-  line-height: 1.75; word-break: break-word;
-}
-.lp-files-tree li::before {
-  content: "├─"; position: absolute; left: 0; top: 0;
-  color: var(--lp-green-bright); font-weight: 700;
-}
-.lp-files-tree li:last-child::before { content: "└─"; }
 
 /* 区分バッジ */
 .lp-badge { display: inline-block; font-size: .69rem; font-weight: 700; border-radius: 999px; padding: 2px 9px; border: 1px solid; white-space: nowrap; }
@@ -565,7 +633,13 @@
 
 /* 動きを抑える設定への配慮 */
 @media (prefers-reduced-motion: reduce) {
-  *, *::before, *::after { animation-duration: .01ms !important; transition-duration: .01ms !important; }
+  /* 遅延も打ち消さないと、順番に描く演出の待ち時間だけ内容が見えなくなる */
+  *, *::before, *::after {
+    animation-duration: .01ms !important;
+    animation-delay: 0s !important;
+    transition-duration: .01ms !important;
+    transition-delay: 0s !important;
+  }
 }
 
 /* ============================================================
