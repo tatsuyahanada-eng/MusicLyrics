@@ -289,17 +289,19 @@ function nowCard(it) {
         ${url ? `<a class="lp-dl" href="${esc(url)}" target="_blank" rel="noopener">${ICON_EXTERNAL}<span>開く</span></a>` : ''}
       </div>
 
-      ${it.description ? `<p class="lp-now-desc">${esc(it.description)}</p>` : ''}
+      <div class="lp-now-body">
+        ${it.description ? `<p class="lp-now-desc">${esc(it.description)}</p>` : ''}
 
-      <dl class="lp-now-facts">
-        <div><dt>公開開始</dt><dd>${fmtDate(it.createdAt)}</dd></div>
-        <div><dt>これまでの更新</dt><dd>${it.history.length} 回</dd></div>
-        <div><dt>直したファイル</dt><dd>延べ ${fileCount} 件 ／ ${touched.size} 種類</dd></div>
-        <div><dt>作成者</dt><dd>${esc(it.creator)}</dd></div>
-        <div><dt>最終対応者</dt><dd>${h ? esc(h.author) : '—'}</dd></div>
-      </dl>
+        <dl class="lp-now-facts">
+          <div><dt>公開開始</dt><dd>${fmtDate(it.createdAt)}</dd></div>
+          <div><dt>これまでの更新</dt><dd>${it.history.length} 回</dd></div>
+          <div><dt>直したファイル</dt><dd>延べ ${fileCount} 件 ／ ${touched.size} 種類</dd></div>
+          <div><dt>作成者</dt><dd>${esc(it.creator)}</dd></div>
+          <div><dt>最終対応者</dt><dd>${h ? esc(h.author) : '—'}</dd></div>
+        </dl>
 
-      ${url ? `<p class="lp-dl-url">${esc(url)}</p>` : ''}
+        ${url ? `<p class="lp-dl-url">${esc(url)}</p>` : ''}
+      </div>
     </div>`;
 }
 

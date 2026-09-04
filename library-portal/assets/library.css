@@ -420,41 +420,46 @@
 .lp-now {
   position: relative;
   margin: 14px 0 0;
-  padding: 15px 18px 16px;
-  background: linear-gradient(180deg, #f3f9f5 0%, var(--lp-white) 100%);
-  border: 1px solid var(--lp-green-line);
-  border-left: 4px solid var(--lp-green);
+  border: 1px solid var(--lp-ink);
   border-radius: 9px;
+  overflow: hidden;
+  background: var(--lp-white);
 }
+/* 帯（黒）と本体（白）の二色構成。グラデーションは使わず、緑は差し色として使う */
 .lp-now-head {
   display: flex; align-items: center; flex-wrap: wrap; gap: 10px;
+  padding: 13px 18px;
+  background: var(--lp-ink);
+  border-bottom: 3px solid var(--lp-green);
 }
 .lp-now-label {
   font-size: .64rem; font-weight: 700; letter-spacing: .14em;
-  color: #fff; background: var(--lp-deep);
+  color: var(--lp-ink); background: var(--lp-neon);
   border-radius: 4px; padding: 3px 8px;
 }
 .lp-now-ver {
   font-family: ui-monospace, Menlo, Consolas, monospace;
   font-size: 1.35rem; font-weight: 700; line-height: 1.1;
-  color: var(--lp-deep); letter-spacing: -.01em;
+  color: #fff; letter-spacing: -.01em;
 }
-.lp-now-when { font-size: .72rem; color: var(--lp-ink-soft); }
+.lp-now-when { font-size: .72rem; color: rgba(255, 255, 255, .78); }
 .lp-now-head .lp-dl { margin: 0 0 0 auto; }
+.lp-now-body { padding: 15px 18px 16px; }
 .lp-now-desc {
-  margin-top: 11px; font-size: .82rem; line-height: 1.75; color: #33403a;
+  font-size: .82rem; line-height: 1.75; color: #33403a;
 }
 .lp-now-facts {
   display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
   gap: 10px 20px; margin-top: 13px;
-  padding-top: 12px; border-top: 1px dashed var(--lp-green-line);
+  padding-top: 12px; border-top: 1px dashed var(--lp-line-strong);
 }
+.lp-now-body > .lp-now-facts:first-child { margin-top: 0; padding-top: 0; border-top: none; }
 .lp-now-facts dt {
   font-size: .66rem; font-weight: 700; letter-spacing: .04em; color: var(--lp-ink-soft);
 }
 .lp-now-facts dd { margin: 2px 0 0; font-size: .84rem; font-weight: 600; color: var(--lp-ink); }
 .lp-now .lp-dl-url {
-  margin-top: 10px; padding-top: 9px; border-top: 1px dashed var(--lp-green-line);
+  margin-top: 10px; padding-top: 9px; border-top: 1px dashed var(--lp-line-strong);
 }
 
 .lp-dl {
@@ -793,13 +798,16 @@
 @media (max-width: 900px) {
   .lp-listhead { display: none; }
   .lp-row-head {
-    grid-template-columns: 78px 1fr auto;
+    /* 種別バッジとシェブロンを名称の上に置き、名称の行は全幅を使えるようにする
+       （バッジと同じ行だと、その分だけ幅が削られて名称が折り返しやすくなるため） */
+    grid-template-columns: 1fr auto;
     grid-template-areas:
-      "cat name chev"
-      "date date date"
-      "sum sum sum"
-      "author author ver";
-    gap: 6px 12px;
+      "cat  chev"
+      "name name"
+      "date date"
+      "sum  sum"
+      "author ver";
+    gap: 5px 12px;
     align-items: start;
   }
   .lp-row-head > :nth-child(1) { grid-area: cat; }
@@ -809,6 +817,10 @@
   .lp-row-head > :nth-child(5) { grid-area: author; }
   .lp-row-head > :nth-child(6) { grid-area: ver; justify-self: end; }
   .lp-row-head > :nth-child(7) { grid-area: chev; }
+  /* 名称は折り返さず、収まらない分は省略記号にする */
+  .lp-row-name {
+    display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
   .lp-toolbar-right { margin-left: 0; }
 }
 @media (max-width: 640px) {
