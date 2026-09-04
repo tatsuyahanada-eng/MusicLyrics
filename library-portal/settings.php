@@ -13,7 +13,7 @@ if (($user['role'] ?? '') !== 'admin') {
     <!DOCTYPE html><html lang="ja"><head><meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>設定 ｜ ライブラリポータル</title>
-    <link rel="stylesheet" href="assets/library.css?v=5"></head>
+    <link rel="stylesheet" href="assets/library.css?v=6"></head>
     <body class="lp-body"><main class="lp-main">
       <p class="lp-empty">この画面は管理者のみ利用できます。<br><a href="index.php">ライブラリ一覧へ戻る</a></p>
     </main></body></html>
@@ -37,17 +37,14 @@ $defRole  = lp_default_role();
   <link rel="apple-touch-icon" href="assets/icon-192.png?v=5">
   <link rel="manifest" href="manifest.webmanifest">
   <meta name="theme-color" content="#007a33">
-  <link rel="stylesheet" href="assets/library.css?v=5">
+  <link rel="stylesheet" href="assets/library.css?v=6">
 </head>
 <body class="lp-body">
 
   <header class="lp-header">
     <div class="lp-header-inner">
       <h1 class="lp-title">
-        <span class="lp-title-icons">
-          <img class="lp-app-icon" src="assets/app-icon.png" alt="ライブラリポータル アイコン">
-          <img class="lp-title-logo" src="assets/welsys-logo.jpg" alt="WELSYS ロゴ">
-        </span>
+        <img class="lp-app-icon" src="assets/app-icon.png" alt="ライブラリポータル アイコン">
         <span class="lp-title-text">
           設定 — 利用者管理
           <small class="lp-title-sub">ライブラリポータル ／ 管理者のみ</small>
@@ -97,7 +94,13 @@ $defRole  = lp_default_role();
   </main>
 
   <footer class="lp-footer">
-    <p>ライブラリポータル ／ <?= h($user['login_id']) ?> としてログイン中（管理者）</p>
+    <div class="lp-footer-inner">
+      <p class="lp-footer-status">ライブラリポータル ／ <?= h($user['login_id']) ?> としてログイン中（管理者）</p>
+      <p class="lp-footer-copyright">
+        <img class="lp-footer-logo" src="assets/welsys-logo.jpg" alt="WELSYS ロゴ">
+        <span>&copy; <?= date('Y') ?> ウェルシス株式会社</span>
+      </p>
+    </div>
   </footer>
 
   <!-- 利用者 追加・編集 -->

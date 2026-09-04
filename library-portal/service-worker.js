@@ -5,9 +5,9 @@
      （利用者ごとに内容と権限が異なるため、端末に残さない方針）
    ・オフライン時はナビゲーションを offline.html へ切り替えます
    ============================================================ */
-const CACHE = 'library-portal-v5';
+const CACHE = 'library-portal-v6';
 const SHELL = [
-  'assets/library.css?v=5',
+  'assets/library.css?v=6',
   'assets/library.js?v=5',
   'assets/settings.js?v=1',
   'assets/pwa.js?v=1',

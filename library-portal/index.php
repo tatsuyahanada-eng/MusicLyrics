@@ -23,17 +23,14 @@ $csrf    = csrf_token();
   <link rel="apple-touch-icon" href="assets/icon-192.png?v=5">
   <link rel="manifest" href="manifest.webmanifest">
   <meta name="theme-color" content="#007a33">
-  <link rel="stylesheet" href="assets/library.css?v=5">
+  <link rel="stylesheet" href="assets/library.css?v=6">
 </head>
 <body class="lp-body">
 
   <header class="lp-header">
     <div class="lp-header-inner">
       <h1 class="lp-title">
-        <span class="lp-title-icons">
-          <img class="lp-app-icon" src="assets/app-icon.png" alt="ライブラリポータル アイコン">
-          <img class="lp-title-logo" src="assets/welsys-logo.jpg" alt="WELSYS ロゴ">
-        </span>
+        <img class="lp-app-icon" src="assets/app-icon.png" alt="ライブラリポータル アイコン">
         <span class="lp-title-text">
           ライブラリポータル
           <small class="lp-title-sub">関連会社 共有ライブラリ ／ 更新履歴管理</small>
@@ -96,7 +93,13 @@ $csrf    = csrf_token();
   </main>
 
   <footer class="lp-footer">
-    <p>ライブラリポータル ／ <?= h($user['login_id']) ?> としてログイン中<?= $isAdmin ? '（管理者）' : '（閲覧のみ）' ?></p>
+    <div class="lp-footer-inner">
+      <p class="lp-footer-status">ライブラリポータル ／ <?= h($user['login_id']) ?> としてログイン中<?= $isAdmin ? '（管理者）' : '（閲覧のみ）' ?></p>
+      <p class="lp-footer-copyright">
+        <img class="lp-footer-logo" src="assets/welsys-logo.jpg" alt="WELSYS ロゴ">
+        <span>&copy; <?= date('Y') ?> ウェルシス株式会社</span>
+      </p>
+    </div>
   </footer>
 
   <!-- 更新登録 -->

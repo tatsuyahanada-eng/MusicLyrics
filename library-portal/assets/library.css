@@ -66,13 +66,6 @@
   gap: 18px; flex-wrap: wrap;
 }
 .lp-title { display: flex; align-items: center; gap: 13px; font-size: 1.4rem; font-weight: 700; letter-spacing: .02em; color: #fff; }
-.lp-title-icons { display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
-.lp-title-logo {
-  width: 52px; height: 52px; object-fit: contain;
-  border-radius: 8px; background: #fff; padding: 3px;
-  border: 1px solid rgba(255, 255, 255, .35); flex-shrink: 0;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, .18);
-}
 /* このツール自体のPWAアイコン（本体に白背景が含まれているため余白は付けない） */
 .lp-app-icon {
   width: 52px; height: 52px; object-fit: contain;
@@ -378,7 +371,23 @@
 /* ---------- Footer ---------- */
 .lp-footer {
   border-top: 1px solid var(--lp-line); background: var(--lp-white);
-  padding: 13px 22px; text-align: center; font-size: .71rem; color: var(--lp-ink-soft);
+  padding: 13px 22px; font-size: .71rem; color: var(--lp-ink-soft);
+}
+.lp-footer-inner {
+  max-width: 1240px; margin: 0 auto;
+  display: flex; align-items: center; justify-content: space-between;
+  flex-wrap: wrap; gap: 8px 20px;
+}
+.lp-footer-status { text-align: left; }
+.lp-footer-copyright {
+  display: flex; align-items: center; gap: 8px;
+  color: var(--lp-ink-soft); white-space: nowrap;
+}
+.lp-footer-logo { height: 18px; width: auto; object-fit: contain; opacity: .85; }
+
+@media (max-width: 640px) {
+  .lp-footer-inner { justify-content: center; text-align: center; }
+  .lp-footer-status { text-align: center; width: 100%; }
 }
 
 /* ---------- Modal ---------- */
@@ -447,8 +456,7 @@
 @media (max-width: 640px) {
   .lp-header-inner { padding: 11px 14px; gap: 10px; }
   .lp-title { font-size: 1.15rem; gap: 10px; }
-  .lp-title-logo, .lp-app-icon { width: 40px; height: 40px; }
-  .lp-title-icons { gap: 6px; }
+  .lp-app-icon { width: 40px; height: 40px; }
   .lp-main { padding: 15px 12px 34px; }
 
   /* 狭い画面ではヘッダーの操作列を1行にまとめる */
