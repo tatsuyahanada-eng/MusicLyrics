@@ -117,7 +117,7 @@ function rowHtml(it) {
   const url = safeUrl(it.downloadUrl);
 
   const timeline = it.history.length ? it.history.map((e, i) => `
-    <li class="lp-tl-item${i === 0 ? ' is-latest' : ''}">
+    <li class="lp-tl-item${i === 0 ? ' is-latest' : ''}" style="--i:${Math.min(i, 8)}">
       <div class="lp-tl-head">
         <span class="lp-tl-date">${fmtDate(e.date)} ${esc(e.time)}</span>
         ${kindBadge(e.kind)}

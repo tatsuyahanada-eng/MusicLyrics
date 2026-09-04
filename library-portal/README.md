@@ -26,6 +26,24 @@
 注意・エラー（必須項目、不具合修正の区分、削除ボタン、停止中の表示）だけは、
 判別のため落ち着いた赤 `--lp-danger`（`#9e2a2b`）を最小限で使用しています。
 
+## アイコン（PWA）
+
+`assets/app-icon-source.png` を正本として、以下を生成しています（生成スクリプトの内容は
+`docs/deploy-sakura.md` の更新手順を参照。元画像を差し替えた場合は同じ手順で再生成してください）。
+
+| ファイル | 用途 |
+|---|---|
+| `assets/icon-192.png` / `icon-512.png` | ホーム画面・アプリ一覧のアイコン（`manifest.webmanifest`） |
+| `assets/icon-maskable-512.png` | Android の adaptive icon（安全領域に収まるよう中央配置） |
+| `assets/favicon-32.png` / `favicon-16.png` | ブラウザタブのファビコン |
+| `assets/app-icon.png` | 画面内（ヘッダー・ログイン画面など）に表示する等身大のアイコン |
+
+ヘッダーおよびログイン／初回セットアップ／オフライン画面では、このアプリアイコンと
+WELSYS ロゴを並べて表示しています。アイコン画像を更新した際は、ファイル名は変えずに
+中身を差し替えたうえで、`?v=` のクエリ番号（HTML・`manifest.webmanifest`・
+`service-worker.js` の該当箇所）を 1 つ上げてください。番号を上げないと、インストール済みの
+端末では Service Worker と画像キャッシュにより古いアイコンが表示され続けます。
+
 ## 設置手順
 
 `docs/deploy-sakura.md` を参照してください。要点は次の 5 つです。

@@ -13,7 +13,7 @@ if (($user['role'] ?? '') !== 'admin') {
     <!DOCTYPE html><html lang="ja"><head><meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>設定 ｜ ライブラリポータル</title>
-    <link rel="stylesheet" href="assets/library.css?v=4"></head>
+    <link rel="stylesheet" href="assets/library.css?v=5"></head>
     <body class="lp-body"><main class="lp-main">
       <p class="lp-empty">この画面は管理者のみ利用できます。<br><a href="index.php">ライブラリ一覧へ戻る</a></p>
     </main></body></html>
@@ -32,18 +32,22 @@ $defRole  = lp_default_role();
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>設定 ｜ ライブラリポータル</title>
-  <link rel="icon" href="assets/welsys-logo.jpg">
-  <link rel="apple-touch-icon" href="assets/icon-192.png">
+  <link rel="icon" type="image/png" sizes="32x32" href="assets/favicon-32.png?v=5">
+  <link rel="icon" type="image/png" sizes="16x16" href="assets/favicon-16.png?v=5">
+  <link rel="apple-touch-icon" href="assets/icon-192.png?v=5">
   <link rel="manifest" href="manifest.webmanifest">
   <meta name="theme-color" content="#007a33">
-  <link rel="stylesheet" href="assets/library.css?v=4">
+  <link rel="stylesheet" href="assets/library.css?v=5">
 </head>
 <body class="lp-body">
 
   <header class="lp-header">
     <div class="lp-header-inner">
       <h1 class="lp-title">
-        <img class="lp-title-logo" src="assets/welsys-logo.jpg" alt="WELSYS ロゴ">
+        <span class="lp-title-icons">
+          <img class="lp-app-icon" src="assets/app-icon.png" alt="ライブラリポータル アイコン">
+          <img class="lp-title-logo" src="assets/welsys-logo.jpg" alt="WELSYS ロゴ">
+        </span>
         <span class="lp-title-text">
           設定 — 利用者管理
           <small class="lp-title-sub">ライブラリポータル ／ 管理者のみ</small>

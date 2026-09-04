@@ -66,12 +66,20 @@
   gap: 18px; flex-wrap: wrap;
 }
 .lp-title { display: flex; align-items: center; gap: 13px; font-size: 1.4rem; font-weight: 700; letter-spacing: .02em; color: #fff; }
+.lp-title-icons { display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
 .lp-title-logo {
-  width: 60px; height: 60px; object-fit: contain;
+  width: 52px; height: 52px; object-fit: contain;
   border-radius: 8px; background: #fff; padding: 3px;
   border: 1px solid rgba(255, 255, 255, .35); flex-shrink: 0;
   box-shadow: 0 2px 8px rgba(0, 0, 0, .18);
 }
+/* このツール自体のPWAアイコン（本体に白背景が含まれているため余白は付けない） */
+.lp-app-icon {
+  width: 52px; height: 52px; object-fit: contain;
+  border-radius: 12px; flex-shrink: 0;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, .22);
+}
+.lp-app-icon-lg { width: 72px; height: 72px; border-radius: 16px; }
 .lp-title-text { display: flex; flex-direction: column; }
 .lp-title-sub { font-size: .73rem; font-weight: 500; color: rgba(255, 255, 255, .78); letter-spacing: .05em; margin-top: 1px; }
 .lp-header-actions { display: flex; align-items: center; gap: 14px; }
@@ -168,12 +176,18 @@
   border-left: 3px solid transparent;
   border-radius: var(--lp-radius);
   overflow: hidden;
-  transition: border-color .2s var(--lp-ease), box-shadow .2s var(--lp-ease), transform .18s var(--lp-ease);
+  transform: translateY(0);
+  /* 閉じる時は素直なイージングで元の位置へ戻す */
+  transition: border-color .22s var(--lp-ease), box-shadow .26s var(--lp-ease), transform .26s var(--lp-ease);
 }
 .lp-row:hover { border-left-color: var(--lp-green-bright); box-shadow: 0 2px 10px rgba(14, 19, 17, .07); }
 .lp-row.is-open {
   border-left-color: var(--lp-gold);
-  box-shadow: 0 6px 22px rgba(14, 19, 17, .12);
+  box-shadow: 0 10px 26px rgba(14, 19, 17, .14);
+  transform: translateY(-2px);
+  /* 開く時だけ、わずかに弾む「バック」イージングでポップさせる */
+  transition: border-color .22s var(--lp-ease), box-shadow .38s var(--lp-ease),
+              transform .46s cubic-bezier(.34, 1.56, .64, 1);
 }
 
 .lp-row-head {
@@ -221,12 +235,16 @@
   color: var(--lp-green);
   background: var(--lp-green-soft);
   font-size: .68rem;
-  transition: transform .32s var(--lp-ease), background .2s var(--lp-ease), color .2s var(--lp-ease);
+  transform: rotate(0deg);
+  /* 閉じる方向は素直に戻す */
+  transition: transform .26s var(--lp-ease), background .2s var(--lp-ease), color .2s var(--lp-ease);
 }
 .lp-row.is-open .lp-chev {
   transform: rotate(180deg);
   background: var(--lp-gold-soft);
   color: var(--lp-gold-dark);
+  /* 開く方向は 180° を少し通り越してから収まる、弾みのある回転に */
+  transition: transform .55s cubic-bezier(.34, 1.56, .64, 1), background .2s var(--lp-ease), color .2s var(--lp-ease);
 }
 
 /* ---------- Accordion body（開閉アニメーション） ---------- */
@@ -239,10 +257,15 @@
 .lp-panel-inner {
   overflow: hidden;
   opacity: 0;
-  transform: translateY(-4px);
-  transition: opacity .26s var(--lp-ease), transform .3s var(--lp-ease);
+  transform: translateY(-6px) scale(.985);
+  transform-origin: top center;
+  transition: opacity .2s var(--lp-ease), transform .22s var(--lp-ease);
 }
-.lp-row.is-open .lp-panel-inner { opacity: 1; transform: translateY(0); }
+.lp-row.is-open .lp-panel-inner {
+  opacity: 1;
+  transform: translateY(0) scale(1);
+  transition: opacity .3s var(--lp-ease) .05s, transform .4s cubic-bezier(.22, .61, .36, 1) .05s;
+}
 
 .lp-panel-body { padding: 4px 18px 20px; border-top: 1px solid var(--lp-line); margin-top: 2px; }
 
@@ -271,6 +294,7 @@
 
 /* ---------- 履歴タイムライン ---------- */
 .lp-panel-title {
+  position: relative;
   font-size: .78rem; font-weight: 700; letter-spacing: .04em;
   color: var(--lp-ink);
   display: flex; align-items: center; gap: 9px;
@@ -278,6 +302,18 @@
   margin-bottom: 14px;
 }
 .lp-panel-title::before { content: ""; width: 3px; height: 13px; background: var(--lp-deep); border-radius: 2px; }
+/* 展開時、ゴールドの下線が左から右へ描かれるように伸びる */
+.lp-panel-title::after {
+  content: "";
+  position: absolute; left: 0; right: 0; bottom: -1px; height: 2px;
+  background: linear-gradient(90deg, var(--lp-gold) 0%, var(--lp-green-bright) 100%);
+  transform: scaleX(0); transform-origin: left center;
+  transition: transform .24s var(--lp-ease);
+}
+.lp-row.is-open .lp-panel-title::after {
+  transform: scaleX(1);
+  transition: transform .6s cubic-bezier(.22, .61, .36, 1) .16s;
+}
 
 .lp-timeline { list-style: none; position: relative; padding-left: 19px; }
 .lp-timeline::before { content: ""; position: absolute; left: 4px; top: 5px; bottom: 5px; width: 2px; background: #dfe7e2; }
@@ -287,8 +323,27 @@
   content: ""; position: absolute; left: -18px; top: 6px;
   width: 9px; height: 9px; border-radius: 50%;
   background: #fff; border: 2px solid var(--lp-green);
+  transition: transform .3s cubic-bezier(.34, 1.56, .64, 1);
 }
 .lp-tl-item.is-latest::before { background: var(--lp-gold); border-color: var(--lp-gold-dark); }
+
+/* 更新履歴の各行を、開いた瞬間に少しずつ間を空けて上から流し込む */
+@keyframes lp-tl-in {
+  from { opacity: 0; transform: translateY(10px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.lp-row.is-open .lp-tl-item {
+  animation: lp-tl-in .38s var(--lp-ease) both;
+  animation-delay: calc(120ms + var(--i, 0) * 55ms);
+}
+.lp-row.is-open .lp-tl-item::before {
+  animation: lp-tl-dot-in .3s cubic-bezier(.34, 1.56, .64, 1) both;
+  animation-delay: calc(160ms + var(--i, 0) * 55ms);
+}
+@keyframes lp-tl-dot-in {
+  from { transform: scale(0); }
+  to   { transform: scale(1); }
+}
 .lp-tl-head { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; font-size: .76rem; }
 .lp-tl-date { font-family: ui-monospace, Menlo, Consolas, monospace; font-weight: 700; }
 .lp-tl-author { color: var(--lp-ink-soft); }
@@ -392,7 +447,8 @@
 @media (max-width: 640px) {
   .lp-header-inner { padding: 11px 14px; gap: 10px; }
   .lp-title { font-size: 1.15rem; gap: 10px; }
-  .lp-title-logo { width: 48px; height: 48px; }
+  .lp-title-logo, .lp-app-icon { width: 40px; height: 40px; }
+  .lp-title-icons { gap: 6px; }
   .lp-main { padding: 15px 12px 34px; }
 
   /* 狭い画面ではヘッダーの操作列を1行にまとめる */
@@ -432,9 +488,13 @@
   padding: 30px 28px 26px;
   text-align: center;
 }
+.lp-auth-icons {
+  display: flex; align-items: center; justify-content: center;
+  gap: 14px; margin-bottom: 14px;
+}
 .lp-auth-logo {
-  width: 84px; height: 84px; object-fit: contain;
-  margin: 0 auto 12px; display: block;
+  width: 64px; height: 64px; object-fit: contain;
+  display: block;
 }
 .lp-auth-title { font-size: 1.3rem; font-weight: 700; }
 .lp-auth-sub { font-size: .78rem; color: var(--lp-ink-soft); margin-top: 4px; }

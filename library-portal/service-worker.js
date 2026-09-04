@@ -5,14 +5,18 @@
      （利用者ごとに内容と権限が異なるため、端末に残さない方針）
    ・オフライン時はナビゲーションを offline.html へ切り替えます
    ============================================================ */
-const CACHE = 'library-portal-v4';
+const CACHE = 'library-portal-v5';
 const SHELL = [
-  'assets/library.css?v=4',
-  'assets/library.js?v=4',
+  'assets/library.css?v=5',
+  'assets/library.js?v=5',
   'assets/settings.js?v=1',
   'assets/pwa.js?v=1',
   'assets/welsys-logo.jpg',
-  'assets/icon-192.png',
+  'assets/app-icon.png',
+  'assets/icon-192.png?v=5',
+  'assets/icon-512.png?v=5',
+  'assets/favicon-32.png?v=5',
+  'assets/favicon-16.png?v=5',
   'offline.html',
   'manifest.webmanifest'
 ];
