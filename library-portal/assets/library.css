@@ -725,6 +725,64 @@
 }
 .lp-btn-block { width: 100%; display: block; text-align: center; text-decoration: none; margin-top: 4px; }
 
+/* ---------- インストール案内（install.php） ---------- */
+.lp-install-card { width: min(520px, 100%); text-align: center; }
+.lp-install-state {
+  margin-top: 16px; padding: 11px 14px;
+  background: #f4f7f5; border: 1px solid var(--lp-line-strong);
+  border-left: 3px solid var(--lp-ink-soft);
+  border-radius: 7px; font-size: .78rem; color: var(--lp-ink-soft);
+  text-align: left; line-height: 1.65;
+}
+.lp-install-state.is-done {
+  background: var(--lp-green-soft); border-color: var(--lp-green-line);
+  border-left-color: var(--lp-green); color: var(--lp-deep); font-weight: 600;
+}
+.lp-install-btn {
+  margin-top: 18px; padding: 13px 20px; font-size: .95rem; font-weight: 700;
+  letter-spacing: .04em;
+  box-shadow: 0 8px 20px rgba(0, 122, 51, .28);
+}
+.lp-install-btn:not([disabled]):hover {
+  box-shadow: 0 10px 26px rgba(0, 227, 92, .42);
+}
+.lp-install-steps {
+  display: flex; flex-direction: column; gap: 12px;
+  margin-top: 22px; text-align: left;
+}
+.lp-install-os {
+  padding: 14px 16px;
+  background: var(--lp-white);
+  border: 1px solid var(--lp-line-strong);
+  border-radius: 9px;
+  transition: border-color .18s var(--lp-ease), box-shadow .18s var(--lp-ease);
+}
+.lp-install-os:hover {
+  border-color: var(--lp-green-line);
+  box-shadow: 0 4px 16px rgba(0, 122, 51, .12);
+}
+.lp-install-os h2 {
+  font-size: .82rem; font-weight: 700; color: var(--lp-deep);
+  display: flex; align-items: center; gap: 8px;
+}
+.lp-install-os h2::before {
+  content: ""; width: 4px; height: 15px; border-radius: 2px;
+  background: var(--lp-green); flex: none;
+}
+.lp-install-os ol {
+  margin: 10px 0 0; padding-left: 1.35em;
+  font-size: .78rem; color: var(--lp-ink); line-height: 1.85;
+}
+.lp-install-os ol li::marker { color: var(--lp-green); font-weight: 700; }
+.lp-install-os strong { color: var(--lp-deep); }
+.lp-install-note {
+  margin-top: 8px; font-size: .7rem; color: var(--lp-ink-soft);
+}
+.lp-install-help {
+  margin: 20px 0 16px; font-size: .74rem; color: var(--lp-ink-soft);
+  line-height: 1.75; text-align: left;
+}
+
 /* ---------- 利用者メニュー（ヘッダー右） ---------- */
 .lp-user { position: relative; }
 .lp-user-btn {

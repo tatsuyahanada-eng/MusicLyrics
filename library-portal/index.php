@@ -23,7 +23,7 @@ $csrf    = csrf_token();
   <link rel="apple-touch-icon" href="assets/icon-192.png?v=5">
   <link rel="manifest" href="manifest.webmanifest">
   <meta name="theme-color" content="#007a33">
-  <link rel="stylesheet" href="assets/library.css?v=10">
+  <link rel="stylesheet" href="assets/library.css?v=11">
 </head>
 <body class="lp-body">
 
@@ -54,6 +54,7 @@ $csrf    = csrf_token();
               <a class="lp-user-menu-item" href="settings.php">⚙ 設定（利用者管理）</a>
             <?php endif; ?>
             <button class="lp-user-menu-item" type="button" id="btnChangePw">🔑 パスワード変更</button>
+            <a class="lp-user-menu-item" id="lnkInstall" href="install.php">⤓ アプリをインストール</a>
             <a class="lp-user-menu-item lp-user-menu-danger" href="logout.php">↩ ログアウト</a>
           </div>
         </div>
@@ -225,7 +226,22 @@ $csrf    = csrf_token();
       canEdit: <?= $isAdmin ? 'true' : 'false' ?>
     };
   </script>
-  <script src="assets/library.js?v=10"></script>
-  <script src="assets/pwa.js?v=1"></script>
+  <script src="assets/library.js?v=11"></script>
+  <script src="assets/pwa.js?v=2"></script>
+  <script>
+    // インストール導線：すぐに実行できる端末ではその場で、それ以外は案内ページへ
+    (function () {
+      var link = document.getElementById('lnkInstall');
+      if (!link) return;
+      window.LP_PWA.onChange(function () {
+        link.hidden = window.LP_PWA.isInstalled();
+      });
+      link.addEventListener('click', function (e) {
+        if (!window.LP_PWA.canPrompt()) return;   // 案内ページ（install.php）へ
+        e.preventDefault();
+        window.LP_PWA.install();
+      });
+    })();
+  </script>
 </body>
 </html>

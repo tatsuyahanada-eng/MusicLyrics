@@ -39,7 +39,7 @@ $to   = (string)($_GET['to'] ?? ($_POST['to'] ?? ''));
   <link rel="apple-touch-icon" href="assets/icon-192.png?v=5">
   <link rel="manifest" href="manifest.webmanifest">
   <meta name="theme-color" content="#007a33">
-  <link rel="stylesheet" href="assets/library.css?v=10">
+  <link rel="stylesheet" href="assets/library.css?v=11">
 </head>
 <body class="lp-body lp-body-auth">
   <main class="lp-auth">
@@ -70,6 +70,7 @@ $to   = (string)($_GET['to'] ?? ($_POST['to'] ?? ''));
         <button class="lp-btn lp-btn-primary lp-btn-block" type="submit">ログイン</button>
       </form>
       <p class="lp-auth-note">アカウントの発行・パスワードの再設定は管理者へご依頼ください。</p>
+      <p class="lp-auth-note"><a href="install.php">この端末にアプリとして追加する（インストール手順）</a></p>
     </div>
   </main>
 </body>
