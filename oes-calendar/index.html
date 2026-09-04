@@ -1,0 +1,1655 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="theme-color" content="#1565C0">
+<meta name="format-detection" content="telephone=no">
+<title>OES入れ替え作業登録カレンダー</title>
+<style>
+:root{
+  --blue:#1565C0; --blue-d:#0D47A1; --blue-l:#E6F1FB; --blue-l2:#F4F9FE;
+  --line:#B5D4F4; --line-w:#DCEAF8; --bg:#EBF3FB;
+  --ink:#12314F; --muted:#6B87A6; --white:#fff;
+  --red:#D64545; --green:#2E7D57; --amber:#B26A00;
+  --r:12px; --r-s:8px;
+  --shadow:0 1px 2px rgba(16,58,102,.06), 0 4px 14px rgba(16,58,102,.06);
+}
+*{box-sizing:border-box;margin:0;padding:0;}
+html{-webkit-text-size-adjust:100%;}
+body{
+  font-family:'Hiragino Sans','Hiragino Kaku Gothic ProN','Noto Sans JP','Meiryo',sans-serif;
+  background:var(--bg); color:var(--ink); min-height:100vh; line-height:1.6;
+  padding:12px 12px 40px; padding-bottom:calc(40px + env(safe-area-inset-bottom));
+}
+.wrap{max-width:1180px;margin:0 auto;}
+
+/* ---------- ヘッダー ---------- */
+.header{
+  background:linear-gradient(135deg,#1565C0 0%,#1E7BB8 100%);
+  border-radius:var(--r); padding:14px 16px; margin-bottom:12px;
+  display:flex; align-items:center; justify-content:space-between; gap:12px; flex-wrap:wrap;
+}
+.header-title{font-size:17px;font-weight:600;color:#fff;letter-spacing:.01em;line-height:1.35;}
+.header-sub{font-size:11px;color:#BBDEFB;margin-top:2px;}
+.header-actions{display:flex;gap:8px;flex-wrap:wrap;}
+.hbtn{
+  display:inline-flex;align-items:center;gap:6px;padding:8px 12px;min-height:38px;
+  background:rgba(255,255,255,.16);color:#fff;border:1px solid rgba(255,255,255,.42);
+  border-radius:var(--r-s);font-size:12px;font-weight:500;text-decoration:none;
+  white-space:nowrap;cursor:pointer;font-family:inherit;
+}
+.hbtn:hover{background:rgba(255,255,255,.3);}
+.hbtn svg{width:15px;height:15px;flex-shrink:0;}
+
+/* ---------- タブ ---------- */
+.tabs{display:flex;gap:6px;margin-bottom:12px;overflow-x:auto;-webkit-overflow-scrolling:touch;padding-bottom:2px;}
+.tab{
+  flex:1 1 0;min-width:0;padding:11px 8px;border:1px solid var(--line);
+  background:var(--white);color:#3D6B99;border-radius:var(--r-s);
+  font-size:12.5px;font-weight:600;font-family:inherit;cursor:pointer;white-space:nowrap;
+  overflow:hidden;text-overflow:ellipsis;
+  display:flex;align-items:center;justify-content:center;gap:5px;
+}
+.only-wide{display:none;}
+.tab:hover{background:var(--blue-l);}
+.tab.active{background:var(--blue);color:#fff;border-color:var(--blue);}
+.tab .badge{
+  display:inline-flex;align-items:center;justify-content:center;min-width:20px;height:20px;
+  padding:0 6px;border-radius:10px;background:var(--blue-l);color:var(--blue-d);
+  font-size:11px;font-weight:700;
+}
+.tab.active .badge{background:rgba(255,255,255,.28);color:#fff;}
+
+/* ---------- 共通パーツ ---------- */
+.card{background:var(--white);border:1px solid var(--line);border-radius:var(--r);box-shadow:var(--shadow);}
+.card + .card{margin-top:12px;}
+.card-head{
+  display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;
+  padding:12px 14px;border-bottom:1px solid var(--line-w);background:var(--blue-l2);
+  border-radius:var(--r) var(--r) 0 0;
+}
+.card-title{font-size:14px;font-weight:700;color:var(--blue-d);display:flex;align-items:center;gap:7px;}
+.card-title .step{
+  display:inline-flex;align-items:center;justify-content:center;width:22px;height:22px;
+  border-radius:50%;background:var(--blue);color:#fff;font-size:12px;font-weight:700;
+}
+.card-body{padding:14px;}
+.hint{font-size:11.5px;color:var(--muted);line-height:1.65;}
+.field{display:flex;flex-direction:column;gap:5px;min-width:0;}
+.field > label{font-size:11.5px;font-weight:600;color:#3D6B99;}
+input[type=text],input[type=date],input[type=time],select,textarea{
+  width:100%;padding:9px 10px;font-size:16px;font-family:inherit;color:var(--ink);
+  border:1px solid var(--line);border-radius:var(--r-s);background:var(--white);
+  outline:none;min-height:42px;
+}
+select{appearance:none;-webkit-appearance:none;background-image:url("data:image/svg+xml;charset=utf8,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%231565C0' stroke-width='2.5' stroke-linecap='round'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 8px center;background-size:15px;padding-right:28px;}
+textarea{font-family:'SFMono-Regular',Menlo,Consolas,'Courier New',monospace;font-size:13px;line-height:1.6;resize:vertical;min-height:150px;}
+input:focus,select:focus,textarea:focus{border-color:var(--blue);box-shadow:0 0 0 3px rgba(21,101,192,.14);}
+.btn{
+  display:inline-flex;align-items:center;justify-content:center;gap:6px;
+  padding:10px 14px;min-height:42px;border-radius:var(--r-s);border:1px solid transparent;
+  font-size:13px;font-weight:600;font-family:inherit;cursor:pointer;white-space:nowrap;
+}
+.btn svg{width:15px;height:15px;flex-shrink:0;}
+.btn:active{transform:scale(.985);}
+.btn-primary{background:var(--blue);color:#fff;}
+.btn-primary:hover{background:var(--blue-d);}
+.btn-primary:disabled{background:#A9C6E4;cursor:not-allowed;}
+.btn-sub{background:var(--blue-l);color:var(--blue-d);border-color:#93BFE8;}
+.btn-sub:hover{background:#CFE3F8;}
+.btn-ghost{background:var(--white);color:#54759B;border-color:var(--line);}
+.btn-ghost:hover{background:var(--blue-l2);}
+.btn-danger{background:var(--white);color:var(--red);border-color:#F0B7B7;}
+.btn-danger:hover{background:#FDF2F2;}
+.btn-sm{padding:7px 10px;min-height:36px;font-size:12px;}
+.btn-block{width:100%;}
+.row-btns{display:flex;gap:8px;flex-wrap:wrap;}
+
+/* ---------- カレンダー ---------- */
+.cal-toolbar{display:flex;align-items:center;justify-content:center;gap:10px;margin-bottom:12px;}
+.cal-nav{
+  width:40px;height:40px;border-radius:var(--r-s);border:1px solid var(--line);
+  background:var(--white);color:var(--blue);font-size:18px;cursor:pointer;
+  display:flex;align-items:center;justify-content:center;font-family:inherit;
+}
+.cal-nav:hover{background:var(--blue-l);}
+.cal-label{font-size:15px;font-weight:700;color:var(--blue-d);min-width:130px;text-align:center;}
+.cal-months{display:grid;grid-template-columns:1fr;gap:16px;}
+.cal-months.single .cal-month-name{display:none;}
+.cal-month-name{font-size:13px;font-weight:700;color:var(--blue-d);text-align:center;margin-bottom:6px;}
+.cal-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:4px;}
+.cal-dow{text-align:center;font-size:11px;font-weight:700;color:var(--muted);padding:2px 0;}
+.cal-dow.sat{color:#2F7BC4;} .cal-dow.sun{color:#C8503F;}
+.day{
+  aspect-ratio:1/1;min-height:40px;border:1px solid var(--line-w);border-radius:var(--r-s);
+  background:var(--white);color:var(--ink);font-size:14px;font-weight:600;font-family:inherit;
+  cursor:pointer;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1px;
+  padding:0;position:relative;
+}
+.day:hover{background:var(--blue-l);}
+.day.sat{color:#2F7BC4;} .day.sun{color:#C8503F;}
+.day.other{visibility:hidden;pointer-events:none;}
+.day.today{border-color:var(--blue);border-width:2px;}
+.day.selected{background:var(--blue);border-color:var(--blue);color:#fff;}
+.day.selected:hover{background:var(--blue-d);}
+.day .dot{width:5px;height:5px;border-radius:50%;background:var(--green);}
+.day.selected .dot{background:#fff;}
+.cal-legend{display:flex;gap:14px;flex-wrap:wrap;margin-top:12px;font-size:11px;color:var(--muted);}
+.cal-legend span{display:inline-flex;align-items:center;gap:5px;}
+.lg-box{width:13px;height:13px;border-radius:4px;display:inline-block;}
+
+/* ---------- 選択チップ ---------- */
+.chips{display:flex;flex-wrap:wrap;gap:6px;margin-top:10px;}
+.chip{
+  display:inline-flex;align-items:center;gap:6px;padding:5px 8px;border-radius:999px;
+  background:var(--blue-l);border:1px solid #A9CDF0;color:var(--blue-d);font-size:12px;font-weight:600;
+}
+.chip button{border:none;background:transparent;color:#5D82A8;font-size:15px;line-height:1;cursor:pointer;padding:0 1px;font-family:inherit;}
+.chip button:hover{color:var(--red);}
+.empty{padding:22px 14px;text-align:center;color:var(--muted);font-size:13px;}
+
+/* ---------- 時間帯の選択 ---------- */
+.slot-list{display:grid;grid-template-columns:1fr;gap:8px;}
+.slot-opt{
+  display:flex;align-items:center;gap:10px;padding:11px 12px;border:1px solid var(--line);
+  border-radius:var(--r-s);background:var(--white);cursor:pointer;
+}
+.slot-opt:hover{background:var(--blue-l2);}
+.slot-opt.on{border-color:var(--blue);background:var(--blue-l);box-shadow:0 0 0 2px rgba(21,101,192,.12);}
+.slot-opt input{accent-color:var(--blue);width:18px;height:18px;flex-shrink:0;margin:0;}
+.slot-opt .s-name{font-size:13.5px;font-weight:700;}
+.slot-opt .s-time{font-size:12px;color:var(--muted);}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:10px;}
+.grid-form{display:grid;grid-template-columns:1fr;gap:12px;}
+
+/* ---------- 登録リスト ---------- */
+.list-toolbar{display:flex;gap:8px;flex-wrap:wrap;padding:12px 14px;border-bottom:1px solid var(--line-w);background:var(--blue-l2);border-radius:var(--r) var(--r) 0 0;}
+.entry{border:1px solid var(--line);border-radius:var(--r);background:var(--white);overflow:hidden;}
+.entry + .entry{margin-top:10px;}
+.entry-head{display:flex;align-items:center;gap:8px;padding:9px 12px;background:var(--blue-l2);border-bottom:1px solid var(--line-w);flex-wrap:wrap;}
+.entry-no{display:inline-flex;align-items:center;justify-content:center;min-width:24px;height:24px;padding:0 6px;border-radius:6px;background:var(--blue);color:#fff;font-size:12px;font-weight:700;}
+.entry-sum{font-size:13px;font-weight:700;color:var(--blue-d);flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.entry-body{padding:12px;display:grid;grid-template-columns:1fr;gap:11px;}
+.entry-foot{display:flex;gap:8px;flex-wrap:wrap;padding:0 12px 12px;}
+.desc-head{display:flex;align-items:center;justify-content:space-between;gap:8px;}
+.tag-auto{font-size:10.5px;font-weight:700;padding:2px 7px;border-radius:999px;background:#E6F5EC;color:var(--green);border:1px solid #B7E0C7;}
+.tag-manual{font-size:10.5px;font-weight:700;padding:2px 7px;border-radius:999px;background:#FFF4E2;color:var(--amber);border:1px solid #F0D3A2;}
+
+/* ---------- 設定 ---------- */
+.gy-item{border:1px solid var(--line);border-radius:var(--r);overflow:hidden;}
+.gy-item + .gy-item{margin-top:10px;}
+.gy-head{display:flex;align-items:center;gap:8px;padding:10px 12px;background:var(--blue-l2);cursor:pointer;flex-wrap:wrap;}
+.gy-head .caret{color:var(--blue);font-size:12px;transition:transform .15s;flex-shrink:0;}
+.gy-item.open .gy-head .caret{transform:rotate(90deg);}
+.gy-name{font-size:14px;font-weight:700;color:var(--blue-d);flex:1;min-width:0;}
+.gy-meta{font-size:11px;color:var(--muted);}
+.gy-body{padding:12px;display:none;border-top:1px solid var(--line-w);}
+.gy-item.open .gy-body{display:block;}
+.slot-edit{border:1px dashed #A9CDF0;border-radius:var(--r-s);padding:11px;background:#FAFCFF;}
+.slot-edit + .slot-edit{margin-top:10px;}
+.slot-edit-head{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:9px;}
+.slot-edit-head .t{font-size:12px;font-weight:700;color:var(--blue-d);}
+.ph-list{display:flex;flex-wrap:wrap;gap:6px;margin-top:6px;}
+.ph{font-family:'SFMono-Regular',Menlo,Consolas,monospace;font-size:11.5px;background:var(--blue-l);color:var(--blue-d);border:1px solid #A9CDF0;border-radius:5px;padding:2px 6px;cursor:pointer;}
+.ph:hover{background:#CFE3F8;}
+.note{background:#FFF9EC;border:1px solid #F0DFB6;border-radius:var(--r-s);padding:10px 12px;font-size:12px;color:#7A5B14;line-height:1.65;}
+.note b{color:#5E4409;}
+
+/* ---------- モーダル / トースト ---------- */
+.modal-bg{position:fixed;inset:0;background:rgba(12,40,70,.5);display:flex;align-items:center;justify-content:center;padding:16px;z-index:60;}
+.modal{background:var(--white);border-radius:var(--r);max-width:460px;width:100%;max-height:86vh;overflow:auto;box-shadow:0 12px 40px rgba(10,35,64,.3);}
+.modal-head{padding:14px;border-bottom:1px solid var(--line-w);font-size:15px;font-weight:700;color:var(--blue-d);}
+.modal-body{padding:14px;}
+.modal-foot{padding:0 14px 14px;display:flex;gap:8px;flex-wrap:wrap;}
+.q-item{border:1px solid var(--line);border-radius:var(--r-s);padding:11px;background:var(--blue-l2);}
+.q-item .q-t{font-size:14px;font-weight:700;color:var(--blue-d);}
+.q-item .q-s{font-size:12px;color:var(--muted);margin-top:3px;}
+.q-prog{font-size:12px;color:var(--muted);margin-bottom:8px;font-weight:600;}
+#toast{position:fixed;left:50%;bottom:24px;transform:translateX(-50%) translateY(20px);background:#123A63;color:#fff;padding:11px 18px;border-radius:999px;font-size:13px;font-weight:600;opacity:0;pointer-events:none;transition:opacity .2s,transform .2s;z-index:90;max-width:92vw;text-align:center;}
+#toast.on{opacity:1;transform:translateX(-50%) translateY(0);}
+.hidden{display:none !important;}
+
+/* ---------- フッター（コピーライト） ---------- */
+.site-footer{margin-top:22px;padding:18px 14px;background:var(--white);border:1px solid var(--line);border-radius:var(--r);display:flex;flex-direction:column;align-items:center;gap:9px;text-align:center;}
+.site-footer img{width:118px;height:auto;display:block;}
+.site-footer .cr{font-size:11.5px;color:var(--muted);letter-spacing:.02em;}
+.site-footer .cn{font-size:12.5px;font-weight:700;color:var(--blue-d);}
+
+/* ---------- レスポンシブ ---------- */
+@media (min-width:600px){
+  .grid2{grid-template-columns:1fr 1fr;}
+  .slot-list{grid-template-columns:repeat(auto-fit,minmax(210px,1fr));}
+  .entry-body{grid-template-columns:repeat(2,1fr);}
+  .entry-body .col-span{grid-column:1 / -1;}
+  .header-title{font-size:19px;}
+  .tab{font-size:13px;padding:11px 12px;}
+  .only-wide{display:inline;}
+}
+@media (min-width:900px){
+  body{padding:20px 20px 44px;}
+  .cal-months{grid-template-columns:1fr 1fr;gap:22px;}
+  .grid-form{grid-template-columns:repeat(2,1fr);}
+  .grid-form .col-span{grid-column:1 / -1;}
+  .entry-body{grid-template-columns:repeat(3,1fr);}
+  input[type=text],input[type=date],input[type=time],select{font-size:13.5px;min-height:38px;padding:8px 10px;}
+  textarea{font-size:12.5px;}
+  .day{min-height:44px;font-size:13.5px;}
+  .header-title{font-size:20px;}
+}
+@media print{
+  body{background:#fff;padding:0;}
+  .tabs,.header-actions,.list-toolbar,.entry-foot,.btn{display:none !important;}
+}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <div class="header">
+    <div class="header-left">
+      <div class="header-title">OES入れ替え作業登録カレンダー</div>
+      <div class="header-sub">Googleカレンダー 一括登録ツール</div>
+    </div>
+    <div class="header-actions">
+      <a class="hbtn" href="manual.html" target="_blank" rel="noopener noreferrer">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
+        操作マニュアル
+      </a>
+    </div>
+  </div>
+
+  <div class="tabs" role="tablist">
+    <button class="tab active" id="tab-cal"  role="tab" onclick="showTab('cal')">📅 カレンダー<span class="only-wide">で選ぶ</span></button>
+    <button class="tab"        id="tab-list" role="tab" onclick="showTab('list')">📋 登録リスト <span class="badge" id="list-count">0</span></button>
+    <button class="tab"        id="tab-set"  role="tab" onclick="showTab('set')">⚙️ 設定</button>
+  </div>
+
+  <!-- ============ 画面1: カレンダーで選ぶ ============ -->
+  <section id="pane-cal">
+    <div class="card">
+      <div class="card-head">
+        <div class="card-title"><span class="step">1</span>作業日を選ぶ（複数選択できます）</div>
+        <div class="row-btns">
+          <button class="btn btn-ghost btn-sm" onclick="calToday()">今月へ</button>
+          <button class="btn btn-ghost btn-sm" onclick="clearSelectedDates()">選択をクリア</button>
+        </div>
+      </div>
+      <div class="card-body">
+        <div class="cal-toolbar">
+          <button class="cal-nav" onclick="calMove(-1)" aria-label="前の月">‹</button>
+          <div class="cal-label" id="cal-label">-</div>
+          <button class="cal-nav" onclick="calMove(1)" aria-label="次の月">›</button>
+        </div>
+        <div class="cal-months" id="cal-months"></div>
+        <div class="cal-legend">
+          <span><i class="lg-box" style="background:#1565C0;"></i>選択中</span>
+          <span><i class="lg-box" style="background:#fff;border:2px solid #1565C0;"></i>今日</span>
+          <span><i class="lg-box" style="background:#fff;border:1px solid #DCEAF8;"></i>未選択</span>
+          <span>● 登録リストに入っている日</span>
+        </div>
+        <div class="chips" id="sel-chips"></div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-head">
+        <div class="card-title"><span class="step">2</span>業態と時間帯を選ぶ</div>
+      </div>
+      <div class="card-body">
+        <div class="grid-form">
+          <div class="field">
+            <label for="bulk-gyotai">業態</label>
+            <select id="bulk-gyotai" onchange="onBulkGyotaiChange()"></select>
+          </div>
+          <div class="field col-span">
+            <label>時間帯</label>
+            <div class="slot-list" id="bulk-slots"></div>
+          </div>
+          <div class="field">
+            <label for="bulk-start">開始時刻</label>
+            <select id="bulk-start"></select>
+          </div>
+          <div class="field">
+            <label for="bulk-end">終了時刻</label>
+            <select id="bulk-end"></select>
+          </div>
+          <div class="field">
+            <label for="bulk-staff">担当者</label>
+            <select id="bulk-staff"></select>
+          </div>
+          <div class="field">
+            <label for="bulk-tenpo">店舗名（選択した全ての日に入ります／あとで個別に変更できます）</label>
+            <input type="text" id="bulk-tenpo" placeholder="例: 渋谷" onblur="bulkTenpoBlur()">
+          </div>
+          <div class="field">
+            <label for="bulk-addr">住所（任意）</label>
+            <input type="text" id="bulk-addr" placeholder="例: 東京都渋谷区…">
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-head">
+        <div class="card-title"><span class="step">3</span>登録リストに追加</div>
+      </div>
+      <div class="card-body">
+        <button class="btn btn-primary btn-block" id="btn-add-bulk" onclick="addSelectedToList()">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+          <span id="btn-add-bulk-label">選択した0日を登録リストに追加</span>
+        </button>
+        <div class="hint" style="margin-top:9px;">
+          追加したあと「📋 登録リスト」タブで、店舗名・住所・説明文を1件ずつ調整できます。<br>
+          日付・業態・時間帯の組み合わせを変えて、この操作を何度でも繰り返せます。
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ 画面2: 登録リスト ============ -->
+  <section id="pane-list" class="hidden">
+    <div class="card">
+      <div class="list-toolbar">
+        <button class="btn btn-primary btn-sm" onclick="startQueue()">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+          Googleカレンダーで順番に登録
+        </button>
+        <button class="btn btn-sub btn-sm" onclick="downloadIcs()">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+          ICSファイルで一括取込
+        </button>
+        <button class="btn btn-ghost btn-sm" onclick="addEmptyEntry()">＋ 空の行を追加</button>
+        <button class="btn btn-danger btn-sm" onclick="clearAllEntries()">全て削除</button>
+      </div>
+      <div class="card-body" style="padding:12px;">
+        <div id="entries"></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ 画面3: 設定 ============ -->
+  <section id="pane-set" class="hidden">
+    <div class="card">
+      <div class="card-head">
+        <div class="card-title">業態ごとの定型文・時間帯</div>
+        <div class="row-btns">
+          <button class="btn btn-sub btn-sm" onclick="addGyotai()">＋ 業態を追加</button>
+        </div>
+      </div>
+      <div class="card-body">
+        <div class="note" style="margin-bottom:12px;">
+          <b>使い方：</b>業態ごとに「時間帯（午前・午後など）」を用意し、それぞれに開始／終了時刻と<b>定型文</b>を登録します。
+          カレンダーで業態と時間帯を選ぶと、ここで設定した内容が自動で入ります。<br>
+          定型文の中では次の差し込み文字が使えます（クリックでコピー）:
+          <div class="ph-list">
+            <span class="ph" onclick="copyPh(this)">{業態}</span>
+            <span class="ph" onclick="copyPh(this)">{店舗名}</span>
+            <span class="ph" onclick="copyPh(this)">{日付}</span>
+            <span class="ph" onclick="copyPh(this)">{開始}</span>
+            <span class="ph" onclick="copyPh(this)">{終了}</span>
+            <span class="ph" onclick="copyPh(this)">{時間帯}</span>
+            <span class="ph" onclick="copyPh(this)">{担当者}</span>
+            <span class="ph" onclick="copyPh(this)">{担当者定型文}</span>
+          </div>
+        </div>
+        <div id="gy-list"></div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-head">
+        <div class="card-title">担当者と担当者定型文</div>
+        <div class="row-btns">
+          <button class="btn btn-sub btn-sm" onclick="addStaff()">＋ 担当者を追加</button>
+        </div>
+      </div>
+      <div class="card-body">
+        <div class="note" style="margin-bottom:12px;">
+          担当者を登録しておくと、カレンダー画面と登録リストで担当者を選べます。<br>
+          担当者ごとの<b>担当者定型文</b>は、業態の定型文の中に <span class="ph" onclick="copyPh(this)">{担当者定型文}</span> と書いた場所へそのまま差し込まれます。
+          名前だけを使いたいときは <span class="ph" onclick="copyPh(this)">{担当者}</span> を使ってください。
+        </div>
+        <div id="staff-list"></div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-head"><div class="card-title">共通設定</div></div>
+      <div class="card-body">
+        <div class="grid-form">
+          <div class="field col-span">
+            <label for="set-title-tpl">予定のタイトル書式（共通）</label>
+            <input type="text" id="set-title-tpl" onchange="onCommonChange()">
+            <div class="hint">例: <code>OES入替作業({業態} {店舗名})</code> → <code>OES入替作業(すき家 渋谷店)</code></div>
+          </div>
+          <div class="field">
+            <label for="set-suffix">店舗名の語尾を自動で補う</label>
+            <select id="set-suffix" onchange="onCommonChange()">
+              <option value="1">補う</option>
+              <option value="0">補わない</option>
+            </select>
+          </div>
+          <div class="field">
+            <label for="set-suffix-char">補う文字</label>
+            <input type="text" id="set-suffix-char" maxlength="4" onchange="onCommonChange()">
+          </div>
+          <div class="field">
+            <label for="set-time-start">時刻プルダウンの開始（時）</label>
+            <input type="text" id="set-time-start" inputmode="numeric" onchange="onCommonChange()">
+          </div>
+          <div class="field">
+            <label for="set-time-end">時刻プルダウンの終了（時）</label>
+            <input type="text" id="set-time-end" inputmode="numeric" onchange="onCommonChange()">
+          </div>
+          <div class="field">
+            <label for="set-time-step">時刻の刻み（分）</label>
+            <select id="set-time-step" onchange="onCommonChange()">
+              <option value="5">5分</option><option value="10">10分</option>
+              <option value="15">15分</option><option value="30">30分</option>
+            </select>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-head"><div class="card-title">設定の保存・持ち出し</div></div>
+      <div class="card-body">
+        <div class="hint" style="margin-bottom:10px;">
+          設定はこの端末のブラウザに保存されます。パソコンとスマートフォンで同じ設定を使うときは、
+          書き出したファイルをもう一方の端末で読み込んでください。
+        </div>
+        <div class="row-btns">
+          <button class="btn btn-sub btn-sm" onclick="exportSettings()">設定を書き出す（JSON）</button>
+          <button class="btn btn-sub btn-sm" onclick="document.getElementById('import-file').click()">設定を読み込む</button>
+          <button class="btn btn-danger btn-sm" onclick="resetSettings()">初期設定に戻す</button>
+        </div>
+        <input type="file" id="import-file" accept="application/json,.json" class="hidden" onchange="importSettings(this)">
+      </div>
+    </div>
+  </section>
+
+  <footer class="site-footer">
+    <img src="data:image/jpeg;base64,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" alt="ウェルシス株式会社 WELSYS">
+    <div class="cn">ウェルシス株式会社</div>
+    <div class="cr">&copy; <span id="cr-year">2026</span> WELSYS Inc. All rights reserved.</div>
+  </footer>
+</div>
+
+<div id="toast"></div>
+<div id="modal-root"></div>
+
+<script>
+'use strict';
+
+/* =========================================================================
+   OES入れ替え作業登録カレンダー
+   - 単一HTMLファイル / 外部依存なし / バニラJS
+   - 設定（業態・時間帯・定型文）は localStorage に保存する
+   ========================================================================= */
+
+var STORAGE_KEY = 'oes-calendar-settings-v1';
+
+/* ---------- 定型文のひな形 ---------- */
+var TPL_STAFF = [
+  '担当: {担当者}'
+].join('\n');
+
+var TPL_STANDARD = [
+  '{業態} {店舗名} 入店 {開始}',
+  '',
+  '{業態} {店舗名} 中間報告',
+  '',
+  '{業態} {店舗名} 退店報告',
+  '',
+  '入店 {開始}',
+  '退店 {終了}',
+  '',
+  'MPR   台'
+].join('\n');
+
+var TPL_SUKIYA = [
+  '{業態} {店舗名} 入店 {開始}',
+  'POSレジ清算済み',
+  'POSレジ清算 今から開始をお願いいたしました',
+  '',
+  '{業態} {店舗名} 中間報告',
+  '',
+  '{業態} {店舗名} 退店報告',
+  '',
+  '入店 {開始}',
+  '退店 {終了}',
+  '',
+  'MPR   台',
+  'HT    台',
+  'BC    台',
+  'BP    個'
+].join('\n');
+
+/* ---------- 初期設定 ---------- */
+function defaultSettings(){
+  return {
+    version: 1,
+    titleTemplate: 'OES入替作業({業態} {店舗名})',
+    suffixEnabled: true,
+    suffixChar: '店',
+    timeRange: { startHour: 6, endHour: 20, step: 15 },
+    staff: [],
+    gyotai: [
+      { id:'g-olive', name:'オリーブの丘', titleTemplate:'', defaultStaffId:'', slots:[
+        { id:'s-olive-am', label:'午前 (AM)', start:'08:00', end:'09:00', body:TPL_STANDARD }
+      ]},
+      { id:'g-sukiya', name:'すき家', titleTemplate:'', defaultStaffId:'', slots:[
+        { id:'s-sukiya-am', label:'午前 (AM)', start:'08:30', end:'09:30', body:TPL_SUKIYA },
+        { id:'s-sukiya-pm', label:'午後 (PM)', start:'14:30', end:'15:30', body:TPL_SUKIYA }
+      ]},
+      { id:'g-hanaya', name:'華屋与兵衛', titleTemplate:'', defaultStaffId:'', slots:[
+        { id:'s-hanaya-am', label:'午前 (AM)', start:'08:00', end:'09:00', body:TPL_STANDARD }
+      ]},
+      { id:'g-hama', name:'はま寿司', titleTemplate:'', defaultStaffId:'', slots:[
+        { id:'s-hama-am', label:'午前 (AM)', start:'08:00', end:'09:00', body:TPL_STANDARD },
+        { id:'s-hama-pm', label:'午後 (PM)', start:'14:30', end:'15:30', body:TPL_STANDARD }
+      ]}
+    ]
+  };
+}
+
+/* ---------- 状態 ---------- */
+var settings   = defaultSettings();
+var entries    = [];              // 登録リスト
+var selDates   = [];              // 'YYYY-MM-DD' の配列
+var viewYear   = 0, viewMonth = 0;
+var lastClicked = null;           // Shift+クリックの範囲選択用
+var seq = 0;
+
+function uid(pfx){ seq++; return (pfx||'id') + '-' + Date.now().toString(36) + '-' + seq; }
+
+/* ---------- 保存・読み込み ---------- */
+function saveSettings(){
+  try{ localStorage.setItem(STORAGE_KEY, JSON.stringify(settings)); }
+  catch(e){ /* プライベートモード等で保存できない場合は無視 */ }
+}
+function loadSettings(){
+  var raw = null;
+  try{ raw = localStorage.getItem(STORAGE_KEY); }catch(e){ raw = null; }
+  if(!raw) return;
+  try{
+    var o = JSON.parse(raw);
+    if(o && o.gyotai && o.gyotai.length) settings = normalizeSettings(o);
+  }catch(e){ /* 壊れていたら初期設定のまま */ }
+}
+function normalizeSettings(o){
+  var d = defaultSettings();
+  var s = {
+    version: 1,
+    titleTemplate: (typeof o.titleTemplate === 'string' && o.titleTemplate) ? o.titleTemplate : d.titleTemplate,
+    suffixEnabled: (o.suffixEnabled !== false),
+    suffixChar: (typeof o.suffixChar === 'string' && o.suffixChar) ? o.suffixChar : '店',
+    timeRange: {
+      startHour: clampInt((o.timeRange||{}).startHour, 0, 23, 6),
+      endHour:   clampInt((o.timeRange||{}).endHour,   0, 23, 20),
+      step:      clampInt((o.timeRange||{}).step,      5, 60, 15)
+    },
+    staff: [],
+    gyotai: []
+  };
+  if(s.timeRange.endHour < s.timeRange.startHour) s.timeRange.endHour = s.timeRange.startHour;
+  (o.staff||[]).forEach(function(st){
+    s.staff.push({
+      id: st.id || uid('t'),
+      name: String(st.name || '（担当者名未設定）'),
+      contact: typeof st.contact === 'string' ? st.contact : '',
+      body: typeof st.body === 'string' ? st.body : TPL_STAFF
+    });
+  });
+  (o.gyotai||[]).forEach(function(g){
+    var ng = {
+      id: g.id || uid('g'),
+      name: String(g.name || '（名称未設定）'),
+      titleTemplate: typeof g.titleTemplate === 'string' ? g.titleTemplate : '',
+      defaultStaffId: typeof g.defaultStaffId === 'string' ? g.defaultStaffId : '',
+      slots: []
+    };
+    (g.slots||[]).forEach(function(sl){
+      ng.slots.push({
+        id: sl.id || uid('s'),
+        label: String(sl.label || '時間帯'),
+        start: normTime(sl.start, '08:00'),
+        end:   normTime(sl.end,   '09:00'),
+        body:  typeof sl.body === 'string' ? sl.body : TPL_STANDARD
+      });
+    });
+    if(!ng.slots.length){
+      ng.slots.push({id:uid('s'), label:'午前 (AM)', start:'08:00', end:'09:00', body:TPL_STANDARD});
+    }
+    s.gyotai.push(ng);
+  });
+  if(!s.gyotai.length) s.gyotai = d.gyotai;
+  s.gyotai.forEach(function(g){
+    var found = false;
+    s.staff.forEach(function(st){ if(st.id === g.defaultStaffId) found = true; });
+    if(!found) g.defaultStaffId = '';
+  });
+  return s;
+}
+function clampInt(v, lo, hi, dflt){
+  var n = parseInt(v, 10);
+  if(isNaN(n)) return dflt;
+  return Math.min(hi, Math.max(lo, n));
+}
+function normTime(v, dflt){
+  if(typeof v !== 'string') return dflt;
+  var m = v.match(/^(\d{1,2}):(\d{2})$/);
+  if(!m) return dflt;
+  return pad(Math.min(23, parseInt(m[1],10))) + ':' + pad(Math.min(59, parseInt(m[2],10)));
+}
+
+/* ---------- 小物 ---------- */
+function pad(n){ return String(n).length < 2 ? '0' + n : String(n); }
+function $(id){ return document.getElementById(id); }
+function esc(s){
+  return String(s == null ? '' : s)
+    .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
+    .replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+}
+function toast(msg){
+  var t = $('toast');
+  t.textContent = msg;
+  t.classList.add('on');
+  clearTimeout(toast._h);
+  toast._h = setTimeout(function(){ t.classList.remove('on'); }, 2200);
+}
+function todayStr(){
+  var d = new Date();
+  return d.getFullYear() + '-' + pad(d.getMonth()+1) + '-' + pad(d.getDate());
+}
+var WDAY = ['日','月','火','水','木','金','土'];
+function ymdParts(ds){
+  var p = String(ds||'').split('-');
+  return { y:parseInt(p[0],10), m:parseInt(p[1],10), d:parseInt(p[2],10) };
+}
+function fmtDateJp(ds){
+  var p = ymdParts(ds);
+  if(!p.y) return '';
+  var dt = new Date(p.y, p.m-1, p.d);
+  return p.y + '年' + p.m + '月' + p.d + '日(' + WDAY[dt.getDay()] + ')';
+}
+function fmtDateShort(ds){
+  var p = ymdParts(ds);
+  if(!p.y) return '';
+  var dt = new Date(p.y, p.m-1, p.d);
+  return p.m + '/' + p.d + '(' + WDAY[dt.getDay()] + ')';
+}
+function findGyotai(id){
+  for(var i=0;i<settings.gyotai.length;i++){ if(settings.gyotai[i].id === id) return settings.gyotai[i]; }
+  return null;
+}
+function findStaff(id){
+  if(!id) return null;
+  for(var i=0;i<settings.staff.length;i++){ if(settings.staff[i].id === id) return settings.staff[i]; }
+  return null;
+}
+function findSlot(g, id){
+  if(!g) return null;
+  for(var i=0;i<g.slots.length;i++){ if(g.slots[i].id === id) return g.slots[i]; }
+  return null;
+}
+
+/* ---------- 時刻プルダウン ---------- */
+function timeOptionsHtml(selected){
+  var tr = settings.timeRange, html = '', found = false;
+  for(var h = tr.startHour; h <= tr.endHour; h++){
+    for(var m = 0; m < 60; m += tr.step){
+      if(h === tr.endHour && m > 0) break;
+      var v = pad(h) + ':' + pad(m);
+      if(v === selected) found = true;
+      html += '<option value="' + v + '"' + (v === selected ? ' selected' : '') + '>' + v + '</option>';
+    }
+  }
+  // 設定範囲外の時刻が入っていても失われないように先頭へ足す
+  if(selected && !found){
+    html = '<option value="' + esc(selected) + '" selected>' + esc(selected) + '</option>' + html;
+  }
+  return html;
+}
+
+/* ---------- 店舗名の語尾補完 ---------- */
+function applySuffix(name){
+  var v = String(name || '').trim();
+  if(!settings.suffixEnabled) return v;
+  var c = settings.suffixChar || '店';
+  if(v.length > 0 && v.slice(-c.length) !== c) return v + c;
+  return v;
+}
+
+/* ---------- 差し込み ---------- */
+function fillTemplate(tpl, ctx){
+  return String(tpl == null ? '' : tpl)
+    /* 担当者定型文は先に差し込む（その中の差し込み文字も置換されるように） */
+    .replace(/\{担当者定型文\}/g, ctx.staffBody || '')
+    .replace(/\{担当者\}/g, ctx.staff || '')
+    .replace(/\{業態\}/g,   ctx.gyotai || '')
+    .replace(/\{店舗名\}/g, ctx.tenpo  || '')
+    .replace(/\{日付\}/g,   ctx.date   || '')
+    .replace(/\{開始\}/g,   ctx.start  || '')
+    .replace(/\{終了\}/g,   ctx.end    || '')
+    .replace(/\{時間帯\}/g, ctx.slot   || '')
+    /* 旧バージョン (★0〜★3) 互換 */
+    .replace(/★0/g, ctx.gyotai || '')
+    .replace(/★1/g, ctx.tenpo  || '')
+    .replace(/★2/g, ctx.start  || '')
+    .replace(/★3/g, ctx.end    || '');
+}
+function entryCtx(en){
+  var st = findStaff(en.staffId);
+  return {
+    staff: st ? st.name : (en.staffName || ''),
+    staffBody: st ? st.body : '',
+    gyotai: en.gyotaiName || '',
+    tenpo:  en.tenpo || '',
+    date:   fmtDateJp(en.date),
+    start:  en.start || '',
+    end:    en.end || '',
+    slot:   en.slotLabel || ''
+  };
+}
+function buildDesc(en){
+  var g = findGyotai(en.gyotaiId);
+  var sl = findSlot(g, en.slotId);
+  var body = sl ? sl.body : TPL_STANDARD;
+  return fillTemplate(body, entryCtx(en));
+}
+function buildTitle(en){
+  var g = findGyotai(en.gyotaiId);
+  var tpl = (g && g.titleTemplate) ? g.titleTemplate : settings.titleTemplate;
+  return fillTemplate(tpl, entryCtx(en));
+}
+
+/* =========================================================================
+   タブ切り替え
+   ========================================================================= */
+function showTab(name){
+  ['cal','list','set'].forEach(function(n){
+    $('pane-' + n).classList.toggle('hidden', n !== name);
+    $('tab-' + n).classList.toggle('active', n === name);
+  });
+  if(name === 'set') renderSettings();
+  if(name === 'cal') renderCalendars();
+  window.scrollTo(0, 0);
+}
+
+/* =========================================================================
+   画面1: カレンダー（複数日選択）
+   ========================================================================= */
+function monthsToShow(){ return window.innerWidth >= 900 ? 2 : 1; }
+
+function calToday(){
+  var d = new Date();
+  viewYear = d.getFullYear(); viewMonth = d.getMonth();
+  renderCalendars();
+}
+function calMove(diff){
+  viewMonth += diff;
+  while(viewMonth < 0){ viewMonth += 12; viewYear--; }
+  while(viewMonth > 11){ viewMonth -= 12; viewYear++; }
+  renderCalendars();
+}
+function datesInList(){
+  var map = {};
+  entries.forEach(function(en){ if(en.date) map[en.date] = true; });
+  return map;
+}
+function renderCalendars(){
+  var n = monthsToShow();
+  var host = $('cal-months');
+  var html = '';
+  var inList = datesInList();
+  var today = todayStr();
+
+  for(var k = 0; k < n; k++){
+    var y = viewYear, m = viewMonth + k;
+    while(m > 11){ m -= 12; y++; }
+    html += '<div class="cal-month">';
+    html += '<div class="cal-month-name">' + y + '年 ' + (m+1) + '月</div>';
+    html += '<div class="cal-grid">';
+    for(var w = 0; w < 7; w++){
+      html += '<div class="cal-dow' + (w===0?' sun':(w===6?' sat':'')) + '">' + WDAY[w] + '</div>';
+    }
+    var first = new Date(y, m, 1);
+    var lead = first.getDay();
+    var days = new Date(y, m+1, 0).getDate();
+    for(var i = 0; i < lead; i++) html += '<div class="day other"></div>';
+    for(var d = 1; d <= days; d++){
+      var ds = y + '-' + pad(m+1) + '-' + pad(d);
+      var dow = new Date(y, m, d).getDay();
+      var cls = 'day';
+      if(dow === 0) cls += ' sun'; else if(dow === 6) cls += ' sat';
+      if(ds === today) cls += ' today';
+      if(selDates.indexOf(ds) !== -1) cls += ' selected';
+      html += '<button type="button" class="' + cls + '" data-date="' + ds + '" onclick="onDayClick(event,\'' + ds + '\')">'
+            + '<span>' + d + '</span>'
+            + (inList[ds] ? '<i class="dot"></i>' : '')
+            + '</button>';
+    }
+    html += '</div></div>';
+  }
+  host.innerHTML = html;
+  host.className = 'cal-months' + (n === 1 ? ' single' : '');
+
+  var y2 = viewYear, m2 = viewMonth + n - 1;
+  while(m2 > 11){ m2 -= 12; y2++; }
+  $('cal-label').textContent = (n === 1)
+    ? viewYear + '年 ' + (viewMonth+1) + '月'
+    : viewYear + '/' + (viewMonth+1) + ' - ' + y2 + '/' + (m2+1);
+
+  renderChips();
+}
+function onDayClick(ev, ds){
+  if(ev && ev.shiftKey && lastClicked && lastClicked !== ds){
+    selectRange(lastClicked, ds);
+  }else{
+    var i = selDates.indexOf(ds);
+    if(i === -1) selDates.push(ds); else selDates.splice(i, 1);
+  }
+  lastClicked = ds;
+  selDates.sort();
+  renderCalendars();
+  updateAddButton();
+}
+function selectRange(a, b){
+  var from = a < b ? a : b, to = a < b ? b : a;
+  var p = ymdParts(from), q = ymdParts(to);
+  var cur = new Date(p.y, p.m-1, p.d), end = new Date(q.y, q.m-1, q.d);
+  while(cur <= end){
+    var ds = cur.getFullYear() + '-' + pad(cur.getMonth()+1) + '-' + pad(cur.getDate());
+    if(selDates.indexOf(ds) === -1) selDates.push(ds);
+    cur.setDate(cur.getDate() + 1);
+  }
+}
+function clearSelectedDates(){
+  selDates = [];
+  lastClicked = null;
+  renderCalendars();
+  updateAddButton();
+}
+function removeSelDate(ds){
+  var i = selDates.indexOf(ds);
+  if(i !== -1) selDates.splice(i, 1);
+  renderCalendars();
+  updateAddButton();
+}
+function renderChips(){
+  var host = $('sel-chips');
+  if(!selDates.length){
+    host.innerHTML = '<div class="hint">日付をタップすると選択できます。パソコンでは Shift + クリックで期間をまとめて選べます。</div>';
+    return;
+  }
+  var html = '';
+  selDates.forEach(function(ds){
+    html += '<span class="chip">' + fmtDateShort(ds)
+          + '<button type="button" onclick="removeSelDate(\'' + ds + '\')" aria-label="削除">&times;</button></span>';
+  });
+  host.innerHTML = html;
+}
+function updateAddButton(){
+  $('btn-add-bulk-label').textContent = '選択した' + selDates.length + '日を登録リストに追加';
+  $('btn-add-bulk').disabled = (selDates.length === 0);
+}
+
+/* ---------- 業態・時間帯の選択フォーム ---------- */
+function renderBulkForm(keepGyotai){
+  var sel = $('bulk-gyotai');
+  var prev = keepGyotai ? sel.value : '';
+  var html = '';
+  settings.gyotai.forEach(function(g){
+    html += '<option value="' + esc(g.id) + '">' + esc(g.name) + '</option>';
+  });
+  sel.innerHTML = html;
+  if(prev && findGyotai(prev)) sel.value = prev;
+  renderBulkStaff(keepGyotai);
+  renderBulkSlots();
+}
+function staffOptionsHtml(selectedId){
+  var html = '<option value="">（指定なし）</option>';
+  settings.staff.forEach(function(st){
+    html += '<option value="' + esc(st.id) + '"' + (st.id === selectedId ? ' selected' : '') + '>' + esc(st.name) + '</option>';
+  });
+  return html;
+}
+function renderBulkStaff(keepValue){
+  var sel = $('bulk-staff');
+  var prev = keepValue ? sel.value : '';
+  var g = findGyotai($('bulk-gyotai').value);
+  var want = (prev && findStaff(prev)) ? prev : (g ? g.defaultStaffId : '');
+  sel.innerHTML = staffOptionsHtml(want);
+}
+function renderBulkSlots(keepSlot){
+  var g = findGyotai($('bulk-gyotai').value);
+  var host = $('bulk-slots');
+  if(!g){ host.innerHTML = '<div class="hint">業態が登録されていません。設定タブで追加してください。</div>'; return; }
+  var prev = keepSlot ? currentBulkSlotId() : '';
+  var html = '';
+  g.slots.forEach(function(sl, i){
+    var on = prev ? (sl.id === prev) : (i === 0);
+    html += '<label class="slot-opt' + (on ? ' on' : '') + '">'
+          + '<input type="radio" name="bulk-slot" value="' + esc(sl.id) + '"' + (on ? ' checked' : '') + ' onchange="onBulkSlotChange()">'
+          + '<span><span class="s-name">' + esc(sl.label) + '</span><br>'
+          + '<span class="s-time">' + esc(sl.start) + ' 〜 ' + esc(sl.end) + '</span></span></label>';
+  });
+  host.innerHTML = html;
+  applyBulkSlotTimes();
+}
+function currentBulkSlotId(){
+  var el = document.querySelector('input[name="bulk-slot"]:checked');
+  return el ? el.value : '';
+}
+function onBulkGyotaiChange(){
+  var g = findGyotai($('bulk-gyotai').value);
+  $('bulk-staff').innerHTML = staffOptionsHtml(g ? g.defaultStaffId : '');
+  renderBulkSlots();
+}
+function onBulkSlotChange(){
+  var opts = document.querySelectorAll('#bulk-slots .slot-opt');
+  for(var i = 0; i < opts.length; i++){
+    var r = opts[i].querySelector('input');
+    opts[i].classList.toggle('on', !!(r && r.checked));
+  }
+  applyBulkSlotTimes();
+}
+function applyBulkSlotTimes(){
+  var g = findGyotai($('bulk-gyotai').value);
+  var sl = findSlot(g, currentBulkSlotId());
+  var st = sl ? sl.start : '08:00';
+  var et = sl ? sl.end   : '09:00';
+  $('bulk-start').innerHTML = timeOptionsHtml(st);
+  $('bulk-end').innerHTML   = timeOptionsHtml(et);
+}
+function bulkTenpoBlur(){
+  var el = $('bulk-tenpo');
+  el.value = applySuffix(el.value);
+}
+
+/* ---------- 選択した日をまとめて登録リストへ ---------- */
+function addSelectedToList(){
+  if(!selDates.length){ toast('日付を選んでください'); return; }
+  var g = findGyotai($('bulk-gyotai').value);
+  if(!g){ toast('業態を選んでください'); return; }
+  var sl = findSlot(g, currentBulkSlotId()) || g.slots[0];
+  bulkTenpoBlur();
+  var tenpo = $('bulk-tenpo').value.trim();
+  var addr  = $('bulk-addr').value.trim();
+  var st = $('bulk-start').value, et = $('bulk-end').value;
+  var staff = findStaff($('bulk-staff').value);
+
+  var added = 0;
+  selDates.slice().sort().forEach(function(ds){
+    var en = {
+      id: uid('e'),
+      date: ds,
+      gyotaiId: g.id, gyotaiName: g.name,
+      slotId: sl ? sl.id : '', slotLabel: sl ? sl.label : '',
+      start: st, end: et,
+      staffId: staff ? staff.id : '', staffName: staff ? staff.name : '',
+      tenpo: tenpo, address: addr,
+      desc: '', descEdited: false
+    };
+    en.desc = buildDesc(en);
+    entries.push(en);
+    added++;
+  });
+  sortEntries();
+  selDates = [];
+  lastClicked = null;
+  renderCalendars();
+  updateAddButton();
+  renderEntries();
+  toast(added + '件を登録リストに追加しました');
+  showTab('list');
+}
+function sortEntries(){
+  entries.sort(function(a, b){
+    if(a.date !== b.date) return a.date < b.date ? -1 : 1;
+    return a.start < b.start ? -1 : (a.start > b.start ? 1 : 0);
+  });
+}
+
+/* =========================================================================
+   画面2: 登録リスト
+   ========================================================================= */
+function findEntry(id){
+  for(var i=0;i<entries.length;i++){ if(entries[i].id === id) return entries[i]; }
+  return null;
+}
+function entryIndex(id){
+  for(var i=0;i<entries.length;i++){ if(entries[i].id === id) return i; }
+  return -1;
+}
+function entrySummary(en){
+  var parts = [];
+  parts.push(fmtDateShort(en.date) || '日付未設定');
+  parts.push(en.start + '〜' + en.end);
+  parts.push(en.gyotaiName || '業態未設定');
+  if(en.tenpo) parts.push(en.tenpo);
+  if(en.staffName) parts.push('担当:' + en.staffName);
+  return parts.join(' ／ ');
+}
+function renderEntries(){
+  var host = $('entries');
+  $('list-count').textContent = entries.length;
+  if(!entries.length){
+    host.innerHTML = '<div class="empty">登録リストは空です。<br>「📅 カレンダーで選ぶ」から作業日をまとめて追加してください。</div>';
+    return;
+  }
+  var html = '';
+  entries.forEach(function(en, i){
+    html += '<div class="entry" id="entry-' + en.id + '">' + entryInnerHtml(en, i) + '</div>';
+  });
+  host.innerHTML = html;
+}
+function refreshEntry(id){
+  var en = findEntry(id);
+  if(!en) return;
+  var el = $('entry-' + id);
+  if(!el){ renderEntries(); return; }
+  el.innerHTML = entryInnerHtml(en, entryIndex(id));
+}
+function entryInnerHtml(en, i){
+  var g = findGyotai(en.gyotaiId);
+  var gySel = '';
+  settings.gyotai.forEach(function(x){
+    gySel += '<option value="' + esc(x.id) + '"' + (x.id === en.gyotaiId ? ' selected' : '') + '>' + esc(x.name) + '</option>';
+  });
+  if(!g) gySel = '<option value="" selected>（未設定）</option>' + gySel;
+
+  var slSel = '';
+  if(g){
+    g.slots.forEach(function(sl){
+      slSel += '<option value="' + esc(sl.id) + '"' + (sl.id === en.slotId ? ' selected' : '') + '>' + esc(sl.label) + '</option>';
+    });
+  }
+  if(!slSel) slSel = '<option value="">（時間帯なし）</option>';
+
+  var descTag = en.descEdited
+    ? '<span><span class="tag-manual">手動で編集</span> <button class="btn btn-ghost btn-sm" onclick="enResetDesc(\'' + en.id + '\')">定型文に戻す</button></span>'
+    : '<span class="tag-auto">定型文から自動生成</span>';
+
+  return ''
+  + '<div class="entry-head">'
+  +   '<span class="entry-no">' + (i+1) + '</span>'
+  +   '<span class="entry-sum" id="sum-' + en.id + '">' + esc(entrySummary(en)) + '</span>'
+  + '</div>'
+  + '<div class="entry-body">'
+  +   '<div class="field"><label>日付</label>'
+  +     '<input type="date" value="' + esc(en.date) + '" onchange="enSetDate(\'' + en.id + '\',this.value)"></div>'
+  +   '<div class="field"><label>業態</label>'
+  +     '<select onchange="enSetGyotai(\'' + en.id + '\',this.value)">' + gySel + '</select></div>'
+  +   '<div class="field"><label>時間帯</label>'
+  +     '<select onchange="enSetSlot(\'' + en.id + '\',this.value)">' + slSel + '</select></div>'
+  +   '<div class="field"><label>開始時刻</label>'
+  +     '<select onchange="enSetTime(\'' + en.id + '\',\'start\',this.value)">' + timeOptionsHtml(en.start) + '</select></div>'
+  +   '<div class="field"><label>終了時刻</label>'
+  +     '<select onchange="enSetTime(\'' + en.id + '\',\'end\',this.value)">' + timeOptionsHtml(en.end) + '</select></div>'
+  +   '<div class="field"><label>担当者</label>'
+  +     '<select onchange="enSetStaff(\'' + en.id + '\',this.value)">' + staffOptionsHtml(en.staffId) + '</select></div>'
+  +   '<div class="field"><label>店舗名</label>'
+  +     '<input type="text" value="' + esc(en.tenpo) + '" placeholder="例: 渋谷" '
+  +       'oninput="enSetTenpo(\'' + en.id + '\',this.value)" onblur="enBlurTenpo(\'' + en.id + '\')"></div>'
+  +   '<div class="field col-span"><label>住所（Googleカレンダーの「場所」に入ります）</label>'
+  +     '<input type="text" value="' + esc(en.address) + '" placeholder="例: 東京都渋谷区…" oninput="enSetAddr(\'' + en.id + '\',this.value)"></div>'
+  +   '<div class="field col-span">'
+  +     '<div class="desc-head"><label>説明文</label>' + descTag + '</div>'
+  +     '<textarea id="desc-' + en.id + '" rows="10" oninput="enSetDesc(\'' + en.id + '\',this.value)">' + esc(en.desc) + '</textarea>'
+  +   '</div>'
+  + '</div>'
+  + '<div class="entry-foot">'
+  +   '<button class="btn btn-primary btn-sm" onclick="registerEntry(\'' + en.id + '\')">この予定をGoogleカレンダーに登録</button>'
+  +   '<button class="btn btn-ghost btn-sm" onclick="duplicateEntry(\'' + en.id + '\')">複製</button>'
+  +   '<button class="btn btn-danger btn-sm" onclick="removeEntry(\'' + en.id + '\')">削除</button>'
+  + '</div>';
+}
+function syncDesc(en){
+  if(en.descEdited) return;
+  en.desc = buildDesc(en);
+  var ta = $('desc-' + en.id);
+  if(ta) ta.value = en.desc;
+}
+function syncSummary(en){
+  var el = $('sum-' + en.id);
+  if(el) el.textContent = entrySummary(en);
+}
+function enSetDate(id, v){
+  var en = findEntry(id); if(!en) return;
+  en.date = v; syncDesc(en); syncSummary(en); renderCalendars();
+}
+function enSetGyotai(id, v){
+  var en = findEntry(id); if(!en) return;
+  var g = findGyotai(v); if(!g) return;
+  en.gyotaiId = g.id; en.gyotaiName = g.name;
+  var sl = g.slots[0];
+  if(sl){ en.slotId = sl.id; en.slotLabel = sl.label; en.start = sl.start; en.end = sl.end; }
+  if(!en.staffId && g.defaultStaffId){
+    var dst = findStaff(g.defaultStaffId);
+    if(dst){ en.staffId = dst.id; en.staffName = dst.name; }
+  }
+  en.desc = en.descEdited ? en.desc : buildDesc(en);
+  refreshEntry(id);
+}
+function enSetSlot(id, v){
+  var en = findEntry(id); if(!en) return;
+  var sl = findSlot(findGyotai(en.gyotaiId), v); if(!sl) return;
+  en.slotId = sl.id; en.slotLabel = sl.label; en.start = sl.start; en.end = sl.end;
+  en.desc = en.descEdited ? en.desc : buildDesc(en);
+  refreshEntry(id);
+}
+function enSetTime(id, which, v){
+  var en = findEntry(id); if(!en) return;
+  en[which] = v; syncDesc(en); syncSummary(en);
+}
+function enSetTenpo(id, v){
+  var en = findEntry(id); if(!en) return;
+  en.tenpo = v; syncDesc(en); syncSummary(en);
+}
+function enBlurTenpo(id){
+  var en = findEntry(id); if(!en) return;
+  var fixed = applySuffix(en.tenpo);
+  if(fixed !== en.tenpo){ en.tenpo = fixed; syncDesc(en); syncSummary(en); refreshEntry(id); }
+}
+function enSetStaff(id, v){
+  var en = findEntry(id); if(!en) return;
+  var st = findStaff(v);
+  en.staffId = st ? st.id : '';
+  en.staffName = st ? st.name : '';
+  syncDesc(en); syncSummary(en);
+}
+function enSetAddr(id, v){
+  var en = findEntry(id); if(!en) return;
+  en.address = v;
+}
+function enSetDesc(id, v){
+  var en = findEntry(id); if(!en) return;
+  var wasEdited = en.descEdited;
+  en.desc = v;
+  en.descEdited = true;
+  if(!wasEdited) refreshEntryTagOnly(id);
+}
+function refreshEntryTagOnly(id){
+  /* 入力中にカード全体を作り直すとカーソルが飛ぶため、タグ部分だけ差し替える */
+  var el = $('entry-' + id);
+  if(!el) return;
+  var head = el.querySelector('.desc-head');
+  if(!head) return;
+  var auto = head.querySelector('.tag-auto');
+  if(auto){
+    var span = document.createElement('span');
+    span.innerHTML = '<span class="tag-manual">手動で編集</span> '
+      + '<button class="btn btn-ghost btn-sm" onclick="enResetDesc(\'' + id + '\')">定型文に戻す</button>';
+    head.replaceChild(span, auto);
+  }
+}
+function enResetDesc(id){
+  var en = findEntry(id); if(!en) return;
+  en.descEdited = false;
+  en.desc = buildDesc(en);
+  refreshEntry(id);
+  toast('定型文から作り直しました');
+}
+function duplicateEntry(id){
+  var en = findEntry(id); if(!en) return;
+  var copy = JSON.parse(JSON.stringify(en));
+  copy.id = uid('e');
+  entries.splice(entryIndex(id) + 1, 0, copy);
+  renderEntries(); renderCalendars();
+}
+function removeEntry(id){
+  var i = entryIndex(id);
+  if(i === -1) return;
+  entries.splice(i, 1);
+  renderEntries(); renderCalendars();
+}
+function addEmptyEntry(){
+  var g = settings.gyotai[0];
+  var sl = g ? g.slots[0] : null;
+  var en = {
+    id: uid('e'), date: todayStr(),
+    gyotaiId: g ? g.id : '', gyotaiName: g ? g.name : '',
+    slotId: sl ? sl.id : '', slotLabel: sl ? sl.label : '',
+    start: sl ? sl.start : '08:00', end: sl ? sl.end : '09:00',
+    staffId: '', staffName: '',
+    tenpo: '', address: '', desc: '', descEdited: false
+  };
+  if(g && g.defaultStaffId){
+    var dst0 = findStaff(g.defaultStaffId);
+    if(dst0){ en.staffId = dst0.id; en.staffName = dst0.name; }
+  }
+  en.desc = buildDesc(en);
+  entries.push(en);
+  renderEntries(); renderCalendars();
+  showTab('list');
+}
+function clearAllEntries(){
+  if(!entries.length) return;
+  if(!confirm('登録リストの' + entries.length + '件をすべて削除します。よろしいですか？')) return;
+  entries = [];
+  renderEntries(); renderCalendars();
+}
+
+/* =========================================================================
+   Googleカレンダーへの登録
+   ========================================================================= */
+function validateEntry(en){
+  if(!en.date) return '日付が入力されていません';
+  if(!en.gyotaiName) return '業態が選ばれていません';
+  if(!en.start || !en.end) return '時刻が入力されていません';
+  return '';
+}
+function googleUrl(en){
+  var d = en.date.replace(/-/g, '');
+  var s = d + 'T' + en.start.replace(':', '') + '00';
+  var e = d + 'T' + en.end.replace(':', '') + '00';
+  var p = new URLSearchParams({
+    action: 'TEMPLATE',
+    text: buildTitle(en),
+    dates: s + '/' + e,
+    details: en.desc || '',
+    location: en.address || '',
+    ctz: 'Asia/Tokyo'
+  });
+  return 'https://calendar.google.com/calendar/render?' + p.toString();
+}
+function registerEntry(id){
+  var en = findEntry(id); if(!en) return;
+  var err = validateEntry(en);
+  if(err){ alert(err); return; }
+  window.open(googleUrl(en), '_blank', 'noopener');
+}
+
+/* ---------- 順番に登録（ポップアップブロック対策で1件ずつ） ---------- */
+var queue = [], qPos = 0;
+function startQueue(){
+  if(!entries.length){ toast('登録リストが空です'); return; }
+  for(var i = 0; i < entries.length; i++){
+    var err = validateEntry(entries[i]);
+    if(err){ alert((i+1) + '件目: ' + err); return; }
+  }
+  queue = entries.slice();
+  qPos = 0;
+  renderQueue();
+}
+function renderQueue(){
+  if(qPos >= queue.length){ closeModal(); toast('全ての予定を開きました'); return; }
+  var en = queue[qPos];
+  var html = ''
+   + '<div class="modal-bg" onclick="if(event.target===this)closeModal()"><div class="modal">'
+   + '<div class="modal-head">Googleカレンダーで順番に登録</div>'
+   + '<div class="modal-body">'
+   +   '<div class="q-prog">' + (qPos+1) + ' 件目 / 全 ' + queue.length + ' 件</div>'
+   +   '<div class="q-item"><div class="q-t">' + esc(buildTitle(en)) + '</div>'
+   +   '<div class="q-s">' + esc(fmtDateJp(en.date)) + '　' + esc(en.start) + '〜' + esc(en.end) + '</div></div>'
+   +   '<div class="hint" style="margin-top:10px;">「開く」を押すとGoogleカレンダーの登録画面が新しいタブで開きます。'
+   +   '内容を確認して<b>保存</b>したら、この画面に戻って次に進んでください。</div>'
+   + '</div>'
+   + '<div class="modal-foot">'
+   +   '<button class="btn btn-primary" style="flex:1;" onclick="queueOpen()">開く（' + (qPos+1) + '/' + queue.length + '）</button>'
+   +   '<button class="btn btn-ghost" onclick="queueSkip()">とばす</button>'
+   +   '<button class="btn btn-ghost" onclick="closeModal()">中止</button>'
+   + '</div></div></div>';
+  $('modal-root').innerHTML = html;
+}
+function queueOpen(){
+  var en = queue[qPos];
+  if(en) window.open(googleUrl(en), '_blank', 'noopener');
+  qPos++;
+  renderQueue();
+}
+function queueSkip(){ qPos++; renderQueue(); }
+function closeModal(){ $('modal-root').innerHTML = ''; }
+
+/* ---------- ICSファイル（Googleカレンダーへ一括インポート） ---------- */
+function icsEscape(s){
+  return String(s == null ? '' : s)
+    .replace(/\\/g, '\\\\').replace(/;/g, '\\;').replace(/,/g, '\\,')
+    .replace(/\r\n/g, '\n').replace(/\n/g, '\\n');
+}
+function icsFold(line){
+  /* RFC5545: 1行75オクテットで折り返す（マルチバイト文字を壊さないよう文字単位で判定） */
+  var out = '', cur = '', bytes = 0, isFirst = true;
+  for(var i = 0; i < line.length; i++){
+    var ch = line.charAt(i);
+    var b = encodeURIComponent(ch).replace(/%[0-9A-Fa-f]{2}/g, 'x').length;
+    var limit = isFirst ? 75 : 74;
+    if(bytes + b > limit){
+      out += (out ? '\r\n ' : '') + cur;
+      cur = ''; bytes = 0; isFirst = false;
+    }
+    cur += ch; bytes += b;
+  }
+  out += (out ? '\r\n ' : '') + cur;
+  return out;
+}
+function icsStamp(){
+  var d = new Date();
+  return d.getUTCFullYear() + pad(d.getUTCMonth()+1) + pad(d.getUTCDate()) + 'T'
+       + pad(d.getUTCHours()) + pad(d.getUTCMinutes()) + pad(d.getUTCSeconds()) + 'Z';
+}
+function buildIcs(){
+  var L = [];
+  L.push('BEGIN:VCALENDAR');
+  L.push('VERSION:2.0');
+  L.push('PRODID:-//WELSYS//OES Calendar//JA');
+  L.push('CALSCALE:GREGORIAN');
+  L.push('METHOD:PUBLISH');
+  L.push('BEGIN:VTIMEZONE');
+  L.push('TZID:Asia/Tokyo');
+  L.push('BEGIN:STANDARD');
+  L.push('DTSTART:19700101T000000');
+  L.push('TZOFFSETFROM:+0900');
+  L.push('TZOFFSETTO:+0900');
+  L.push('TZNAME:JST');
+  L.push('END:STANDARD');
+  L.push('END:VTIMEZONE');
+  var stamp = icsStamp();
+  entries.forEach(function(en, i){
+    var d = en.date.replace(/-/g, '');
+    L.push('BEGIN:VEVENT');
+    L.push('UID:' + en.id + '-' + Date.now() + '-' + i + '@welsys-oes');
+    L.push('DTSTAMP:' + stamp);
+    L.push('DTSTART;TZID=Asia/Tokyo:' + d + 'T' + en.start.replace(':', '') + '00');
+    L.push('DTEND;TZID=Asia/Tokyo:'   + d + 'T' + en.end.replace(':', '')   + '00');
+    L.push('SUMMARY:' + icsEscape(buildTitle(en)));
+    if(en.address) L.push('LOCATION:' + icsEscape(en.address));
+    if(en.desc)    L.push('DESCRIPTION:' + icsEscape(en.desc));
+    L.push('END:VEVENT');
+  });
+  L.push('END:VCALENDAR');
+  return L.map(icsFold).join('\r\n') + '\r\n';
+}
+function downloadIcs(){
+  if(!entries.length){ toast('登録リストが空です'); return; }
+  for(var i = 0; i < entries.length; i++){
+    var err = validateEntry(entries[i]);
+    if(err){ alert((i+1) + '件目: ' + err); return; }
+  }
+  var blob = new Blob(['\ufeff' + buildIcs()], {type:'text/calendar;charset=utf-8'});
+  var d = new Date();
+  var name = 'oes-' + d.getFullYear() + pad(d.getMonth()+1) + pad(d.getDate()) + '.ics';
+  saveBlob(blob, name);
+  toast('ICSファイルを書き出しました（' + entries.length + '件）');
+}
+function saveBlob(blob, filename){
+  var url = URL.createObjectURL(blob);
+  var a = document.createElement('a');
+  a.href = url; a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  setTimeout(function(){ URL.revokeObjectURL(url); }, 1500);
+}
+
+/* =========================================================================
+   画面3: 設定（業態・時間帯・定型文）
+   ========================================================================= */
+function renderSettings(){
+  $('set-title-tpl').value   = settings.titleTemplate;
+  $('set-suffix').value      = settings.suffixEnabled ? '1' : '0';
+  $('set-suffix-char').value = settings.suffixChar;
+  $('set-time-start').value  = settings.timeRange.startHour;
+  $('set-time-end').value    = settings.timeRange.endHour;
+  $('set-time-step').value   = String(settings.timeRange.step);
+
+  renderStaffList();
+
+  var host = $('gy-list'), html = '';
+  settings.gyotai.forEach(function(g, gi){
+    html += '<div class="gy-item' + (gi === 0 ? ' open' : '') + '" id="gy-' + g.id + '">'
+      + '<div class="gy-head" onclick="toggleGy(\'' + g.id + '\')">'
+      +   '<span class="caret">▶</span>'
+      +   '<span class="gy-name" id="gyname-' + g.id + '">' + esc(g.name) + '</span>'
+      +   '<span class="gy-meta">時間帯 ' + g.slots.length + '件</span>'
+      + '</div>'
+      + '<div class="gy-body" onclick="event.stopPropagation()">'
+      +   '<div class="grid-form" style="margin-bottom:12px;">'
+      +     '<div class="field"><label>業態名</label>'
+      +       '<input type="text" value="' + esc(g.name) + '" oninput="setGyName(\'' + g.id + '\',this.value)"></div>'
+      +     '<div class="field"><label>タイトル書式（空欄なら共通設定を使用）</label>'
+      +       '<input type="text" value="' + esc(g.titleTemplate) + '" placeholder="' + esc(settings.titleTemplate) + '" '
+      +       'onchange="setGyTitleTpl(\'' + g.id + '\',this.value)"></div>'
+      +     '<div class="field"><label>既定の担当者</label>'
+      +       '<select onchange="setGyStaff(\'' + g.id + '\',this.value)">' + staffOptionsHtml(g.defaultStaffId) + '</select></div>'
+      +   '</div>';
+
+    g.slots.forEach(function(sl, si){
+      html += '<div class="slot-edit">'
+        + '<div class="slot-edit-head"><span class="t">時間帯 ' + (si+1) + '</span>'
+        + '<button class="btn btn-danger btn-sm" onclick="removeSlot(\'' + g.id + '\',\'' + sl.id + '\')">この時間帯を削除</button></div>'
+        + '<div class="grid-form">'
+        +   '<div class="field"><label>名称（例: 午前 (AM)）</label>'
+        +     '<input type="text" value="' + esc(sl.label) + '" onchange="setSlot(\'' + g.id + '\',\'' + sl.id + '\',\'label\',this.value)"></div>'
+        +   '<div class="field"><label>&nbsp;</label><div class="grid2">'
+        +     '<div class="field"><label>開始</label><select onchange="setSlot(\'' + g.id + '\',\'' + sl.id + '\',\'start\',this.value)">' + timeOptionsHtml(sl.start) + '</select></div>'
+        +     '<div class="field"><label>終了</label><select onchange="setSlot(\'' + g.id + '\',\'' + sl.id + '\',\'end\',this.value)">' + timeOptionsHtml(sl.end) + '</select></div>'
+        +   '</div></div>'
+        +   '<div class="field col-span"><label>定型文（説明文のひな形）</label>'
+        +     '<textarea rows="12" oninput="setSlot(\'' + g.id + '\',\'' + sl.id + '\',\'body\',this.value)">' + esc(sl.body) + '</textarea></div>'
+        + '</div></div>';
+    });
+
+    html += '<div class="row-btns" style="margin-top:12px;">'
+      +   '<button class="btn btn-sub btn-sm" onclick="addSlot(\'' + g.id + '\')">＋ 時間帯を追加</button>'
+      +   '<button class="btn btn-danger btn-sm" onclick="removeGyotai(\'' + g.id + '\')">この業態を削除</button>'
+      + '</div>'
+      + '</div></div>';
+  });
+  host.innerHTML = html;
+}
+function toggleGy(id){ var el = $('gy-' + id); if(el) el.classList.toggle('open'); }
+
+function renderStaffList(){
+  var host = $('staff-list');
+  if(!host) return;
+  if(!settings.staff.length){
+    host.innerHTML = '<div class="empty">担当者はまだ登録されていません。<br>「＋ 担当者を追加」から登録してください。</div>';
+    return;
+  }
+  var html = '';
+  settings.staff.forEach(function(st, i){
+    html += '<div class="slot-edit">'
+      + '<div class="slot-edit-head"><span class="t">担当者 ' + (i+1) + '</span>'
+      +   '<button class="btn btn-danger btn-sm" onclick="removeStaff(\'' + st.id + '\')">この担当者を削除</button></div>'
+      + '<div class="grid-form">'
+      +   '<div class="field"><label>担当者名</label>'
+      +     '<input type="text" value="' + esc(st.name) + '" oninput="setStaff(\'' + st.id + '\',\'name\',this.value)"></div>'
+      +   '<div class="field"><label>連絡先・所属（任意）</label>'
+      +     '<input type="text" value="' + esc(st.contact) + '" placeholder="例: 090-0000-0000" onchange="setStaff(\'' + st.id + '\',\'contact\',this.value)"></div>'
+      +   '<div class="field col-span"><label>担当者定型文（{担当者定型文} に差し込まれます）</label>'
+      +     '<textarea rows="5" oninput="setStaff(\'' + st.id + '\',\'body\',this.value)">' + esc(st.body) + '</textarea></div>'
+      + '</div></div>';
+  });
+  host.innerHTML = html;
+}
+function addStaff(){
+  var name = prompt('追加する担当者名を入力してください', '');
+  if(name === null) return;
+  name = name.trim();
+  if(!name){ toast('担当者名を入力してください'); return; }
+  settings.staff.push({ id: uid('t'), name: name, contact: '', body: TPL_STAFF });
+  afterSettingsChange(true);
+  toast('担当者「' + name + '」を追加しました');
+}
+function setStaff(id, field, v){
+  var st = findStaff(id); if(!st) return;
+  st[field] = v;
+  afterSettingsChange(false);
+}
+function removeStaff(id){
+  var st = findStaff(id); if(!st) return;
+  if(!confirm('担当者「' + st.name + '」を削除します。よろしいですか？')) return;
+  for(var i = 0; i < settings.staff.length; i++){
+    if(settings.staff[i].id === id){ settings.staff.splice(i, 1); break; }
+  }
+  settings.gyotai.forEach(function(g){ if(g.defaultStaffId === id) g.defaultStaffId = ''; });
+  afterSettingsChange(true);
+}
+function setGyStaff(gid, v){
+  var g = findGyotai(gid); if(!g) return;
+  g.defaultStaffId = v;
+  afterSettingsChange(false);
+}
+
+function setGyName(id, v){
+  var g = findGyotai(id); if(!g) return;
+  g.name = v;
+  var lb = $('gyname-' + id); if(lb) lb.textContent = v;
+  afterSettingsChange(false);
+}
+function setGyTitleTpl(id, v){
+  var g = findGyotai(id); if(!g) return;
+  g.titleTemplate = v;
+  afterSettingsChange(false);
+}
+function setSlot(gid, sid, field, v){
+  var g = findGyotai(gid); var sl = findSlot(g, sid);
+  if(!sl) return;
+  sl[field] = v;
+  afterSettingsChange(false);
+}
+function addSlot(gid){
+  var g = findGyotai(gid); if(!g) return;
+  g.slots.push({ id: uid('s'), label:'新しい時間帯', start:'08:00', end:'09:00', body:TPL_STANDARD });
+  afterSettingsChange(true);
+}
+function removeSlot(gid, sid){
+  var g = findGyotai(gid); if(!g) return;
+  if(g.slots.length <= 1){ alert('時間帯は1件以上必要です。'); return; }
+  if(!confirm('この時間帯を削除します。よろしいですか？')) return;
+  for(var i = 0; i < g.slots.length; i++){
+    if(g.slots[i].id === sid){ g.slots.splice(i, 1); break; }
+  }
+  afterSettingsChange(true);
+}
+function addGyotai(){
+  var name = prompt('追加する業態名を入力してください', '');
+  if(name === null) return;
+  name = name.trim();
+  if(!name){ toast('業態名を入力してください'); return; }
+  settings.gyotai.push({
+    id: uid('g'), name: name, titleTemplate: '',
+    slots: [{ id: uid('s'), label:'午前 (AM)', start:'08:00', end:'09:00', body:TPL_STANDARD }]
+  });
+  afterSettingsChange(true);
+  toast('「' + name + '」を追加しました');
+}
+function removeGyotai(id){
+  if(settings.gyotai.length <= 1){ alert('業態は1件以上必要です。'); return; }
+  var g = findGyotai(id); if(!g) return;
+  if(!confirm('業態「' + g.name + '」を削除します。よろしいですか？')) return;
+  for(var i = 0; i < settings.gyotai.length; i++){
+    if(settings.gyotai[i].id === id){ settings.gyotai.splice(i, 1); break; }
+  }
+  afterSettingsChange(true);
+}
+function onCommonChange(){
+  settings.titleTemplate = $('set-title-tpl').value || 'OES入替作業({業態} {店舗名})';
+  settings.suffixEnabled = ($('set-suffix').value === '1');
+  settings.suffixChar    = $('set-suffix-char').value || '店';
+  settings.timeRange.startHour = clampInt($('set-time-start').value, 0, 23, 6);
+  settings.timeRange.endHour   = clampInt($('set-time-end').value,   0, 23, 20);
+  settings.timeRange.step      = clampInt($('set-time-step').value,  5, 60, 15);
+  if(settings.timeRange.endHour < settings.timeRange.startHour){
+    settings.timeRange.endHour = settings.timeRange.startHour;
+  }
+  afterSettingsChange(true);
+}
+function afterSettingsChange(rerenderSettingsPane){
+  saveSettings();
+  syncEntriesWithSettings();
+  renderBulkForm(true);
+  renderEntries();
+  if(rerenderSettingsPane) renderSettings();
+}
+function syncEntriesWithSettings(){
+  entries.forEach(function(en){
+    var g = findGyotai(en.gyotaiId);
+    if(g){
+      en.gyotaiName = g.name;
+      var sl = findSlot(g, en.slotId);
+      if(sl) en.slotLabel = sl.label;
+    }
+    var st = findStaff(en.staffId);
+    if(st){ en.staffName = st.name; }
+    else { en.staffId = ''; en.staffName = ''; }
+    if(!en.descEdited) en.desc = buildDesc(en);
+  });
+}
+function copyPh(el){
+  var t = el.textContent;
+  if(navigator.clipboard && navigator.clipboard.writeText){
+    navigator.clipboard.writeText(t).then(function(){ toast(t + ' をコピーしました'); },
+                                          function(){ toast(t); });
+  }else{
+    toast(t + ' を定型文に貼り付けてください');
+  }
+}
+
+/* ---------- 設定の書き出し・読み込み・初期化 ---------- */
+function exportSettings(){
+  var blob = new Blob([JSON.stringify(settings, null, 2)], {type:'application/json'});
+  var d = new Date();
+  saveBlob(blob, 'oes-settings-' + d.getFullYear() + pad(d.getMonth()+1) + pad(d.getDate()) + '.json');
+  toast('設定を書き出しました');
+}
+function importSettings(input){
+  var f = input.files && input.files[0];
+  if(!f) return;
+  var r = new FileReader();
+  r.onload = function(){
+    try{
+      var o = JSON.parse(String(r.result));
+      if(!o || !o.gyotai || !o.gyotai.length) throw new Error('形式が違います');
+      settings = normalizeSettings(o);
+      afterSettingsChange(true);
+      toast('設定を読み込みました');
+    }catch(e){
+      alert('設定ファイルを読み込めませんでした。\n' + (e && e.message ? e.message : ''));
+    }
+    input.value = '';
+  };
+  r.readAsText(f);
+}
+function resetSettings(){
+  if(!confirm('設定を初期状態に戻します。追加・変更した内容は失われます。よろしいですか？')) return;
+  settings = defaultSettings();
+  afterSettingsChange(true);
+  toast('初期設定に戻しました');
+}
+
+/* =========================================================================
+   起動処理
+   ========================================================================= */
+(function init(){
+  loadSettings();
+  var d = new Date();
+  viewYear = d.getFullYear();
+  viewMonth = d.getMonth();
+  $('cr-year').textContent = d.getFullYear();
+
+  renderBulkForm(false);
+  renderCalendars();
+  renderEntries();
+  updateAddButton();
+
+  var lastCols = monthsToShow();
+  window.addEventListener('resize', function(){
+    var c = monthsToShow();
+    if(c !== lastCols){ lastCols = c; renderCalendars(); }
+  });
+  window.addEventListener('beforeunload', function(e){
+    if(entries.length){ e.preventDefault(); e.returnValue = ''; }
+  });
+  document.addEventListener('keydown', function(e){
+    if(e.key === 'Escape') closeModal();
+  });
+})();
+</script>
+</body>
+</html>

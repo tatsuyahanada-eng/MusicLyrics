@@ -1,0 +1,22 @@
+# ------------------------------------------------------------------
+# Basic認証のサンプル
+#
+# 1. このファイルを .htaccess にリネームして、index.html と同じ階層に置く
+# 2. AuthUserFile は配置先サーバーの「絶対パス」に書き換える
+# 3. .htpasswd は Web からアクセスできない場所に置くのが望ましい
+#
+#   .htpasswd の作り方（サーバー上で実行できる場合）
+#     htpasswd -c /path/to/.htpasswd ユーザー名
+#
+#   ※ ユーザー名・パスワードはこのリポジトリに含めないこと
+# ------------------------------------------------------------------
+
+AuthType Basic
+AuthName "OES Calendar"
+AuthUserFile /path/to/.htpasswd
+Require valid-user
+
+# .htpasswd 自体へのアクセスを禁止する
+<Files ".htpasswd">
+    Require all denied
+</Files>

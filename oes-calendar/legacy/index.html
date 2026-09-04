@@ -1,0 +1,270 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>リテイルOES対応カレンダー</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0;}
+body{font-family:'Hiragino Sans','Meiryo',sans-serif;background:#EBF3FB;min-height:100vh;padding:1.5rem;}
+.header{background:#1565C0;padding:16px 20px 13px;border-radius:12px;margin-bottom:1.25rem;display:flex;align-items:center;justify-content:space-between;}
+.header-left .header-title{font-size:20px;font-weight:500;color:#fff;letter-spacing:0.02em;}
+.header-left .header-sub{font-size:12px;color:#90CAF9;margin-top:3px;}
+.manual-link{display:inline-flex;align-items:center;gap:6px;padding:7px 14px;background:rgba(255,255,255,0.15);color:#fff;border:0.5px solid rgba(255,255,255,0.4);border-radius:7px;font-size:12px;font-weight:500;text-decoration:none;white-space:nowrap;transition:background 0.15s;}
+.manual-link:hover{background:rgba(255,255,255,0.28);}
+.manual-link svg{width:14px;height:14px;flex-shrink:0;}
+.table-wrap{overflow-x:auto;border:0.5px solid #B5D4F4;border-radius:12px;background:#fff;}
+table{width:100%;border-collapse:collapse;min-width:980px;}
+thead tr{background:#E6F1FB;}
+th{font-size:11px;font-weight:500;color:#0C447C;padding:9px 7px;border-bottom:0.5px solid #B5D4F4;white-space:nowrap;text-align:left;}
+td{padding:6px 5px;border-bottom:0.5px solid #E6F1FB;vertical-align:middle;}
+tr:last-child td{border-bottom:none;}
+tr:nth-child(even) td{background:#F4F9FE;}
+select,input[type=text],input[type=date]{width:100%;padding:5px 6px;font-size:12px;border:0.5px solid #B5D4F4;border-radius:6px;background:#fff;color:#222;font-family:inherit;outline:none;}
+select:focus,input:focus,textarea:focus{border-color:#1565C0;box-shadow:0 0 0 2px #E3F2FD;}
+textarea{width:100%;padding:5px 6px;font-size:11px;border:0.5px solid #B5D4F4;border-radius:6px;background:#fff;color:#222;font-family:'Courier New',monospace;outline:none;resize:none;line-height:1.5;}
+.num-cell{font-size:12px;font-weight:500;color:#185FA5;text-align:center;width:24px;}
+.btn-cal{display:inline-flex;align-items:center;gap:4px;padding:5px 9px;background:#1565C0;color:#fff;border:none;border-radius:6px;font-size:11px;font-weight:500;cursor:pointer;white-space:nowrap;font-family:inherit;}
+.btn-cal:hover{background:#0D47A1;}
+.btn-cal:active{transform:scale(0.97);}
+.btn-clear{display:inline-flex;align-items:center;padding:5px 9px;background:#fff;color:#888;border:0.5px solid #B5D4F4;border-radius:6px;font-size:11px;font-weight:500;cursor:pointer;white-space:nowrap;font-family:inherit;}
+.btn-clear:hover{background:#FFF5F5;color:#E24B4A;border-color:#F09595;}
+.btn-clear:active{transform:scale(0.97);}
+.btn-add{display:flex;align-items:center;gap:6px;margin-top:12px;padding:8px 16px;background:#E6F1FB;color:#0C447C;border:0.5px solid #85B7EB;border-radius:8px;font-size:13px;font-weight:500;cursor:pointer;font-family:inherit;}
+.btn-add:hover{background:#B5D4F4;}
+.btn-add .plus{font-size:18px;line-height:1;color:#1565C0;}
+.ampm-grp{display:flex;gap:5px;align-items:center;}
+.ampm-grp label{font-size:11px;display:flex;align-items:center;gap:2px;cursor:pointer;color:#555;}
+.ampm-grp label.disabled{color:#CCC;cursor:not-allowed;}
+.ampm-grp input[type=radio]{width:auto;cursor:pointer;accent-color:#1565C0;}
+.ampm-grp input[type=radio]:disabled{cursor:not-allowed;}
+.footer-note{font-size:11px;color:#888;margin-top:8px;padding-left:4px;}
+</style>
+</head>
+<body>
+<div class="header">
+  <div class="header-left">
+    <div class="header-title">リテイルOES対応カレンダー</div>
+    <div class="header-sub">Googleカレンダー一括登録ツール</div>
+  </div>
+  <a class="manual-link" href="manual.pdf" target="_blank" rel="noopener noreferrer">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+      <polyline points="14 2 14 8 20 8"/>
+      <line x1="16" y1="13" x2="8" y2="13"/>
+      <line x1="16" y1="17" x2="8" y2="17"/>
+      <polyline points="10 9 9 9 8 9"/>
+    </svg>
+    操作マニュアル (PDF)
+  </a>
+</div>
+<div class="table-wrap">
+  <table id="main-table">
+    <thead>
+      <tr>
+        <th style="width:24px;">#</th>
+        <th style="width:90px;">業態</th>
+        <th style="width:148px;">店舗名</th>
+        <th style="width:106px;">日付</th>
+        <th style="width:88px;">AM / PM</th>
+        <th style="width:76px;">開始時刻</th>
+        <th style="width:76px;">終了時刻</th>
+        <th style="width:150px;">住所</th>
+        <th style="width:180px;">説明文</th>
+        <th style="width:46px;">登録</th>
+        <th style="width:52px;">クリア</th>
+      </tr>
+    </thead>
+    <tbody id="rows-body"></tbody>
+  </table>
+</div>
+<button class="btn-add" onclick="addRow()">
+  <span class="plus">+</span> 1件追加
+</button>
+<div class="footer-note">※ 登録ボタンを押すとGoogleカレンダーの新規作成画面が開きます</div>
+
+<script>
+var rowCount=0;
+var DEFAULT_TIMES={
+  'オリーブの丘':{AM:{start:'08:00',end:'09:00'}},
+  '華屋与兵衛':  {AM:{start:'08:00',end:'09:00'}},
+  'すき家':      {AM:{start:'08:30',end:'09:30'},PM:{start:'14:30',end:'15:30'}}
+};
+function pad(n){return String(n).padStart(2,'0');}
+function makeTimeOptions(){
+  var opts='';
+  for(var h=6;h<=20;h++){
+    for(var m=0;m<60;m+=15){
+      if(h===20&&m>0) break;
+      var val=pad(h)+':'+pad(m);
+      opts+='<option value="'+val+'">'+val+'</option>';
+    }
+  }
+  return opts;
+}
+function makeDescription(gyotai,tenpo,startLabel,endLabel){
+  var isSukiya = (gyotai.indexOf('すき家')!==-1);
+  var hasShort = (gyotai.indexOf('オリーブ')!==-1 || gyotai.indexOf('華屋')!==-1);
+  var lines=[];
+  /* ブロック1: 入店行 (+POSレジ2行はすき家のみ) */
+  lines.push(gyotai+' '+tenpo+' 入店 '+startLabel);
+  if(isSukiya){
+    lines.push('POSレジ清算済み');
+    lines.push('POSレジ清算 今から開始をお願いいたしました');
+  }
+  lines.push('');
+  /* ブロック2: 中間報告 */
+  lines.push(gyotai+' '+tenpo+' 中間報告');
+  lines.push('');
+  /* ブロック3: 退店報告 */
+  lines.push(gyotai+' '+tenpo+' 退店報告');
+  lines.push('');
+  /* ブロック4: 入店・退店時刻 */
+  lines.push('入店 '+startLabel);
+  lines.push('退店 '+endLabel);
+  lines.push('');
+  /* ブロック5: 機器カウント */
+  lines.push('MPR   台');
+  if(!hasShort){
+    lines.push('HT    台');
+    lines.push('BC    台');
+    lines.push('BP    個');
+  }
+  return lines.join('\n');
+}
+function updateDesc(idx){
+  var gyotai=document.getElementById('gy-'+idx).value;
+  var tenpo=document.getElementById('tn-'+idx).value;
+  var stRaw=document.getElementById('st-'+idx).value||'08:00';
+  var etRaw=document.getElementById('et-'+idx).value||'09:00';
+  var startLabel=gyotai?stRaw:'★2';
+  var endLabel=gyotai?etRaw:'★3';
+  var g=gyotai||'★0';
+  var t=tenpo||'★1';
+  document.getElementById('dc-'+idx).value=makeDescription(g,t,startLabel,endLabel);
+}
+function onTenpoBlur(idx){
+  var el=document.getElementById('tn-'+idx);
+  var v=el.value.trim();
+  if(v.length>0 && v.charAt(v.length-1)!=='店'){
+    el.value=v+'店';
+    updateDesc(idx);
+  }
+}
+function hasPM(gyotai){
+  if(!gyotai) return true;
+  var defs=DEFAULT_TIMES[gyotai];
+  return !!(defs && defs.PM);
+}
+function syncPmAvailability(idx){
+  var gyotai=document.getElementById('gy-'+idx).value;
+  var pmRadio=document.querySelector('input[name="ampm-'+idx+'"][value="PM"]');
+  var pmLabel=pmRadio.parentNode;
+  var amRadio=document.querySelector('input[name="ampm-'+idx+'"][value="AM"]');
+  if(gyotai && !hasPM(gyotai)){
+    if(pmRadio.checked){ amRadio.checked=true; }
+    pmRadio.disabled=true;
+    pmLabel.classList.add('disabled');
+  }else{
+    pmRadio.disabled=false;
+    pmLabel.classList.remove('disabled');
+  }
+}
+function onGyotaiChange(idx){
+  syncPmAvailability(idx);
+  applyDefaultTimes(idx);
+  updateDesc(idx);
+}
+function getAmpm(idx){
+  var el=document.querySelector('input[name="ampm-'+idx+'"]:checked');
+  return el?el.value:'AM';
+}
+function applyDefaultTimes(idx){
+  var gy=document.getElementById('gy-'+idx).value;
+  if(!gy)return;
+  var defs=DEFAULT_TIMES[gy];if(!defs)return;
+  var ampm=getAmpm(idx);
+  var t=defs[ampm]||defs['AM'];
+  document.getElementById('st-'+idx).value=t.start;
+  document.getElementById('et-'+idx).value=t.end;
+  updateDesc(idx);
+}
+function onAmpmChange(idx){applyDefaultTimes(idx);updateDesc(idx);}
+function getTodayStr(){
+  var d=new Date();
+  return d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate());
+}
+function clearRow(idx){
+  document.getElementById('gy-'+idx).value='';
+  document.getElementById('tn-'+idx).value='';
+  document.getElementById('dt-'+idx).value=getTodayStr();
+  document.querySelector('input[name="ampm-'+idx+'"][value="AM"]').checked=true;
+  document.getElementById('st-'+idx).value='08:00';
+  document.getElementById('et-'+idx).value='09:00';
+  document.getElementById('ad-'+idx).value='';
+  syncPmAvailability(idx);
+  updateDesc(idx);
+}
+function buildRow(idx){
+  var today=getTodayStr();
+  var timeOpts=makeTimeOptions();
+  var tr=document.createElement('tr');
+  tr.id='row-'+idx;
+  tr.innerHTML=
+    '<td class="num-cell">'+idx+'</td>'+
+    '<td><select id="gy-'+idx+'" onchange="onGyotaiChange('+idx+')" style="font-size:11px;padding:4px 2px;">'+
+      '<option value="">--</option>'+
+      '<option value="オリーブの丘">オリーブの丘</option>'+
+      '<option value="すき家">すき家</option>'+
+      '<option value="華屋与兵衛">華屋与兵衛</option>'+
+    '</select></td>'+
+    '<td><input type="text" id="tn-'+idx+'" placeholder="店舗名を入力" style="width:140px;" oninput="updateDesc('+idx+')" onblur="onTenpoBlur('+idx+')"></td>'+
+    '<td><input type="date" id="dt-'+idx+'" value="'+today+'"></td>'+
+    '<td><div class="ampm-grp">'+
+      '<label><input type="radio" name="ampm-'+idx+'" value="AM" checked onchange="onAmpmChange('+idx+')"> AM</label>'+
+      '<label><input type="radio" name="ampm-'+idx+'" value="PM" onchange="onAmpmChange('+idx+')"> PM</label>'+
+    '</div></td>'+
+    '<td><select id="st-'+idx+'" onchange="updateDesc('+idx+')">'+timeOpts+'</select></td>'+
+    '<td><select id="et-'+idx+'" onchange="updateDesc('+idx+')">'+timeOpts+'</select></td>'+
+    '<td><input type="text" id="ad-'+idx+'" placeholder="住所を入力" style="width:142px;"></td>'+
+    '<td><textarea id="dc-'+idx+'" rows="6" style="width:172px;height:120px;"></textarea></td>'+
+    '<td><button class="btn-cal" onclick="submitRow('+idx+')">登録</button></td>'+
+    '<td><button class="btn-clear" onclick="clearRow('+idx+')">クリア</button></td>';
+  return tr;
+}
+function addRow(){
+  rowCount++;
+  document.getElementById('rows-body').appendChild(buildRow(rowCount));
+  document.getElementById('st-'+rowCount).value='08:00';
+  document.getElementById('et-'+rowCount).value='09:00';
+  updateDesc(rowCount);
+}
+function submitRow(idx){
+  onTenpoBlur(idx);
+  var date=document.getElementById('dt-'+idx).value;
+  var gyotai=document.getElementById('gy-'+idx).value;
+  var tenpo=document.getElementById('tn-'+idx).value;
+  var startRaw=document.getElementById('st-'+idx).value;
+  var endRaw=document.getElementById('et-'+idx).value;
+  var addr=document.getElementById('ad-'+idx).value;
+  var desc=document.getElementById('dc-'+idx).value;
+  if(!date){alert('日付を入力してください（行'+idx+'）');return;}
+  if(!gyotai){alert('業態を選択してください（行'+idx+'）');return;}
+  var title='OES入替作業('+gyotai+' '+tenpo+')';
+  var startDT=date.replace(/-/g,'')+'T'+startRaw.replace(':','')+'00';
+  var endDT=date.replace(/-/g,'')+'T'+endRaw.replace(':','')+'00';
+  var params=new URLSearchParams({action:'TEMPLATE',text:title,dates:startDT+'/'+endDT,details:desc,location:addr});
+  window.open('https://calendar.google.com/calendar/render?'+params.toString(),'_blank');
+}
+(function(){
+  for(var i=1;i<=10;i++){
+    rowCount++;
+    document.getElementById('rows-body').appendChild(buildRow(rowCount));
+    document.getElementById('st-'+rowCount).value='08:00';
+    document.getElementById('et-'+rowCount).value='09:00';
+    updateDesc(rowCount);
+  }
+})();
+</script>
+</body>
+</html>

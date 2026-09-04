@@ -1,0 +1,290 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>操作マニュアル｜OES入れ替え作業登録カレンダー</title>
+<style>
+:root{--blue:#1565C0;--blue-d:#0D47A1;--blue-l:#E6F1FB;--line:#B5D4F4;--bg:#EBF3FB;--ink:#12314F;--muted:#5F7E9E;}
+*{box-sizing:border-box;margin:0;padding:0;}
+body{font-family:'Hiragino Sans','Hiragino Kaku Gothic ProN','Noto Sans JP','Meiryo',sans-serif;background:var(--bg);color:var(--ink);line-height:1.85;padding:14px 12px 48px;-webkit-text-size-adjust:100%;}
+.sheet{max-width:820px;margin:0 auto;background:#fff;border:1px solid var(--line);border-radius:12px;padding:20px 16px 28px;}
+h1{font-size:20px;color:#fff;background:linear-gradient(135deg,#1565C0,#1E7BB8);padding:14px 16px;border-radius:10px;margin:-6px -4px 18px;line-height:1.4;}
+h1 small{display:block;font-size:12px;font-weight:400;color:#BBDEFB;margin-top:4px;}
+h2{font-size:16px;color:var(--blue-d);border-left:5px solid var(--blue);padding-left:10px;margin:26px 0 10px;}
+h3{font-size:14px;color:var(--blue-d);margin:16px 0 6px;}
+p,li{font-size:14px;}
+ul,ol{margin:6px 0 6px 22px;}
+li{margin-bottom:4px;}
+.toc{background:var(--blue-l);border:1px solid var(--line);border-radius:8px;padding:12px 14px 12px 30px;}
+.toc li{font-size:13.5px;}
+.toc a{color:var(--blue-d);}
+table{width:100%;border-collapse:collapse;margin:10px 0;font-size:13px;}
+th,td{border:1px solid var(--line);padding:7px 9px;text-align:left;vertical-align:top;}
+th{background:var(--blue-l);color:var(--blue-d);font-weight:600;white-space:nowrap;}
+.tbl-wrap{overflow-x:auto;-webkit-overflow-scrolling:touch;}
+code{font-family:'SFMono-Regular',Menlo,Consolas,monospace;background:#F1F6FC;border:1px solid #DCEAF8;border-radius:4px;padding:1px 5px;font-size:12.5px;}
+pre{background:#F7FAFE;border:1px solid #DCEAF8;border-radius:8px;padding:11px 13px;overflow-x:auto;font-family:'SFMono-Regular',Menlo,Consolas,monospace;font-size:12.5px;line-height:1.7;white-space:pre;}
+.note{background:#FFF9EC;border:1px solid #F0DFB6;border-radius:8px;padding:11px 13px;font-size:13px;color:#7A5B14;margin:10px 0;}
+.tip{background:#EEF8F1;border:1px solid #BEE0C9;border-radius:8px;padding:11px 13px;font-size:13px;color:#245B3E;margin:10px 0;}
+.step{counter-reset:st;list-style:none;margin-left:0;}
+.step > li{counter-increment:st;position:relative;padding-left:34px;margin-bottom:10px;}
+.step > li::before{content:counter(st);position:absolute;left:0;top:2px;width:24px;height:24px;border-radius:50%;background:var(--blue);color:#fff;font-size:13px;font-weight:700;display:flex;align-items:center;justify-content:center;}
+.footer{max-width:820px;margin:16px auto 0;background:#fff;border:1px solid var(--line);border-radius:12px;padding:18px;text-align:center;}
+.footer img{width:118px;height:auto;}
+.footer .cn{font-size:12.5px;font-weight:700;color:var(--blue-d);margin-top:8px;}
+.footer .cr{font-size:11.5px;color:var(--muted);margin-top:4px;}
+.back{display:inline-block;margin-bottom:12px;font-size:13px;color:var(--blue-d);}
+@media (min-width:700px){ .sheet{padding:26px 30px 34px;} h1{font-size:23px;} }
+@media print{ body{background:#fff;padding:0;} .sheet,.footer{border:none;border-radius:0;} .back{display:none;} h2{page-break-after:avoid;} }
+</style>
+</head>
+<body>
+<div class="sheet">
+  <a class="back" href="index.html">← ツールに戻る</a>
+  <h1>OES入れ替え作業登録カレンダー 操作マニュアル
+    <small>Googleカレンダー 一括登録ツール ／ パソコン・スマートフォン対応</small></h1>
+
+  <div class="toc">
+    <ol>
+      <li><a href="#s1">このツールでできること</a></li>
+      <li><a href="#s2">画面の構成</a></li>
+      <li><a href="#s3">基本の使い方（3ステップ）</a></li>
+      <li><a href="#s4">Googleカレンダーへの登録方法（2通り）</a></li>
+      <li><a href="#s5">登録リストの編集</a></li>
+      <li><a href="#s6">設定：業態ごとの定型文と時間帯</a></li>
+      <li><a href="#s7">設定：担当者と担当者定型文</a></li>
+      <li><a href="#s8">設定の書き出し・読み込み（端末間の共有）</a></li>
+      <li><a href="#s9">スマートフォンでの使い方</a></li>
+      <li><a href="#s10">初期状態の業態・時間帯・定型文</a></li>
+      <li><a href="#s11">よくある質問・注意事項</a></li>
+    </ol>
+  </div>
+
+  <h2 id="s1">1. このツールでできること</h2>
+  <ul>
+    <li>カレンダーから<b>複数の作業日をまとめて選び</b>、業態と時間帯を指定して予定を一括で作れます。</li>
+    <li>業態ごとの<b>定型文（説明文のひな形）</b>を設定画面で自由に編集できます。</li>
+    <li><b>担当者</b>と<b>担当者ごとの定型文</b>も設定画面で追加・修正でき、予定に差し込めます。</li>
+    <li>作った予定は、Googleカレンダーに<b>1件ずつ順番に登録</b>するか、<b>ICSファイルで一括取込</b>できます。</li>
+    <li>パソコンでもスマートフォンでも同じように操作できます。</li>
+  </ul>
+  <div class="note">このツールは予定を「作る」ためのものです。予定そのものはGoogleカレンダー側に保存されます。ツールの登録リストは、ブラウザを閉じると消えます。</div>
+
+  <h2 id="s2">2. 画面の構成</h2>
+  <div class="tbl-wrap">
+  <table>
+    <tr><th style="width:150px;">タブ</th><th>内容</th></tr>
+    <tr><td>📅 カレンダー</td><td>作業日を複数選び、業態・時間帯・店舗名・住所を指定して、登録リストへまとめて追加します。</td></tr>
+    <tr><td>📋 登録リスト</td><td>追加した予定を1件ずつ確認・修正し、Googleカレンダーへ登録します。タブの数字は現在の件数です。</td></tr>
+    <tr><td>⚙️ 設定</td><td>業態・時間帯・定型文、担当者と担当者定型文、タイトル書式などを編集します。内容はこの端末のブラウザに保存されます。</td></tr>
+  </table>
+  </div>
+
+  <h2 id="s3">3. 基本の使い方（3ステップ）</h2>
+  <ol class="step">
+    <li><b>作業日を選ぶ</b><br>
+      「📅 カレンダー」タブで、日付をタップ（クリック）します。何日でも選べます。もう一度押すと選択が外れます。<br>
+      パソコンでは、最初の日を押したあと <b>Shift を押しながら</b>別の日を押すと、その間の日をまとめて選べます。<br>
+      選んだ日は青くなり、下に一覧（チップ）で表示されます。</li>
+    <li><b>業態と時間帯を選ぶ</b><br>
+      業態を選ぶと、その業態に登録されている時間帯（午前・午後など）が表示されます。時間帯を選ぶと、開始・終了時刻が自動で入ります。時刻はその場で変更もできます。<br>
+      <b>担当者</b>を選ぶと、その担当者の定型文が説明文に差し込まれます（業態に「既定の担当者」を設定していれば自動で選ばれます）。<br>
+      店舗名・住所を入力しておくと、選んだ全ての日に同じ内容で入ります（あとから1件ずつ変更できます）。</li>
+    <li><b>登録リストに追加</b><br>
+      「選択した◯日を登録リストに追加」を押すと、選んだ日数ぶんの予定がまとめて作られ、「📋 登録リスト」タブに移動します。<br>
+      日付・業態・時間帯の組み合わせを変えて、この操作を何度でも繰り返せます。</li>
+  </ol>
+  <div class="tip"><b>例：</b>「この日とこの日とこの日は、はま寿司の午前中」→ カレンダーで3日を選ぶ → 業態「はま寿司」＋時間帯「午前 (AM)」→ 追加。続けて別の日を選び、業態「すき家」＋「午後 (PM)」→ 追加。</div>
+
+  <h2 id="s4">4. Googleカレンダーへの登録方法（2通り）</h2>
+  <h3>A. Googleカレンダーで順番に登録（おすすめ・確認しながら）</h3>
+  <ol class="step">
+    <li>「📋 登録リスト」タブの<b>「Googleカレンダーで順番に登録」</b>を押します。</li>
+    <li>1件目の内容が表示されるので<b>「開く」</b>を押します。Googleカレンダーの予定作成画面が新しいタブで開きます。</li>
+    <li>内容を確認して、Googleカレンダー側で<b>「保存」</b>を押します。</li>
+    <li>このツールの画面に戻り、続けて「開く」を押して次の予定へ進みます。</li>
+  </ol>
+  <div class="note">ブラウザのポップアップブロックを避けるため、1件ずつボタンを押して開く方式にしています。「とばす」でその予定を飛ばせます。</div>
+
+  <h3>B. ICSファイルで一括取込（件数が多いとき）</h3>
+  <ol class="step">
+    <li>「📋 登録リスト」タブの<b>「ICSファイルで一括取込」</b>を押すと、<code>oes-日付.ics</code> がダウンロードされます。</li>
+    <li>パソコンのブラウザでGoogleカレンダーを開き、右上の<b>歯車 → 設定 → インポート／エクスポート</b>を開きます。</li>
+    <li>ダウンロードした ICS ファイルを選び、追加先のカレンダーを選んで<b>「インポート」</b>を押します。</li>
+    <li>件数が表示されれば完了です。</li>
+  </ol>
+  <div class="note">インポートは1件ずつの確認なしで<b>まとめて登録</b>されます。取り込む前に登録リストの内容をよく確認してください。時刻は日本時間（Asia/Tokyo）で書き出されます。</div>
+
+  <h2 id="s5">5. 登録リストの編集</h2>
+  <ul>
+    <li>各カードで、日付・業態・時間帯・開始／終了時刻・担当者・店舗名・住所・説明文を1件ずつ変更できます。</li>
+    <li><b>担当者</b>を変えると、説明文の中の担当者部分も自動で入れ替わります。</li>
+    <li><b>業態や時間帯を変えると</b>、時刻と説明文がその設定の内容に入れ替わります。</li>
+    <li><b>店舗名</b>は、入力欄から離れたときに末尾へ自動で「店」が付きます（例：渋谷 → 渋谷店）。設定で変更・停止できます。</li>
+    <li><b>住所</b>はGoogleカレンダーの「場所」に入ります。</li>
+    <li><b>説明文</b>は定型文から自動生成されます（「定型文から自動生成」の表示）。手で書き換えると「手動で編集」に変わり、以後は自動更新されません。「定型文に戻す」で元に戻せます。</li>
+    <li><b>複製</b>：同じ内容の予定をもう1件作ります。<b>削除</b>：その予定だけ消します。<b>全て削除</b>：リストを空にします。</li>
+    <li><b>＋ 空の行を追加</b>：カレンダーを使わずに1件だけ手入力したいときに使います。</li>
+  </ul>
+
+  <h2 id="s6">6. 設定：業態ごとの定型文と時間帯</h2>
+  <p>「⚙️ 設定」タブでは、業態ごとに時間帯と定型文を登録します。業態名をタップすると内容が開きます。</p>
+  <h3>業態の項目</h3>
+  <div class="tbl-wrap">
+  <table>
+    <tr><th style="width:170px;">項目</th><th>説明</th></tr>
+    <tr><td>業態名</td><td>プルダウンに表示される名前（例：すき家）。</td></tr>
+    <tr><td>タイトル書式</td><td>この業態だけタイトルを変えたいときに入力します。空欄なら共通設定の書式を使います。</td></tr>
+    <tr><td>既定の担当者</td><td>この業態を選んだときに自動で選ばれる担当者です（「（指定なし）」も選べます）。</td></tr>
+    <tr><td>時間帯（名称）</td><td>「午前 (AM)」「午後 (PM)」など、自由に付けられます。</td></tr>
+    <tr><td>開始／終了</td><td>その時間帯を選んだときに自動で入る時刻です。</td></tr>
+    <tr><td>定型文</td><td>説明文のひな形です。差し込み文字（下記）が使えます。</td></tr>
+  </table>
+  </div>
+  <p><b>＋ 時間帯を追加</b>で時間帯を増やせます（午前・午後以外に「夜間」なども作れます）。<b>＋ 業態を追加</b>で業態そのものを増やせます。</p>
+
+  <h3>定型文で使える差し込み文字</h3>
+  <div class="tbl-wrap">
+  <table>
+    <tr><th style="width:120px;">差し込み文字</th><th>置き換わる内容</th><th>例</th></tr>
+    <tr><td><code>{業態}</code></td><td>業態名</td><td>すき家</td></tr>
+    <tr><td><code>{店舗名}</code></td><td>店舗名</td><td>渋谷店</td></tr>
+    <tr><td><code>{日付}</code></td><td>作業日</td><td>2026年9月10日(木)</td></tr>
+    <tr><td><code>{開始}</code></td><td>開始時刻</td><td>08:30</td></tr>
+    <tr><td><code>{終了}</code></td><td>終了時刻</td><td>09:30</td></tr>
+    <tr><td><code>{時間帯}</code></td><td>時間帯の名称</td><td>午前 (AM)</td></tr>
+    <tr><td><code>{担当者}</code></td><td>担当者名</td><td>山田太郎</td></tr>
+    <tr><td><code>{担当者定型文}</code></td><td>その担当者に登録した定型文（複数行可）</td><td>担当: 山田太郎<br>090-0000-0000</td></tr>
+  </table>
+  </div>
+  <div class="tip">定型文を書き換えると、登録リストの中で「手動で編集」になっていない説明文はすぐに新しい内容に作り直されます。</div>
+
+  <h3>共通設定</h3>
+  <div class="tbl-wrap">
+  <table>
+    <tr><th style="width:190px;">項目</th><th>説明</th></tr>
+    <tr><td>予定のタイトル書式</td><td>初期値は <code>OES入替作業({業態} {店舗名})</code>。→ <code>OES入替作業(すき家 渋谷店)</code></td></tr>
+    <tr><td>店舗名の語尾を自動で補う</td><td>「補う」にすると末尾に「店」を付けます。補う文字も変更できます。</td></tr>
+    <tr><td>時刻プルダウンの開始／終了／刻み</td><td>初期値は 6時〜20時・15分刻み。</td></tr>
+  </table>
+  </div>
+
+  <h2 id="s7">7. 設定：担当者と担当者定型文</h2>
+  <p>「⚙️ 設定」タブの<b>「担当者と担当者定型文」</b>で、担当者を追加・修正・削除できます。</p>
+  <h3>担当者を追加する</h3>
+  <ol class="step">
+    <li>「<b>＋ 担当者を追加</b>」を押し、担当者名を入力します。</li>
+    <li>必要に応じて<b>連絡先・所属</b>を入力します（任意）。</li>
+    <li><b>担当者定型文</b>を入力します。改行を含む複数行でもかまいません。</li>
+  </ol>
+  <div class="tbl-wrap">
+  <table>
+    <tr><th style="width:170px;">項目</th><th>説明</th></tr>
+    <tr><td>担当者名</td><td>プルダウンに表示される名前。<code>{担当者}</code> に差し込まれます。</td></tr>
+    <tr><td>連絡先・所属</td><td>電話番号や所属などの控え（任意）。定型文に書けば予定にも入ります。</td></tr>
+    <tr><td>担当者定型文</td><td>業態の定型文の中の <code>{担当者定型文}</code> の位置へそのまま差し込まれます。この中でも <code>{業態}</code> <code>{店舗名}</code> <code>{日付}</code> などの差し込み文字が使えます。</td></tr>
+  </table>
+  </div>
+
+  <h3>担当者定型文を予定に入れる</h3>
+  <ol class="step">
+    <li>「業態ごとの定型文・時間帯」で、差し込みたい業態・時間帯の<b>定型文</b>を開きます。</li>
+    <li>入れたい位置に <code>{担当者定型文}</code>（名前だけなら <code>{担当者}</code>）と書きます。</li>
+    <li>カレンダー画面または登録リストで担当者を選ぶと、その位置に内容が入ります。</li>
+  </ol>
+<pre>{業態} {店舗名} 入店 {開始}
+{担当者定型文}
+
+{業態} {店舗名} 中間報告
+　…</pre>
+  <div class="tip">業態ごとに「<b>既定の担当者</b>」を決めておくと、その業態を選んだときに担当者が自動で入るので、毎回選ぶ手間がなくなります。</div>
+  <div class="note">担当者を削除すると、その担当者を「既定の担当者」にしていた業態は「（指定なし）」に戻ります。すでに登録リストに入っている予定の担当者も外れます（Googleカレンダーへ登録済みの予定は変わりません）。</div>
+
+  <h2 id="s8">8. 設定の書き出し・読み込み（端末間の共有）</h2>
+  <p>設定（業態・時間帯・定型文・<b>担当者</b>・共通設定）は<b>使っている端末のブラウザ</b>に保存されます。パソコンとスマートフォンで同じ設定を使うときは、次のようにします。</p>
+  <ol class="step">
+    <li>設定が整っている端末で「<b>設定を書き出す（JSON）</b>」を押し、ファイルを保存します。</li>
+    <li>そのファイルをもう一方の端末へ送ります（メール添付、クラウド保存など）。</li>
+    <li>受け取った端末でツールを開き、「<b>設定を読み込む</b>」からファイルを選びます。</li>
+  </ol>
+  <div class="note">「初期設定に戻す」を押すと、追加・変更した業態や定型文はすべて消えます。念のため先に書き出しておくことをおすすめします。<br>
+  ブラウザの履歴・サイトデータを消すと設定も消えます。ブラウザのシークレット（プライベート）モードでは保存されません。</div>
+
+  <h2 id="s9">9. スマートフォンでの使い方</h2>
+  <ul>
+    <li>操作はパソコンと同じです。カレンダーは1か月ずつ表示され、‹ › で月を移動します。</li>
+    <li>日付は<b>タップで選択／解除</b>します（Shift+クリックの範囲選択はパソコンのみ）。</li>
+    <li>「Googleカレンダーで順番に登録」を押すと、Googleカレンダーのアプリまたはブラウザが開きます。保存したらブラウザに戻って次へ進みます。</li>
+    <li>ICSファイルの取込は、パソコンのブラウザからGoogleカレンダーの設定画面で行うのが確実です。</li>
+    <li>ホーム画面に追加しておくと、アプリのように起動できます（Safari：共有 → ホーム画面に追加）。</li>
+  </ul>
+
+  <h2 id="s10">10. 初期状態の業態・時間帯・定型文</h2>
+  <div class="tbl-wrap">
+  <table>
+    <tr><th>業態</th><th>時間帯</th><th>開始</th><th>終了</th><th>定型文</th></tr>
+    <tr><td>オリーブの丘</td><td>午前 (AM)</td><td>08:00</td><td>09:00</td><td>標準</td></tr>
+    <tr><td rowspan="2">すき家</td><td>午前 (AM)</td><td>08:30</td><td>09:30</td><td>すき家用</td></tr>
+    <tr><td>午後 (PM)</td><td>14:30</td><td>15:30</td><td>すき家用</td></tr>
+    <tr><td>華屋与兵衛</td><td>午前 (AM)</td><td>08:00</td><td>09:00</td><td>標準</td></tr>
+    <tr><td rowspan="2">はま寿司</td><td>午前 (AM)</td><td>08:00</td><td>09:00</td><td>標準</td></tr>
+    <tr><td>午後 (PM)</td><td>14:30</td><td>15:30</td><td>標準</td></tr>
+  </table>
+  </div>
+  <div class="note"><b>はま寿司</b>の時刻と定型文は仮の初期値です。実際の運用に合わせて「⚙️ 設定」で修正してください。<br>
+  <b>担当者</b>は初期状態では登録されていません。「⚙️ 設定」の「担当者と担当者定型文」から追加してください。</div>
+
+  <h3>標準の定型文</h3>
+<pre>{業態} {店舗名} 入店 {開始}
+
+{業態} {店舗名} 中間報告
+
+{業態} {店舗名} 退店報告
+
+入店 {開始}
+退店 {終了}
+
+MPR   台</pre>
+
+  <h3>すき家用の定型文</h3>
+<pre>{業態} {店舗名} 入店 {開始}
+POSレジ清算済み
+POSレジ清算 今から開始をお願いいたしました
+
+{業態} {店舗名} 中間報告
+
+{業態} {店舗名} 退店報告
+
+入店 {開始}
+退店 {終了}
+
+MPR   台
+HT    台
+BC    台
+BP    個</pre>
+
+  <h2 id="s11">11. よくある質問・注意事項</h2>
+  <h3>Q. 登録リストはブラウザを閉じても残りますか？</h3>
+  <p>残りません。作った予定はその場でGoogleカレンダーへ登録してください。設定（業態・定型文）は残ります。</p>
+  <h3>Q.「開く」を押しても新しいタブが開きません。</h3>
+  <p>ブラウザのポップアップブロックが働いている可能性があります。このページのポップアップを許可してください。</p>
+  <h3>Q. 予定の時刻がずれます。</h3>
+  <p>Googleカレンダー側のタイムゾーン設定をご確認ください。このツールは日本時間（Asia/Tokyo）で送信します。</p>
+  <h3>Q. 間違えて登録しました。</h3>
+  <p>Googleカレンダー側で予定を削除してください。ICSで取り込んだ予定も、カレンダー上から削除できます。</p>
+  <h3>Q. 業態を削除できません。</h3>
+  <p>業態は1件以上、時間帯も業態ごとに1件以上必要です。</p>
+  <h3>Q. 担当者を選んでも説明文が変わりません。</h3>
+  <p>業態の定型文に <code>{担当者}</code> または <code>{担当者定型文}</code> が書かれているか確認してください。また、その説明文が「手動で編集」になっていると自動更新されません。</p>
+  <h3>Q. 説明文が更新されません。</h3>
+  <p>その説明文が「手動で編集」になっていないか確認してください。「定型文に戻す」を押すと自動生成に戻ります。</p>
+</div>
+
+<div class="footer">
+  <img src="assets/welsys-logo.jpg" alt="ウェルシス株式会社 WELSYS">
+  <div class="cn">ウェルシス株式会社</div>
+  <div class="cr">&copy; 2026 WELSYS Inc. All rights reserved.</div>
+</div>
+</body>
+</html>
