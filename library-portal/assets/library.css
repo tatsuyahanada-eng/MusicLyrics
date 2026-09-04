@@ -376,3 +376,163 @@
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation-duration: .01ms !important; transition-duration: .01ms !important; }
 }
+
+/* ============================================================
+   v3 追加分 — ログイン画面 / 利用者メニュー / 設定（利用者管理）
+   ============================================================ */
+
+/* ---------- ログイン・セットアップ・オフライン ---------- */
+.lp-body-auth { background: var(--lp-bg); }
+.lp-auth {
+  flex: 1; display: grid; place-items: center;
+  padding: 40px 16px;
+}
+.lp-auth-card {
+  width: min(420px, 100%);
+  background: var(--lp-white);
+  border: 1px solid var(--lp-line);
+  border-top: 3px solid var(--lp-blue);
+  border-radius: 12px;
+  box-shadow: 0 8px 30px rgba(20, 24, 29, .08);
+  padding: 30px 28px 26px;
+  text-align: center;
+}
+.lp-auth-logo {
+  width: 84px; height: 84px; object-fit: contain;
+  margin: 0 auto 12px; display: block;
+}
+.lp-auth-title { font-size: 1.3rem; font-weight: 700; }
+.lp-auth-sub { font-size: .78rem; color: var(--lp-ink-soft); margin-top: 4px; }
+.lp-auth-form { display: flex; flex-direction: column; gap: 13px; margin-top: 22px; text-align: left; }
+.lp-auth-error {
+  margin-top: 16px; padding: 10px 13px;
+  background: var(--lp-red-soft); border: 1px solid #f2ccd0; border-left: 3px solid var(--lp-red);
+  border-radius: 7px; font-size: .8rem; color: var(--lp-red); text-align: left;
+}
+.lp-auth-ok {
+  margin-top: 16px; padding: 10px 13px;
+  background: var(--lp-blue-soft); border: 1px solid #c6dcf5; border-left: 3px solid var(--lp-blue);
+  border-radius: 7px; font-size: .8rem; color: var(--lp-blue); text-align: left;
+}
+.lp-auth-note { margin-top: 16px; font-size: .71rem; color: var(--lp-ink-soft); }
+.lp-btn-block { width: 100%; display: block; text-align: center; text-decoration: none; margin-top: 4px; }
+
+/* ---------- 利用者メニュー（ヘッダー右） ---------- */
+.lp-user { position: relative; }
+.lp-user-btn {
+  font: inherit; cursor: pointer;
+  display: flex; flex-direction: column; align-items: flex-end; gap: 2px;
+  background: none; border: 1px solid var(--lp-line); border-radius: 8px;
+  padding: 6px 12px;
+  transition: border-color .16s var(--lp-ease);
+}
+.lp-user-btn:hover { border-color: var(--lp-blue); }
+.lp-user-name { font-size: .8rem; font-weight: 600; }
+.lp-role {
+  font-size: .65rem; font-weight: 700; border-radius: 999px;
+  padding: 1px 8px; border: 1px solid;
+}
+.lp-role-admin  { background: var(--lp-red-soft);  border-color: #f6ccd0; color: var(--lp-red); }
+.lp-role-viewer { background: var(--lp-blue-soft); border-color: #c6dcf5; color: var(--lp-blue); }
+
+.lp-user-menu {
+  position: absolute; right: 0; top: calc(100% + 7px);
+  min-width: 210px; z-index: 35;
+  background: #fff; border: 1px solid var(--lp-line);
+  border-radius: 9px; box-shadow: 0 10px 28px rgba(20, 24, 29, .14);
+  padding: 5px;
+  animation: lp-menu-in .16s var(--lp-ease);
+}
+.lp-user-menu-item {
+  display: block; width: 100%; text-align: left;
+  font: inherit; font-size: .8rem;
+  background: none; border: none; cursor: pointer;
+  color: var(--lp-ink); text-decoration: none;
+  padding: 9px 12px; border-radius: 6px;
+}
+.lp-user-menu-item:hover { background: var(--lp-blue-soft); color: var(--lp-blue); }
+.lp-user-menu-danger:hover { background: var(--lp-red-soft); color: var(--lp-red); }
+@keyframes lp-menu-in { from { opacity: 0; transform: translateY(-5px); } to { opacity: 1; transform: translateY(0); } }
+
+/* ---------- 通知・注意書き ---------- */
+.lp-notice {
+  background: #fff8ec; border: 1px solid #f2e0c2; border-left: 3px solid #d9922b;
+  border-radius: 8px; padding: 10px 14px; font-size: .8rem; margin-bottom: 15px;
+}
+.lp-help {
+  background: var(--lp-white); border: 1px solid var(--lp-line);
+  border-left: 3px solid var(--lp-blue);
+  border-radius: 8px; padding: 11px 15px; font-size: .79rem;
+  color: #3c4550; margin: 14px 0 16px;
+}
+.lp-form-error {
+  background: var(--lp-red-soft); border: 1px solid #f2ccd0;
+  border-radius: 7px; padding: 9px 12px; font-size: .78rem; color: var(--lp-red);
+}
+.lp-field-note { font-size: .69rem; color: var(--lp-ink-soft); }
+.lp-mono { font-family: ui-monospace, Menlo, Consolas, monospace; font-size: .8rem; }
+.lp-muted { color: var(--lp-ink-soft); }
+
+/* ---------- 設定画面（利用者一覧） ---------- */
+.lp-listhead-users, .lp-row-head-user {
+  grid-template-columns: minmax(160px, 1.4fr) 130px 110px 168px 104px 132px auto;
+}
+.lp-row-user { cursor: default; }
+.lp-row-user:hover { border-left-color: var(--lp-blue-bright); }
+.lp-row-user.is-inactive { background: #fbfbfc; opacity: .72; }
+.lp-row-head-user { display: grid; align-items: center; padding: 12px 16px; }
+.lp-self {
+  font-size: .62rem; font-weight: 700; margin-left: 6px;
+  background: var(--lp-ink); color: #fff; border-radius: 4px; padding: 1px 6px;
+  vertical-align: middle;
+}
+.lp-row-actions { display: flex; gap: 6px; justify-content: flex-end; flex-wrap: wrap; }
+.lp-btn-danger { background: #fff; color: var(--lp-red); border-color: #f0c9cd; }
+.lp-btn-danger:hover { background: var(--lp-red); color: #fff; border-color: var(--lp-red); }
+.lp-btn:disabled { opacity: .4; cursor: not-allowed; }
+
+/* 権限の切り替えスイッチ */
+.lp-roleswitch {
+  display: inline-flex; border: 1px solid var(--lp-line-strong);
+  border-radius: 999px; overflow: hidden; background: #f6f8fa;
+}
+.lp-roleswitch-btn {
+  font: inherit; font-size: .71rem; font-weight: 700;
+  background: none; border: none; cursor: pointer;
+  color: var(--lp-ink-soft); padding: 5px 12px;
+  transition: background .18s var(--lp-ease), color .18s var(--lp-ease);
+}
+.lp-roleswitch-btn:hover:not(:disabled):not(.is-on) { color: var(--lp-ink); background: #eef1f4; }
+.lp-roleswitch-btn.is-on { background: var(--lp-blue); color: #fff; }
+.lp-roleswitch.is-admin .lp-roleswitch-btn.is-on { background: var(--lp-red); }
+.lp-roleswitch-btn:disabled { cursor: not-allowed; opacity: .55; }
+
+.lp-status { font-size: .71rem; font-weight: 700; }
+.lp-status.is-active  { color: var(--lp-blue); }
+.lp-status.is-stopped { color: var(--lp-red); }
+
+/* 権限選択（モーダル内） */
+.lp-roleset { border: none; display: flex; flex-direction: column; gap: 8px; }
+.lp-roleopt {
+  display: flex; gap: 11px; align-items: flex-start;
+  border: 1px solid var(--lp-line-strong); border-radius: 9px;
+  padding: 11px 13px; cursor: pointer;
+  transition: border-color .16s var(--lp-ease), background .16s var(--lp-ease);
+}
+.lp-roleopt:hover { border-color: var(--lp-blue); }
+.lp-roleopt input { margin-top: 3px; accent-color: var(--lp-blue); }
+.lp-roleopt:has(input[value="admin"]:checked) { border-color: var(--lp-red); background: var(--lp-red-soft); }
+.lp-roleopt:has(input[value="viewer"]:checked) { border-color: var(--lp-blue); background: var(--lp-blue-soft); }
+.lp-roleopt-body { display: flex; flex-direction: column; gap: 2px; }
+.lp-roleopt-title { font-size: .84rem; font-weight: 700; }
+.lp-roleopt-desc { font-size: .73rem; color: var(--lp-ink-soft); line-height: 1.55; }
+
+@media (max-width: 1000px) {
+  .lp-listhead-users { display: none; }
+  .lp-row-head-user {
+    grid-template-columns: 1fr auto;
+    gap: 8px 12px;
+    align-items: start;
+  }
+  .lp-row-actions { grid-column: 1 / -1; justify-content: flex-start; }
+}

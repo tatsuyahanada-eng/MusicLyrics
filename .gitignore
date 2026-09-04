@@ -1,2 +1,5 @@
 MusicLyrics/
 *.zip
+
+# サーバー固有の接続情報（各環境で作成する）
+library-portal/includes/config.php

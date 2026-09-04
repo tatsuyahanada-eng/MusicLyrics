@@ -1,0 +1,52 @@
+# ============================================================
+#  ライブラリポータル — Apache 設定（さくらのレンタルサーバ）
+# ============================================================
+
+# --- HTTPS へ統一（PWA・Service Worker には https が必須） ---
+<IfModule mod_rewrite.c>
+  RewriteEngine On
+  RewriteCond %{HTTPS} !=on
+  RewriteCond %{HTTP:X-Sakura-Forwarded-For} ^$
+  RewriteRule ^(.*)$ https://%{HTTP_HOST}%{REQUEST_URI} [R=301,L]
+</IfModule>
+
+# --- 既定のページ ---
+DirectoryIndex index.php
+
+# --- 設定ファイル・SQL・ドキュメントへの直接アクセスを禁止 ---
+<FilesMatch "\.(sql|md|sample\.php)$">
+  <IfModule mod_authz_core.c>
+    Require all denied
+  </IfModule>
+  <IfModule !mod_authz_core.c>
+    Order allow,deny
+    Deny from all
+  </IfModule>
+</FilesMatch>
+
+# --- ディレクトリ一覧の表示を禁止 ---
+Options -Indexes
+
+# --- Service Worker はキャッシュさせない（更新を確実に反映） ---
+<FilesMatch "service-worker\.js$">
+  Header set Cache-Control "no-cache, no-store, must-revalidate"
+</FilesMatch>
+
+# --- 静的ファイルのキャッシュ ---
+<IfModule mod_expires.c>
+  ExpiresActive On
+  ExpiresByType text/css "access plus 7 days"
+  ExpiresByType application/javascript "access plus 7 days"
+  ExpiresByType image/png "access plus 30 days"
+  ExpiresByType image/jpeg "access plus 30 days"
+</IfModule>
+
+# --- セキュリティヘッダー ---
+<IfModule mod_headers.c>
+  Header set X-Content-Type-Options "nosniff"
+  Header set X-Frame-Options "SAMEORIGIN"
+  Header set Referrer-Policy "same-origin"
+</IfModule>
+
+# --- manifest の MIME タイプ ---
+AddType application/manifest+json .webmanifest
