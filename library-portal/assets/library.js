@@ -1,6 +1,7 @@
 /* ============================================================
-   ライブラリポータル — library.js  v3
-   1行 = 1アイテムのアコーディオン一覧
+   ライブラリポータル — library.js  v4
+   本棚ビュー（背表紙を並べ、選ぶと見開きで開く）と
+   一覧ビュー（1行 = 1アイテムのアコーディオン）の2つを持つ
 
    データ供給元：
      ・index.php（本番）… window.LP が定義され、api/items.php から取得
@@ -28,11 +29,6 @@ const ICON_EXTERNAL = `<svg viewBox="0 0 24 24" width="13" height="13" fill="non
   stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round">
   <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/>
   <path d="M15 3h6v6"/><path d="M10 14 21 3"/></svg>`;
-/* ツリーの根（アイテム本体）を示すアイコン */
-const ICON_ROOT = `<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor"
-  stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
-  <path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg>`;
-
 /* 版数の遷移（v1.2.0 → v1.4.0）に使う矢印 */
 const ICON_ARROW = `<svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor"
   stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h13"/><path d="m12 5 7 7-7 7"/></svg>`;
@@ -50,7 +46,8 @@ const CAT_ICON = {
 /* ---------- 状態 ---------- */
 let items = [];
 const openIds = new Set();
-const state = { q: '', category: '', sort: 'updated_desc' };
+const state = { q: '', category: '', sort: 'updated_desc', view: 'shelf' };
+let readingId = null;                          // いま開いている本（本棚ビュー）
 
 /* ---------- ユーティリティ ---------- */
 const $ = (id) => document.getElementById(id);
@@ -327,6 +324,249 @@ function historyGlance(it) {
     </span>`;
 }
 
+/* ============================================================
+   本棚ビュー（背表紙の一覧）
+   ・背の厚み  = 更新回数（よく手が入っている資料ほど厚い本になる）
+   ・背のリング= 更新1件ぶん。区分の色で塗るので、棚を見るだけで
+                 「機能追加が多い」「不具合修正続き」といった性格が分かる
+   ・背の高さ  = ID から決まる固定値。棚に並んだ時の見た目を自然にするだけで、
+                 意味は持たせていない
+   ============================================================ */
+
+/** ID から決まる 0〜n-1 の値（同じ本はいつも同じ高さになるように） */
+function idHash(id, n) {
+  let sum = 0;
+  for (let i = 0; i < String(id).length; i++) sum += String(id).charCodeAt(i);
+  return sum % n;
+}
+
+function bookHtml(it) {
+  const n = it.history.length;
+  const h = latest(it);
+  const reading = readingId === it.id;
+
+  const thick = Math.min(32 + n * 7, 72);          // 背の厚み（更新回数ぶん）
+  const tall = 148 + idHash(it.id, 5) * 13;        // 背の高さ
+
+  const bands = [...it.history].reverse().slice(-10).map((e) =>
+    `<i class="lp-band lp-band-${KIND_CLASS[e.kind] || 'improve'}"></i>`).join('');
+
+
+  const tip = n
+    ? `${it.name}／更新 ${n} 回：${[...it.history].reverse().map((e) => e.kind).join(' → ')}`
+    : `${it.name}／更新はまだありません`;
+
+  return `
+    <button class="lp-book lp-book-${CAT_CLASS[it.category] || 'prg'}${reading ? ' is-reading' : ''}"
+            type="button" data-book="${esc(it.id)}" title="${esc(tip)}"
+            aria-expanded="${reading}" aria-controls="spread"
+            style="--thick:${thick}px; --tall:${tall}px">
+      <span class="lp-book-spine">
+        <span class="lp-book-cap" aria-hidden="true"></span>
+        <span class="lp-book-name">${esc(it.name)}</span>
+        <span class="lp-book-bands" aria-hidden="true">${bands}</span>
+        ${h && h.version ? `<span class="lp-book-foot">${esc(h.version)}</span>` : ''}
+      </span>
+    </button>`;
+}
+
+function shelfHtml(list) {
+  if (!list.length) return '';
+  return `<div class="lp-books">${list.map(bookHtml).join('')}</div>`;
+}
+
+/** 背に入る字数は高さ次第なので、描画してから実測して詰める（全角1文字ぶんの字送りで判定） */
+function fitSpineTitles() {
+  document.querySelectorAll('.lp-book-name').forEach((el) => {
+    const full = el.dataset.full || el.textContent;
+    el.dataset.full = full;
+    const cs = getComputedStyle(el);
+    const per = parseFloat(cs.lineHeight) || parseFloat(cs.fontSize) * 1.1;   // 1文字ぶんの高さ
+    const max = Math.max(3, Math.floor(el.clientHeight / per));
+    el.textContent = full.length > max ? full.slice(0, max - 1) + '…' : full;
+  });
+}
+
+/* ============================================================
+   見開き（開いた本の中身）
+   左ページ＝いまの姿、右ページ＝更新の年表
+   ============================================================ */
+
+/** 右ページ：年ごとにまとめた更新の年表 */
+function chronicle(it) {
+  if (!it.history.length) {
+    return '<p class="lp-chr-empty">この資料にはまだ更新が登録されていません。</p>';
+  }
+
+  const { rounds, total } = fileRounds(it);
+  const n = it.history.length;
+
+  // history は新しい順。年が変わるところで区切る
+  const years = [];
+  it.history.forEach((e, i) => {
+    const y = String(e.date).slice(0, 4);
+    if (!years.length || years[years.length - 1].year !== y) years.push({ year: y, list: [] });
+    years[years.length - 1].list.push({ e, i });
+  });
+
+  let d = 0;
+  const blocks = years.map((grp) => {
+    const entries = grp.list.map(({ e, i }) => {
+      const oldIdx = n - 1 - i;                     // 古い順に数えた位置
+      const prev = it.history[i + 1] || null;
+      const files = normFiles(e);
+      const step = Math.min(d++, 14);
+
+      const from = prev && prev.version !== e.version ? prev.version : '';
+      const jump = e.version
+        ? `<span class="lp-jump">${from
+              ? `<span class="lp-jump-from">${esc(from)}</span><span class="lp-jump-arrow" aria-hidden="true">${ICON_ARROW}</span>`
+              : ''}<span class="lp-jump-to">${esc(e.version)}</span></span>`
+        : '';
+
+      return `
+        <li class="lp-chr-item${i === 0 ? ' is-latest' : ''}${prev ? '' : ' is-first'}" style="--d:${step}">
+          <span class="lp-chr-no" aria-hidden="true">${oldIdx + 1}</span>
+          <div class="lp-chr-body">
+            <div class="lp-chr-head">
+              <span class="lp-chr-date">${String(e.date).slice(5).replace('-', '/')}</span>
+              <span class="lp-chr-time">${esc(e.time)}</span>
+              ${kindBadge(e.kind)}
+              ${jump}
+              ${i === 0 ? '<span class="lp-chr-tag">いまの姿</span>' : ''}
+              ${prev ? '' : '<span class="lp-chr-tag lp-chr-tag-start">出発点</span>'}
+            </div>
+            <p class="lp-chr-what">${esc(e.summary)}</p>
+            <div class="lp-chr-meta">
+              <span><b>対象機能</b>${esc(e.target)}</span>
+              <span><b>対応者</b>${esc(e.author)}</span>
+              ${e.ticket ? `<span><b>管理番号</b>${esc(e.ticket)}</span>` : ''}
+            </div>
+            <div class="lp-chr-files">
+              <span class="lp-hist-files-cap">実際に直したプログラム・ファイル（${files.length} 件）</span>
+              ${fileTable(files, oldIdx, rounds, total)}
+            </div>
+          </div>
+        </li>`;
+    }).join('');
+
+    return `
+      <section class="lp-chr-year" style="--d:${Math.min(d, 14)}">
+        <h4 class="lp-chr-yearhead"><span>${esc(grp.year)}</span><em>${grp.list.length} 回</em></h4>
+        <ol class="lp-chr-list">${entries}</ol>
+      </section>`;
+  }).join('');
+
+  return `<div class="lp-chr">${blocks}</div>`;
+}
+
+/** 左ページ：この資料がいまどうなっているか */
+function spreadLeft(it) {
+  const h = latest(it);
+  const url = safeUrl(it.downloadUrl);
+  const fileCount = it.history.reduce((sum, e) => sum + normFiles(e).length, 0);
+  const touched = new Set();
+  it.history.forEach((e) => normFiles(e).forEach((f) => touched.add(f.path)));
+
+  return `
+    <section class="lp-page lp-page-l">
+      <div class="lp-page-inner">
+        <p class="lp-page-eyebrow">
+          <span class="lp-cat lp-cat-${CAT_CLASS[it.category] || 'prg'}">${CAT_ICON[it.category] || ''}${esc(it.category)}</span>
+          <span class="lp-page-id">${esc(it.id)}</span>
+        </p>
+
+        <h2 class="lp-page-title">${esc(it.name)}</h2>
+        <p class="lp-page-by">${esc(it.creator)}　著</p>
+
+        <div class="lp-nowbox">
+          <span class="lp-nowbox-label">いまの版</span>
+          <span class="lp-nowbox-ver">${h && h.version ? esc(h.version) : '版数なし'}</span>
+          <span class="lp-nowbox-when">${h
+            ? `${fmtDate(h.date)} ${esc(h.time)} の更新まで反映`
+            : 'まだ更新は登録されていません'}</span>
+        </div>
+
+        ${it.description ? `<p class="lp-page-desc">${esc(it.description)}</p>` : ''}
+
+        ${url ? `<p class="lp-page-open">
+          <a class="lp-dl" href="${esc(url)}" target="_blank" rel="noopener">${ICON_EXTERNAL}<span>この資料を開く</span></a>
+          <span class="lp-dl-url">${esc(url)}</span>
+        </p>` : '<p class="lp-page-open"><span class="lp-muted">URL 未設定</span></p>'}
+
+        <dl class="lp-okuzuke">
+          <div><dt>公開開始</dt><dd>${fmtDate(it.createdAt)}</dd></div>
+          <div><dt>これまでの更新</dt><dd>${it.history.length} 回</dd></div>
+          <div><dt>直したファイル</dt><dd>延べ ${fileCount} 件 ／ ${touched.size} 種類</dd></div>
+          <div><dt>最終対応者</dt><dd>${h ? esc(h.author) : '—'}</dd></div>
+        </dl>
+
+        ${versionRoad(it)}
+
+        ${CAN_EDIT ? `<p class="lp-page-actions">
+          <button class="lp-btn lp-btn-ghost lp-btn-sm" type="button" data-add="${esc(it.id)}">＋ この資料の更新を登録</button>
+        </p>` : ''}
+      </div>
+      <span class="lp-folio">${esc(it.id)}</span>
+    </section>`;
+}
+
+function spreadHtml(it) {
+  return `
+    <div class="lp-spread-paper">
+      <button class="lp-spread-close" type="button" data-close-spread aria-label="本を閉じる">✕ 閉じる</button>
+      ${spreadLeft(it)}
+      <section class="lp-page lp-page-r">
+        <div class="lp-page-inner">
+          <h3 class="lp-page-h">更新の年表<span>新しい順 ／ ${it.history.length} 件</span></h3>
+          ${chronicle(it)}
+        </div>
+        <span class="lp-folio">${it.history.length} 回の更新</span>
+      </section>
+      <span class="lp-gutter" aria-hidden="true"></span>
+    </div>`;
+}
+
+/** 本を開く・閉じる */
+function openBook(id) {
+  const spread = $('spread');
+  if (!spread) return;
+
+  if (readingId === id) { closeBook(); return; }
+
+  const it = items.find((x) => x.id === id);
+  if (!it) return;
+
+  readingId = id;
+  document.querySelectorAll('.lp-book').forEach((b) => {
+    const on = b.dataset.book === id;
+    b.classList.toggle('is-reading', on);
+    b.setAttribute('aria-expanded', String(on));
+  });
+
+  // いったん閉じてから開き直すと、ページがめくれる動きが必ず再生される
+  spread.classList.remove('is-open');
+  spread.hidden = false;
+  spread.innerHTML = spreadHtml(it);
+  void spread.offsetWidth;                       // ここで一度レイアウトを確定させる
+  spread.classList.add('is-open');
+
+  const top = spread.getBoundingClientRect().top + window.scrollY - 96;
+  window.scrollTo({ top, behavior: 'smooth' });
+}
+
+function closeBook() {
+  const spread = $('spread');
+  readingId = null;
+  document.querySelectorAll('.lp-book').forEach((b) => {
+    b.classList.remove('is-reading');
+    b.setAttribute('aria-expanded', 'false');
+  });
+  if (!spread) return;
+  spread.classList.remove('is-open');
+  window.setTimeout(() => { if (!readingId) { spread.hidden = true; spread.innerHTML = ''; } }, 260);
+}
+
 /* ---------- 描画 ---------- */
 function rowHtml(it) {
   const h = latest(it);
@@ -360,8 +600,6 @@ function rowHtml(it) {
 
     <div class="lp-panel" id="panel-${esc(it.id)}" role="region">
       <div class="lp-panel-inner">
-        <span class="lp-page lp-page-1" aria-hidden="true"></span>
-        <span class="lp-page lp-page-2" aria-hidden="true"></span>
         <div class="lp-panel-body">
           ${nowCard(it)}
           ${versionRoad(it)}
@@ -383,10 +621,34 @@ function rowHtml(it) {
 
 function render() {
   const list = visibleItems();
-  $('list').innerHTML = list.map(rowHtml).join('');
+  const shelf = state.view === 'shelf';
+  const listEl = $('list');
+
+  listEl.className = shelf ? 'lp-shelf' : 'lp-list';
+  listEl.innerHTML = shelf ? shelfHtml(list) : list.map(rowHtml).join('');
+
+  const head = $('listHead');
+  if (head) head.hidden = shelf;
+
+  if (shelf) fitSpineTitles();
+
+  // 絞り込みで棚から消えた本が開いたままにならないようにする
+  if (shelf && readingId && !list.some((it) => it.id === readingId)) closeBook();
+
   $('listEmpty').hidden = list.length > 0;
   $('statItems').textContent = items.length;
   $('statHistory').textContent = items.reduce((n, it) => n + it.history.length, 0);
+}
+
+/** 本棚 ⇄ 一覧 の切り替え */
+function setView(view) {
+  if (state.view === view) return;
+  state.view = view;
+  closeBook();
+  document.querySelectorAll('[data-view]').forEach((b) =>
+    b.classList.toggle('is-on', b.dataset.view === view));
+  try { localStorage.setItem('lp-view', view); } catch (e) { /* 保存できなくても動作に影響はない */ }
+  render();
 }
 
 function renderChips() {
@@ -413,15 +675,6 @@ function toggleRow(id) {
   if (open) openIds.add(id); else openIds.delete(id);
   row.classList.toggle('is-open', open);
   row.querySelector('.lp-row-head').setAttribute('aria-expanded', String(open));
-}
-
-function setAll(open) {
-  openIds.clear();
-  if (open) visibleItems().forEach((it) => openIds.add(it.id));
-  document.querySelectorAll('.lp-row').forEach((row) => {
-    row.classList.toggle('is-open', open);
-    row.querySelector('.lp-row-head').setAttribute('aria-expanded', String(open));
-  });
 }
 
 /* ---------- モーダル共通 ---------- */
@@ -477,6 +730,8 @@ async function submitUpdate(ev) {
     openIds.add(itemId);
     renderChips();
     render();
+    // 開いていた本は、登録した内容を反映して開き直す
+    if (state.view === 'shelf') { readingId = null; openBook(itemId); }
     hideModals();
     $('updateForm').reset();
     toast('更新履歴を登録しました');
@@ -557,13 +812,31 @@ async function init() {
     if (String(e.message) !== 'unauthorized') toast('データの取得に失敗しました');
     items = [];
   }
+  // 見開きの受け皿を一覧の直後に用意する（index.php / preview.html 共通）
+  const listEl = $('list');
+  if (!$('spread')) {
+    const spread = document.createElement('div');
+    spread.id = 'spread';
+    spread.className = 'lp-spread';
+    spread.hidden = true;
+    listEl.insertAdjacentElement('afterend', spread);
+  }
+
+  try {
+    const saved = localStorage.getItem('lp-view');
+    if (saved === 'list' || saved === 'shelf') state.view = saved;
+  } catch (e) { /* 読めなくても既定（本棚）で動く */ }
+  document.querySelectorAll('[data-view]').forEach((b) =>
+    b.classList.toggle('is-on', b.dataset.view === state.view));
+
   renderChips();
   render();
 
   $('searchInput').addEventListener('input', (e) => { state.q = e.target.value; render(); });
   $('sortSelect').addEventListener('change', (e) => { state.sort = e.target.value; render(); });
-  $('btnExpandAll').addEventListener('click', () => setAll(true));
-  $('btnCollapseAll').addEventListener('click', () => setAll(false));
+
+  document.querySelectorAll('[data-view]').forEach((b) =>
+    b.addEventListener('click', () => setView(b.dataset.view)));
 
   $('chipRow').addEventListener('click', (e) => {
     const chip = e.target.closest('[data-cat]');
@@ -575,10 +848,19 @@ async function init() {
 
   $('list').addEventListener('click', (e) => {
     if (e.target.closest('.lp-url-link')) return;   // URLを直接開く。行の開閉はしない
+    const book = e.target.closest('[data-book]');
+    if (book) { openBook(book.dataset.book); return; }
     const add = e.target.closest('[data-add]');
     if (add) { openUpdateModal(add.dataset.add); return; }
     const head = e.target.closest('[data-toggle]');
     if (head) toggleRow(head.dataset.toggle);
+  });
+
+  // 見開きの中の操作（閉じる／更新を登録）
+  $('spread').addEventListener('click', (e) => {
+    if (e.target.closest('[data-close-spread]')) { closeBook(); return; }
+    const add = e.target.closest('[data-add]');
+    if (add) openUpdateModal(add.dataset.add);
   });
 
   // 行の見出しは role="button" の div のため、Enter / Space での開閉を自前で処理する
@@ -625,6 +907,7 @@ async function init() {
     if (e.key !== 'Escape') return;
     closeUserMenu();
     hideModals();
+    if (readingId) closeBook();
   });
 }
 

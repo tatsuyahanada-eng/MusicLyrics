@@ -23,7 +23,7 @@ $csrf    = csrf_token();
   <link rel="apple-touch-icon" href="assets/icon-192.png?v=6">
   <link rel="manifest" href="manifest.webmanifest">
   <meta name="theme-color" content="#007a33">
-  <link rel="stylesheet" href="assets/library.css?v=15">
+  <link rel="stylesheet" href="assets/library.css?v=16">
 </head>
 <body class="lp-body">
 
@@ -81,12 +81,14 @@ $csrf    = csrf_token();
           <option value="created_desc">作成日が新しい順</option>
           <option value="name_asc">名称順</option>
         </select>
-        <button id="btnExpandAll" class="lp-btn lp-btn-ghost lp-btn-sm" type="button">すべて開く</button>
-        <button id="btnCollapseAll" class="lp-btn lp-btn-ghost lp-btn-sm" type="button">すべて閉じる</button>
+        <div class="lp-viewswitch" role="group" aria-label="表示の切り替え">
+          <button class="lp-viewbtn" type="button" data-view="shelf">本棚</button>
+          <button class="lp-viewbtn" type="button" data-view="list">一覧</button>
+        </div>
       </div>
     </div>
 
-    <div class="lp-listhead" aria-hidden="true">
+    <div class="lp-listhead" id="listHead" aria-hidden="true" hidden>
       <span>種別</span><span>名称</span><span>最終更新</span>
       <span>最新の更新内容</span><span>作成者</span><span>URL</span><span></span>
     </div>
@@ -230,7 +232,7 @@ $csrf    = csrf_token();
       canEdit: <?= $isAdmin ? 'true' : 'false' ?>
     };
   </script>
-  <script src="assets/library.js?v=15"></script>
+  <script src="assets/library.js?v=16"></script>
   <script src="assets/pwa.js?v=2"></script>
   <script>
     // インストール導線：すぐに実行できる端末ではその場で、それ以外は案内ページへ
