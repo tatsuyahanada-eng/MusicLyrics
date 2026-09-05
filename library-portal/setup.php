@@ -59,7 +59,7 @@ $csrf = csrf_token();
   <link rel="icon" type="image/png" sizes="16x16" href="assets/favicon-16.png?v=5">
   <link rel="apple-touch-icon" href="assets/icon-192.png?v=5">
   <meta name="theme-color" content="#007a33">
-  <link rel="stylesheet" href="assets/library.css?v=14">
+  <link rel="stylesheet" href="assets/library.css?v=15">
 </head>
 <body class="lp-body lp-body-auth">
   <main class="lp-auth">

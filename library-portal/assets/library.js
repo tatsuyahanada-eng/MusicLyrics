@@ -305,6 +305,28 @@ function nowCard(it) {
     </div>`;
 }
 
+/** 一覧を開かなくても更新の推移が一目で分かる、区分色の小さな点の並び（古い→新しい） */
+function historyGlance(it) {
+  const n = it.history.length;
+  if (!n) return '<span class="lp-row-glance lp-row-glance-empty">まだ更新なし</span>';
+
+  const chrono = [...it.history].reverse();      // 古い順に並べ替え
+  const MAX = 10;
+  const shown = chrono.slice(-MAX);
+  const hidden = chrono.length - shown.length;
+
+  const dots = shown.map((e) =>
+    `<i class="lp-hdot lp-hdot-${KIND_CLASS[e.kind] || 'improve'}"></i>`
+  ).join('');
+  const tip = `更新の推移（${n} 回）：${chrono.map((e) => e.kind).join(' → ')}`;
+
+  return `
+    <span class="lp-row-glance" title="${esc(tip)}">
+      ${hidden > 0 ? `<span class="lp-hdot-more">+${hidden}</span>` : ''}${dots}
+      <span class="lp-row-glance-count">${n} 回</span>
+    </span>`;
+}
+
 /* ---------- 描画 ---------- */
 function rowHtml(it) {
   const h = latest(it);
@@ -319,6 +341,7 @@ function rowHtml(it) {
       <span>
         <span class="lp-row-name">${esc(it.name)}</span>
         <span class="lp-row-id">${esc(it.id)} ／ ${esc(it.creator)}</span>
+        ${historyGlance(it)}
       </span>
       <span class="lp-row-date">${h ? fmtDate(h.date) : '—'}<span class="lp-row-time">${h ? esc(h.time) : ''}</span>
         ${h && h.version ? `<span class="lp-row-ver">${esc(h.version)}</span>` : ''}</span>
@@ -337,6 +360,8 @@ function rowHtml(it) {
 
     <div class="lp-panel" id="panel-${esc(it.id)}" role="region">
       <div class="lp-panel-inner">
+        <span class="lp-page lp-page-1" aria-hidden="true"></span>
+        <span class="lp-page lp-page-2" aria-hidden="true"></span>
         <div class="lp-panel-body">
           ${nowCard(it)}
           ${versionRoad(it)}

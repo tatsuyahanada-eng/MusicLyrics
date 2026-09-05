@@ -276,12 +276,46 @@
   padding: 13px 16px;
 }
 .lp-row-head:focus-visible { outline: 2px solid var(--lp-green); outline-offset: -3px; }
+/* 開いた瞬間、背表紙（見出し行）を棚から少し引き出すように手前へ持ち上げる */
+.lp-row.is-open .lp-row-head {
+  animation: lp-row-pull .5s var(--lp-ease);
+}
+@keyframes lp-row-pull {
+  0%   { transform: translateY(0) scale(1);       box-shadow: none; }
+  35%  { transform: translateY(-3px) scale(1.008); box-shadow: 0 10px 18px rgba(14, 19, 17, .16); }
+  100% { transform: translateY(0) scale(1);       box-shadow: none; }
+}
 
 .lp-row-name {
   font-weight: 700; font-size: .98rem; color: var(--lp-ink);
   transition: color .16s var(--lp-ease);
 }
 .lp-row-id { display: block; font-family: ui-monospace, Menlo, Consolas, monospace; font-size: .68rem; color: var(--lp-ink-soft); }
+
+/* 開かなくても更新の推移が分かる、区分色の点の並び（古い→新しい） */
+.lp-row-glance {
+  display: flex; align-items: center; gap: 3px;
+  margin-top: 5px;
+}
+.lp-row-glance-empty { font-size: .68rem; color: var(--lp-ink-soft); }
+.lp-hdot {
+  width: 6px; height: 6px; border-radius: 50%; flex: none;
+  background: var(--lp-ink-soft);
+}
+.lp-hdot-feature { background: var(--lp-green); }
+.lp-hdot-bugfix  { background: var(--lp-danger); }
+.lp-hdot-improve { background: var(--lp-ink-soft); }
+.lp-hdot-doc     { background: var(--lp-gold); }
+.lp-hdot-initial { background: var(--lp-deep); }
+/* 直近ほど大きく、新しいものが右端で目立つように */
+.lp-hdot:last-of-type { width: 8px; height: 8px; box-shadow: 0 0 0 2px var(--lp-neon-soft); }
+.lp-hdot-more {
+  font-size: .6rem; font-weight: 700; color: var(--lp-ink-soft);
+  margin-right: 1px;
+}
+.lp-row-glance-count {
+  margin-left: 4px; font-size: .64rem; color: var(--lp-ink-soft);
+}
 
 .lp-row-date { font-family: ui-monospace, Menlo, Consolas, monospace; font-size: .8rem; white-space: nowrap; }
 .lp-row-time { display: block; font-size: .68rem; color: var(--lp-ink-soft); }
@@ -358,32 +392,69 @@
   transition: transform .55s cubic-bezier(.34, 1.56, .64, 1), background .2s var(--lp-ease), color .2s var(--lp-ease);
 }
 
-/* ---------- Accordion body（開閉アニメーション） ---------- */
+/* ============================================================
+   Accordion body（開閉アニメーション）
+   「本棚から本を引き出し、ページをめくって開く」イメージで構成する：
+     ① 見出し行（背表紙）が少し手前に持ち上がる …… .lp-row-head の lp-row-pull
+     ② ページが奥から数枚、パラパラと先にめくれる …… .lp-page（装飾・実データなし）
+     ③ 本体のページが最後に倒れて開き、内容が読める状態になる …… .lp-panel-inner
+   ============================================================ */
 .lp-panel {
   display: grid;
   grid-template-rows: 0fr;
   transition: grid-template-rows .3s var(--lp-ease);
+  perspective: 1300px;
 }
 .lp-row.is-open .lp-panel {
   grid-template-rows: 1fr;
-  /* 開く時はゆったり伸ばして、中身が描かれる時間をつくる */
-  transition: grid-template-rows .44s cubic-bezier(.22, .61, .36, 1);
+  /* 開く時はゆったり伸ばして、ページがめくれる時間をつくる */
+  transition: grid-template-rows .5s cubic-bezier(.22, .61, .36, 1);
 }
 .lp-panel-inner {
+  position: relative;
   overflow: hidden;
   opacity: 0;
-  transform: translateY(-6px) scale(.985);
+  transform-style: preserve-3d;
   transform-origin: top center;
-  transition: opacity .2s var(--lp-ease), transform .22s var(--lp-ease);
+  /* 綴じ目（上端）を軸に、ページが立った状態から手前に倒れてくる */
+  transform: rotateX(-62deg) translateY(-4px);
+  transition: opacity .2s var(--lp-ease), transform .3s var(--lp-ease);
 }
 .lp-row.is-open .lp-panel-inner {
   opacity: 1;
-  transform: translateY(0) scale(1);
-  transition: opacity .3s var(--lp-ease) .05s, transform .4s cubic-bezier(.22, .61, .36, 1) .05s;
+  transform: rotateX(0deg) translateY(0);
+  /* ページが倒れきる時に少しだけ勢いよく行き過ぎてから収まる（紙が弾む感じ） */
+  transition: opacity .32s var(--lp-ease) .16s,
+              transform .58s cubic-bezier(.28, 1.14, .45, 1) .1s;
+}
+
+/* 装飾用の「先にめくれる数枚のページ」。実データは持たず、開いた瞬間だけ現れて消える */
+.lp-page {
+  position: absolute; inset: 0;
+  background: linear-gradient(115deg, #fff 55%, #eef4f0 100%);
+  border-radius: 0 0 8px 8px;
+  transform-origin: top center;
+  opacity: 0;
+  pointer-events: none;
+  box-shadow: 0 12px 22px rgba(14, 19, 17, .10);
+}
+.lp-row.is-open .lp-page-1 {
+  animation: lp-page-flip .42s cubic-bezier(.3, 1.3, .5, 1) both;
+  animation-delay: 20ms;
+}
+.lp-row.is-open .lp-page-2 {
+  animation: lp-page-flip .36s cubic-bezier(.3, 1.3, .5, 1) both;
+  animation-delay: 65ms;
+}
+@keyframes lp-page-flip {
+  0%   { opacity: .95; transform: rotateX(-78deg); }
+  55%  { opacity: .55; transform: rotateX(-10deg); }
+  100% { opacity: 0;   transform: rotateX(0deg); }
 }
 
 /* 展開部分は白地に戻して内容を読みやすくする（緑のハイライトは見出し行と左の線で示す） */
 .lp-panel-body {
+  position: relative;
   padding: 4px 18px 20px;
   border-top: 1px solid var(--lp-green-line);
   margin-top: 2px;
