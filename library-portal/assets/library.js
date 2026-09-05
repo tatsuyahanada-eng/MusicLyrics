@@ -325,66 +325,57 @@ function historyGlance(it) {
 }
 
 /* ============================================================
-   本棚ビュー（背表紙の一覧）
-   ・背の厚み  = 更新回数（よく手が入っている資料ほど厚い本になる）
-   ・背のリング= 更新1件ぶん。区分の色で塗るので、棚を見るだけで
-                 「機能追加が多い」「不具合修正続き」といった性格が分かる
-   ・背の高さ  = ID から決まる固定値。棚に並んだ時の見た目を自然にするだけで、
-                 意味は持たせていない
+   横積みの棚（CDラック／レコード棚のイメージ）
+   ・1枚 = 1資料。横に寝かせた背表紙なので、タイトルは横書きで読める
+   ・厚み  = 更新回数（よく手が入っている資料ほど厚い）
+   ・目盛り = 更新1件ぶん。区分の色で塗るので、棚を眺めるだけで
+              「機能追加が多い」「不具合修正続き」といった性格が分かる
    ============================================================ */
 
-/** ID から決まる 0〜n-1 の値（同じ本はいつも同じ高さになるように） */
-function idHash(id, n) {
-  let sum = 0;
-  for (let i = 0; i < String(id).length; i++) sum += String(id).charCodeAt(i);
-  return sum % n;
-}
-
-function bookHtml(it) {
+function slabHtml(it) {
   const n = it.history.length;
   const h = latest(it);
   const reading = readingId === it.id;
 
-  const thick = Math.min(32 + n * 7, 72);          // 背の厚み（更新回数ぶん）
-  const tall = 148 + idHash(it.id, 5) * 13;        // 背の高さ
+  const thick = Math.min(44 + n * 6, 84);          // 厚み（更新回数ぶん）
 
-  const bands = [...it.history].reverse().slice(-10).map((e) =>
-    `<i class="lp-band lp-band-${KIND_CLASS[e.kind] || 'improve'}"></i>`).join('');
-
+  const MAX_TICKS = 16;
+  const chrono = [...it.history].reverse();
+  const shown = chrono.slice(-MAX_TICKS);
+  const hidden = chrono.length - shown.length;
+  const ticks = shown.map((e) =>
+    `<i class="lp-tick lp-tick-${KIND_CLASS[e.kind] || 'improve'}"></i>`).join('');
 
   const tip = n
-    ? `${it.name}／更新 ${n} 回：${[...it.history].reverse().map((e) => e.kind).join(' → ')}`
+    ? `${it.name}／更新 ${n} 回：${chrono.map((e) => e.kind).join(' → ')}`
     : `${it.name}／更新はまだありません`;
 
   return `
-    <button class="lp-book lp-book-${CAT_CLASS[it.category] || 'prg'}${reading ? ' is-reading' : ''}"
+    <button class="lp-slab lp-slab-${CAT_CLASS[it.category] || 'prg'}${reading ? ' is-reading' : ''}"
             type="button" data-book="${esc(it.id)}" title="${esc(tip)}"
-            aria-expanded="${reading}" aria-controls="spread"
-            style="--thick:${thick}px; --tall:${tall}px">
-      <span class="lp-book-spine">
-        <span class="lp-book-cap" aria-hidden="true"></span>
-        <span class="lp-book-name">${esc(it.name)}</span>
-        <span class="lp-book-bands" aria-hidden="true">${bands}</span>
-        ${h && h.version ? `<span class="lp-book-foot">${esc(h.version)}</span>` : ''}
+            aria-expanded="${reading}" style="--thick:${thick}px">
+      <span class="lp-slab-edge" aria-hidden="true"></span>
+      <span class="lp-slab-face">
+        <span class="lp-slab-cat">${CAT_ICON[it.category] || ''}${esc(it.category)}</span>
+        <span class="lp-slab-main">
+          <span class="lp-slab-name">${esc(it.name)}</span>
+          <span class="lp-slab-by">${esc(it.id)} ／ ${esc(it.creator)}</span>
+        </span>
+        <span class="lp-slab-hist">
+          ${hidden > 0 ? `<span class="lp-tick-more">+${hidden}</span>` : ''}
+          <span class="lp-slab-ticks" aria-hidden="true">${ticks}</span>
+          <span class="lp-slab-count">${n ? `更新 ${n} 回` : '更新なし'}</span>
+        </span>
+        ${h && h.version ? `<span class="lp-slab-ver">${esc(h.version)}</span>` : '<span class="lp-slab-ver lp-muted">—</span>'}
+        <span class="lp-slab-date">${h ? fmtDate(h.date) : '—'}</span>
+        <span class="lp-slab-chev" aria-hidden="true">${ICON_CHEVRON}</span>
       </span>
     </button>`;
 }
 
 function shelfHtml(list) {
   if (!list.length) return '';
-  return `<div class="lp-books">${list.map(bookHtml).join('')}</div>`;
-}
-
-/** 背に入る字数は高さ次第なので、描画してから実測して詰める（全角1文字ぶんの字送りで判定） */
-function fitSpineTitles() {
-  document.querySelectorAll('.lp-book-name').forEach((el) => {
-    const full = el.dataset.full || el.textContent;
-    el.dataset.full = full;
-    const cs = getComputedStyle(el);
-    const per = parseFloat(cs.lineHeight) || parseFloat(cs.fontSize) * 1.1;   // 1文字ぶんの高さ
-    const max = Math.max(3, Math.floor(el.clientHeight / per));
-    el.textContent = full.length > max ? full.slice(0, max - 1) + '…' : full;
-  });
+  return `<div class="lp-stack">${list.map(slabHtml).join('')}</div>`;
 }
 
 /* ============================================================
@@ -538,11 +529,16 @@ function openBook(id) {
   if (!it) return;
 
   readingId = id;
-  document.querySelectorAll('.lp-book').forEach((b) => {
+  let slab = null;
+  document.querySelectorAll('.lp-slab').forEach((b) => {
     const on = b.dataset.book === id;
+    if (on) slab = b;
     b.classList.toggle('is-reading', on);
     b.setAttribute('aria-expanded', String(on));
   });
+
+  // 選んだ1枚のすぐ下に開く（棚のどこを開いているかが分かるように）
+  if (slab) slab.insertAdjacentElement('afterend', spread);
 
   // いったん閉じてから開き直すと、ページがめくれる動きが必ず再生される
   spread.classList.remove('is-open');
@@ -558,7 +554,7 @@ function openBook(id) {
 function closeBook() {
   const spread = $('spread');
   readingId = null;
-  document.querySelectorAll('.lp-book').forEach((b) => {
+  document.querySelectorAll('.lp-slab').forEach((b) => {
     b.classList.remove('is-reading');
     b.setAttribute('aria-expanded', 'false');
   });
@@ -624,13 +620,17 @@ function render() {
   const shelf = state.view === 'shelf';
   const listEl = $('list');
 
+  // 見開きは棚の中に差し込まれているため、描き直す前にいったん外へ出す
+  const spread = $('spread');
+  if (spread && spread.parentElement === listEl.querySelector('.lp-stack')) {
+    listEl.insertAdjacentElement('afterend', spread);
+  }
+
   listEl.className = shelf ? 'lp-shelf' : 'lp-list';
   listEl.innerHTML = shelf ? shelfHtml(list) : list.map(rowHtml).join('');
 
   const head = $('listHead');
   if (head) head.hidden = shelf;
-
-  if (shelf) fitSpineTitles();
 
   // 絞り込みで棚から消えた本が開いたままにならないようにする
   if (shelf && readingId && !list.some((it) => it.id === readingId)) closeBook();
@@ -847,6 +847,7 @@ async function init() {
   });
 
   $('list').addEventListener('click', (e) => {
+    if (e.target.closest('#spread')) return;        // 見開きの中は専用の処理に任せる
     if (e.target.closest('.lp-url-link')) return;   // URLを直接開く。行の開閉はしない
     const book = e.target.closest('[data-book]');
     if (book) { openBook(book.dataset.book); return; }

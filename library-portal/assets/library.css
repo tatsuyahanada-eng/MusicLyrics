@@ -165,129 +165,150 @@
 .lp-chip.is-on { background: var(--lp-ink); color: #fff; border-color: var(--lp-ink); }
 
 /* ============================================================
-   本棚ビュー
-   ・棚板は CSS の繰り返しグラデーションで描く（行の折り返しに追従させるため、
-     1行の高さ --shelf-row と行間 --shelf-gap を足した周期で敷いている）
-   ・そのため .lp-book の高さは必ず --shelf-row と一致させること
+   横積みの棚（CDラック／レコード棚のイメージ）
+   1枚 = 1資料。横に寝かせているので、タイトルは横書きのまま読める
    ============================================================ */
 .lp-shelf {
-  --shelf-row: 214px;      /* 本1段ぶんの高さ */
-  --shelf-gap: 26px;       /* 段と段の間（棚板ぶん） */
-  --board: #2b3630;
-  padding: 20px 0 8px;
+  padding: 16px 16px 18px;
   background:
-    radial-gradient(120% 80% at 50% 0%, #ffffff 0%, rgba(255, 255, 255, 0) 60%),
+    radial-gradient(120% 70% at 50% 0%, #ffffff 0%, rgba(255, 255, 255, 0) 62%),
     #eef3f0;
   border: 1px solid var(--lp-line-strong);
   border-radius: var(--lp-radius);
   box-shadow: inset 0 2px 10px rgba(14, 19, 17, .06);
 }
-.lp-books {
-  display: flex; flex-wrap: wrap; align-items: flex-end;
-  gap: var(--shelf-gap) 7px;
-  padding: 0 20px var(--shelf-gap);   /* 最下段の下にも棚板が入るように */
-  background-image: repeating-linear-gradient(180deg,
-    transparent 0, transparent var(--shelf-row),
-    var(--board) var(--shelf-row), var(--board) calc(var(--shelf-row) + 7px),
-    rgba(14, 19, 17, .16) calc(var(--shelf-row) + 7px), rgba(14, 19, 17, 0) calc(var(--shelf-row) + 15px),
-    transparent calc(var(--shelf-row) + 15px), transparent calc(var(--shelf-row) + var(--shelf-gap)));
+.lp-stack {
+  display: flex; flex-direction: column; gap: 4px;
+  /* 一番下の棚板 */
+  padding-bottom: 10px;
+  border-bottom: 7px solid #2b3630;
+  border-radius: 0 0 3px 3px;
+  box-shadow: 0 8px 12px -8px rgba(14, 19, 17, .5);
 }
 
-/* ---- 背表紙 ---- */
-.lp-book {
-  font: inherit; border: none; background: none; padding: 0; cursor: pointer;
-  height: var(--shelf-row);
-  display: flex; align-items: flex-end;
-}
-.lp-book-spine {
+/* ---- 1枚（横に寝かせた背） ---- */
+.lp-slab {
   position: relative;
-  width: var(--thick);
-  /* 背の高さは棚1段に必ず収める（狭い画面で段が低くなっても上の段を突き抜けない） */
-  height: min(var(--tall), calc(var(--shelf-row) - 10px));
-  border-radius: 3px 3px 1px 1px;
-  /* 左右の陰影で、丸みのある背表紙に見せる */
+  font: inherit; text-align: left; cursor: pointer;
+  border: none; padding: 0;
+  height: var(--thick);
+  display: flex; align-items: stretch;
+  border-radius: 3px;
+  /* 上下の縁に光と影を置いて、厚みのある板に見せる */
   background:
-    linear-gradient(90deg,
-      rgba(0, 0, 0, .30) 0%, rgba(255, 255, 255, .16) 14%,
-      rgba(255, 255, 255, .04) 44%, rgba(0, 0, 0, .12) 78%, rgba(0, 0, 0, .28) 100%),
+    linear-gradient(180deg,
+      rgba(255, 255, 255, .24) 0%, rgba(255, 255, 255, .07) 16%,
+      rgba(255, 255, 255, 0) 46%, rgba(0, 0, 0, .12) 84%, rgba(0, 0, 0, .30) 100%),
     var(--book);
   color: #fff;
-  display: flex; flex-direction: column; align-items: center;
-  padding: 9px 0 8px;
-  box-shadow: 0 3px 7px rgba(14, 19, 17, .28);
-  transform-origin: bottom center;
-  transition: transform .28s var(--lp-ease), box-shadow .28s var(--lp-ease);
+  box-shadow: 0 2px 5px rgba(14, 19, 17, .26);
+  overflow: hidden;
+  transition: transform .22s var(--lp-ease), box-shadow .22s var(--lp-ease);
 }
 /* 種別ごとの装丁色 */
-.lp-book-app { --book: #0b6b33; }
-.lp-book-prg { --book: #16221d; }
-.lp-book-doc { --book: #8a6a2f; }
-.lp-book-man { --book: #10502a; }
+.lp-slab-app { --book: #0b6b33; }
+.lp-slab-prg { --book: #16221d; }
+.lp-slab-doc { --book: #8a6a2f; }
+.lp-slab-man { --book: #10502a; }
 
-/* 天と地の金の帯（箔押し風） */
-.lp-book-cap {
-  width: 100%; height: 3px; flex: none;
-  background: linear-gradient(90deg, transparent 8%, var(--lp-gold) 20%, #e6cf9a 50%, var(--lp-gold) 80%, transparent 92%);
-  opacity: .85;
+/* 左端の小口（紙の束）。横積みらしさはここで出す */
+.lp-slab-edge {
+  width: 13px; flex: none;
+  background: repeating-linear-gradient(90deg, #f5f3ea 0 2px, #ddd9c9 2px 3px);
+  box-shadow: inset -2px 0 3px rgba(0, 0, 0, .22);
 }
-/* 縦書き（writing-mode）はフォントに縦組みメトリクスが無いと文字が重なるため、
-   幅を全角1文字ぶんに絞って1文字ずつ折り返させる。どの環境でも同じように積める */
-.lp-book-name {
-  width: 1em;
-  word-break: break-all; overflow-wrap: anywhere;
-  margin: 8px 0 7px;
-  flex: 1 1 auto; min-height: 58px;          /* タイトルの居場所を必ず確保する */
-  font-size: .82rem; font-weight: 700; letter-spacing: 0;
-  line-height: 1.1; text-align: center;
-  overflow: hidden;
-  text-shadow: 0 1px 2px rgba(0, 0, 0, .35);
+
+.lp-slab-face {
+  flex: 1; min-width: 0;
+  display: grid;
+  grid-template-columns: 104px minmax(0, 1fr) auto 78px 92px 22px;
+  align-items: center; gap: 14px;
+  padding: 0 14px;
 }
-/* 更新1回＝1本のリング。棚を見るだけで履歴の量と性格が分かる */
-.lp-book-bands {
-  width: 100%; padding: 0 5px; flex: none;
-  display: flex; flex-direction: column-reverse; gap: 1.5px;
-  max-height: 34px; overflow: hidden;
+.lp-slab-cat {
+  display: inline-flex; align-items: center; gap: 5px;
+  font-size: .68rem; font-weight: 700; letter-spacing: .04em;
+  color: #fff; background: rgba(255, 255, 255, .16);
+  border: 1px solid rgba(255, 255, 255, .3);
+  border-radius: 999px; padding: 2px 9px;
+  white-space: nowrap;
 }
-.lp-band { height: 2px; border-radius: 1px; flex: none; }
-.lp-band-feature { background: var(--lp-neon); }
-.lp-band-bugfix  { background: #ff8f8f; }
-.lp-band-improve { background: rgba(255, 255, 255, .55); }
-.lp-band-doc     { background: #f0d193; }
-.lp-band-initial { background: #b9e6cb; }
-.lp-book-foot {
-  margin-top: 6px; flex: none; max-width: 100%;
+.lp-slab-cat svg { flex: none; opacity: .9; }
+
+.lp-slab-main { min-width: 0; }
+.lp-slab-name {
+  display: block;
+  font-size: .96rem; font-weight: 700; letter-spacing: .02em;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, .3);
+}
+.lp-slab-by {
+  display: block; margin-top: 1px;
   font-family: ui-monospace, Menlo, Consolas, monospace;
-  font-size: .52rem; letter-spacing: 0;
-  color: rgba(255, 255, 255, .85);
-  overflow: hidden; white-space: nowrap; text-overflow: clip;
+  font-size: .64rem; color: rgba(255, 255, 255, .68);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
 
-.lp-book:hover .lp-book-spine,
-.lp-book:focus-visible .lp-book-spine {
-  transform: translateY(-9px);
-  box-shadow: 0 12px 20px rgba(14, 19, 17, .32), 0 0 0 1px rgba(0, 227, 92, .5);
+/* 更新1件＝目盛り1本。棚を眺めるだけで履歴の量と性格が分かる */
+.lp-slab-hist { display: flex; align-items: center; gap: 8px; }
+.lp-slab-ticks { display: flex; align-items: center; gap: 2px; }
+.lp-tick { width: 3px; height: 15px; border-radius: 1px; flex: none; }
+.lp-tick-feature { background: var(--lp-neon); }
+.lp-tick-bugfix  { background: #ff8f8f; }
+.lp-tick-improve { background: rgba(255, 255, 255, .6); }
+.lp-tick-doc     { background: #f0d193; }
+.lp-tick-initial { background: #b9e6cb; }
+.lp-tick-more { font-size: .6rem; font-weight: 700; color: rgba(255, 255, 255, .7); }
+.lp-slab-count {
+  font-size: .68rem; font-weight: 700; color: rgba(255, 255, 255, .82);
+  white-space: nowrap;
 }
-.lp-book:focus-visible { outline: none; }
-/* 読んでいる本：棚から引き出して少し傾ける */
-.lp-book.is-reading .lp-book-spine {
-  transform: translateY(-16px) rotate(-2.5deg);
-  box-shadow: 0 18px 28px rgba(14, 19, 17, .38), 0 0 0 2px var(--lp-neon);
+
+.lp-slab-ver {
+  font-family: ui-monospace, Menlo, Consolas, monospace;
+  font-size: .72rem; font-weight: 700; color: #fff;
+  background: rgba(0, 0, 0, .28);
+  border: 1px solid rgba(255, 255, 255, .22);
+  border-radius: 4px; padding: 1px 7px;
+  text-align: center; white-space: nowrap;
+  overflow: hidden; text-overflow: ellipsis;
 }
-.lp-book.is-reading .lp-book-spine::after {
-  content: ""; position: absolute; left: 50%; top: -9px;
-  width: 9px; height: 20px; transform: translateX(-50%);
-  background: var(--lp-gold);
-  clip-path: polygon(0 0, 100% 0, 100% 100%, 50% 74%, 0 100%);
+.lp-slab-ver.lp-muted { color: rgba(255, 255, 255, .45); background: none; border-color: rgba(255, 255, 255, .14); }
+.lp-slab-date {
+  font-family: ui-monospace, Menlo, Consolas, monospace;
+  font-size: .72rem; color: rgba(255, 255, 255, .82); white-space: nowrap;
+}
+.lp-slab-chev {
+  display: grid; place-items: center;
+  width: 22px; height: 22px; border-radius: 50%;
+  color: #fff; background: rgba(255, 255, 255, .14);
+  transition: transform .26s var(--lp-ease), background .2s var(--lp-ease), color .2s var(--lp-ease);
+}
+
+/* ラックから抜き出すように、右へ少しせり出す */
+.lp-slab:hover, .lp-slab:focus-visible {
+  transform: translateX(9px);
+  box-shadow: -6px 4px 14px rgba(14, 19, 17, .34);
+  outline: none;
+}
+.lp-slab:hover .lp-slab-chev { background: var(--lp-neon); color: var(--lp-ink); }
+.lp-slab.is-reading {
+  transform: translateX(16px);
+  box-shadow: -9px 6px 20px rgba(14, 19, 17, .4), 0 0 0 2px var(--lp-neon);
+}
+.lp-slab.is-reading .lp-slab-chev {
+  transform: rotate(180deg);
+  background: var(--lp-neon); color: var(--lp-ink);
 }
 
 /* ============================================================
-   見開き（開いた本）
-   中央の綴じ目を軸に、左右のページが起き上がって開く
+   見開き（開いた資料の中身）
+   選んだ1枚のすぐ下で、中央の綴じ目から左右のページが開く
    ============================================================ */
 .lp-spread {
   --paper: #fbfaf6;
   --paper-line: #e4e2d6;
-  margin-top: 20px;
+  margin: 8px 0 10px;
   perspective: 2200px;
 }
 .lp-spread-paper {
@@ -531,14 +552,23 @@
 .lp-viewbtn:hover { color: var(--lp-green); }
 .lp-viewbtn.is-on { background: var(--lp-ink); color: #fff; }
 
-/* ---- 狭い画面：見開きは1ページずつ縦に並べる ---- */
+/* ---- 狭い画面 ---- */
+@media (max-width: 900px) {
+  /* 版数・日付・件数は畳んで、名称と更新の目盛りを優先する */
+  .lp-slab-face { grid-template-columns: minmax(0, 1fr) auto 22px; gap: 10px; padding: 0 11px; }
+  .lp-slab-cat, .lp-slab-date, .lp-slab-count { display: none; }
+  .lp-slab-ver { font-size: .66rem; }
+}
+@media (max-width: 560px) {
+  .lp-slab-face { grid-template-columns: minmax(0, 1fr) auto 22px; }
+  .lp-slab-ver { display: none; }
+  .lp-slab-name { font-size: .88rem; }
+  .lp-slab:hover, .lp-slab.is-reading { transform: translateX(6px); }
+}
 @media (max-width: 760px) {
-  .lp-shelf { --shelf-row: 168px; }
-  .lp-books { padding: 0 12px; }
   .lp-spread-paper { grid-template-columns: 1fr; }
   .lp-page-l, .lp-page-r { border-radius: 8px; border: 1px solid var(--paper-line); }
-  .lp-page-r { transform-origin: top center; transform: rotateX(-88deg); }
-  .lp-page-l { transform-origin: top center; transform: rotateX(-88deg); }
+  .lp-page-r, .lp-page-l { transform-origin: top center; transform: rotateX(-88deg); }
   .lp-spread.is-open .lp-page-l, .lp-spread.is-open .lp-page-r { transform: rotateX(0deg); }
   .lp-page-l::before, .lp-page-r::before, .lp-gutter { display: none; }
   .lp-page-inner, .lp-page-l .lp-page-inner, .lp-page-r .lp-page-inner { padding: 20px 16px 4px; }
@@ -1272,6 +1302,9 @@
     transition-duration: .01ms !important;
     transition-delay: 0s !important;
   }
+  /* 見開きはページを倒した状態から始めるので、動きを消すなら最初から開いておく
+     （遷移が走るのを待たずに中身が読める） */
+  .lp-page { opacity: 1 !important; transform: none !important; }
 }
 
 /* ============================================================
