@@ -215,6 +215,30 @@ input:focus,select:focus,textarea:focus{border-color:var(--blue);box-shadow:0 0 
 .code-box{font-family:'SFMono-Regular',Menlo,Consolas,monospace;font-size:11.5px;line-height:1.6;
   background:#F7FAFE;border:1px solid #DCEAF8;border-radius:8px;padding:10px;white-space:pre;overflow:auto;max-height:46vh;}
 
+/* ---------- よく使う文 ---------- */
+.phrase-bar{margin-top:10px;padding:9px 12px 11px;border:1px solid var(--line-w);border-radius:var(--r-s);background:rgba(255,255,255,.6);}
+.pb-label{display:flex;align-items:center;justify-content:space-between;gap:8px;font-size:10.5px;color:var(--muted);margin-bottom:7px;}
+.pb-edit{border:none;background:transparent;color:#7FA0C0;font-size:10.5px;font-family:inherit;cursor:pointer;text-decoration:underline;padding:2px 4px;}
+.pb-edit:hover{color:var(--blue);}
+.ph-grid{display:flex;flex-wrap:wrap;gap:6px;}
+.ph-btn{
+  display:inline-flex;align-items:center;gap:5px;padding:5px 10px;min-height:30px;
+  border:1px solid var(--line-w);border-radius:999px;background:var(--white);color:#54759B;
+  font-size:11.5px;font-weight:500;font-family:inherit;cursor:pointer;text-align:left;
+  max-width:100%;white-space:normal;word-break:break-word;line-height:1.4;
+}
+.ph-btn:hover{background:var(--blue-l);border-color:#A9CDF0;color:var(--blue-d);}
+.ph-btn:active{transform:scale(.985);}
+.ph-btn.copy-ok{background:var(--green);border-color:var(--green);color:#fff;}
+.ph-btn .ic{font-size:10px;opacity:.45;flex-shrink:0;}
+.ph-btn.copy-ok .ic{opacity:1;}
+.ph-row{border:1px dashed #A9CDF0;border-radius:var(--r-s);padding:11px;background:#FAFCFF;}
+.ph-row + .ph-row{margin-top:9px;}
+.ph-row-head{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:8px;}
+.ph-row-head .t{font-size:12px;font-weight:700;color:var(--blue-d);}
+.ph-ops{display:flex;gap:6px;}
+.ph-ops button{width:36px;height:36px;padding:0;justify-content:center;}
+
 /* ---------- モーダル / トースト ---------- */
 .modal-bg{position:fixed;inset:0;background:rgba(12,40,70,.5);display:flex;align-items:center;justify-content:center;padding:16px;z-index:60;}
 .modal{background:var(--white);border-radius:var(--r);max-width:460px;width:100%;max-height:86vh;overflow:auto;box-shadow:0 12px 40px rgba(10,35,64,.3);}
@@ -449,6 +473,14 @@ input:focus,select:focus,textarea:focus{border-color:var(--blue);box-shadow:0 0 
         </div>
       </div>
     </div>
+
+    <div class="phrase-bar" id="phrase-bar">
+      <div class="pb-label">
+        <span>よく使う文（押すとコピー）</span>
+        <button class="pb-edit" onclick="showTab('set')">編集</button>
+      </div>
+      <div class="ph-grid" id="phrase-chips"></div>
+    </div>
   </section>
 
   <!-- ============ 画面4: 設定 ============ -->
@@ -533,6 +565,23 @@ input:focus,select:focus,textarea:focus{border-color:var(--blue);box-shadow:0 0 
             </select>
           </div>
         </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-head">
+        <div class="card-title">よく使う文（定型フレーズ）</div>
+        <div class="row-btns">
+          <button class="btn btn-sub btn-sm" onclick="addPhrase()">＋ 文を追加</button>
+        </div>
+      </div>
+      <div class="card-body">
+        <div class="hint" style="margin-bottom:11px;">
+          「作業当日」タブに、押すだけでコピーできるボタンとして並びます。改行を含む文も登録できます。<br>
+          差し込み文字（<code>{業態}</code> <code>{店舗名}</code> <code>{開始}</code> など）を書いておくと、
+          読み込み中の作業の内容に置き換わります。
+        </div>
+        <div id="phrase-list"></div>
       </div>
     </div>
 
@@ -667,6 +716,14 @@ function defaultSettings(){
     suffixChar: '店',
     timeRange: { startHour: 6, endHour: 20, step: 15 },
     dayKeywords: { mid: '中間報告', out: '退店報告' },
+    phrases: [
+      { id:'p1', text:'お疲れ様です' },
+      { id:'p2', text:'ご確認よろしくお願いします' },
+      { id:'p3', text:'現地に到着しました' },
+      { id:'p4', text:'作業を開始します' },
+      { id:'p5', text:'作業完了しました' },
+      { id:'p6', text:'ありがとうございました' }
+    ],
     calendarApiUrl: '',
     calendarQuery: '',
     staff: [],
@@ -731,10 +788,19 @@ function normalizeSettings(o){
     },
     calendarApiUrl: strOr(o.calendarApiUrl, ''),
     calendarQuery:  strOr(o.calendarQuery,  ''),
+    phrases: [],
     staff: [],
     gyotai: []
   };
   if(s.timeRange.endHour < s.timeRange.startHour) s.timeRange.endHour = s.timeRange.startHour;
+  if(o.phrases === undefined){
+    s.phrases = d.phrases;            /* 旧い設定ファイルには既定のよく使う文を入れる */
+  }else{
+    (o.phrases || []).forEach(function(ph){
+      var txt = (typeof ph === 'string') ? ph : (ph && typeof ph.text === 'string' ? ph.text : '');
+      s.phrases.push({ id: (ph && ph.id) ? ph.id : uid('p'), text: txt });
+    });
+  }
   (o.staff||[]).forEach(function(st){
     s.staff.push({
       id: st.id || uid('t'),
@@ -1539,6 +1605,7 @@ var dayCandIdx = -1;
 function openDayTab(){
   if(!$('day-date').value) $('day-date').value = todayStr();
   /* カレンダーから読み込んだ候補は残す。それ以外は登録リストの内容で候補を作り直す */
+  renderPhraseChips();
   if(dayCands.length && dayCands[0].source === 'calendar'){ renderDayCandidates(); return; }
   var had = !!dayCtx;
   collectListCands();
@@ -1546,6 +1613,54 @@ function openDayTab(){
   if(!had && dayCands.length === 1) pickDayCand(0);
 }
 function onDayDateChange(){ loadDayFromList(true); }
+
+/* ---------- よく使う文（押すだけでコピー） ---------- */
+function phraseText(ph){
+  /* 作業を読み込んでいれば差し込み文字を置き換える */
+  if(!dayCtx) return ph.text;
+  return fillTemplate(ph.text, {
+    gyotai: dayCtx.gyotai || '', tenpo: dayCtx.tenpo || '',
+    date: fmtDateJp(dayCtx.date), start: dayCtx.start || '', end: dayCtx.end || '',
+    slot: '', staff: dayCtx.staff || '', staffBody: ''
+  });
+}
+function renderPhraseChips(){
+  var host = $('phrase-chips');
+  if(!host) return;
+  var bar = $('phrase-bar');
+  if(!settings.phrases.length){
+    if(bar) bar.classList.add('hidden');
+    host.innerHTML = '';
+    return;
+  }
+  if(bar) bar.classList.remove('hidden');
+  var html = '';
+  settings.phrases.forEach(function(ph, i){
+    var label = phraseText(ph).split('\n')[0];
+    if(label.length > 26) label = label.slice(0, 26) + '…';
+    html += '<button type="button" class="ph-btn" id="phb-' + i + '" onclick="copyPhrase(' + i + ')">'
+          + '<span class="ic">⧉</span>' + esc(label) + '</button>';
+  });
+  host.innerHTML = html;
+}
+function copyPhrase(i){
+  var ph = settings.phrases[i];
+  if(!ph) return;
+  var text = phraseText(ph);
+  if(!text.trim()){ toast('コピーする内容がありません'); return; }
+  var btn = $('phb-' + i);
+  copyText(text, function(okFlag){
+    if(okFlag){
+      if(btn){
+        btn.classList.add('copy-ok');
+        setTimeout(function(){ btn.classList.remove('copy-ok'); }, 1200);
+      }
+      toast('コピーしました');
+    }else{
+      toast('コピーできませんでした');
+    }
+  });
+}
 function clearDayPaste(){ $('day-paste').value = ''; }
 
 /* ---------- HTML混じりの説明文をプレーンテキストに ---------- */
@@ -1726,6 +1841,7 @@ function setDayCtx(c){
   dayMsgs = splitReport(c.description || '');
   renderDaySummary();
   renderDayMsgs();
+  renderPhraseChips();
   $('day-summary-card').classList.remove('hidden');
   $('day-msg-card').classList.remove('hidden');
 }
@@ -1890,6 +2006,7 @@ function renderSettings(){
   $('set-cal-url').value     = settings.calendarApiUrl;
   $('set-cal-q').value       = settings.calendarQuery;
 
+  renderPhraseList();
   renderStaffList();
 
   var host = $('gy-list'), html = '';
@@ -1936,6 +2053,56 @@ function renderSettings(){
   host.innerHTML = html;
 }
 function toggleGy(id){ var el = $('gy-' + id); if(el) el.classList.toggle('open'); }
+
+function renderPhraseList(){
+  var host = $('phrase-list');
+  if(!host) return;
+  if(!settings.phrases.length){
+    host.innerHTML = '<div class="empty">よく使う文はまだありません。<br>「＋ 文を追加」から登録してください。</div>';
+    return;
+  }
+  var html = '';
+  settings.phrases.forEach(function(ph, i){
+    html += '<div class="ph-row">'
+      + '<div class="ph-row-head"><span class="t">' + (i+1) + '</span>'
+      +   '<div class="ph-ops">'
+      +     '<button class="btn btn-ghost btn-sm" onclick="movePhrase(' + i + ',-1)"' + (i === 0 ? ' disabled' : '') + ' aria-label="上へ">↑</button>'
+      +     '<button class="btn btn-ghost btn-sm" onclick="movePhrase(' + i + ',1)"' + (i === settings.phrases.length-1 ? ' disabled' : '') + ' aria-label="下へ">↓</button>'
+      +     '<button class="btn btn-danger btn-sm" onclick="removePhrase(' + i + ')">削除</button>'
+      +   '</div>'
+      + '</div>'
+      + '<textarea rows="2" placeholder="例: ご確認よろしくお願いします" oninput="setPhrase(' + i + ',this.value)">' + esc(ph.text) + '</textarea>'
+      + '</div>';
+  });
+  host.innerHTML = html;
+}
+function addPhrase(){
+  settings.phrases.push({ id: uid('p'), text: '' });
+  afterSettingsChange(true);
+  var boxes = document.querySelectorAll('#phrase-list textarea');
+  if(boxes.length) boxes[boxes.length-1].focus();
+}
+function setPhrase(i, v){
+  if(!settings.phrases[i]) return;
+  settings.phrases[i].text = v;
+  saveSettings();
+  renderPhraseChips();
+}
+function removePhrase(i){
+  if(!settings.phrases[i]) return;
+  var t = settings.phrases[i].text || '';
+  if(t.trim() && !confirm('「' + t.split('\n')[0] + '」を削除します。よろしいですか？')) return;
+  settings.phrases.splice(i, 1);
+  afterSettingsChange(true);
+}
+function movePhrase(i, d){
+  var j = i + d;
+  if(j < 0 || j >= settings.phrases.length) return;
+  var tmp = settings.phrases[i];
+  settings.phrases[i] = settings.phrases[j];
+  settings.phrases[j] = tmp;
+  afterSettingsChange(true);
+}
 
 function renderStaffList(){
   var host = $('staff-list');
@@ -2062,6 +2229,7 @@ function afterSettingsChange(rerenderSettingsPane){
   syncEntriesWithSettings();
   renderBulkForm(true);
   renderEntries();
+  renderPhraseChips();
   if(rerenderSettingsPane) renderSettings();
 }
 function syncEntriesWithSettings(){
@@ -2133,6 +2301,7 @@ function resetSettings(){
   renderBulkForm(false);
   renderCalendars();
   renderEntries();
+  renderPhraseChips();
   updateAddButton();
 
   var lastCols = monthsToShow();
