@@ -43,9 +43,9 @@ body{
 .hbtn svg{width:15px;height:15px;flex-shrink:0;}
 
 /* ---------- タブ ---------- */
-.tabs{display:flex;gap:6px;margin-bottom:12px;overflow-x:auto;-webkit-overflow-scrolling:touch;padding-bottom:2px;}
+.tabs{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:12px;padding-bottom:2px;}
 .tab{
-  flex:1 1 0;min-width:0;padding:11px 8px;border:1px solid var(--line);
+  flex:1 1 calc(50% - 3px);min-width:0;padding:11px 8px;border:1px solid var(--line);
   background:var(--white);color:#3D6B99;border-radius:var(--r-s);
   font-size:12.5px;font-weight:600;font-family:inherit;cursor:pointer;white-space:nowrap;
   overflow:hidden;text-overflow:ellipsis;
@@ -196,6 +196,25 @@ input:focus,select:focus,textarea:focus{border-color:var(--blue);box-shadow:0 0 
 .note{background:#FFF9EC;border:1px solid #F0DFB6;border-radius:var(--r-s);padding:10px 12px;font-size:12px;color:#7A5B14;line-height:1.65;}
 .note b{color:#5E4409;}
 
+/* ---------- 作業当日 ---------- */
+.day-sum{padding:4px 2px;}
+.day-sum .ds-date{font-size:12.5px;font-weight:700;color:var(--muted);}
+.day-sum .ds-main{font-size:22px;font-weight:700;color:var(--blue-d);line-height:1.35;margin:2px 0 4px;word-break:break-word;}
+.day-sum .ds-time{font-size:17px;font-weight:700;color:var(--ink);}
+.day-sum .ds-meta{font-size:12.5px;color:var(--muted);margin-top:7px;line-height:1.8;word-break:break-word;}
+.day-sum .ds-meta a{color:var(--blue);}
+.cand{display:block;width:100%;text-align:left;border:1px solid var(--line);border-radius:var(--r-s);
+  background:var(--white);padding:11px 12px;font-family:inherit;cursor:pointer;color:var(--ink);}
+.cand + .cand{margin-top:8px;}
+.cand:hover{background:var(--blue-l2);}
+.cand.on{border-color:var(--blue);background:var(--blue-l);box-shadow:0 0 0 2px rgba(21,101,192,.12);}
+.cand .c-t{font-size:14px;font-weight:700;color:var(--blue-d);}
+.cand .c-s{font-size:12px;color:var(--muted);margin-top:2px;}
+.msg-ta{min-height:120px;}
+.copy-ok{background:var(--green) !important;border-color:var(--green) !important;color:#fff !important;}
+.code-box{font-family:'SFMono-Regular',Menlo,Consolas,monospace;font-size:11.5px;line-height:1.6;
+  background:#F7FAFE;border:1px solid #DCEAF8;border-radius:8px;padding:10px;white-space:pre;overflow:auto;max-height:46vh;}
+
 /* ---------- モーダル / トースト ---------- */
 .modal-bg{position:fixed;inset:0;background:rgba(12,40,70,.5);display:flex;align-items:center;justify-content:center;padding:16px;z-index:60;}
 .modal{background:var(--white);border-radius:var(--r);max-width:460px;width:100%;max-height:86vh;overflow:auto;box-shadow:0 12px 40px rgba(10,35,64,.3);}
@@ -223,7 +242,7 @@ input:focus,select:focus,textarea:focus{border-color:var(--blue);box-shadow:0 0 
   .entry-body{grid-template-columns:repeat(2,1fr);}
   .entry-body .col-span{grid-column:1 / -1;}
   .header-title{font-size:19px;}
-  .tab{font-size:13px;padding:11px 12px;}
+  .tab{font-size:13px;padding:11px 12px;flex:1 1 0;}
   .only-wide{display:inline;}
 }
 @media (min-width:900px){
@@ -262,6 +281,7 @@ input:focus,select:focus,textarea:focus{border-color:var(--blue);box-shadow:0 0 
   <div class="tabs" role="tablist">
     <button class="tab active" id="tab-cal"  role="tab" onclick="showTab('cal')">📅 カレンダー<span class="only-wide">で選ぶ</span></button>
     <button class="tab"        id="tab-list" role="tab" onclick="showTab('list')">📋 登録リスト <span class="badge" id="list-count">0</span></button>
+    <button class="tab"        id="tab-day"  role="tab" onclick="showTab('day')">🏃 <span class="only-wide">作業</span>当日</button>
     <button class="tab"        id="tab-set"  role="tab" onclick="showTab('set')">⚙️ 設定</button>
   </div>
 
@@ -368,7 +388,70 @@ input:focus,select:focus,textarea:focus{border-color:var(--blue);box-shadow:0 0 
     </div>
   </section>
 
-  <!-- ============ 画面3: 設定 ============ -->
+  <!-- ============ 画面3: 作業当日 ============ -->
+  <section id="pane-day" class="hidden">
+    <div class="card">
+      <div class="card-head">
+        <div class="card-title"><span class="step">1</span>今日の作業を読み込む</div>
+        <input type="date" id="day-date" onchange="onDayDateChange()" style="max-width:170px;">
+      </div>
+      <div class="card-body">
+        <div class="row-btns">
+          <button class="btn btn-sub btn-sm" onclick="loadDayFromList()">登録リストから探す</button>
+          <button class="btn btn-sub btn-sm" onclick="loadDayFromCalendar()">Googleカレンダーから読み込む</button>
+        </div>
+        <div id="day-cands" style="margin-top:11px;"></div>
+        <div class="field" style="margin-top:14px;">
+          <label for="day-paste">または、Googleカレンダーの説明文を貼り付ける</label>
+          <textarea id="day-paste" rows="6" placeholder="Googleカレンダーの予定を開いて、説明文をコピーしてここに貼り付けてください。&#10;貼り付けたあと「連絡文を作る」を押すと、入店・中間報告・退店に自動で振り分けます。"></textarea>
+        </div>
+        <div class="row-btns" style="margin-top:9px;">
+          <button class="btn btn-primary btn-sm" onclick="loadDayFromPaste()">貼り付けた内容で連絡文を作る</button>
+          <button class="btn btn-ghost btn-sm" onclick="clearDayPaste()">貼り付け欄をクリア</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="card hidden" id="day-summary-card">
+      <div class="card-head">
+        <div class="card-title"><span class="step">2</span>今日の作業</div>
+        <a class="btn btn-ghost btn-sm" href="https://chat.google.com/" target="_blank" rel="noopener noreferrer">Google Chat を開く</a>
+      </div>
+      <div class="card-body"><div class="day-sum" id="day-sum"></div></div>
+    </div>
+
+    <div class="card hidden" id="day-msg-card">
+      <div class="card-head">
+        <div class="card-title"><span class="step">3</span>連絡文をコピーして Google Chat に貼り付け</div>
+        <button class="btn btn-ghost btn-sm" onclick="rebuildDayMsgs()">定型文から作り直す</button>
+      </div>
+      <div class="card-body">
+        <div class="hint" style="margin-bottom:12px;">
+          各欄の「コピー」を押してから、Google Chat に貼り付けて送信してください。文面はその場で書き換えられます。
+        </div>
+
+        <div class="field" style="margin-bottom:16px;">
+          <div class="desc-head"><label for="msg-in">① 入店連絡</label>
+            <button class="btn btn-primary btn-sm" id="cp-in" onclick="copyMsg('in')">コピー</button></div>
+          <textarea id="msg-in" class="msg-ta" rows="6" oninput="onMsgInput('in',this.value)"></textarea>
+        </div>
+
+        <div class="field" style="margin-bottom:16px;">
+          <div class="desc-head"><label for="msg-mid">② 中間報告</label>
+            <button class="btn btn-primary btn-sm" id="cp-mid" onclick="copyMsg('mid')">コピー</button></div>
+          <textarea id="msg-mid" class="msg-ta" rows="4" oninput="onMsgInput('mid',this.value)"></textarea>
+        </div>
+
+        <div class="field">
+          <div class="desc-head"><label for="msg-out">③ 退店連絡</label>
+            <button class="btn btn-primary btn-sm" id="cp-out" onclick="copyMsg('out')">コピー</button></div>
+          <textarea id="msg-out" class="msg-ta" rows="9" oninput="onMsgInput('out',this.value)"></textarea>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ 画面4: 設定 ============ -->
   <section id="pane-set" class="hidden">
     <div class="card">
       <div class="card-head">
@@ -454,6 +537,54 @@ input:focus,select:focus,textarea:focus{border-color:var(--blue);box-shadow:0 0 
     </div>
 
     <div class="card">
+      <div class="card-head"><div class="card-title">作業当日の連絡文</div></div>
+      <div class="card-body">
+        <div class="hint" style="margin-bottom:11px;">
+          説明文を「入店連絡 ／ 中間報告 ／ 退店連絡」に振り分けるときの目印です。
+          空行で区切られたかたまりのうち、下の言葉を含む行が見つかった位置で分けます
+          （中間報告より前がすべて入店連絡、退店連絡の目印より後ろがすべて退店連絡になります）。
+        </div>
+        <div class="grid-form">
+          <div class="field">
+            <label for="set-kw-mid">中間報告の目印</label>
+            <input type="text" id="set-kw-mid" onchange="onCommonChange()">
+          </div>
+          <div class="field">
+            <label for="set-kw-out">退店連絡の目印</label>
+            <input type="text" id="set-kw-out" onchange="onCommonChange()">
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-head">
+        <div class="card-title">Googleカレンダー連携（任意）</div>
+        <button class="btn btn-ghost btn-sm" onclick="showAppsScriptCode()">Apps Script のコードを見る</button>
+      </div>
+      <div class="card-body">
+        <div class="hint" style="margin-bottom:11px;">
+          Google Apps Script で作った「その日の予定を返すURL」を登録すると、作業当日タブの
+          「Googleカレンダーから読み込む」が使えるようになります。<b>未設定でも、説明文の貼り付けだけで使えます。</b>
+        </div>
+        <div class="grid-form">
+          <div class="field col-span">
+            <label for="set-cal-url">Apps Script のウェブアプリURL</label>
+            <input type="text" id="set-cal-url" placeholder="https://script.google.com/macros/s/…/exec" onchange="onCommonChange()">
+          </div>
+          <div class="field">
+            <label for="set-cal-q">予定の絞り込み文字（空欄なら全件）</label>
+            <input type="text" id="set-cal-q" placeholder="例: OES" onchange="onCommonChange()">
+          </div>
+        </div>
+        <div class="row-btns" style="margin-top:11px;">
+          <button class="btn btn-sub btn-sm" onclick="testCalendarUrl()">接続テスト</button>
+        </div>
+        <div id="cal-test-result" class="hint" style="margin-top:8px;"></div>
+      </div>
+    </div>
+
+    <div class="card">
       <div class="card-head"><div class="card-title">設定の保存・持ち出し</div></div>
       <div class="card-body">
         <div class="hint" style="margin-bottom:10px;">
@@ -535,6 +666,9 @@ function defaultSettings(){
     suffixEnabled: true,
     suffixChar: '店',
     timeRange: { startHour: 6, endHour: 20, step: 15 },
+    dayKeywords: { mid: '中間報告', out: '退店報告' },
+    calendarApiUrl: '',
+    calendarQuery: '',
     staff: [],
     gyotai: [
       { id:'g-olive', name:'オリーブの丘', titleTemplate:'', defaultStaffId:'', slots:[
@@ -591,6 +725,12 @@ function normalizeSettings(o){
       endHour:   clampInt((o.timeRange||{}).endHour,   0, 23, 20),
       step:      clampInt((o.timeRange||{}).step,      5, 60, 15)
     },
+    dayKeywords: {
+      mid: strOr((o.dayKeywords||{}).mid, '中間報告'),
+      out: strOr((o.dayKeywords||{}).out, '退店報告')
+    },
+    calendarApiUrl: strOr(o.calendarApiUrl, ''),
+    calendarQuery:  strOr(o.calendarQuery,  ''),
     staff: [],
     gyotai: []
   };
@@ -633,6 +773,7 @@ function normalizeSettings(o){
   });
   return s;
 }
+function strOr(v, dflt){ return (typeof v === 'string' && v !== '') ? v : dflt; }
 function clampInt(v, lo, hi, dflt){
   var n = parseInt(v, 10);
   if(isNaN(n)) return dflt;
@@ -770,12 +911,13 @@ function buildTitle(en){
    タブ切り替え
    ========================================================================= */
 function showTab(name){
-  ['cal','list','set'].forEach(function(n){
+  ['cal','list','day','set'].forEach(function(n){
     $('pane-' + n).classList.toggle('hidden', n !== name);
     $('tab-' + n).classList.toggle('active', n === name);
   });
   if(name === 'set') renderSettings();
   if(name === 'cal') renderCalendars();
+  if(name === 'day') openDayTab();
   window.scrollTo(0, 0);
 }
 
@@ -1387,6 +1529,353 @@ function saveBlob(blob, filename){
 }
 
 /* =========================================================================
+   画面3: 作業当日（連絡文のコピー）
+   ========================================================================= */
+var dayCtx = null;                       /* 表示中の作業 */
+var dayMsgs = { in:'', mid:'', out:'' }; /* 3つの連絡文 */
+var dayCands = [];                       /* 候補一覧 */
+var dayCandIdx = -1;
+
+function openDayTab(){
+  if(!$('day-date').value) $('day-date').value = todayStr();
+  /* カレンダーから読み込んだ候補は残す。それ以外は登録リストの内容で候補を作り直す */
+  if(dayCands.length && dayCands[0].source === 'calendar'){ renderDayCandidates(); return; }
+  var had = !!dayCtx;
+  collectListCands();
+  renderDayCandidates();
+  if(!had && dayCands.length === 1) pickDayCand(0);
+}
+function onDayDateChange(){ loadDayFromList(true); }
+function clearDayPaste(){ $('day-paste').value = ''; }
+
+/* ---------- HTML混じりの説明文をプレーンテキストに ---------- */
+function htmlToText(t){
+  var v = String(t == null ? '' : t);
+  if(!/<[a-zA-Z!\/]/.test(v)) return v.replace(/\r\n/g, '\n');
+  v = v.replace(/<br\s*\/?>/gi, '\n')
+       .replace(/<\/(p|div|li|tr)>/gi, '\n')
+       .replace(/<li[^>]*>/gi, '・')
+       .replace(/<[^>]+>/g, '');
+  var d = document.createElement('textarea');
+  d.innerHTML = v;
+  return d.value.replace(/\r\n/g, '\n');
+}
+
+/* ---------- 説明文を 入店 / 中間報告 / 退店 に振り分ける ---------- */
+function splitReport(text){
+  var t = htmlToText(text).replace(/ /g, ' ');
+  var blocks = t.split(/\n[ \t]*\n+/);
+  var kept = [];
+  blocks.forEach(function(b){
+    var v = b.replace(/^\n+|\s+$/g, '');
+    if(v.trim() !== '') kept.push(v);
+  });
+  if(!kept.length) return { in:'', mid:'', out:'' };
+
+  var kwMid = settings.dayKeywords.mid || '中間報告';
+  var kwOut = settings.dayKeywords.out || '退店報告';
+  var iMid = -1, iOut = -1, i;
+  for(i = 0; i < kept.length; i++){ if(kept[i].indexOf(kwMid) !== -1){ iMid = i; break; } }
+  var from = (iMid >= 0 ? iMid + 1 : 1);
+  for(i = from; i < kept.length; i++){ if(kept[i].indexOf(kwOut) !== -1){ iOut = i; break; } }
+  if(iOut === -1 && kwOut !== '退店'){
+    for(i = from; i < kept.length; i++){ if(kept[i].indexOf('退店') !== -1){ iOut = i; break; } }
+  }
+  if(iMid === -1 && iOut === -1) return { in: kept.join('\n\n'), mid:'', out:'' };
+
+  var endOfIn = (iMid >= 0) ? iMid : iOut;
+  var endOfMid = (iOut >= 0) ? iOut : kept.length;
+  return {
+    in:  kept.slice(0, endOfIn).join('\n\n'),
+    mid: (iMid >= 0) ? kept.slice(iMid, endOfMid).join('\n\n') : '',
+    out: (iOut >= 0) ? kept.slice(iOut).join('\n\n') : ''
+  };
+}
+
+/* ---------- 本文から業態・店舗名・時刻を推測する ---------- */
+function detectFromText(text){
+  var t = htmlToText(text);
+  var out = { gyotai:'', tenpo:'', start:'', end:'' };
+  var lines = t.split('\n');
+  for(var gi = 0; gi < settings.gyotai.length && !out.gyotai; gi++){
+    var name = settings.gyotai[gi].name;
+    if(!name) continue;
+    for(var li = 0; li < lines.length; li++){
+      var pos = lines[li].indexOf(name);
+      if(pos === -1) continue;
+      out.gyotai = name;
+      var rest = lines[li].slice(pos + name.length).replace(/^[\s　]+/, '');
+      var tok = rest.split(/[\s　]/)[0] || '';
+      if(tok && !/^\d/.test(tok)) out.tenpo = tok;
+      break;
+    }
+  }
+  var mIn  = t.match(/入店[\s　]*(\d{1,2}:\d{2})/);
+  var mOut = t.match(/退店[\s　]*(\d{1,2}:\d{2})/);
+  if(mIn)  out.start = mIn[1];
+  if(mOut) out.end   = mOut[1];
+  return out;
+}
+
+/* ---------- 候補の読み込み ---------- */
+function collectListCands(){
+  var d = $('day-date').value || todayStr();
+  dayCands = [];
+  dayCandIdx = -1;
+  entries.forEach(function(en){
+    if(en.date !== d) return;
+    dayCands.push({
+      source: 'list',
+      title: buildTitle(en),
+      gyotai: en.gyotaiName, tenpo: en.tenpo,
+      start: en.start, end: en.end,
+      address: en.address, staff: en.staffName,
+      description: en.desc, date: en.date
+    });
+  });
+}
+function loadDayFromList(silent){
+  collectListCands();
+  renderDayCandidates();
+  if(dayCands.length === 1){ pickDayCand(0); }
+  else if(!dayCands.length && !silent){ toast('登録リストにこの日の予定はありません'); }
+}
+function loadDayFromCalendar(){
+  var url = settings.calendarApiUrl;
+  if(!url){
+    alert('「⚙️ 設定」の「Googleカレンダー連携」でURLを登録してください。\n登録しなくても、説明文の貼り付けから連絡文を作れます。');
+    showTab('set');
+    return;
+  }
+  var d = $('day-date').value || todayStr();
+  var host = $('day-cands');
+  host.innerHTML = '<div class="hint">読み込んでいます…</div>';
+  fetchCalendar(url, d, settings.calendarQuery).then(function(o){
+    dayCands = [];
+    (o.events || []).forEach(function(ev){
+      var det = detectFromText((ev.title || '') + '\n' + (ev.description || ''));
+      dayCands.push({
+        source: 'calendar',
+        title: ev.title || '(無題)',
+        gyotai: det.gyotai, tenpo: det.tenpo,
+        start: ev.start || det.start, end: ev.end || det.end,
+        address: ev.location || '', staff: '',
+        description: htmlToText(ev.description || ''), date: o.date || d
+      });
+    });
+    dayCandIdx = -1;
+    renderDayCandidates();
+    if(!dayCands.length) toast('この日の予定は見つかりませんでした');
+    else if(dayCands.length === 1) pickDayCand(0);
+  }, function(err){
+    host.innerHTML = '<div class="note">読み込めませんでした（' + esc(err && err.message ? err.message : '通信エラー') + '）。<br>'
+      + 'URLが正しいか、Apps Script を「全員（匿名ユーザーを含む）」がアクセスできる設定で公開しているかご確認ください。<br>'
+      + 'うまくいかないときは、下の貼り付け欄をお使いください。</div>';
+  });
+}
+function fetchCalendar(url, dateStr, q){
+  var u = url + (url.indexOf('?') === -1 ? '?' : '&') + 'date=' + encodeURIComponent(dateStr);
+  if(q) u += '&q=' + encodeURIComponent(q);
+  return fetch(u, { method:'GET' }).then(function(r){
+    if(!r.ok) throw new Error('HTTP ' + r.status);
+    return r.json();
+  });
+}
+function loadDayFromPaste(){
+  var raw = $('day-paste').value;
+  if(!raw.trim()){ toast('説明文を貼り付けてください'); return; }
+  var det = detectFromText(raw);
+  dayCands = [];
+  dayCandIdx = -1;
+  renderDayCandidates();
+  setDayCtx({
+    source: 'paste',
+    title: '',
+    gyotai: det.gyotai, tenpo: det.tenpo,
+    start: det.start, end: det.end,
+    address: '', staff: '',
+    description: raw, date: $('day-date').value || todayStr()
+  });
+}
+
+/* ---------- 候補一覧 ---------- */
+function renderDayCandidates(){
+  var host = $('day-cands');
+  if(!dayCands.length){ host.innerHTML = ''; return; }
+  var html = '';
+  dayCands.forEach(function(c, i){
+    var name = (c.gyotai || c.tenpo) ? ((c.gyotai || '') + ' ' + (c.tenpo || '')).trim() : c.title;
+    html += '<button type="button" class="cand' + (i === dayCandIdx ? ' on' : '') + '" onclick="pickDayCand(' + i + ')">'
+          + '<div class="c-t">' + esc(name) + '</div>'
+          + '<div class="c-s">' + esc((c.start || '') + (c.end ? ' 〜 ' + c.end : ''))
+          + (c.address ? '　' + esc(c.address) : '') + '</div></button>';
+  });
+  host.innerHTML = html;
+}
+function pickDayCand(i){
+  var c = dayCands[i];
+  if(!c) return;
+  dayCandIdx = i;
+  renderDayCandidates();
+  setDayCtx(c);
+}
+
+/* ---------- 表示と連絡文の生成 ---------- */
+function setDayCtx(c){
+  dayCtx = c;
+  dayMsgs = splitReport(c.description || '');
+  renderDaySummary();
+  renderDayMsgs();
+  $('day-summary-card').classList.remove('hidden');
+  $('day-msg-card').classList.remove('hidden');
+}
+function renderDaySummary(){
+  var c = dayCtx;
+  if(!c) return;
+  var name = ((c.gyotai || '') + ' ' + (c.tenpo || '')).trim() || c.title || '(業態・店舗名は読み取れませんでした)';
+  var meta = [];
+  if(c.address){
+    meta.push('📍 ' + esc(c.address)
+      + ' <a href="https://www.google.com/maps/search/?api=1&query=' + encodeURIComponent(c.address)
+      + '" target="_blank" rel="noopener noreferrer">地図</a>');
+  }
+  if(c.staff) meta.push('担当: ' + esc(c.staff));
+  $('day-sum').innerHTML =
+      '<div class="ds-date">' + esc(fmtDateJp(c.date) || '') + '</div>'
+    + '<div class="ds-main">' + esc(name) + '</div>'
+    + '<div class="ds-time">' + esc((c.start || '--:--') + ' 〜 ' + (c.end || '--:--')) + '</div>'
+    + (meta.length ? '<div class="ds-meta">' + meta.join('<br>') + '</div>' : '');
+}
+function renderDayMsgs(){
+  $('msg-in').value  = dayMsgs.in  || '';
+  $('msg-mid').value = dayMsgs.mid || '';
+  $('msg-out').value = dayMsgs.out || '';
+}
+function onMsgInput(key, v){ dayMsgs[key] = v; }
+function rebuildDayMsgs(){
+  if(!dayCtx){ toast('先に作業を読み込んでください'); return; }
+  dayMsgs = splitReport(dayCtx.description || '');
+  renderDayMsgs();
+  toast('読み込んだ内容から作り直しました');
+}
+
+/* ---------- コピー ---------- */
+function copyMsg(key){
+  var text = dayMsgs[key] || '';
+  if(!text.trim()){ toast('コピーする内容がありません'); return; }
+  var btn = $('cp-' + key);
+  copyText(text, function(okFlag){
+    if(okFlag){
+      btn.classList.add('copy-ok');
+      btn.textContent = 'コピーしました';
+      setTimeout(function(){ btn.classList.remove('copy-ok'); btn.textContent = 'コピー'; }, 1600);
+      toast('コピーしました。Google Chat に貼り付けてください');
+    }else{
+      toast('コピーできませんでした。文面を長押しして選択・コピーしてください');
+    }
+  });
+}
+function copyText(text, cb){
+  if(navigator.clipboard && navigator.clipboard.writeText && window.isSecureContext){
+    navigator.clipboard.writeText(text).then(function(){ cb(true); }, function(){ cb(legacyCopy(text)); });
+  }else{
+    cb(legacyCopy(text));
+  }
+}
+function legacyCopy(text){
+  try{
+    var ta = document.createElement('textarea');
+    ta.value = text;
+    ta.setAttribute('readonly', '');
+    ta.style.position = 'fixed';
+    ta.style.top = '-1000px';
+    document.body.appendChild(ta);
+    ta.select();
+    ta.setSelectionRange(0, text.length);
+    var okFlag = document.execCommand('copy');
+    document.body.removeChild(ta);
+    return okFlag;
+  }catch(e){ return false; }
+}
+
+/* ---------- Apps Script 連携の補助 ---------- */
+function testCalendarUrl(){
+  var url = $('set-cal-url').value.trim();
+  var out = $('cal-test-result');
+  if(!url){ out.innerHTML = '<span style="color:#B26A00;">URLを入力してください。</span>'; return; }
+  out.textContent = '接続しています…';
+  fetchCalendar(url, todayStr(), $('set-cal-q').value.trim()).then(function(o){
+    var n = (o.events || []).length;
+    out.innerHTML = '<span style="color:#2E7D57;font-weight:600;">接続できました。今日の予定は ' + n + ' 件です。</span>';
+  }, function(err){
+    out.innerHTML = '<span style="color:#D64545;font-weight:600;">接続できませんでした（'
+      + esc(err && err.message ? err.message : '通信エラー') + '）。</span>';
+  });
+}
+var APPS_SCRIPT_CODE = [
+  '/**',
+  ' * OES入れ替え作業登録カレンダー用 / 指定日の予定を返すウェブアプリ',
+  ' *',
+  ' * 導入手順',
+  ' *  1. https://script.google.com/ で新しいプロジェクトを作る',
+  ' *  2. このコードを貼り付けて保存',
+  ' *  3. 「デプロイ」→「新しいデプロイ」→ 種類は「ウェブアプリ」',
+  ' *  4. 次のユーザーとして実行: 自分',
+  ' *     アクセスできるユーザー: 全員',
+  ' *  5. 表示された /exec で終わるURLを、このツールの設定に貼り付ける',
+  ' */',
+  'function doGet(e) {',
+  '  var p = (e && e.parameter) ? e.parameter : {};',
+  '  var tz = "Asia/Tokyo";',
+  '  var dateStr = p.date || Utilities.formatDate(new Date(), tz, "yyyy-MM-dd");',
+  '  var a = dateStr.split("-");',
+  '  var start = new Date(Number(a[0]), Number(a[1]) - 1, Number(a[2]), 0, 0, 0);',
+  '  var end   = new Date(Number(a[0]), Number(a[1]) - 1, Number(a[2]), 23, 59, 59);',
+  '',
+  '  var cal = p.calendar ? CalendarApp.getCalendarById(p.calendar)',
+  '                       : CalendarApp.getDefaultCalendar();',
+  '  var q = p.q || "";',
+  '  var events = [];',
+  '  cal.getEvents(start, end).forEach(function (ev) {',
+  '    var title = ev.getTitle() || "";',
+  '    if (q && title.indexOf(q) === -1) return;',
+  '    events.push({',
+  '      title: title,',
+  '      start: ev.isAllDayEvent() ? "" : Utilities.formatDate(ev.getStartTime(), tz, "HH:mm"),',
+  '      end:   ev.isAllDayEvent() ? "" : Utilities.formatDate(ev.getEndTime(),   tz, "HH:mm"),',
+  '      allDay: ev.isAllDayEvent(),',
+  '      location: ev.getLocation() || "",',
+  '      description: ev.getDescription() || ""',
+  '    });',
+  '  });',
+  '',
+  '  return ContentService',
+  '    .createTextOutput(JSON.stringify({ date: dateStr, events: events }))',
+  '    .setMimeType(ContentService.MimeType.JSON);',
+  '}'
+].join('\n');
+
+function showAppsScriptCode(){
+  $('modal-root').innerHTML =
+      '<div class="modal-bg" onclick="if(event.target===this)closeModal()"><div class="modal" style="max-width:680px;">'
+    + '<div class="modal-head">Apps Script のコード</div>'
+    + '<div class="modal-body">'
+    +   '<div class="hint" style="margin-bottom:10px;">下のコードをコピーして、Google Apps Script に貼り付けてください。'
+    +   '手順はコードの先頭に書いてあります。</div>'
+    +   '<div class="code-box" id="as-code">' + esc(APPS_SCRIPT_CODE) + '</div>'
+    + '</div>'
+    + '<div class="modal-foot">'
+    +   '<button class="btn btn-primary" style="flex:1;" id="cp-as" onclick="copyAppsScript()">コードをコピー</button>'
+    +   '<button class="btn btn-ghost" onclick="closeModal()">閉じる</button>'
+    + '</div></div></div>';
+}
+function copyAppsScript(){
+  copyText(APPS_SCRIPT_CODE, function(okFlag){
+    toast(okFlag ? 'コードをコピーしました' : 'コピーできませんでした。手動で選択してください');
+  });
+}
+
+/* =========================================================================
    画面3: 設定（業態・時間帯・定型文）
    ========================================================================= */
 function renderSettings(){
@@ -1396,6 +1885,10 @@ function renderSettings(){
   $('set-time-start').value  = settings.timeRange.startHour;
   $('set-time-end').value    = settings.timeRange.endHour;
   $('set-time-step').value   = String(settings.timeRange.step);
+  $('set-kw-mid').value      = settings.dayKeywords.mid;
+  $('set-kw-out').value      = settings.dayKeywords.out;
+  $('set-cal-url').value     = settings.calendarApiUrl;
+  $('set-cal-q').value       = settings.calendarQuery;
 
   renderStaffList();
 
@@ -1555,6 +2048,10 @@ function onCommonChange(){
   settings.timeRange.startHour = clampInt($('set-time-start').value, 0, 23, 6);
   settings.timeRange.endHour   = clampInt($('set-time-end').value,   0, 23, 20);
   settings.timeRange.step      = clampInt($('set-time-step').value,  5, 60, 15);
+  settings.dayKeywords.mid     = $('set-kw-mid').value || '中間報告';
+  settings.dayKeywords.out     = $('set-kw-out').value || '退店報告';
+  settings.calendarApiUrl      = $('set-cal-url').value.trim();
+  settings.calendarQuery       = $('set-cal-q').value.trim();
   if(settings.timeRange.endHour < settings.timeRange.startHour){
     settings.timeRange.endHour = settings.timeRange.startHour;
   }

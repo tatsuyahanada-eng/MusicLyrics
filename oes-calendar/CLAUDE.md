@@ -11,6 +11,7 @@ GoogleカレンダーへOES入替作業の予定を登録するための、単�
 | `index.html` | 本体。HTML/CSS/JS＋ロゴ画像（data URI）を1ファイルに内包 |
 | `manual.html` | 操作マニュアル（レスポンシブHTML。ブラウザの印刷でPDF化可） |
 | `assets/welsys-logo.jpg` | ウェルシス株式会社ロゴ（manual.html が参照。index.html は同じ画像をbase64で内包） |
+| `apps-script/Code.gs` | Googleカレンダー連携用のApps Scriptコード（任意機能） |
 | `deploy/.htaccess.sample` | Basic認証用サンプル |
 | `legacy/` | Claude Chat時代の旧版（参照用・非稼働） |
 
@@ -26,11 +27,17 @@ GoogleカレンダーへOES入替作業の予定を登録するための、単�
 - **フッターのコピーライトにはウェルシス株式会社のロゴと社名を必ず入れる。**
 - **`index.html` の仕様を変えたら `manual.html` と `SPEC.md` も必ず更新する。**
 
-## 画面構成（3タブ）
+## 画面構成（4タブ）
 
 1. **📅 カレンダー** — 日付を複数選択 → 業態・時間帯・担当者・店舗名・住所 → 登録リストへ一括追加
 2. **📋 登録リスト** — 1件ずつ編集 → Googleカレンダーへ順番に登録／ICS書き出し
-3. **⚙️ 設定** — 業態・時間帯・定型文、担当者と担当者定型文、共通設定、設定の書き出し/読み込み
+3. **🏃 作業当日** — 当日の予定を読み込み → 入店/中間報告/退店の連絡文をコピー → Google Chatへ手動で貼り付け
+4. **⚙️ 設定** — 業態・時間帯・定型文、担当者と担当者定型文、作業当日の目印、カレンダー連携、共通設定、書き出し/読み込み
+
+### 作業当日タブの方針
+- **Google Chat への自動送信はしない。** コピー＆手動貼り付け。誤送信を防ぐためこの方針を維持する。
+- **Apps Script 連携は任意機能。** 未設定でも「説明文の貼り付け」だけで全機能が使えること（この前提を壊さない）。
+- `apps-script/Code.gs` と `index.html` の `APPS_SCRIPT_CODE` は**同じ内容**。片方を直したらもう片方も直す。
 
 ## 主な編集ポイント（index.html内）
 
@@ -47,6 +54,12 @@ GoogleカレンダーへOES入替作業の予定を登録するための、単�
 | `googleUrl(en)` | GoogleカレンダーのTEMPLATE URL |
 | `buildIcs()` / `icsFold()` | ICS生成（RFC5545の75オクテット折返し） |
 | `renderSettings()` / `renderStaffList()` | 設定画面の描画 |
+| `splitReport(text)` | 説明文を入店/中間報告/退店に振り分ける。目印は `settings.dayKeywords` |
+| `detectFromText(text)` | 本文から業態・店舗名・時刻を推測 |
+| `htmlToText(t)` | HTML混じりの説明文をプレーンテキスト化 |
+| `copyText(text, cb)` | クリップボードへコピー（execCommandフォールバック付き） |
+| `fetchCalendar(url, date, q)` | Apps Scriptから当日の予定を取得 |
+| `APPS_SCRIPT_CODE` | 設定画面で表示するApps Scriptコード |
 
 ## 差し込み文字
 
@@ -58,7 +71,7 @@ GoogleカレンダーへOES入替作業の予定を登録するための、単�
 `index.html` をブラウザで直接開けば動く（サーバー不要）。
 自動テストを走らせる場合はPlaywrightで、PC（1280x900）とスマホ（390x844）の両方を確認する。
 確認観点: 複数日選択／一括追加、業態・時間帯・担当者の切替、定型文の編集反映、localStorage保存と復元、
-ICSの中身、横スクロールが出ないこと、JSエラーが出ないこと。
+ICSの中身、作業当日の振り分けとコピー、横スクロールが出ないこと、JSエラーが出ないこと。
 
 ## 配置
 
