@@ -11,7 +11,7 @@ GoogleカレンダーへOES入替作業の予定を登録するための、単�
 | `index.html` | 本体。HTML/CSS/JS＋ロゴ画像（data URI）を1ファイルに内包 |
 | `manual.html` | 操作マニュアル（レスポンシブHTML。ブラウザの印刷でPDF化可） |
 | `assets/welsys-logo.jpg` | ウェルシス株式会社ロゴ（manual.html が参照。index.html は同じ画像をbase64で内包） |
-| `assets/device-printer.jpg` `assets/device-kitchen.jpg` | 対象機器の画像（manual.html が参照。index.html は縮小版をbase64で内包） |
+| `assets/device-printer.jpg` `assets/device-kitchen.jpg` | 対象機器の画像（マルチプリンター／マルチステーション）。manual.html が参照。index.html は縮小版をbase64で内包 |
 | `apps-script/Code.gs` | Googleカレンダー連携用のApps Scriptコード（任意機能） |
 | `deploy/.htaccess.sample` | Basic認証用サンプル |
 | `legacy/` | Claude Chat時代の旧版（参照用・非稼働） |

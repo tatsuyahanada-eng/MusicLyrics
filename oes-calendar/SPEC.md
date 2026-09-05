@@ -30,7 +30,8 @@ GoogleカレンダーへOES入替作業の予定を登録するためのWebツ�
 ## 2. デザイン
 
 - タイトル: 「OES入替作業APP」／ サブ: 「Googleカレンダー 一括登録ツール」
-- 「カレンダーで選ぶ」画面と「作業当日」画面のカードタイトル横に、対象機器の画像を小さく（高さ34〜38px、`mix-blend-mode:multiply`）添える。data URIで内包。
+- 「カレンダーで選ぶ」画面のタイトル横にマルチプリンター（SEIKO）、「作業当日」画面のタイトル横にマルチステーションの画像を、
+  小さく（高さ34〜38px、`mix-blend-mode:multiply`）添える。data URIで内包。ファイル名は `device-printer.jpg` / `device-kitchen.jpg`。
 - 配色は青系（メイン `#1565C0`、薄い背景 `#EBF3FB`、淡いライン `#B5D4F4`、ヘッダ淡色 `#E6F1FB`）。
 - フォント: Hiragino Sans / Noto Sans JP / Meiryo 系。
 - レスポンシブ: 600px / 900px をブレークポイントとする。
