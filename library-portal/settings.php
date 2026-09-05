@@ -32,9 +32,9 @@ $defRole  = lp_default_role();
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>設定 ｜ ライブラリポータル</title>
-  <link rel="icon" type="image/png" sizes="32x32" href="assets/favicon-32.png?v=5">
-  <link rel="icon" type="image/png" sizes="16x16" href="assets/favicon-16.png?v=5">
-  <link rel="apple-touch-icon" href="assets/icon-192.png?v=5">
+  <link rel="icon" type="image/png" sizes="32x32" href="assets/favicon-32.png?v=6">
+  <link rel="icon" type="image/png" sizes="16x16" href="assets/favicon-16.png?v=6">
+  <link rel="apple-touch-icon" href="assets/icon-192.png?v=6">
   <link rel="manifest" href="manifest.webmanifest">
   <meta name="theme-color" content="#007a33">
   <link rel="stylesheet" href="assets/library.css?v=15">
