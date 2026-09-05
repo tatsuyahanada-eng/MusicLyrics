@@ -427,9 +427,17 @@ input:focus,select:focus,textarea:focus{border-color:var(--blue);box-shadow:0 0 
         <input type="date" id="day-date" onchange="onDayDateChange()" style="max-width:170px;">
       </div>
       <div class="card-body">
+        <div class="field" style="margin-bottom:11px;max-width:320px;">
+          <label for="day-staff">自分（読み込む担当者）</label>
+          <select id="day-staff" onchange="onDayStaffChange()"></select>
+        </div>
         <div class="row-btns">
           <button class="btn btn-sub btn-sm" onclick="loadDayFromList()">登録リストから探す</button>
           <button class="btn btn-sub btn-sm" onclick="loadDayFromCalendar()">Googleカレンダーから読み込む</button>
+        </div>
+        <div class="hint" style="margin-top:7px;">
+          「自分」を選んでおくと、その方自身の予定・カレンダーだけを読み込みます。複数人で同じ端末を使う場合は、
+          作業のたびにここで選び直してください。
         </div>
         <div id="day-cands" style="margin-top:11px;"></div>
         <div class="field" style="margin-top:14px;">
@@ -528,9 +536,12 @@ input:focus,select:focus,textarea:focus{border-color:var(--blue);box-shadow:0 0 
       </div>
       <div class="card-body">
         <div class="note" style="margin-bottom:12px;">
-          担当者を登録しておくと、カレンダー画面と登録リストで担当者を選べます。<br>
+          このアプリは<b>複数人で使うこと</b>を前提にしています。ここで会社の担当者を全員登録しておくと、
+          カレンダー画面・登録リスト・作業当日タブで、それぞれが自分の名前を選んで使えます。<br>
           担当者ごとの<b>担当者定型文</b>は、業態の定型文の中に <span class="ph" onclick="copyPh(this)">{担当者定型文}</span> と書いた場所へそのまま差し込まれます。
-          名前だけを使いたいときは <span class="ph" onclick="copyPh(this)">{担当者}</span> を使ってください。
+          名前だけを使いたいときは <span class="ph" onclick="copyPh(this)">{担当者}</span> を使ってください。<br>
+          <b>ご本人のGoogleカレンダー連携URL</b>を登録しておくと、作業当日タブでその方を選んだときに、
+          <u>その方自身のGoogleカレンダー</u>から予定を読み込めます（任意）。
         </div>
         <div id="staff-list"></div>
       </div>
@@ -615,17 +626,18 @@ input:focus,select:focus,textarea:focus{border-color:var(--blue);box-shadow:0 0 
 
     <div class="card">
       <div class="card-head">
-        <div class="card-title">Googleカレンダー連携（任意）</div>
+        <div class="card-title">共通のGoogleカレンダー連携（任意・フォールバック用）</div>
         <button class="btn btn-ghost btn-sm" onclick="showAppsScriptCode()">Apps Script のコードを見る</button>
       </div>
       <div class="card-body">
         <div class="hint" style="margin-bottom:11px;">
-          Google Apps Script で作った「その日の予定を返すURL」を登録すると、作業当日タブの
-          「Googleカレンダーから読み込む」が使えるようになります。<b>未設定でも、説明文の貼り付けだけで使えます。</b>
+          <b>基本は、上の「担当者」欄でそれぞれの本人のURLを登録してください。</b>
+          作業当日タブでは、選んだ担当者にURLが登録されていればそちらが優先され、その方自身のカレンダーから読み込みます。<br>
+          ここは、担当者ごとに用意しない場合の予備（会社共有のカレンダーがある場合など）です。<b>未設定でも、説明文の貼り付けだけで使えます。</b>
         </div>
         <div class="grid-form">
           <div class="field col-span">
-            <label for="set-cal-url">Apps Script のウェブアプリURL</label>
+            <label for="set-cal-url">Apps Script のウェブアプリURL（共通・予備）</label>
             <input type="text" id="set-cal-url" placeholder="https://script.google.com/macros/s/…/exec" onchange="onCommonChange()">
           </div>
           <div class="field">
@@ -644,8 +656,9 @@ input:focus,select:focus,textarea:focus{border-color:var(--blue);box-shadow:0 0 
       <div class="card-head"><div class="card-title">設定の保存・持ち出し</div></div>
       <div class="card-body">
         <div class="hint" style="margin-bottom:10px;">
-          設定はこの端末のブラウザに保存されます。パソコンとスマートフォンで同じ設定を使うときは、
-          書き出したファイルをもう一方の端末で読み込んでください。
+          設定はこの端末のブラウザに保存されます。会社の複数人で同じ業態・担当者一覧を使うときは、
+          管理者が1つのファイルに書き出し、各自の端末でそれを読み込んでください（担当者ごとのカレンダーURLも含めて共有されます）。<br>
+          「作業当日」タブで選ぶ「自分（読み込む担当者）」の選択自体は、この端末だけに残り、書き出し・読み込みには含まれません。
         </div>
         <div class="row-btns">
           <button class="btn btn-sub btn-sm" onclick="exportSettings()">設定を書き出す（JSON）</button>
@@ -813,7 +826,9 @@ function normalizeSettings(o){
       id: st.id || uid('t'),
       name: String(st.name || '（担当者名未設定）'),
       contact: typeof st.contact === 'string' ? st.contact : '',
-      body: typeof st.body === 'string' ? st.body : TPL_STAFF
+      body: typeof st.body === 'string' ? st.body : TPL_STAFF,
+      calendarApiUrl: typeof st.calendarApiUrl === 'string' ? st.calendarApiUrl : '',
+      calendarQuery:  typeof st.calendarQuery  === 'string' ? st.calendarQuery  : ''
     });
   });
   (o.gyotai||[]).forEach(function(g){
@@ -1609,10 +1624,39 @@ var dayMsgs = { in:'', mid:'', out:'' }; /* 3つの連絡文 */
 var dayCands = [];                       /* 候補一覧 */
 var dayCandIdx = -1;
 
+var DAY_STAFF_KEY = 'oes-calendar-day-staff-v1';
+/* 「自分（読み込む担当者）」の選択は端末固有の状態であり、設定の書き出し・読み込みには含めない */
+function getDayStaffId(){
+  var el = $('day-staff');
+  return el ? el.value : '';
+}
+function renderDayStaffSelect(){
+  var el = $('day-staff');
+  if(!el) return;
+  var saved = '';
+  try{ saved = localStorage.getItem(DAY_STAFF_KEY) || ''; }catch(e){}
+  if(saved && !findStaff(saved)) saved = '';
+  el.innerHTML = staffOptionsHtml(saved);
+}
+function onDayStaffChange(){
+  try{ localStorage.setItem(DAY_STAFF_KEY, getDayStaffId()); }catch(e){}
+  if(dayCands.length && dayCands[0].source === 'calendar') return; /* カレンダー由来の候補は選び直すまで維持 */
+  collectListCands();
+  renderDayCandidates();
+}
+function resolveCalendarConn(){
+  var st = findStaff(getDayStaffId());
+  if(st && st.calendarApiUrl){
+    return { url: st.calendarApiUrl, query: st.calendarQuery, staff: st };
+  }
+  return { url: settings.calendarApiUrl, query: settings.calendarQuery, staff: st };
+}
+
 function openDayTab(){
   if(!$('day-date').value) $('day-date').value = todayStr();
-  /* カレンダーから読み込んだ候補は残す。それ以外は登録リストの内容で候補を作り直す */
+  renderDayStaffSelect();
   renderPhraseChips();
+  /* カレンダーから読み込んだ候補は残す。それ以外は登録リストの内容で候補を作り直す */
   if(dayCands.length && dayCands[0].source === 'calendar'){ renderDayCandidates(); return; }
   var had = !!dayCtx;
   collectListCands();
@@ -1742,10 +1786,12 @@ function detectFromText(text){
 /* ---------- 候補の読み込み ---------- */
 function collectListCands(){
   var d = $('day-date').value || todayStr();
+  var staffId = getDayStaffId();
   dayCands = [];
   dayCandIdx = -1;
   entries.forEach(function(en){
     if(en.date !== d) return;
+    if(staffId && en.staffId !== staffId) return; /* 自分の担当分だけに絞り込む */
     dayCands.push({
       source: 'list',
       title: buildTitle(en),
@@ -1760,19 +1806,33 @@ function loadDayFromList(silent){
   collectListCands();
   renderDayCandidates();
   if(dayCands.length === 1){ pickDayCand(0); }
-  else if(!dayCands.length && !silent){ toast('登録リストにこの日の予定はありません'); }
+  else if(!dayCands.length && !silent){
+    var d = $('day-date').value || todayStr();
+    var staffId = getDayStaffId();
+    var anyOnDate = entries.some(function(en){ return en.date === d; });
+    toast((staffId && anyOnDate)
+      ? 'この日の予定はありますが、選んだ担当者のものはありません（「指定なし」にするとすべて表示します）'
+      : '登録リストにこの日の予定はありません');
+  }
 }
 function loadDayFromCalendar(){
-  var url = settings.calendarApiUrl;
-  if(!url){
-    alert('「⚙️ 設定」の「Googleカレンダー連携」でURLを登録してください。\n登録しなくても、説明文の貼り付けから連絡文を作れます。');
+  var conn = resolveCalendarConn();
+  if(!conn.url){
+    var msg = conn.staff
+      ? '「' + conn.staff.name + '」さんご自身のカレンダー連携URLが未設定です。\n'
+        + '「⚙️ 設定」の「担当者」欄でご本人のURLを登録するか、共通のURLを登録してください。\n'
+        + '登録しなくても、説明文の貼り付けから連絡文を作れます。'
+      : '読み込む担当者（自分）を選ぶか、「⚙️ 設定」でGoogleカレンダー連携のURLを登録してください。\n'
+        + '登録しなくても、説明文の貼り付けから連絡文を作れます。';
+    alert(msg);
     showTab('set');
     return;
   }
   var d = $('day-date').value || todayStr();
   var host = $('day-cands');
   host.innerHTML = '<div class="hint">読み込んでいます…</div>';
-  fetchCalendar(url, d, settings.calendarQuery).then(function(o){
+  var staffName = conn.staff ? conn.staff.name : '';
+  fetchCalendar(conn.url, d, conn.query).then(function(o){
     dayCands = [];
     (o.events || []).forEach(function(ev){
       var det = detectFromText((ev.title || '') + '\n' + (ev.description || ''));
@@ -1781,7 +1841,7 @@ function loadDayFromCalendar(){
         title: ev.title || '(無題)',
         gyotai: det.gyotai, tenpo: det.tenpo,
         start: ev.start || det.start, end: ev.end || det.end,
-        address: ev.location || '', staff: '',
+        address: ev.location || '', staff: staffName,
         description: htmlToText(ev.description || ''), date: o.date || d
       });
     });
@@ -1807,6 +1867,7 @@ function loadDayFromPaste(){
   var raw = $('day-paste').value;
   if(!raw.trim()){ toast('説明文を貼り付けてください'); return; }
   var det = detectFromText(raw);
+  var st = findStaff(getDayStaffId());
   dayCands = [];
   dayCandIdx = -1;
   renderDayCandidates();
@@ -1815,7 +1876,7 @@ function loadDayFromPaste(){
     title: '',
     gyotai: det.gyotai, tenpo: det.tenpo,
     start: det.start, end: det.end,
-    address: '', staff: '',
+    address: '', staff: st ? st.name : '',
     description: raw, date: $('day-date').value || todayStr()
   });
 }
@@ -1939,13 +2000,18 @@ var APPS_SCRIPT_CODE = [
   '/**',
   ' * OES入替作業APP用 / 指定日の予定を返すウェブアプリ',
   ' *',
+  ' * このアプリは複数人で使うことを前提にしています。担当者一人ひとりが、',
+  ' * 自分自身のGoogleアカウントで下記の手順を行ってください（コードは全員共通）。',
+  ' *',
   ' * 導入手順',
-  ' *  1. https://script.google.com/ で新しいプロジェクトを作る',
+  ' *  1. 自分自身の https://script.google.com/ で新しいプロジェクトを作る',
   ' *  2. このコードを貼り付けて保存',
   ' *  3. 「デプロイ」→「新しいデプロイ」→ 種類は「ウェブアプリ」',
   ' *  4. 次のユーザーとして実行: 自分',
   ' *     アクセスできるユーザー: 全員',
-  ' *  5. 表示された /exec で終わるURLを、このツールの設定に貼り付ける',
+  ' *     （これで自分自身のカレンダーを返すURLになります）',
+  ' *  5. 表示された /exec で終わるURLを、このツールの「⚙️ 設定」→「担当者」欄の',
+  ' *     自分の行にある「この担当者ご本人のGoogleカレンダー連携URL」に貼り付ける',
   ' */',
   'function doGet(e) {',
   '  var p = (e && e.parameter) ? e.parameter : {};',
@@ -2130,6 +2196,12 @@ function renderStaffList(){
       +     '<input type="text" value="' + esc(st.contact) + '" placeholder="例: 090-0000-0000" onchange="setStaff(\'' + st.id + '\',\'contact\',this.value)"></div>'
       +   '<div class="field col-span"><label>担当者定型文（{担当者定型文} に差し込まれます）</label>'
       +     '<textarea rows="5" oninput="setStaff(\'' + st.id + '\',\'body\',this.value)">' + esc(st.body) + '</textarea></div>'
+      +   '<div class="field col-span"><label>この担当者ご本人のGoogleカレンダー連携URL（任意）</label>'
+      +     '<input type="text" value="' + esc(st.calendarApiUrl) + '" placeholder="https://script.google.com/macros/s/…/exec" '
+      +     'onchange="setStaff(\'' + st.id + '\',\'calendarApiUrl\',this.value.trim())"></div>'
+      +   '<div class="field"><label>予定の絞り込み文字（任意）</label>'
+      +     '<input type="text" value="' + esc(st.calendarQuery) + '" placeholder="例: OES" '
+      +     'onchange="setStaff(\'' + st.id + '\',\'calendarQuery\',this.value.trim())"></div>'
       + '</div></div>';
   });
   host.innerHTML = html;
@@ -2139,7 +2211,7 @@ function addStaff(){
   if(name === null) return;
   name = name.trim();
   if(!name){ toast('担当者名を入力してください'); return; }
-  settings.staff.push({ id: uid('t'), name: name, contact: '', body: TPL_STAFF });
+  settings.staff.push({ id: uid('t'), name: name, contact: '', body: TPL_STAFF, calendarApiUrl: '', calendarQuery: '' });
   afterSettingsChange(true);
   toast('担当者「' + name + '」を追加しました');
 }
@@ -2237,6 +2309,7 @@ function afterSettingsChange(rerenderSettingsPane){
   renderBulkForm(true);
   renderEntries();
   renderPhraseChips();
+  renderDayStaffSelect();
   if(rerenderSettingsPane) renderSettings();
 }
 function syncEntriesWithSettings(){
@@ -2306,6 +2379,7 @@ function resetSettings(){
   $('cr-year').textContent = d.getFullYear();
 
   renderBulkForm(false);
+  renderDayStaffSelect();
   renderCalendars();
   renderEntries();
   renderPhraseChips();
