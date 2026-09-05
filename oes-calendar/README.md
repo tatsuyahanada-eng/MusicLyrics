@@ -1,4 +1,4 @@
-# OES入れ替え作業登録カレンダー
+# OES入替作業APP
 
 GoogleカレンダーへOES入替作業の予定をまとめて登録するためのWebツールです。
 パソコン・スマートフォンのどちらからでも使えます。
@@ -28,9 +28,11 @@ GoogleカレンダーへOES入替作業の予定をまとめて登録するた�
 index.html
 manual.html
 assets/welsys-logo.jpg
+assets/device-printer.jpg
+assets/device-kitchen.jpg
 ```
 
-`index.html` はロゴを内包しているため単体でも動作します。`manual.html` は `assets/welsys-logo.jpg` を参照します。
+`index.html` は画像をすべて内包しているため単体でも動作します。`manual.html` は `assets/` の画像を参照します。
 
 Basic認証をかける場合は [`deploy/.htaccess.sample`](deploy/.htaccess.sample) を参考にしてください
 （`AuthUserFile` は配置先サーバーの絶対パスに書き換えが必要です）。
@@ -41,7 +43,7 @@ Basic認証をかける場合は [`deploy/.htaccess.sample`](deploy/.htaccess.sa
 |---|---|
 | `index.html` | アプリ本体 |
 | `manual.html` | 操作マニュアル |
-| `assets/` | ロゴ画像 |
+| `assets/` | ロゴ画像・機器画像 |
 | `apps-script/` | Googleカレンダー連携用のApps Scriptコード（任意機能） |
 | `deploy/` | サーバー配置用サンプル |
 | `legacy/` | Claude Chatで作成した旧版（参照用・非稼働） |

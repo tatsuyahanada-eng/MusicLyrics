@@ -1,6 +1,6 @@
-# CLAUDE.md — OES入れ替え作業登録カレンダー
+# CLAUDE.md — OES入替作業APP
 
-このディレクトリは「OES入れ替え作業登録カレンダー」プロジェクトです。詳細仕様は `SPEC.md` を参照してください。
+このディレクトリは「OES入替作業APP」プロジェクトです。詳細仕様は `SPEC.md` を参照してください。
 
 ## プロジェクト概要
 
@@ -11,6 +11,7 @@ GoogleカレンダーへOES入替作業の予定を登録するための、単�
 | `index.html` | 本体。HTML/CSS/JS＋ロゴ画像（data URI）を1ファイルに内包 |
 | `manual.html` | 操作マニュアル（レスポンシブHTML。ブラウザの印刷でPDF化可） |
 | `assets/welsys-logo.jpg` | ウェルシス株式会社ロゴ（manual.html が参照。index.html は同じ画像をbase64で内包） |
+| `assets/device-printer.jpg` `assets/device-kitchen.jpg` | 対象機器の画像（manual.html が参照。index.html は縮小版をbase64で内包） |
 | `apps-script/Code.gs` | Googleカレンダー連携用のApps Scriptコード（任意機能） |
 | `deploy/.htaccess.sample` | Basic認証用サンプル |
 | `legacy/` | Claude Chat時代の旧版（参照用・非稼働） |
@@ -25,6 +26,9 @@ GoogleカレンダーへOES入替作業の予定を登録するための、単�
 - 日本語UI。配色は青系（メイン `#1565C0`）を維持する。
 - **パソコン・スマートフォン両対応**。入力欄の `font-size` は16px以上（iOSの自動ズーム防止）、タップ領域は42px前後を確保する。
 - **フッターのコピーライトにはウェルシス株式会社のロゴと社名を必ず入れる。**
+- **アプリ名は「OES入替作業APP」で統一する**（`<title>`・ヘッダー・マニュアル・各ドキュメント）。
+  カレンダーの予定タイトル `OES入替作業({業態} {店舗名})` はこれとは別物なので変更しない。
+- 機器画像はタイトル横に**小さく控えめに**置く（高さ34〜38px）。主張させない。
 - **`index.html` の仕様を変えたら `manual.html` と `SPEC.md` も必ず更新する。**
 
 ## 画面構成（4タブ）

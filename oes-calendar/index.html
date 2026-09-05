@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <meta name="theme-color" content="#1565C0">
 <meta name="format-detection" content="telephone=no">
-<title>OES入れ替え作業登録カレンダー</title>
+<title>OES入替作業APP</title>
 <style>
 :root{
   --blue:#1565C0; --blue-d:#0D47A1; --blue-l:#E6F1FB; --blue-l2:#F4F9FE;
@@ -215,6 +215,13 @@ input:focus,select:focus,textarea:focus{border-color:var(--blue);box-shadow:0 0 
 .code-box{font-family:'SFMono-Regular',Menlo,Consolas,monospace;font-size:11.5px;line-height:1.6;
   background:#F7FAFE;border:1px solid #DCEAF8;border-radius:8px;padding:10px;white-space:pre;overflow:auto;max-height:46vh;}
 
+/* ---------- タイトル横の機器画像 ---------- */
+.title-img{
+  height:34px;width:auto;flex-shrink:0;border-radius:5px;
+  opacity:.82;mix-blend-mode:multiply;
+}
+@media (min-width:900px){ .title-img{height:38px;} }
+
 /* ---------- よく使う文 ---------- */
 .phrase-bar{margin-top:10px;padding:9px 12px 11px;border:1px solid var(--line-w);border-radius:var(--r-s);background:rgba(255,255,255,.6);}
 .pb-label{display:flex;align-items:center;justify-content:space-between;gap:8px;font-size:10.5px;color:var(--muted);margin-bottom:7px;}
@@ -291,7 +298,7 @@ input:focus,select:focus,textarea:focus{border-color:var(--blue);box-shadow:0 0 
 
   <div class="header">
     <div class="header-left">
-      <div class="header-title">OES入れ替え作業登録カレンダー</div>
+      <div class="header-title">OES入替作業APP</div>
       <div class="header-sub">Googleカレンダー 一括登録ツール</div>
     </div>
     <div class="header-actions">
@@ -313,7 +320,7 @@ input:focus,select:focus,textarea:focus{border-color:var(--blue);box-shadow:0 0 
   <section id="pane-cal">
     <div class="card">
       <div class="card-head">
-        <div class="card-title"><span class="step">1</span>作業日を選ぶ（複数選択できます）</div>
+        <div class="card-title"><img class="title-img" src="data:image/jpeg;base64,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" alt=""><span class="step">1</span>作業日を選ぶ（複数選択できます）</div>
         <div class="row-btns">
           <button class="btn btn-ghost btn-sm" onclick="calToday()">今月へ</button>
           <button class="btn btn-ghost btn-sm" onclick="clearSelectedDates()">選択をクリア</button>
@@ -416,7 +423,7 @@ input:focus,select:focus,textarea:focus{border-color:var(--blue);box-shadow:0 0 
   <section id="pane-day" class="hidden">
     <div class="card">
       <div class="card-head">
-        <div class="card-title"><span class="step">1</span>今日の作業を読み込む</div>
+        <div class="card-title"><img class="title-img" src="data:image/jpeg;base64,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" alt=""><span class="step">1</span>今日の作業を読み込む</div>
         <input type="date" id="day-date" onchange="onDayDateChange()" style="max-width:170px;">
       </div>
       <div class="card-body">
@@ -664,7 +671,7 @@ input:focus,select:focus,textarea:focus{border-color:var(--blue);box-shadow:0 0 
 'use strict';
 
 /* =========================================================================
-   OES入れ替え作業登録カレンダー
+   OES入替作業APP
    - 単一HTMLファイル / 外部依存なし / バニラJS
    - 設定（業態・時間帯・定型文）は localStorage に保存する
    ========================================================================= */
@@ -1930,7 +1937,7 @@ function testCalendarUrl(){
 }
 var APPS_SCRIPT_CODE = [
   '/**',
-  ' * OES入れ替え作業登録カレンダー用 / 指定日の予定を返すウェブアプリ',
+  ' * OES入替作業APP用 / 指定日の予定を返すウェブアプリ',
   ' *',
   ' * 導入手順',
   ' *  1. https://script.google.com/ で新しいプロジェクトを作る',
