@@ -28,6 +28,7 @@ GoogleカレンダーへOES入替作業の予定を登録するための、単�
 | `manual.html` | 操作マニュアル（レスポンシブHTML。ブラウザの印刷でPDF化可） |
 | `assets/welsys-logo.jpg` | ウェルシス株式会社ロゴ（manual.html が参照。index.html は同じ画像をbase64で内包） |
 | `assets/device-printer.jpg` `assets/device-kitchen.jpg` | 対象機器の画像（マルチプリンター／マルチステーション）。manual.html が参照。index.html は縮小版をbase64で内包 |
+| `assets/icon-*.png` | PWAアイコン（192/512/180/512-maskable）。manual.htmlからは参照しない。index.htmlの `<link rel="manifest">` にJSONごとdata URIで内包。手元での再確認・差し替え用に同梱 |
 | `apps-script/Code.gs` | Googleカレンダー連携用のApps Scriptコード（任意機能） |
 | `deploy/.htaccess.sample` | Basic認証用サンプル |
 | `legacy/` | Claude Chat時代の旧版（参照用・非稼働） |
@@ -40,8 +41,19 @@ GoogleカレンダーへOES入替作業の予定を登録するための、単�
   旧版の「ブラウザストレージ禁止」ルールは、定型文を利用者が編集できるようにするため廃止した。
   ただし**登録リスト（作業予定）は保存しない**（揮発）。
 - 日本語UI。配色は青系（メイン `#1565C0`）を維持する。
-- **パソコン・スマートフォン両対応**。入力欄の `font-size` は16px以上（iOSの自動ズーム防止）、タップ領域は42px前後を確保する。
-- **フッターのコピーライトにはウェルシス株式会社のロゴと社名を必ず入れる。**
+- **パソコン・スマートフォン両対応。スマホでの利用を重視し、余白・文字は必要最小限に詰める。**
+  入力欄の `font-size` は16px以上を維持（iOSの自動ズーム防止）。タップ領域は**34px以上を死守**しつつ、
+  それ以上は無闇に広げない（旧仕様の42px基準は廃止済み。詰めすぎて34px未満にしないことだけ守る）。
+- **フッターのコピーライトは小さく1行で**（ロゴ34px＋社名・コピーライトを横並び）。目立たせない。
+- **カレンダーは常に当月の1か月のみ表示する**（PC・スマホとも。複数月並列表示はしない）。
+- **PWA対応（ホーム画面に追加できる）。** `<link rel="manifest">` にJSONをdata URIで直接埋め込み、
+  別ファイル（manifest.jsonやService Worker）を増やさず1ファイル完結を保つ。アイコンは
+  `assets/device-printer.jpg` に「OES」の青いバッジを重ねたもの（`assets/icon-*.png` に元データを同梱）。
+  アイコンやアプリ名を変える場合は、`<link rel=manifest>` のdata URIとアイコンのdata URIを作り直すこと
+  （手作業では編集できないので、Pythonなどでbase64を再生成してから文字列を差し替える）。
+- **設定タブは常時表示を最小限にする。** 使用頻度の低い項目（共通設定・作業当日の目印・共通カレンダー連携）は
+  「詳細設定」1枚に折りたたむ（既定は閉）。新しい設定項目を追加する場合も、まず「詳細設定」に入れることを検討する
+  （毎回必ず調整するような項目だけを常時表示に置く）。
 - **アプリ名は「OES入替作業APP」で統一する**（`<title>`・ヘッダー・マニュアル・各ドキュメント）。
   カレンダーの予定タイトル `OES入替作業({業態} {店舗名})` はこれとは別物なので変更しない。
 - 機器画像はタイトル横に**小さく控えめに**置く（高さ34〜38px）。主張させない。
@@ -76,6 +88,7 @@ GoogleカレンダーへOES入替作業の予定を登録するための、単�
 | `googleUrl(en)` | GoogleカレンダーのTEMPLATE URL |
 | `buildIcs()` / `icsFold()` | ICS生成（RFC5545の75オクテット折返し） |
 | `renderSettings()` / `renderStaffList()` | 設定画面の描画 |
+| `toggleGy(id)` | 折りたたみ（業態・担当者・「詳細設定」で共通利用）の開閉。要素idは `gy-<id>` |
 | `splitReport(text)` | 説明文を入店/中間報告/退店に振り分ける。目印は `settings.dayKeywords` |
 | `renderPhraseChips()` / `copyPhrase(i)` | よく使う文のチップ描画とコピー |
 | `renderPhraseList()` ほか | 設定画面でのよく使う文の追加・並び替え・削除 |
