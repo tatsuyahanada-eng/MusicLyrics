@@ -154,17 +154,6 @@ input:focus,select:focus,textarea:focus{border-color:var(--blue);box-shadow:0 0 
 .chip button:hover{color:var(--red);}
 .empty{padding:22px 14px;text-align:center;color:var(--muted);font-size:13px;}
 
-/* ---------- 時間帯の選択 ---------- */
-.slot-list{display:grid;grid-template-columns:1fr;gap:8px;}
-.slot-opt{
-  display:flex;align-items:center;gap:10px;padding:11px 12px;border:1px solid var(--line);
-  border-radius:var(--r-s);background:var(--white);cursor:pointer;
-}
-.slot-opt:hover{background:var(--blue-l2);}
-.slot-opt.on{border-color:var(--blue);background:var(--blue-l);box-shadow:0 0 0 2px rgba(21,101,192,.12);}
-.slot-opt input{accent-color:var(--blue);width:18px;height:18px;flex-shrink:0;margin:0;}
-.slot-opt .s-name{font-size:13.5px;font-weight:700;}
-.slot-opt .s-time{font-size:12px;color:var(--muted);}
 .grid2{display:grid;grid-template-columns:1fr 1fr;gap:8px;}
 .grid-form{display:grid;grid-template-columns:1fr;gap:9px;}
 
@@ -217,6 +206,13 @@ input:focus,select:focus,textarea:focus{border-color:var(--blue);box-shadow:0 0 
 .cand .c-s{font-size:12px;color:var(--muted);margin-top:2px;}
 .msg-ta{min-height:120px;}
 .copy-ok{background:var(--green) !important;border-color:var(--green) !important;color:#fff !important;}
+.equip-row{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:7px;}
+.equip-item{display:flex;align-items:center;gap:5px;border:1px solid var(--line);border-radius:var(--r-s);padding:4px 7px;background:var(--blue-l2);}
+.equip-item .eq-code{font-size:11px;font-weight:700;color:var(--blue-d);}
+.equip-item input{width:56px;min-height:30px;padding:3px 6px;text-align:right;flex:none;
+  font-size:16px;font-family:inherit;color:var(--ink);border:1px solid var(--line);border-radius:6px;background:var(--white);outline:none;}
+.equip-item input:focus{border-color:var(--blue);box-shadow:0 0 0 2px rgba(21,101,192,.14);}
+.equip-item .eq-unit{font-size:11px;color:var(--muted);}
 .code-box{font-family:'SFMono-Regular',Menlo,Consolas,monospace;font-size:11.5px;line-height:1.6;
   background:#F7FAFE;border:1px solid #DCEAF8;border-radius:8px;padding:10px;white-space:pre;overflow:auto;max-height:46vh;}
 
@@ -275,7 +271,6 @@ input:focus,select:focus,textarea:focus{border-color:var(--blue);box-shadow:0 0 
 /* ---------- レスポンシブ ---------- */
 @media (min-width:600px){
   .grid2{grid-template-columns:1fr 1fr;}
-  .slot-list{grid-template-columns:repeat(auto-fit,minmax(210px,1fr));}
   .entry-body{grid-template-columns:repeat(2,1fr);}
   .entry-body .col-span{grid-column:1 / -1;}
   .header-title{font-size:17px;}
@@ -350,7 +345,7 @@ input:focus,select:focus,textarea:focus{border-color:var(--blue);box-shadow:0 0 
 
     <div class="card">
       <div class="card-head">
-        <div class="card-title"><span class="step">2</span>業態と時間帯を選ぶ</div>
+        <div class="card-title"><span class="step">2</span>業態と時刻を選ぶ</div>
       </div>
       <div class="card-body">
         <div class="grid-form">
@@ -358,17 +353,13 @@ input:focus,select:focus,textarea:focus{border-color:var(--blue);box-shadow:0 0 
             <label for="bulk-gyotai">業態</label>
             <select id="bulk-gyotai" onchange="onBulkGyotaiChange()"></select>
           </div>
-          <div class="field col-span">
-            <label>時間帯</label>
-            <div class="slot-list" id="bulk-slots"></div>
-          </div>
           <div class="field">
             <label for="bulk-start">開始時刻</label>
-            <select id="bulk-start"></select>
+            <select id="bulk-start" onchange="onBulkTimeChange()"></select>
           </div>
           <div class="field">
             <label for="bulk-end">終了時刻</label>
-            <select id="bulk-end"></select>
+            <select id="bulk-end" onchange="onBulkTimeChange()"></select>
           </div>
           <div class="field">
             <label for="bulk-staff">担当者</label>
@@ -489,6 +480,7 @@ input:focus,select:focus,textarea:focus{border-color:var(--blue);box-shadow:0 0 
         <div class="field">
           <div class="desc-head"><label for="msg-out">③ 退店連絡</label>
             <button class="btn btn-primary btn-sm" id="cp-out" onclick="copyMsg('out')">コピー</button></div>
+          <div class="equip-row" id="equip-row"></div>
           <textarea id="msg-out" class="msg-ta" rows="9" oninput="onMsgInput('out',this.value)"></textarea>
         </div>
       </div>
@@ -1118,7 +1110,7 @@ function renderBulkForm(keepGyotai){
   sel.innerHTML = html;
   if(prev && findGyotai(prev)) sel.value = prev;
   renderBulkStaff(keepGyotai);
-  renderBulkSlots();
+  applyBulkDefaultTimes();
 }
 function staffOptionsHtml(selectedId){
   var html = '<option value="">（指定なし）</option>';
@@ -1134,46 +1126,31 @@ function renderBulkStaff(keepValue){
   var want = (prev && findStaff(prev)) ? prev : (g ? g.defaultStaffId : '');
   sel.innerHTML = staffOptionsHtml(want);
 }
-function renderBulkSlots(keepSlot){
-  var g = findGyotai($('bulk-gyotai').value);
-  var host = $('bulk-slots');
-  if(!g){ host.innerHTML = '<div class="hint">業態が登録されていません。設定タブで追加してください。</div>'; return; }
-  var prev = keepSlot ? currentBulkSlotId() : '';
-  var html = '';
-  g.slots.forEach(function(sl, i){
-    var on = prev ? (sl.id === prev) : (i === 0);
-    html += '<label class="slot-opt' + (on ? ' on' : '') + '">'
-          + '<input type="radio" name="bulk-slot" value="' + esc(sl.id) + '"' + (on ? ' checked' : '') + ' onchange="onBulkSlotChange()">'
-          + '<span><span class="s-name">' + esc(sl.label) + '</span><br>'
-          + '<span class="s-time">' + esc(sl.start) + ' 〜 ' + esc(sl.end) + '</span></span></label>';
-  });
-  host.innerHTML = html;
-  applyBulkSlotTimes();
-}
-function currentBulkSlotId(){
-  var el = document.querySelector('input[name="bulk-slot"]:checked');
-  return el ? el.value : '';
-}
+var bulkSlotId = '';
 function onBulkGyotaiChange(){
   var g = findGyotai($('bulk-gyotai').value);
   $('bulk-staff').innerHTML = staffOptionsHtml(g ? g.defaultStaffId : '');
-  renderBulkSlots();
+  applyBulkDefaultTimes();
 }
-function onBulkSlotChange(){
-  var opts = document.querySelectorAll('#bulk-slots .slot-opt');
-  for(var i = 0; i < opts.length; i++){
-    var r = opts[i].querySelector('input');
-    opts[i].classList.toggle('on', !!(r && r.checked));
-  }
-  applyBulkSlotTimes();
-}
-function applyBulkSlotTimes(){
+function applyBulkDefaultTimes(){
   var g = findGyotai($('bulk-gyotai').value);
-  var sl = findSlot(g, currentBulkSlotId());
-  var st = sl ? sl.start : '08:00';
-  var et = sl ? sl.end   : '09:00';
-  $('bulk-start').innerHTML = timeOptionsHtml(st);
-  $('bulk-end').innerHTML   = timeOptionsHtml(et);
+  var sl = (g && g.slots.length) ? g.slots[0] : null;
+  bulkSlotId = sl ? sl.id : '';
+  $('bulk-start').innerHTML = timeOptionsHtml(sl ? sl.start : '08:00');
+  $('bulk-end').innerHTML   = timeOptionsHtml(sl ? sl.end   : '09:00');
+}
+function onBulkTimeChange(){
+  /* 開始時刻が業態の時間帯のいずれかと一致すれば、その時間帯の定型文に自動で切り替え、終了時刻も揃える */
+  var g = findGyotai($('bulk-gyotai').value);
+  if(!g) return;
+  var st = $('bulk-start').value;
+  for(var i = 0; i < g.slots.length; i++){
+    if(g.slots[i].start === st){
+      bulkSlotId = g.slots[i].id;
+      $('bulk-end').value = g.slots[i].end;
+      return;
+    }
+  }
 }
 function bulkTenpoBlur(){
   var el = $('bulk-tenpo');
@@ -1185,7 +1162,7 @@ function addSelectedToList(){
   if(!selDates.length){ toast('日付を選んでください'); return; }
   var g = findGyotai($('bulk-gyotai').value);
   if(!g){ toast('業態を選んでください'); return; }
-  var sl = findSlot(g, currentBulkSlotId()) || g.slots[0];
+  var sl = findSlot(g, bulkSlotId) || g.slots[0];
   bulkTenpoBlur();
   var tenpo = $('bulk-tenpo').value.trim();
   var addr  = $('bulk-addr').value.trim();
@@ -1883,10 +1860,56 @@ function pickDayCand(i){
   setDayCtx(c);
 }
 
+/* ---------- 機器の台数（退店連絡にのみ反映） ---------- */
+var EQUIPMENT_CODES = ['MPR', 'MST', 'HT', 'BC', 'BP'];
+var EQUIPMENT_UNITS = { MPR:'台', MST:'台', HT:'台', BC:'台', BP:'個' };
+var dayCounts = { MPR:'', MST:'', HT:'', BC:'', BP:'' };
+var EQUIP_LINE_RE = new RegExp('^(' + EQUIPMENT_CODES.join('|') + ')\\b');
+
+function resetDayCounts(){
+  EQUIPMENT_CODES.forEach(function(c){ dayCounts[c] = ''; });
+}
+function stripEquipmentLines(text){
+  var lines = String(text == null ? '' : text).split('\n');
+  var kept = lines.filter(function(l){ return !EQUIP_LINE_RE.test(l.trim()); });
+  while(kept.length && kept[kept.length - 1].trim() === '') kept.pop();
+  return kept.join('\n');
+}
+function renderEquipRow(){
+  var host = $('equip-row');
+  if(!host) return;
+  var html = '';
+  EQUIPMENT_CODES.forEach(function(code){
+    html += '<span class="equip-item"><span class="eq-code">' + code + '</span>'
+          + '<input type="number" min="0" inputmode="numeric" placeholder="-" value="' + esc(dayCounts[code]) + '" '
+          + 'oninput="onEquipInput(\'' + code + '\',this.value)">'
+          + '<span class="eq-unit">' + EQUIPMENT_UNITS[code] + '</span></span>';
+  });
+  host.innerHTML = html;
+}
+function onEquipInput(code, v){
+  dayCounts[code] = v;
+  rebuildEquipmentBlock();
+}
+function rebuildEquipmentBlock(){
+  var base = stripEquipmentLines(dayMsgs.out);
+  var block = [];
+  EQUIPMENT_CODES.forEach(function(code){
+    var v = String(dayCounts[code] || '').trim();
+    if(v !== '') block.push(code + '   ' + v + EQUIPMENT_UNITS[code]);
+  });
+  dayMsgs.out = block.length ? (base ? base + '\n\n' + block.join('\n') : block.join('\n')) : base;
+  var ta = $('msg-out');
+  if(ta) ta.value = dayMsgs.out;
+}
+
 /* ---------- 表示と連絡文の生成 ---------- */
 function setDayCtx(c){
   dayCtx = c;
   dayMsgs = splitReport(c.description || '');
+  dayMsgs.out = stripEquipmentLines(dayMsgs.out);
+  resetDayCounts();
+  renderEquipRow();
   renderDaySummary();
   renderDayMsgs();
   renderPhraseChips();
@@ -1919,6 +1942,8 @@ function onMsgInput(key, v){ dayMsgs[key] = v; }
 function rebuildDayMsgs(){
   if(!dayCtx){ toast('先に作業を読み込んでください'); return; }
   dayMsgs = splitReport(dayCtx.description || '');
+  dayMsgs.out = stripEquipmentLines(dayMsgs.out);
+  rebuildEquipmentBlock();
   renderDayMsgs();
   toast('読み込んだ内容から作り直しました');
 }

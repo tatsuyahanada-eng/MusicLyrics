@@ -46,6 +46,13 @@ GoogleカレンダーへOES入替作業の予定を登録するための、単�
   それ以上は無闇に広げない（旧仕様の42px基準は廃止済み。詰めすぎて34px未満にしないことだけ守る）。
 - **フッターのコピーライトは小さく1行で**（ロゴ34px＋社名・コピーライトを横並び）。目立たせない。
 - **カレンダーは常に当月の1か月のみ表示する**（PC・スマホとも。複数月並列表示はしない）。
+- **「カレンダーで選ぶ」の時刻は開始・終了セレクトを直接操作する方式のみ。** 「午前(AM)／午後(PM)」のような
+  名前付きラジオボタンは廃止済み（時刻を直接指定できるなら不要という判断）。時間帯（`slots`）の概念自体は
+  設定側の定型文管理のために残すが、選択UIとしては復活させない。開始時刻が定義済みの時間帯と一致したときだけ
+  自動でその時間帯の定型文・終了時刻に切り替える（`bulkSlotId`／`onBulkTimeChange()`）。
+- **作業当日タブの③退店連絡にある機器台数（MPR/MST/HT/BC/BP）は、入力した機器だけ反映する。**
+  空欄のものは表示しない（テンプレート由来の空欄プレースホルダ行も読み込み時に除去する）。
+  この「入力したものだけ出す」動作を、初期状態で全項目を表示するような実装に戻さないこと。
 - **PWA対応（ホーム画面に追加できる）。** `<link rel="manifest">` にJSONをdata URIで直接埋め込み、
   別ファイル（manifest.jsonやService Worker）を増やさず1ファイル完結を保つ。アイコンは
   `assets/device-printer.jpg` に「OES」の青いバッジを重ねたもの（`assets/icon-*.png` に元データを同梱）。
@@ -90,6 +97,8 @@ GoogleカレンダーへOES入替作業の予定を登録するための、単�
 | `renderSettings()` / `renderStaffList()` | 設定画面の描画 |
 | `toggleGy(id)` | 折りたたみ（業態・担当者・「詳細設定」で共通利用）の開閉。要素idは `gy-<id>` |
 | `splitReport(text)` | 説明文を入店/中間報告/退店に振り分ける。目印は `settings.dayKeywords` |
+| `stripEquipmentLines(text)` / `rebuildEquipmentBlock()` | ③退店連絡の機器台数（MPR/MST/HT/BC/BP）を除去・再構築。入力した機器だけ固定順で反映する |
+| `renderEquipRow()` / `onEquipInput(code,v)` / `dayCounts` | 機器台数入力欄の描画・入力ハンドラ・現在値（候補切替でリセット） |
 | `renderPhraseChips()` / `copyPhrase(i)` | よく使う文のチップ描画とコピー |
 | `renderPhraseList()` ほか | 設定画面でのよく使う文の追加・並び替え・削除 |
 | `detectFromText(text)` | 本文から業態・店舗名・時刻を推測 |
