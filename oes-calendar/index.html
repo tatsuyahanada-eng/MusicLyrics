@@ -50,13 +50,13 @@ body{
 .hbtn svg{width:14px;height:14px;flex-shrink:0;}
 
 /* ---------- タブ ---------- */
-.tabs{display:flex;flex-wrap:wrap;gap:5px;margin-bottom:8px;}
+.tabs{display:flex;gap:5px;margin-bottom:8px;}
 .tab{
-  flex:1 1 calc(50% - 3px);min-width:0;padding:8px 8px;border:1px solid var(--line);
+  flex:1 1 0;min-width:0;padding:8px 6px;border:1px solid var(--line);
   background:var(--white);color:#3D6B99;border-radius:var(--r-s);
-  font-size:12px;font-weight:600;font-family:inherit;cursor:pointer;white-space:nowrap;
+  font-size:11.5px;font-weight:600;font-family:inherit;cursor:pointer;white-space:nowrap;
   overflow:hidden;text-overflow:ellipsis;
-  display:flex;align-items:center;justify-content:center;gap:5px;
+  display:flex;align-items:center;justify-content:center;gap:4px;
 }
 .only-wide{display:none;}
 .tab:hover{background:var(--blue-l);}
@@ -144,14 +144,6 @@ input:focus,select:focus,textarea:focus{border-color:var(--blue);box-shadow:0 0 
 .cal-legend span{display:inline-flex;align-items:center;gap:4px;}
 .lg-box{width:11px;height:11px;border-radius:3px;display:inline-block;}
 
-/* ---------- 選択チップ ---------- */
-.chips{display:flex;flex-wrap:wrap;gap:6px;margin-top:10px;}
-.chip{
-  display:inline-flex;align-items:center;gap:6px;padding:5px 8px;border-radius:999px;
-  background:var(--blue-l);border:1px solid #A9CDF0;color:var(--blue-d);font-size:12px;font-weight:600;
-}
-.chip button{border:none;background:transparent;color:#5D82A8;font-size:15px;line-height:1;cursor:pointer;padding:0 1px;font-family:inherit;}
-.chip button:hover{color:var(--red);}
 .empty{padding:22px 14px;text-align:center;color:var(--muted);font-size:13px;}
 
 .grid2{display:grid;grid-template-columns:1fr 1fr;gap:8px;}
@@ -284,8 +276,11 @@ input:focus,select:focus,textarea:focus{border-color:var(--blue);box-shadow:0 0 
   .entry-body{grid-template-columns:repeat(3,1fr);}
   input[type=text],input[type=date],input[type=time],select{font-size:13.5px;min-height:36px;padding:7px 9px;}
   textarea{font-size:12.5px;}
-  .day{min-height:42px;font-size:13.5px;}
+  .day{min-height:34px;font-size:13px;}
   .header-title{font-size:18px;}
+  /* パソコンではカレンダーが横幅いっぱいに広がって大きくなりすぎないよう幅を制限する */
+  #cal-months{max-width:380px;}
+  .cal-toolbar{justify-content:flex-start;}
 }
 @media print{
   body{background:#fff;padding:0;}
@@ -310,13 +305,12 @@ input:focus,select:focus,textarea:focus{border-color:var(--blue);box-shadow:0 0 
   </div>
 
   <div class="tabs" role="tablist">
-    <button class="tab active" id="tab-cal"  role="tab" onclick="showTab('cal')">📅 カレンダー<span class="only-wide">で選ぶ</span></button>
-    <button class="tab"        id="tab-list" role="tab" onclick="showTab('list')">📋 登録リスト <span class="badge" id="list-count">0</span></button>
+    <button class="tab active" id="tab-cal"  role="tab" onclick="showTab('cal')">📅 カレンダー <span class="badge" id="list-count">0</span></button>
     <button class="tab"        id="tab-day"  role="tab" onclick="showTab('day')">🏃 <span class="only-wide">作業</span>当日</button>
     <button class="tab"        id="tab-set"  role="tab" onclick="showTab('set')">⚙️ 設定</button>
   </div>
 
-  <!-- ============ 画面1: カレンダーで選ぶ ============ -->
+  <!-- ============ 画面1: カレンダー登録（この画面で完結） ============ -->
   <section id="pane-cal">
     <div class="card">
       <div class="card-head">
@@ -336,18 +330,21 @@ input:focus,select:focus,textarea:focus{border-color:var(--blue);box-shadow:0 0 
         <div class="cal-legend">
           <span><i class="lg-box" style="background:#1565C0;"></i>選択中</span>
           <span><i class="lg-box" style="background:#fff;border:2px solid #1565C0;"></i>今日</span>
-          <span><i class="lg-box" style="background:#fff;border:1px solid #DCEAF8;"></i>未選択</span>
-          <span>● 登録リストに入っている日</span>
+          <span>● 登録リストにある日</span>
         </div>
-        <div class="chips" id="sel-chips"></div>
+        <div class="hint" style="margin-top:7px;">日付をタップすると、その日の入力欄がすぐ下の「登録リスト」に追加されます。もう一度タップすると選択だけ外れます（追加済みの内容は残ります）。</div>
       </div>
     </div>
 
     <div class="card">
       <div class="card-head">
-        <div class="card-title"><span class="step">2</span>業態と時刻を選ぶ</div>
+        <div class="card-title"><span class="step">2</span>まとめて設定（任意）</div>
       </div>
       <div class="card-body">
+        <div class="hint" style="margin-bottom:9px;">
+          ここで指定した内容が、これから選ぶ日の初期値になります。すでに追加した日の内容をまとめて書き換えたいときは、
+          下の「まとめて適用」を押してください。
+        </div>
         <div class="grid-form">
           <div class="field">
             <label for="bulk-gyotai">業態</label>
@@ -366,7 +363,7 @@ input:focus,select:focus,textarea:focus{border-color:var(--blue);box-shadow:0 0 
             <select id="bulk-staff"></select>
           </div>
           <div class="field">
-            <label for="bulk-tenpo">店舗名（選択した全ての日に入ります／あとで個別に変更できます）</label>
+            <label for="bulk-tenpo">店舗名</label>
             <input type="text" id="bulk-tenpo" placeholder="例: 渋谷" onblur="bulkTenpoBlur()">
           </div>
           <div class="field">
@@ -374,29 +371,16 @@ input:focus,select:focus,textarea:focus{border-color:var(--blue);box-shadow:0 0 
             <input type="text" id="bulk-addr" placeholder="例: 東京都渋谷区…">
           </div>
         </div>
+        <button class="btn btn-sub btn-block" id="btn-add-bulk" onclick="applyBulkToSelected()" style="margin-top:11px;">
+          <span id="btn-add-bulk-label">選択中の0日にまとめて適用</span>
+        </button>
       </div>
     </div>
 
     <div class="card">
       <div class="card-head">
-        <div class="card-title"><span class="step">3</span>登録リストに追加</div>
+        <div class="card-title"><span class="step">3</span>登録リスト</div>
       </div>
-      <div class="card-body">
-        <button class="btn btn-primary btn-block" id="btn-add-bulk" onclick="addSelectedToList()">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-          <span id="btn-add-bulk-label">選択した0日を登録リストに追加</span>
-        </button>
-        <div class="hint" style="margin-top:9px;">
-          追加したあと「📋 登録リスト」タブで、店舗名・住所・説明文を1件ずつ調整できます。<br>
-          日付・業態・時間帯の組み合わせを変えて、この操作を何度でも繰り返せます。
-        </div>
-      </div>
-    </div>
-  </section>
-
-  <!-- ============ 画面2: 登録リスト ============ -->
-  <section id="pane-list" class="hidden">
-    <div class="card">
       <div class="list-toolbar">
         <button class="btn btn-primary btn-sm" onclick="startQueue()">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
@@ -986,7 +970,7 @@ function buildTitle(en){
    タブ切り替え
    ========================================================================= */
 function showTab(name){
-  ['cal','list','day','set'].forEach(function(n){
+  ['cal','day','set'].forEach(function(n){
     $('pane-' + n).classList.toggle('hidden', n !== name);
     $('tab-' + n).classList.toggle('active', n === name);
   });
@@ -1045,27 +1029,38 @@ function renderCalendars(){
   host.innerHTML = html;
 
   $('cal-label').textContent = y + '年 ' + (m+1) + '月';
-  renderChips();
 }
 function onDayClick(ev, ds){
   if(ev && ev.shiftKey && lastClicked && lastClicked !== ds){
     selectRange(lastClicked, ds);
   }else{
     var i = selDates.indexOf(ds);
-    if(i === -1) selDates.push(ds); else selDates.splice(i, 1);
+    if(i === -1){
+      selDates.push(ds);
+      bulkTenpoBlur();
+      ensureEntryForDate(ds);
+    }else{
+      selDates.splice(i, 1);
+    }
   }
   lastClicked = ds;
   selDates.sort();
+  sortEntries();
   renderCalendars();
+  renderEntries();
   updateAddButton();
 }
 function selectRange(a, b){
   var from = a < b ? a : b, to = a < b ? b : a;
   var p = ymdParts(from), q = ymdParts(to);
   var cur = new Date(p.y, p.m-1, p.d), end = new Date(q.y, q.m-1, q.d);
+  bulkTenpoBlur();
   while(cur <= end){
     var ds = cur.getFullYear() + '-' + pad(cur.getMonth()+1) + '-' + pad(cur.getDate());
-    if(selDates.indexOf(ds) === -1) selDates.push(ds);
+    if(selDates.indexOf(ds) === -1){
+      selDates.push(ds);
+      ensureEntryForDate(ds);
+    }
     cur.setDate(cur.getDate() + 1);
   }
 }
@@ -1075,27 +1070,8 @@ function clearSelectedDates(){
   renderCalendars();
   updateAddButton();
 }
-function removeSelDate(ds){
-  var i = selDates.indexOf(ds);
-  if(i !== -1) selDates.splice(i, 1);
-  renderCalendars();
-  updateAddButton();
-}
-function renderChips(){
-  var host = $('sel-chips');
-  if(!selDates.length){
-    host.innerHTML = '<div class="hint">日付をタップすると選択できます。パソコンでは Shift + クリックで期間をまとめて選べます。</div>';
-    return;
-  }
-  var html = '';
-  selDates.forEach(function(ds){
-    html += '<span class="chip">' + fmtDateShort(ds)
-          + '<button type="button" onclick="removeSelDate(\'' + ds + '\')" aria-label="削除">&times;</button></span>';
-  });
-  host.innerHTML = html;
-}
 function updateAddButton(){
-  $('btn-add-bulk-label').textContent = '選択した' + selDates.length + '日を登録リストに追加';
+  $('btn-add-bulk-label').textContent = '選択中の' + selDates.length + '日にまとめて適用';
   $('btn-add-bulk').disabled = (selDates.length === 0);
 }
 
@@ -1157,42 +1133,47 @@ function bulkTenpoBlur(){
   el.value = applySuffix(el.value);
 }
 
-/* ---------- 選択した日をまとめて登録リストへ ---------- */
-function addSelectedToList(){
+/* ---------- 日付選択 ⇄ 登録リストの連携 ---------- */
+function findEntryByDate(ds){
+  for(var i = 0; i < entries.length; i++){ if(entries[i].date === ds) return entries[i]; }
+  return null;
+}
+function upsertBulkEntry(ds, overwrite){
+  var existing = findEntryByDate(ds);
+  if(existing && !overwrite) return;
+
+  var g = findGyotai($('bulk-gyotai').value);
+  if(!g) return;
+  var sl = findSlot(g, bulkSlotId) || g.slots[0];
+  var staff = findStaff($('bulk-staff').value);
+  var tenpo = $('bulk-tenpo').value.trim();
+  var addr  = $('bulk-addr').value.trim();
+  var st = $('bulk-start').value || (sl ? sl.start : '08:00');
+  var et = $('bulk-end').value   || (sl ? sl.end   : '09:00');
+
+  var en = existing || { id: uid('e'), date: ds, desc: '', descEdited: false };
+  en.gyotaiId = g.id; en.gyotaiName = g.name;
+  en.slotId = sl ? sl.id : ''; en.slotLabel = sl ? sl.label : '';
+  en.start = st; en.end = et;
+  en.staffId = staff ? staff.id : ''; en.staffName = staff ? staff.name : '';
+  en.tenpo = tenpo; en.address = addr;
+  en.descEdited = false;
+  en.desc = buildDesc(en);
+  if(!existing) entries.push(en);
+}
+function ensureEntryForDate(ds){
+  upsertBulkEntry(ds, false);
+}
+function applyBulkToSelected(){
   if(!selDates.length){ toast('日付を選んでください'); return; }
   var g = findGyotai($('bulk-gyotai').value);
   if(!g){ toast('業態を選んでください'); return; }
-  var sl = findSlot(g, bulkSlotId) || g.slots[0];
   bulkTenpoBlur();
-  var tenpo = $('bulk-tenpo').value.trim();
-  var addr  = $('bulk-addr').value.trim();
-  var st = $('bulk-start').value, et = $('bulk-end').value;
-  var staff = findStaff($('bulk-staff').value);
-
-  var added = 0;
-  selDates.slice().sort().forEach(function(ds){
-    var en = {
-      id: uid('e'),
-      date: ds,
-      gyotaiId: g.id, gyotaiName: g.name,
-      slotId: sl ? sl.id : '', slotLabel: sl ? sl.label : '',
-      start: st, end: et,
-      staffId: staff ? staff.id : '', staffName: staff ? staff.name : '',
-      tenpo: tenpo, address: addr,
-      desc: '', descEdited: false
-    };
-    en.desc = buildDesc(en);
-    entries.push(en);
-    added++;
-  });
+  selDates.forEach(function(ds){ upsertBulkEntry(ds, true); });
   sortEntries();
-  selDates = [];
-  lastClicked = null;
-  renderCalendars();
-  updateAddButton();
   renderEntries();
-  toast(added + '件を登録リストに追加しました');
-  showTab('list');
+  renderCalendars();
+  toast('選択中の' + selDates.length + '日に適用しました');
 }
 function sortEntries(){
   entries.sort(function(a, b){
@@ -1225,7 +1206,7 @@ function renderEntries(){
   var host = $('entries');
   $('list-count').textContent = entries.length;
   if(!entries.length){
-    host.innerHTML = '<div class="empty">登録リストは空です。<br>「📅 カレンダーで選ぶ」から作業日をまとめて追加してください。</div>';
+    host.innerHTML = '<div class="empty">登録リストは空です。<br>上のカレンダーで作業日をタップすると、ここに入力欄が追加されます。</div>';
     return;
   }
   var html = '';
@@ -1391,8 +1372,13 @@ function duplicateEntry(id){
 function removeEntry(id){
   var i = entryIndex(id);
   if(i === -1) return;
+  var ds = entries[i].date;
   entries.splice(i, 1);
-  renderEntries(); renderCalendars();
+  if(!findEntryByDate(ds)){
+    var si = selDates.indexOf(ds);
+    if(si !== -1) selDates.splice(si, 1);
+  }
+  renderEntries(); renderCalendars(); updateAddButton();
 }
 function addEmptyEntry(){
   var g = settings.gyotai[0];
@@ -1412,13 +1398,13 @@ function addEmptyEntry(){
   en.desc = buildDesc(en);
   entries.push(en);
   renderEntries(); renderCalendars();
-  showTab('list');
 }
 function clearAllEntries(){
   if(!entries.length) return;
   if(!confirm('登録リストの' + entries.length + '件をすべて削除します。よろしいですか？')) return;
   entries = [];
-  renderEntries(); renderCalendars();
+  selDates = [];
+  renderEntries(); renderCalendars(); updateAddButton();
 }
 
 /* =========================================================================
