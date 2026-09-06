@@ -69,6 +69,23 @@ function fmtDate(d) {
 const kindBadge = (kind) =>
   `<span class="lp-badge lp-kind-${KIND_CLASS[kind] || 'improve'}">${esc(kind)}</span>`;
 
+/** library.css が library.js と揃っているかを確かめる
+    （片方だけ古いファイルをアップロードすると、画面が無地のまま崩れて原因が分かりにくいため） */
+function checkStylesLoaded() {
+  const probe = document.createElement('div');
+  probe.className = 'lp-stack';
+  probe.style.position = 'absolute';
+  probe.style.visibility = 'hidden';
+  document.body.appendChild(probe);
+  const ok = getComputedStyle(probe).display === 'flex';
+  probe.remove();
+  if (!ok) {
+    toast('表示用のCSSが古いようです。assets/library.css を差し替えて再読み込みしてください');
+    console.warn('library.css が library.js と一致していません（.lp-stack の定義が見つかりません）');
+  }
+  return ok;
+}
+
 /** URL は新しいタブではなく、独立したウィンドウで開く
     （大きさを指定すると、ブラウザはタブではなくウィンドウとして開く） */
 function openInWindow(url) {
@@ -845,6 +862,7 @@ async function init() {
 
   renderChips();
   render();
+  checkStylesLoaded();
 
   $('searchInput').addEventListener('input', (e) => { state.q = e.target.value; render(); });
   $('sortSelect').addEventListener('change', (e) => { state.sort = e.target.value; render(); });

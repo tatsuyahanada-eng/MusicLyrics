@@ -5,10 +5,10 @@
      （利用者ごとに内容と権限が異なるため、端末に残さない方針）
    ・オフライン時はナビゲーションを offline.html へ切り替えます
    ============================================================ */
-const CACHE = 'library-portal-v19';
+const CACHE = 'library-portal-v20';
 const SHELL = [
-  'assets/library.css?v=18',
-  'assets/library.js?v=18',
+  'assets/library.css?v=19',
+  'assets/library.js?v=19',
   'assets/settings.js?v=1',
   'assets/pwa.js?v=2',
   'assets/welsys-logo.jpg',
@@ -44,6 +44,11 @@ self.addEventListener('fetch', (event) => {
 
   const url = new URL(req.url);
   if (url.origin !== location.origin) return;
+
+  // 同じサーバーに別のアプリが置かれている場合に横取りしないよう、
+  // このアプリを置いたフォルダの中だけを扱う
+  const scope = new URL(self.registration.scope);
+  if (!url.pathname.startsWith(scope.pathname)) return;
 
   // 画面遷移：ネットワーク優先、失敗時はオフライン案内
   if (req.mode === 'navigate') {
