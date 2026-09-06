@@ -15,9 +15,9 @@
 <meta name="apple-mobile-web-app-title" content="OES入替作業">
 <style>
 :root{
-  --blue:#1565C0; --blue-d:#0D47A1; --blue-l:#DCF1FC; --blue-l2:#F2FBFE;
-  --sky:#29B6F6; --sky-d:#0288D1; --sky-l:#D9F1FC;
-  --line:#AEE0F5; --line-w:#DCF1FA; --bg:#EAF7FD;
+  --blue:#1565C0; --blue-d:#0D47A1; --blue-l:#BFE9FB; --blue-l2:#DFF5FC;
+  --sky:#29B6F6; --sky-d:#0288D1; --sky-l:#BFE9FB;
+  --line:#7FD4F5; --line-w:#BFE9FB; --bg:#EAF7FD;
   --ink:#12314F; --muted:#6B87A6; --white:#fff;
   --red:#D64545; --green:#2E7D57; --amber:#B26A00;
   --r:12px; --r-s:8px;
@@ -104,8 +104,8 @@ input:focus,select:focus,textarea:focus{border-color:var(--blue);box-shadow:0 0 
 .btn-primary{background:var(--blue);color:#fff;}
 .btn-primary:hover{background:var(--blue-d);}
 .btn-primary:disabled{background:#A9C6E4;cursor:not-allowed;}
-.btn-sub{background:var(--blue-l);color:var(--blue-d);border-color:#93BFE8;}
-.btn-sub:hover{background:#CFE3F8;}
+.btn-sub{background:var(--sky);color:#fff;border-color:var(--sky-d);}
+.btn-sub:hover{background:var(--sky-d);}
 .btn-ghost{background:var(--white);color:#54759B;border-color:var(--line);}
 .btn-ghost:hover{background:var(--blue-l2);}
 .btn-danger{background:var(--white);color:var(--red);border-color:#F0B7B7;}
@@ -113,40 +113,6 @@ input:focus,select:focus,textarea:focus{border-color:var(--blue);box-shadow:0 0 
 .btn-sm{padding:6px 9px;min-height:34px;font-size:11.5px;}
 .btn-block{width:100%;}
 .row-btns{display:flex;gap:6px;flex-wrap:wrap;}
-
-/* ---------- カレンダー ---------- */
-.cal-toolbar{display:flex;align-items:center;justify-content:center;gap:8px;margin-bottom:8px;}
-.cal-nav{
-  width:34px;height:34px;border-radius:var(--r-s);border:1px solid var(--line);
-  background:var(--white);color:var(--blue);font-size:17px;cursor:pointer;
-  display:flex;align-items:center;justify-content:center;font-family:inherit;flex-shrink:0;
-}
-.cal-nav:hover{background:var(--blue-l);}
-.cal-label{font-size:14px;font-weight:700;color:var(--blue-d);min-width:112px;text-align:center;}
-.cal-months{display:grid;grid-template-columns:1fr;}
-.cal-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:3px;}
-.cal-dow{text-align:center;font-size:10.5px;font-weight:700;color:var(--muted);padding:1px 0;}
-.cal-dow.sat{color:#2F7BC4;} .cal-dow.sun{color:#C8503F;}
-.day{
-  aspect-ratio:1/1;min-height:34px;border:1px solid var(--line-w);border-radius:var(--r-s);
-  background:var(--white);color:var(--ink);font-size:13px;font-weight:600;font-family:inherit;
-  cursor:pointer;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1px;
-  padding:0;position:relative;
-}
-.day:hover{background:var(--blue-l);}
-.day.sat{color:#2F7BC4;} .day.sun{color:#C8503F;}
-.day.other{visibility:hidden;pointer-events:none;}
-.day.today{border-color:var(--blue);border-width:2px;}
-.day.has{background:var(--sky);border-color:var(--sky);color:#fff;}
-.day.has:hover{background:var(--sky-d);}
-.day .cnt{
-  position:absolute;top:1px;right:2px;min-width:14px;height:14px;padding:0 3px;border-radius:7px;
-  background:var(--blue-d);color:#fff;font-size:9.5px;font-weight:700;
-  display:flex;align-items:center;justify-content:center;
-}
-.cal-legend{display:flex;gap:10px;flex-wrap:wrap;margin-top:8px;font-size:10px;color:var(--muted);}
-.cal-legend span{display:inline-flex;align-items:center;gap:4px;}
-.lg-box{width:11px;height:11px;border-radius:3px;display:inline-block;}
 
 /* ---------- 午前/午後の切り替え ---------- */
 .ampm{display:flex;gap:6px;}
@@ -158,7 +124,7 @@ input:focus,select:focus,textarea:focus{border-color:var(--blue);box-shadow:0 0 
 .ampm label.on{background:linear-gradient(135deg,var(--blue),var(--sky));color:#fff;border-color:var(--blue);}
 .ampm input{position:absolute;width:1px;height:1px;opacity:0;pointer-events:none;}
 
-/* ---------- 確認ポップアップの店舗入力 ---------- */
+/* ---------- ②日付・時間帯・店舗名の入力行 ---------- */
 .st-row{border:1px solid var(--line);border-radius:var(--r-s);padding:9px 10px;background:var(--blue-l2);}
 .st-row + .st-row{margin-top:8px;}
 .st-row .st-no{
@@ -310,11 +276,7 @@ input:focus,select:focus,textarea:focus{border-color:var(--blue);box-shadow:0 0 
   .entry-body{grid-template-columns:repeat(3,1fr);}
   input[type=text],input[type=date],input[type=time],select{font-size:13.5px;min-height:36px;padding:7px 9px;}
   textarea{font-size:12.5px;}
-  .day{min-height:34px;font-size:13px;}
   .header-title{font-size:18px;}
-  /* パソコンではカレンダーが横幅いっぱいに広がって大きくなりすぎないよう幅を制限する */
-  #cal-months{max-width:380px;}
-  .cal-toolbar{justify-content:flex-start;}
 }
 @media print{
   body{background:#fff;padding:0;}
@@ -358,18 +320,9 @@ input:focus,select:focus,textarea:focus{border-color:var(--blue);box-shadow:0 0 
           </div>
           <div class="field">
             <label for="w-count">稼働件数</label>
-            <select id="w-count" onchange="updateWizardHints()"></select>
+            <select id="w-count" onchange="onWCountChange()"></select>
           </div>
-          <div class="field">
-            <label for="w-staff">担当者</label>
-            <select id="w-staff"></select>
-          </div>
-          <div class="field">
-            <label>時間帯</label>
-            <div class="ampm" id="w-ampm">
-              <label class="on" id="w-ampm-am"><input type="radio" name="w-ampm" value="am" checked onchange="onWizAmPmChange()">午前 (AM)</label>
-              <label id="w-ampm-pm"><input type="radio" name="w-ampm" value="pm" onchange="onWizAmPmChange()">午後 (PM)</label>
-            </div>
+          <div class="field col-span">
             <div class="hint" id="w-time-hint"></div>
           </div>
         </div>
@@ -378,23 +331,14 @@ input:focus,select:focus,textarea:focus{border-color:var(--blue);box-shadow:0 0 
 
     <div class="card">
       <div class="card-head">
-        <div class="card-title"><span class="step">2</span>作業日をタップしてください</div>
-        <div class="row-btns">
-          <button class="btn btn-ghost btn-sm" onclick="calToday()">今月へ</button>
-        </div>
+        <div class="card-title"><span class="step">2</span>日付・時間帯・店舗名を入力</div>
       </div>
       <div class="card-body">
-        <div class="cal-toolbar">
-          <button class="cal-nav" onclick="calMove(-1)" aria-label="前の月">‹</button>
-          <div class="cal-label" id="cal-label">-</div>
-          <button class="cal-nav" onclick="calMove(1)" aria-label="次の月">›</button>
-        </div>
-        <div class="cal-months" id="cal-months"></div>
-        <div class="cal-legend">
-          <span><i class="lg-box" style="background:#29B6F6;"></i>登録済みの日（数字は件数）</span>
-          <span><i class="lg-box" style="background:#fff;border:2px solid #1565C0;"></i>今日</span>
-        </div>
-        <div class="hint" style="margin-top:7px;" id="cal-hint"></div>
+        <div class="hint" style="margin-bottom:9px;">件数ぶんの日付を1件ずつ選べます。1件目は10/1の午前、2件目は10/10の午後、のように違う日でもかまいません。</div>
+        <div id="store-rows"></div>
+        <button class="btn btn-primary btn-block" style="margin-top:11px;" onclick="submitStoreRows()">
+          <span id="btn-submit-rows-label">この1件を登録</span>
+        </button>
       </div>
     </div>
 
@@ -627,10 +571,10 @@ input:focus,select:focus,textarea:focus{border-color:var(--blue);box-shadow:0 0 
               </div>
             </div>
 
-            <div class="hint" style="margin-bottom:6px;font-weight:700;color:#3D6B99;">店舗ごとのGoogle Chat URL</div>
+            <div class="hint" style="margin-bottom:6px;font-weight:700;color:#3D6B99;">業態・店舗ごとのGoogle Chat URL</div>
             <div class="hint" style="margin-bottom:9px;">
-              「作業当日」の「Chat」ボタンで、その店舗のGoogle Chatを直接開けるようにします。
-              未登録の店舗で「Chat」を押すと、その場でURLを聞かれて自動的にここへ登録されます（次回から一覧を探さずに開けます）。
+              「作業当日」の「Chat」ボタンで、その業態・店舗のGoogle Chatを直接開けるようにします（下に登録しておくだけです）。
+              該当する登録が無い場合は、案内は出さずにそのままGoogle Chatの一覧画面を開きます。
             </div>
             <div id="store-chat-list" style="margin-bottom:9px;"></div>
             <button class="btn btn-sub btn-sm" onclick="addStoreChat()">＋ 店舗のChat URLを追加</button>
@@ -673,6 +617,18 @@ input:focus,select:focus,textarea:focus{border-color:var(--blue);box-shadow:0 0 
           <button class="btn btn-danger btn-sm" onclick="resetSettings()">初期設定に戻す</button>
         </div>
         <input type="file" id="import-file" accept="application/json,.json" class="hidden" onchange="importSettings(this)">
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-head"><div class="card-title">📱 アプリとしてインストール</div></div>
+      <div class="card-body">
+        <div class="hint" style="margin-bottom:9px;">ホーム画面にアイコンを追加して、アプリのように起動できます。</div>
+        <button class="btn btn-primary btn-sm hidden" id="btn-install-pwa" onclick="installPwa()">📱 アプリとしてインストール</button>
+        <div class="hint" id="install-pwa-hint" style="margin-top:8px;">
+          このボタンが表示されない場合は、お使いのブラウザのメニューから「アプリをインストール」または
+          「ホーム画面に追加」をお試しください（手順は<a href="manual.html#s2b" target="_blank" rel="noopener noreferrer">操作マニュアル</a>）。
+        </div>
       </div>
     </div>
   </section>
@@ -779,7 +735,6 @@ function defaultSettings(){
 /* ---------- 状態 ---------- */
 var settings   = defaultSettings();
 var entries    = [];              // 登録リスト
-var viewYear   = 0, viewMonth = 0;
 var seq = 0;
 
 function uid(pfx){ seq++; return (pfx||'id') + '-' + Date.now().toString(36) + '-' + seq; }
@@ -831,10 +786,11 @@ function normalizeSettings(o){
     });
   }
   (o.storeChats||[]).forEach(function(sc){
+    var gyotai = String((sc && sc.gyotai) || '').trim();
     var tenpo = String((sc && sc.tenpo) || '').trim();
     var url = String((sc && sc.url) || '').trim();
     if(!tenpo || !url) return;
-    s.storeChats.push({ id: (sc && sc.id) ? sc.id : uid('sc'), tenpo: tenpo, url: url });
+    s.storeChats.push({ id: (sc && sc.id) ? sc.id : uid('sc'), gyotai: gyotai, tenpo: tenpo, url: url });
   });
   (o.staff||[]).forEach(function(st){
     s.staff.push({
@@ -1019,68 +975,15 @@ function showTab(name){
     $('tab-' + n).classList.toggle('active', n === name);
   });
   if(name === 'set') renderSettings();
-  if(name === 'cal') renderCalendars();
   if(name === 'day') openDayTab();
   window.scrollTo(0, 0);
 }
 
 /* =========================================================================
-   画面1: カレンダー（複数日選択）
+   画面1: カレンダー（①業態・件数 → ②日付ごとに入力 → ③一覧）
    ========================================================================= */
-function calToday(){
-  var d = new Date();
-  viewYear = d.getFullYear(); viewMonth = d.getMonth();
-  renderCalendars();
-}
-function calMove(diff){
-  viewMonth += diff;
-  while(viewMonth < 0){ viewMonth += 12; viewYear--; }
-  while(viewMonth > 11){ viewMonth -= 12; viewYear++; }
-  renderCalendars();
-}
-function datesInList(){
-  var map = {};
-  entries.forEach(function(en){ if(en.date) map[en.date] = (map[en.date] || 0) + 1; });
-  return map;
-}
-function renderCalendars(){
-  var host = $('cal-months');
-  var inList = datesInList();
-  var today = todayStr();
-  var y = viewYear, m = viewMonth;
 
-  var html = '<div class="cal-month"><div class="cal-grid">';
-  for(var w = 0; w < 7; w++){
-    html += '<div class="cal-dow' + (w===0?' sun':(w===6?' sat':'')) + '">' + WDAY[w] + '</div>';
-  }
-  var first = new Date(y, m, 1);
-  var lead = first.getDay();
-  var days = new Date(y, m+1, 0).getDate();
-  for(var i = 0; i < lead; i++) html += '<div class="day other"></div>';
-  for(var d = 1; d <= days; d++){
-    var ds = y + '-' + pad(m+1) + '-' + pad(d);
-    var dow = new Date(y, m, d).getDay();
-    var cls = 'day';
-    if(dow === 0) cls += ' sun'; else if(dow === 6) cls += ' sat';
-    if(ds === today) cls += ' today';
-    if(inList[ds]) cls += ' has';
-    html += '<button type="button" class="' + cls + '" data-date="' + ds + '" onclick="onDayClick(event,\'' + ds + '\')">'
-          + '<span>' + d + '</span>'
-          + (inList[ds] ? '<i class="cnt">' + inList[ds] + '</i>' : '')
-          + '</button>';
-  }
-  html += '</div></div>';
-  host.innerHTML = html;
-
-  $('cal-label').textContent = y + '年 ' + (m+1) + '月';
-}
-function onDayClick(ev, ds){
-  var g = findGyotai($('w-gyotai').value);
-  if(!g){ toast('先に業態を選んでください'); return; }
-  openStoreModal(ds);
-}
-
-/* ---------- ①業態・件数・時間帯を選ぶ ---------- */
+/* ---------- ①業態・稼働件数を選ぶ ---------- */
 var MAX_COUNT = 30;
 function renderWizardForm(keepValues){
   var sel = $('w-gyotai');
@@ -1099,13 +1002,8 @@ function renderWizardForm(keepValues){
   cntSel.innerHTML = ch;
   if(prevCnt) cntSel.value = prevCnt;
 
-  var stSel = $('w-staff');
-  var prevSt = keepValues ? stSel.value : '';
-  var g0 = findGyotai(sel.value);
-  var want = (prevSt && findStaff(prevSt)) ? prevSt : (g0 ? g0.defaultStaffId : '');
-  stSel.innerHTML = staffOptionsHtml(want);
-
   updateWizardHints();
+  renderStoreRows();
 }
 function staffOptionsHtml(selectedId){
   var html = '<option value="">（指定なし）</option>';
@@ -1115,118 +1013,114 @@ function staffOptionsHtml(selectedId){
   return html;
 }
 function onWizGyotaiChange(){
-  var g = findGyotai($('w-gyotai').value);
-  $('w-staff').innerHTML = staffOptionsHtml(g ? g.defaultStaffId : '');
   updateWizardHints();
 }
-function wizAmPm(){
-  var pm = document.querySelector('#w-ampm input[value="pm"]');
-  return (pm && pm.checked) ? 'pm' : 'am';
-}
-function onWizAmPmChange(){
-  var ap = wizAmPm();
-  $('w-ampm-am').classList.toggle('on', ap === 'am');
-  $('w-ampm-pm').classList.toggle('on', ap === 'pm');
-  updateWizardHints();
+function onWCountChange(){
+  renderStoreRows();
 }
 /* 午前は最初の時間帯、午後は2つめの時間帯を使う（2つめが無い業態は最初の時間帯のまま） */
-function wizSlot(){
+function wizSlotFor(ap){
   var g = findGyotai($('w-gyotai').value);
   if(!g || !g.slots.length) return null;
-  if(wizAmPm() === 'pm' && g.slots.length > 1) return g.slots[1];
+  if(ap === 'pm' && g.slots.length > 1) return g.slots[1];
   return g.slots[0];
 }
 function updateWizardHints(){
   var g  = findGyotai($('w-gyotai').value);
-  var sl = wizSlot();
   var th = $('w-time-hint');
-  if(th){
-    if(!sl){ th.textContent = ''; }
-    else if(wizAmPm() === 'pm' && g && g.slots.length < 2){
-      th.textContent = sl.start + '〜' + sl.end + '（この業態には午後の時間帯が未設定のため午前と同じ時刻です。設定で追加できます）';
-    }else{
-      th.textContent = sl.start + '〜' + sl.end + '（設定の「' + sl.label + '」の時刻）';
-    }
-  }
-  var ch = $('cal-hint');
-  if(ch){
-    var cnt = parseInt($('w-count').value, 10) || 1;
-    ch.textContent = '日付をタップすると、' + (g ? g.name : '業態') + ' ' + cnt + '件分の店舗名・住所を入力するポップアップが開きます。';
-  }
+  if(!th) return;
+  if(!g || !g.slots.length){ th.textContent = ''; return; }
+  var am = g.slots[0], pm = g.slots.length > 1 ? g.slots[1] : g.slots[0];
+  var note = g.slots.length > 1 ? '' : '（午後の時間帯は未設定のため午前と同じ時刻です。設定で追加できます）';
+  th.textContent = '午前 ' + am.start + '〜' + am.end + ' ／ 午後 ' + pm.start + '〜' + pm.end + note;
 }
 
-/* ---------- ②日付をタップ → 店舗名・住所の入力ポップアップ ---------- */
-var storeModalDate = '';
-function openStoreModal(ds){
-  var g = findGyotai($('w-gyotai').value);
-  var sl = wizSlot();
-  if(!g || !sl) return;
-  var cnt = parseInt($('w-count').value, 10) || 1;
-  var st = findStaff($('w-staff').value);
-  storeModalDate = ds;
-
-  var rows = '';
-  for(var i = 0; i < cnt; i++){
-    rows += '<div class="st-row">'
-         +   '<span class="st-no">' + (i+1) + '件目</span>'
-         +   '<div class="st-f">'
-         +     '<input type="text" class="st-tenpo" placeholder="店舗名（例: 渋谷）">'
-         +     '<input type="text" class="st-addr" placeholder="住所（任意・例: 東京都渋谷区…）">'
-         +   '</div>'
-         + '</div>';
-  }
-  $('modal-root').innerHTML = ''
-   + '<div class="modal-bg" onclick="if(event.target===this)closeModal()"><div class="modal">'
-   + '<div class="modal-head">この内容で入力します</div>'
-   + '<div class="modal-body">'
-   +   '<div class="modal-sum">'
-   +     '<b>' + esc(fmtDateJp(ds)) + '　' + esc(sl.start) + '〜' + esc(sl.end) + '</b><br>'
-   +     esc(g.name) + '　' + esc(wizAmPm() === 'pm' ? '午後 (PM)' : '午前 (AM)') + '　' + cnt + '件'
-   +     (st ? '　担当: ' + esc(st.name) : '')
+/* ---------- ②稼働件数ぶんの日付・時間帯・店舗名・住所を入力 ---------- */
+function storeRowHtml(i){
+  return ''
+   + '<div class="st-row" data-idx="' + i + '">'
+   +   '<span class="st-no">' + (i+1) + '件目</span>'
+   +   '<div class="st-f">'
+   +     '<div class="field"><label>日付</label><input type="date" class="sr-date"></div>'
+   +     '<div class="field"><label>時間帯</label>'
+   +       '<div class="ampm sr-ampm">'
+   +         '<label class="on"><input type="radio" name="sr-ampm-' + i + '" value="am" checked onchange="onRowAmPmChange(this)">午前 (AM)</label>'
+   +         '<label><input type="radio" name="sr-ampm-' + i + '" value="pm" onchange="onRowAmPmChange(this)">午後 (PM)</label>'
+   +       '</div></div>'
+   +     '<div class="field"><label>店舗名</label><input type="text" class="sr-tenpo" placeholder="例: 渋谷"></div>'
+   +     '<div class="field"><label>住所（任意）</label><input type="text" class="sr-addr" placeholder="例: 東京都渋谷区…"></div>'
    +   '</div>'
-   +   rows
-   + '</div>'
-   + '<div class="modal-foot">'
-   +   '<button class="btn btn-primary" style="flex:1;" onclick="confirmStoreModal()">この' + cnt + '件を追加</button>'
-   +   '<button class="btn btn-ghost" onclick="closeModal()">キャンセル</button>'
-   + '</div></div></div>';
-
-  var first = document.querySelector('#modal-root .st-tenpo');
-  if(first) first.focus();
+   + '</div>';
 }
-function confirmStoreModal(){
-  var ds = storeModalDate;
-  var g  = findGyotai($('w-gyotai').value);
-  var sl = wizSlot();
-  if(!ds || !g || !sl){ closeModal(); return; }
-  var staff = findStaff($('w-staff').value);
-
-  var tenpos = document.querySelectorAll('#modal-root .st-tenpo');
-  var addrs  = document.querySelectorAll('#modal-root .st-addr');
-  var added = 0;
-  for(var i = 0; i < tenpos.length; i++){
-    var tenpo = tenpos[i].value.trim();
-    var addr  = addrs[i] ? addrs[i].value.trim() : '';
-    if(!tenpo && !addr) continue;      /* 空の行は作らない */
+function onRowAmPmChange(el){
+  var wrap = el.closest('.ampm');
+  if(!wrap) return;
+  var pmOn = !!wrap.querySelector('input[value="pm"]').checked;
+  var labels = wrap.querySelectorAll('label');
+  labels[0].classList.toggle('on', !pmOn);
+  labels[1].classList.toggle('on', pmOn);
+}
+function renderStoreRows(){
+  var host = $('store-rows');
+  if(!host) return;
+  var cnt = parseInt($('w-count').value, 10) || 1;
+  var rows = host.querySelectorAll('.st-row');
+  if(cnt > rows.length){
+    var frag = '';
+    for(var i = rows.length; i < cnt; i++) frag += storeRowHtml(i);
+    host.insertAdjacentHTML('beforeend', frag);
+  }else if(cnt < rows.length){
+    for(var j = rows.length - 1; j >= cnt; j--) rows[j].remove();
+  }
+  var lbl = $('btn-submit-rows-label');
+  if(lbl) lbl.textContent = 'この' + cnt + '件を登録';
+}
+function resetStoreRows(){
+  document.querySelectorAll('#store-rows .st-row').forEach(function(row){
+    row.querySelector('.sr-date').value = '';
+    row.querySelector('.sr-tenpo').value = '';
+    row.querySelector('.sr-addr').value = '';
+    row.querySelector('.sr-ampm input[value="am"]').checked = true;
+    row.querySelector('.sr-ampm input[value="pm"]').checked = false;
+    var labels = row.querySelectorAll('.sr-ampm label');
+    labels[0].classList.add('on'); labels[1].classList.remove('on');
+  });
+}
+function submitStoreRows(){
+  var g = findGyotai($('w-gyotai').value);
+  if(!g){ toast('業態を選んでください'); return; }
+  var rows = document.querySelectorAll('#store-rows .st-row');
+  var added = 0, skipped = 0;
+  rows.forEach(function(row){
+    var ds = row.querySelector('.sr-date').value;
+    if(!ds){ skipped++; return; }
+    var apEl = row.querySelector('.sr-ampm input:checked');
+    var sl = wizSlotFor(apEl ? apEl.value : 'am');
+    if(!sl) return;
+    var tenpo = row.querySelector('.sr-tenpo').value.trim();
+    var addr  = row.querySelector('.sr-addr').value.trim();
     var en = {
       id: uid('e'), date: ds,
       gyotaiId: g.id, gyotaiName: g.name,
       slotId: sl.id, slotLabel: sl.label,
       start: sl.start, end: sl.end,
-      staffId: staff ? staff.id : '', staffName: staff ? staff.name : '',
+      staffId: '', staffName: '',
       tenpo: applySuffix(tenpo), address: addr,
       desc: '', descEdited: false
     };
+    if(g.defaultStaffId){
+      var dst = findStaff(g.defaultStaffId);
+      if(dst){ en.staffId = dst.id; en.staffName = dst.name; }
+    }
     en.desc = buildDesc(en);
     entries.push(en);
     added++;
-  }
-  if(!added){ toast('店舗名を入力してください'); return; }
-  closeModal();
+  });
+  if(!added){ toast(skipped ? '日付を入力してください' : '入力できる行がありません'); return; }
   sortEntries();
   renderEntries();
-  renderCalendars();
-  toast(fmtDateShort(ds) + ' に' + added + '件を追加しました');
+  toast(added + '件を登録リストに追加しました' + (skipped ? '（日付未入力の' + skipped + '件はスキップ）' : ''));
+  resetStoreRows();
 }
 function sortEntries(){
   entries.sort(function(a, b){
@@ -1259,7 +1153,7 @@ function renderEntries(){
   var host = $('entries');
   $('list-count').textContent = entries.length;
   if(!entries.length){
-    host.innerHTML = '<div class="empty">まだ1件も追加されていません。<br>上の①で業態と件数を選び、②のカレンダーで作業日をタップしてください。</div>';
+    host.innerHTML = '<div class="empty">まだ1件も追加されていません。<br>上の①で業態と件数を選び、②で日付・店舗名を入力して登録してください。</div>';
     return;
   }
   var html = '';
@@ -1348,7 +1242,7 @@ function syncSummary(en){
 }
 function enSetDate(id, v){
   var en = findEntry(id); if(!en) return;
-  en.date = v; syncDesc(en); syncSummary(en); renderCalendars();
+  en.date = v; syncDesc(en); syncSummary(en);
 }
 function enSetGyotai(id, v){
   var en = findEntry(id); if(!en) return;
@@ -1427,13 +1321,13 @@ function duplicateEntry(id){
   var copy = JSON.parse(JSON.stringify(en));
   copy.id = uid('e');
   entries.splice(entryIndex(id) + 1, 0, copy);
-  renderEntries(); renderCalendars();
+  renderEntries();
 }
 function removeEntry(id){
   var i = entryIndex(id);
   if(i === -1) return;
   entries.splice(i, 1);
-  renderEntries(); renderCalendars();
+  renderEntries();
 }
 function addEmptyEntry(){
   var g = settings.gyotai[0];
@@ -1452,13 +1346,13 @@ function addEmptyEntry(){
   }
   en.desc = buildDesc(en);
   entries.push(en);
-  renderEntries(); renderCalendars();
+  renderEntries();
 }
 function clearAllEntries(){
   if(!entries.length) return;
   if(!confirm('登録リストの' + entries.length + '件をすべて削除します。よろしいですか？')) return;
   entries = [];
-  renderEntries(); renderCalendars();
+  renderEntries();
 }
 
 /* =========================================================================
@@ -1993,22 +1887,18 @@ function rebuildDayMsgs(){
 }
 
 /* ---------- 店舗ごとのGoogle Chat（毎回チャット一覧から探さなくて済むように） ---------- */
-function storeChatKey(tenpo){
-  return applySuffix(String(tenpo || '').trim());
+/* 業態＋店舗名の組み合わせで検索する（同じ店舗名でも業態が違えばルームが異なる場合があるため） */
+function storeChatKeyPart(v){
+  return String(v || '').trim();
 }
-function findStoreChat(tenpo){
-  var key = storeChatKey(tenpo);
-  if(!key) return null;
+function findStoreChat(gyotai, tenpo){
+  var gKey = storeChatKeyPart(gyotai), tKey = storeChatKeyPart(applySuffix(tenpo));
+  if(!tKey) return null;
   for(var i = 0; i < settings.storeChats.length; i++){
-    if(storeChatKey(settings.storeChats[i].tenpo) === key) return settings.storeChats[i];
+    var sc = settings.storeChats[i];
+    if(storeChatKeyPart(sc.gyotai) === gKey && storeChatKeyPart(applySuffix(sc.tenpo)) === tKey) return sc;
   }
   return null;
-}
-function upsertStoreChat(tenpo, url){
-  var found = findStoreChat(tenpo);
-  if(found){ found.url = url; }
-  else{ settings.storeChats.push({ id: uid('sc'), tenpo: storeChatKey(tenpo), url: url }); }
-  saveSettings();
 }
 function renderStoreChatList(){
   var host = $('store-chat-list');
@@ -2020,7 +1910,8 @@ function renderStoreChatList(){
   var html = '';
   settings.storeChats.forEach(function(sc, i){
     html += '<div class="sc-row">'
-      + '<input type="text" value="' + esc(sc.tenpo) + '" placeholder="店舗名" oninput="setStoreChatField(' + i + ',\'tenpo\',this.value)">'
+      + '<input type="text" value="' + esc(sc.gyotai) + '" placeholder="業態（例: すき家）" oninput="setStoreChatField(' + i + ',\'gyotai\',this.value)">'
+      + '<input type="text" value="' + esc(sc.tenpo) + '" placeholder="店舗名（例: 渋谷店）" oninput="setStoreChatField(' + i + ',\'tenpo\',this.value)">'
       + '<input type="text" value="' + esc(sc.url) + '" placeholder="https://mail.google.com/chat/…" oninput="setStoreChatField(' + i + ',\'url\',this.value)">'
       + '<button class="btn btn-danger btn-sm" onclick="removeStoreChat(' + i + ')">削除</button>'
       + '</div>';
@@ -2028,11 +1919,11 @@ function renderStoreChatList(){
   host.innerHTML = html;
 }
 function addStoreChat(){
-  settings.storeChats.push({ id: uid('sc'), tenpo: '', url: '' });
+  settings.storeChats.push({ id: uid('sc'), gyotai: '', tenpo: '', url: '' });
   saveSettings();
   renderStoreChatList();
   var boxes = document.querySelectorAll('#store-chat-list input[type=text]');
-  if(boxes.length) boxes[boxes.length-2].focus();
+  if(boxes.length) boxes[boxes.length-3].focus();
 }
 function setStoreChatField(i, field, v){
   if(!settings.storeChats[i]) return;
@@ -2045,36 +1936,12 @@ function removeStoreChat(i){
   saveSettings();
   renderStoreChatList();
 }
+/* 該当の業態＋店舗の登録が無ければ、案内せずそのまま一般のGoogle Chatを開く */
 function openStoreChat(){
-  var tenpo = dayCtx ? (dayCtx.tenpo || '') : '';
-  if(!tenpo){
-    window.open('https://chat.google.com/', '_blank', 'noopener');
-    return;
-  }
-  var found = findStoreChat(tenpo);
-  if(found){
-    window.open(found.url, '_blank', 'noopener');
-    return;
-  }
-  var input = prompt(
-    '「' + tenpo + '」のGoogle ChatのURLがまだ登録されていません。\n'
-    + 'このお店のチャット（ルーム／DM）のURLを入力してください。\n'
-    + '（一度登録すれば、次回からは一覧を探さずワンタップで開けます）',
-    ''
-  );
-  if(input === null){
-    window.open('https://chat.google.com/', '_blank', 'noopener');
-    return;
-  }
-  input = input.trim();
-  if(!input){
-    window.open('https://chat.google.com/', '_blank', 'noopener');
-    return;
-  }
-  upsertStoreChat(tenpo, input);
-  renderStoreChatList();
-  toast('「' + tenpo + '」のChat URLを登録しました');
-  window.open(input, '_blank', 'noopener');
+  var gyotai = dayCtx ? (dayCtx.gyotai || '') : '';
+  var tenpo  = dayCtx ? (dayCtx.tenpo  || '') : '';
+  var found = tenpo ? findStoreChat(gyotai, tenpo) : null;
+  window.open(found ? found.url : 'https://chat.google.com/', '_blank', 'noopener');
 }
 
 /* ---------- コピー ---------- */
@@ -2515,19 +2382,43 @@ function resetSettings(){
   toast('初期設定に戻しました');
 }
 
+/* ---------- PWAとしてインストール ---------- */
+var deferredInstallPrompt = null;
+window.addEventListener('beforeinstallprompt', function(e){
+  e.preventDefault();
+  deferredInstallPrompt = e;
+  var btn = $('btn-install-pwa');
+  if(btn) btn.classList.remove('hidden');
+});
+window.addEventListener('appinstalled', function(){
+  deferredInstallPrompt = null;
+  var btn = $('btn-install-pwa');
+  if(btn) btn.classList.add('hidden');
+  toast('インストールしました');
+});
+function installPwa(){
+  if(!deferredInstallPrompt){
+    toast('この端末では自動インストールに対応していません。ブラウザのメニューからお試しください');
+    return;
+  }
+  deferredInstallPrompt.prompt();
+  deferredInstallPrompt.userChoice.then(function(){
+    deferredInstallPrompt = null;
+    var btn = $('btn-install-pwa');
+    if(btn) btn.classList.add('hidden');
+  });
+}
+
 /* =========================================================================
    起動処理
    ========================================================================= */
 (function init(){
   loadSettings();
   var d = new Date();
-  viewYear = d.getFullYear();
-  viewMonth = d.getMonth();
   $('cr-year').textContent = d.getFullYear();
 
   renderWizardForm(false);
   renderDayStaffSelect();
-  renderCalendars();
   renderEntries();
   renderPhraseChips();
 
