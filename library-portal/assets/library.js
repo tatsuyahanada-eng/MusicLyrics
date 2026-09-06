@@ -69,6 +69,20 @@ function fmtDate(d) {
 const kindBadge = (kind) =>
   `<span class="lp-badge lp-kind-${KIND_CLASS[kind] || 'improve'}">${esc(kind)}</span>`;
 
+/** URL は新しいタブではなく、独立したウィンドウで開く
+    （大きさを指定すると、ブラウザはタブではなくウィンドウとして開く） */
+function openInWindow(url) {
+  const sw = window.screen && screen.availWidth ? screen.availWidth : 1440;
+  const sh = window.screen && screen.availHeight ? screen.availHeight : 900;
+  const w = Math.max(640, Math.min(1280, Math.round(sw * 0.8)));
+  const h = Math.max(480, Math.min(900, Math.round(sh * 0.85)));
+  const left = Math.max(0, Math.round((sw - w) / 2));
+  const top = Math.max(0, Math.round((sh - h) / 2));
+  return window.open(url, '_blank',
+    `popup=yes,noopener,noreferrer,resizable=yes,scrollbars=yes,` +
+    `width=${w},height=${h},left=${left},top=${top}`);
+}
+
 /* ---------- API ---------- */
 async function apiGet(path) {
   const res = await fetch(`${API}/${path}`, {
@@ -135,7 +149,7 @@ function visibleItems() {
 }
 
 /* ---------- 更新履歴 ----------
-   「何を、どのファイルで直して、いまの版に至ったのか」を軸に組み立てる。
+   「何を、どのファイルで直して、最新Verに至ったのか」を軸に組み立てる。
    ・幹（縦線）と枝は CSS の罫線で描く（library.css の .lp-hist / .lp-files）
    ・--d には上から数えた表示順を入れ、開いたときに順に描かれるようにする   */
 
@@ -175,7 +189,7 @@ function versionRoad(it) {
       <li class="lp-road-step${isNow ? ' is-now' : ''}" style="--d:${i}">
         <span class="lp-road-ver">${esc(h.version)}</span>
         <span class="lp-road-when">${fmtDate(h.date)}</span>
-        <span class="lp-road-kind">${isNow ? 'いま' : esc(h.kind)}</span>
+        <span class="lp-road-kind">${isNow ? '最新' : esc(h.kind)}</span>
       </li>`;
   }).join('');
 
@@ -234,7 +248,7 @@ function historyList(it) {
       : '';
 
     const tags =
-      (i === 0 ? '<span class="lp-hist-tag lp-hist-tag-now">いまの姿</span>' : '') +
+      (i === 0 ? '<span class="lp-hist-tag lp-hist-tag-now">最新</span>' : '') +
       (prev ? '' : '<span class="lp-hist-tag lp-hist-tag-start">出発点</span>');
 
     return `
@@ -267,7 +281,7 @@ function historyList(it) {
   return `<ol class="lp-hist">${rows}</ol>`;
 }
 
-/** パネル冒頭：このアイテムが「いま」どうなっているか */
+/** パネル冒頭：このアイテムの最新Verがどうなっているか */
 function nowCard(it) {
   const h = latest(it);
   const url = safeUrl(it.downloadUrl);
@@ -278,7 +292,7 @@ function nowCard(it) {
   return `
     <div class="lp-now">
       <div class="lp-now-head">
-        <span class="lp-now-label">いまの版</span>
+        <span class="lp-now-label">最新Ver</span>
         <span class="lp-now-ver">${h && h.version ? esc(h.version) : '版数なし'}</span>
         <span class="lp-now-when">${h
           ? `${fmtDate(h.date)} ${esc(h.time)} の更新まで反映`
@@ -380,7 +394,7 @@ function shelfHtml(list) {
 
 /* ============================================================
    見開き（開いた本の中身）
-   左ページ＝いまの姿、右ページ＝更新の年表
+   左ページ＝最新Verの姿、右ページ＝更新の年表
    ============================================================ */
 
 /** 右ページ：年ごとにまとめた更新の年表 */
@@ -424,7 +438,7 @@ function chronicle(it) {
               <span class="lp-chr-time">${esc(e.time)}</span>
               ${kindBadge(e.kind)}
               ${jump}
-              ${i === 0 ? '<span class="lp-chr-tag">いまの姿</span>' : ''}
+              ${i === 0 ? '<span class="lp-chr-tag">最新</span>' : ''}
               ${prev ? '' : '<span class="lp-chr-tag lp-chr-tag-start">出発点</span>'}
             </div>
             <p class="lp-chr-what">${esc(e.summary)}</p>
@@ -451,7 +465,7 @@ function chronicle(it) {
   return `<div class="lp-chr">${blocks}</div>`;
 }
 
-/** 左ページ：この資料がいまどうなっているか */
+/** 左ページ：この資料の最新Verがどうなっているか */
 function spreadLeft(it) {
   const h = latest(it);
   const url = safeUrl(it.downloadUrl);
@@ -471,7 +485,7 @@ function spreadLeft(it) {
         <p class="lp-page-by">${esc(it.creator)}　著</p>
 
         <div class="lp-nowbox">
-          <span class="lp-nowbox-label">いまの版</span>
+          <span class="lp-nowbox-label">最新Ver</span>
           <span class="lp-nowbox-ver">${h && h.version ? esc(h.version) : '版数なし'}</span>
           <span class="lp-nowbox-when">${h
             ? `${fmtDate(h.date)} ${esc(h.time)} の更新まで反映`
@@ -903,6 +917,15 @@ async function init() {
       if (!e.target.closest('.lp-user')) closeUserMenu();
     });
   }
+
+  // 「開く」は独立したウィンドウで起動する
+  document.addEventListener('click', (e) => {
+    const link = e.target.closest('.lp-dl, .lp-url-link');
+    if (!link || !link.href) return;
+    // 修飾キー付きや中クリックは、利用者の意図どおりブラウザに任せる
+    if (e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
+    if (openInWindow(link.href)) e.preventDefault();
+  });
 
   document.addEventListener('keydown', (e) => {
     if (e.key !== 'Escape') return;
