@@ -23,7 +23,7 @@ $csrf    = csrf_token();
   <link rel="apple-touch-icon" href="assets/icon-192.png?v=6">
   <link rel="manifest" href="manifest.webmanifest">
   <meta name="theme-color" content="#007a33">
-  <link rel="stylesheet" href="assets/library.css?v=19">
+  <link rel="stylesheet" href="assets/library.css?v=20">
 </head>
 <body class="lp-body">
 
@@ -75,12 +75,8 @@ $csrf    = csrf_token();
       </div>
       <div class="lp-chips" id="chipRow" role="group" aria-label="種別で絞り込み"></div>
       <div class="lp-toolbar-right">
-        <select id="sortSelect" class="lp-select" aria-label="並び替え">
-          <option value="updated_desc">更新が新しい順</option>
-          <option value="updated_asc">更新が古い順</option>
-          <option value="created_desc">作成日が新しい順</option>
-          <option value="name_asc">名称順</option>
-        </select>
+        <select id="seriesSelect" class="lp-select" aria-label="シリーズで絞り込み" hidden></select>
+        <select id="sortSelect" class="lp-select" aria-label="並び替え"></select>
         <div class="lp-viewswitch" role="group" aria-label="表示の切り替え">
           <button class="lp-viewbtn" type="button" data-view="shelf">本棚</button>
           <button class="lp-viewbtn" type="button" data-view="list">一覧</button>
@@ -88,9 +84,13 @@ $csrf    = csrf_token();
       </div>
     </div>
 
-    <div class="lp-listhead" id="listHead" aria-hidden="true" hidden>
-      <span>種別</span><span>名称</span><span>最終更新</span>
-      <span>最新の更新内容</span><span>作成者</span><span>URL</span><span></span>
+    <div class="lp-listhead" id="listHead" hidden>
+      <button class="lp-sortbtn" type="button" data-sort="category">種別</button>
+      <button class="lp-sortbtn" type="button" data-sort="name">名称</button>
+      <button class="lp-sortbtn" type="button" data-sort="updated">最終更新</button>
+      <span>最新の更新内容</span>
+      <button class="lp-sortbtn" type="button" data-sort="creator">作成者</button>
+      <span>URL</span><span></span>
     </div>
 
     <div id="list" class="lp-list"></div>
@@ -114,7 +114,7 @@ $csrf    = csrf_token();
       <h2 class="lp-modal-title" id="modalTitle">更新内容の登録</h2>
       <button id="btnCloseModal" class="lp-icon-btn" type="button" aria-label="閉じる">✕</button>
     </div>
-    <form id="updateForm" class="lp-form">
+    <form id="updateForm" class="lp-form" data-mode="create" data-uid="">
       <label class="lp-field">
         <span class="lp-field-label">対象アイテム <em>必須</em></span>
         <select id="fItem" class="lp-select lp-w-full" required></select>
@@ -155,7 +155,7 @@ $csrf    = csrf_token();
       <p class="lp-form-error" id="updateError" hidden></p>
       <div class="lp-form-actions">
         <button type="button" id="btnCancel" class="lp-btn lp-btn-ghost">キャンセル</button>
-        <button type="submit" class="lp-btn lp-btn-primary">登録する</button>
+        <button type="submit" id="btnUpdateSubmit" class="lp-btn lp-btn-primary">登録する</button>
       </div>
     </form>
   </div>
@@ -166,7 +166,7 @@ $csrf    = csrf_token();
       <h2 class="lp-modal-title" id="itemModalTitle">アイテムの新規登録</h2>
       <button id="btnCloseItemModal" class="lp-icon-btn" type="button" aria-label="閉じる">✕</button>
     </div>
-    <form id="itemForm" class="lp-form">
+    <form id="itemForm" class="lp-form" data-mode="create" data-id="">
       <div class="lp-field-row">
         <label class="lp-field"><span class="lp-field-label">管理ID <em>必須</em></span>
           <input id="iId" class="lp-input" type="text" placeholder="APP-004" required></label>
@@ -183,6 +183,14 @@ $csrf    = csrf_token();
         <label class="lp-field"><span class="lp-field-label">作成者 <em>必須</em></span>
           <input id="iCreator" class="lp-input" type="text" required></label>
       </div>
+      <label class="lp-field">
+        <span class="lp-field-label">シリーズ（関連するものをまとめる名前）</span>
+        <input id="iSeries" class="lp-input" type="text" list="seriesList"
+               placeholder="例）無線チャンネル変更">
+        <datalist id="seriesList"></datalist>
+        <span class="lp-field-hint">同じ名前を付けたアプリ・マニュアル・資料が、ひとまとまりとして扱われます。
+          既に使った名前は入力欄の候補から選べます。</span>
+      </label>
       <label class="lp-field"><span class="lp-field-label">説明</span>
         <textarea id="iDesc" class="lp-input lp-textarea" rows="3"></textarea></label>
       <label class="lp-field"><span class="lp-field-label">URL（アプリの入口）</span>
@@ -190,7 +198,7 @@ $csrf    = csrf_token();
       <p class="lp-form-error" id="itemError" hidden></p>
       <div class="lp-form-actions">
         <button type="button" id="btnItemCancel" class="lp-btn lp-btn-ghost">キャンセル</button>
-        <button type="submit" class="lp-btn lp-btn-primary">登録する</button>
+        <button type="submit" id="btnItemSubmit" class="lp-btn lp-btn-primary">登録する</button>
       </div>
     </form>
   </div>
@@ -232,7 +240,7 @@ $csrf    = csrf_token();
       canEdit: <?= $isAdmin ? 'true' : 'false' ?>
     };
   </script>
-  <script src="assets/library.js?v=19"></script>
+  <script src="assets/library.js?v=20"></script>
   <script src="assets/pwa.js?v=2"></script>
   <script>
     // インストール導線：すぐに実行できる端末ではその場で、それ以外は案内ページへ

@@ -1,18 +1,22 @@
 <?php
 /**
  * POST api/updates.php … 更新履歴を1件登録（管理者のみ）
+ * PUT  api/updates.php … 登録済みの更新履歴を1件修正（管理者のみ）
  */
 declare(strict_types=1);
 require_once __DIR__ . '/../includes/auth.php';
 
-if (($_SERVER['REQUEST_METHOD'] ?? 'GET') !== 'POST') {
+$method = $_SERVER['REQUEST_METHOD'] ?? 'GET';
+if ($method !== 'POST' && $method !== 'PUT') {
     json_error('許可されていないメソッドです。', 405);
 }
+$isEdit = ($method === 'PUT');
 
 $user = api_require_admin();
 api_verify_csrf();
 
 $b       = json_body();
+$uid     = isset($b['uid']) ? (int)$b['uid'] : 0;
 $itemId  = s($b, 'itemId', 20);
 $date    = s($b, 'date', 10);
 $time    = s($b, 'time', 5);
@@ -33,6 +37,7 @@ if ($summary === '')     json_error('更新内容は必須です。');
 if ($target === '')      json_error('対象機能は必須です。');
 if (!in_array($kind, $allowedKind, true)) json_error('区分が不正です。');
 if (!valid_url($url))    json_error('URLは http:// または https:// で入力してください。');
+if ($isEdit && $uid <= 0) json_error('修正する更新履歴が指定されていません。');
 
 $chk = db()->prepare('SELECT 1 FROM lp_items WHERE item_id = ? AND is_active = 1');
 $chk->execute([$itemId]);
@@ -40,20 +45,43 @@ if (!$chk->fetchColumn()) {
     json_error('対象アイテムが見つかりません。');
 }
 
+if ($isEdit) {
+    $chkU = db()->prepare('SELECT 1 FROM lp_updates WHERE update_id = ?');
+    $chkU->execute([$uid]);
+    if (!$chkU->fetchColumn()) json_error('修正する更新履歴が見つかりません。', 404);
+}
+
 $pdo = db();
 try {
     $pdo->beginTransaction();
 
-    $st = $pdo->prepare(
-        'INSERT INTO lp_updates
-           (item_id, updated_on, updated_time, author, author_user_id, update_kind, version, summary, target_feature, ticket_no)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
-    );
-    $st->execute([
-        $itemId, $date, $time . ':00', $author, $user['user_id'], $kind,
-        $version !== '' ? $version : null, $summary, $target, $ticket !== '' ? $ticket : null,
-    ]);
-    $updateId = (int)$pdo->lastInsertId();
+    if ($isEdit) {
+        $st = $pdo->prepare(
+            'UPDATE lp_updates
+                SET item_id = ?, updated_on = ?, updated_time = ?, author = ?, update_kind = ?,
+                    version = ?, summary = ?, target_feature = ?, ticket_no = ?
+              WHERE update_id = ?'
+        );
+        $st->execute([
+            $itemId, $date, $time . ':00', $author, $kind,
+            $version !== '' ? $version : null, $summary, $target,
+            $ticket !== '' ? $ticket : null, $uid,
+        ]);
+        $updateId = $uid;
+        // 修正したファイルは入れ替える（残したまま足すと重複するため）
+        $pdo->prepare('DELETE FROM lp_update_files WHERE update_id = ?')->execute([$updateId]);
+    } else {
+        $st = $pdo->prepare(
+            'INSERT INTO lp_updates
+               (item_id, updated_on, updated_time, author, author_user_id, update_kind, version, summary, target_feature, ticket_no)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
+        );
+        $st->execute([
+            $itemId, $date, $time . ':00', $author, $user['user_id'], $kind,
+            $version !== '' ? $version : null, $summary, $target, $ticket !== '' ? $ticket : null,
+        ]);
+        $updateId = (int)$pdo->lastInsertId();
+    }
 
     if ($files) {
         $fs = $pdo->prepare('INSERT INTO lp_update_files (update_id, file_path, change_note, sort_no) VALUES (?, ?, ?, ?)');
@@ -79,9 +107,9 @@ try {
     $pdo->commit();
 } catch (Throwable $e) {
     if ($pdo->inTransaction()) $pdo->rollBack();
-    error_log('[library-portal] update insert failed: ' . $e->getMessage());
-    json_error('登録に失敗しました。時間をおいて再度お試しください。', 500);
+    error_log('[library-portal] update save failed: ' . $e->getMessage());
+    json_error(($isEdit ? '修正' : '登録') . 'に失敗しました。時間をおいて再度お試しください。', 500);
 }
 
-audit('update.create', $itemId, mb_substr($summary, 0, 200));
-json_out(['ok' => true, 'updateId' => $updateId], 201);
+audit($isEdit ? 'update.edit' : 'update.create', $itemId, mb_substr($summary, 0, 200));
+json_out(['ok' => true, 'updateId' => $updateId], $isEdit ? 200 : 201);

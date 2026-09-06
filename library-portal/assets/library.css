@@ -150,7 +150,7 @@
 .lp-search { position: relative; flex: 1 1 300px; min-width: 220px; }
 .lp-search-icon { position: absolute; left: 11px; top: 50%; transform: translateY(-50%); font-size: .82rem; color: var(--lp-ink-soft); pointer-events: none; }
 .lp-search-input { width: 100%; padding-left: 32px; }
-.lp-toolbar-right { display: flex; gap: 8px; align-items: center; margin-left: auto; }
+.lp-toolbar-right { display: flex; gap: 8px; align-items: center; margin-left: auto; flex-wrap: wrap; }
 
 /* Chips */
 .lp-chips { display: flex; gap: 6px; flex-wrap: wrap; }
@@ -205,12 +205,6 @@
   overflow: hidden;
   transition: transform .22s var(--lp-ease), box-shadow .22s var(--lp-ease);
 }
-/* 種別ごとの装丁色 */
-.lp-slab-app { --book: #0b6b33; }
-.lp-slab-prg { --book: #16221d; }
-.lp-slab-doc { --book: #8a6a2f; }
-.lp-slab-man { --book: #10502a; }
-
 /* 左端の小口（紙の束）。横積みらしさはここで出す */
 .lp-slab-edge {
   width: 13px; flex: none;
@@ -221,7 +215,7 @@
 .lp-slab-face {
   flex: 1; min-width: 0;
   display: grid;
-  grid-template-columns: 104px minmax(0, 1fr) auto 78px 92px 22px;
+  grid-template-columns: 104px minmax(0, 1fr) minmax(0, auto) auto 78px 92px 22px;
   align-items: center; gap: 14px;
   padding: 0 14px;
 }
@@ -253,11 +247,6 @@
 .lp-slab-hist { display: flex; align-items: center; gap: 8px; }
 .lp-slab-ticks { display: flex; align-items: center; gap: 2px; }
 .lp-tick { width: 3px; height: 15px; border-radius: 1px; flex: none; }
-.lp-tick-feature { background: var(--lp-neon); }
-.lp-tick-bugfix  { background: #ff8f8f; }
-.lp-tick-improve { background: rgba(255, 255, 255, .6); }
-.lp-tick-doc     { background: #f0d193; }
-.lp-tick-initial { background: #b9e6cb; }
 .lp-tick-more { font-size: .6rem; font-weight: 700; color: rgba(255, 255, 255, .7); }
 .lp-slab-count {
   font-size: .68rem; font-weight: 700; color: rgba(255, 255, 255, .82);
@@ -556,7 +545,7 @@
 @media (max-width: 900px) {
   /* 版数・日付・件数は畳んで、名称と更新の目盛りを優先する */
   .lp-slab-face { grid-template-columns: minmax(0, 1fr) auto 22px; gap: 10px; padding: 0 11px; }
-  .lp-slab-cat, .lp-slab-date, .lp-slab-count { display: none; }
+  .lp-slab-cat, .lp-slab-date, .lp-slab-count, .lp-slab-series { display: none; }
   .lp-slab-ver { font-size: .66rem; }
 }
 @media (max-width: 560px) {
@@ -774,7 +763,7 @@
 .lp-cat-app  { background: var(--lp-green-soft); border-color: var(--lp-green-line); color: var(--lp-green); }
 .lp-cat-prg  { background: #eef1ef; border-color: #d9e0db; color: var(--lp-ink); }
 .lp-cat-doc  { background: var(--lp-gold-soft); border-color: var(--lp-gold-line); color: var(--lp-gold-dark); }
-.lp-cat-man  { background: #eaf1ec; border-color: #cfe0d5; color: var(--lp-deep); }
+.lp-cat-man  { background: #e4f1f4; border-color: #bcdbe1; color: #0b4a56; }
 
 .lp-ver {
   display: inline-block;
@@ -1559,4 +1548,140 @@
 .lp-roleswitch.is-none .lp-roleswitch-btn.is-on { background: var(--lp-ink); color: #fff; }
 .lp-listhead-users, .lp-row-head-user {
   grid-template-columns: minmax(150px, 1.3fr) 120px 100px 210px 96px 128px auto;
+}
+
+/* ============================================================
+   棚に並ぶ資料の配色
+   ・並ぶ項目には緑を使わない（緑は画面まわりのブランド色として残す）
+   ・製本布のような、彩度を落とした色だけを使う
+   ============================================================ */
+.lp-slab-app { --book: #4a5a72; }   /* アプリ：くすんだ紺 */
+.lp-slab-prg { --book: #3d4450; }   /* プログラム：濃いスレート */
+.lp-slab-doc { --book: #7d6749; }   /* 資料：くすんだ茶（クラフト紙） */
+.lp-slab-man { --book: #7a5b5f; }   /* マニュアル：くすんだ小豆 */
+
+/* 更新の目盛り：地の色に対して見分けがつく範囲で、彩度は抑える */
+.lp-tick-feature { background: #e6dcc4; }
+.lp-tick-bugfix  { background: #d4a09a; }
+.lp-tick-improve { background: #ccd1d4; }
+.lp-tick-doc     { background: #d9c294; }
+.lp-tick-initial { background: #b6c0cc; }
+
+/* 棚板と地：緑を抜いて、紙と木のような中間色にする */
+.lp-shelf {
+  background:
+    radial-gradient(120% 70% at 50% 0%, #ffffff 0%, rgba(255, 255, 255, 0) 62%),
+    #f1efea;
+  border-color: #d9d5cc;
+}
+.lp-stack { border-bottom-color: #4a4640; }
+
+/* 本らしさ：小口（紙の束）と、上下の背バンド */
+.lp-slab-edge {
+  background: repeating-linear-gradient(90deg, #f3f0e6 0 2px, #dcd7c8 2px 3px);
+}
+.lp-slab::before, .lp-slab::after {
+  content: ""; position: absolute; left: 13px; right: 0; height: 1px;
+  background: rgba(255, 255, 255, .16); pointer-events: none;
+}
+.lp-slab::before { top: 7px; }
+.lp-slab::after  { bottom: 7px; }
+
+/* 選択・ホバーは金の縁で示す（蛍光色は使わない） */
+.lp-slab:hover, .lp-slab:focus-visible {
+  box-shadow: -6px 4px 14px rgba(14, 19, 17, .28), 0 0 0 1px rgba(186, 150, 83, .8);
+}
+.lp-slab:hover .lp-slab-chev { background: rgba(255, 255, 255, .3); color: #fff; }
+.lp-slab.is-reading {
+  box-shadow: -9px 6px 20px rgba(14, 19, 17, .34), 0 0 0 2px var(--lp-gold);
+}
+.lp-slab.is-reading .lp-slab-chev { background: var(--lp-gold); color: var(--lp-ink); }
+
+/* ============================================================
+   シリーズ（関連する資料をまとめる名前）
+   ============================================================ */
+.lp-slab-series { min-width: 0; }
+.lp-seriestag {
+  display: inline-block; max-width: 100%;
+  font-size: .68rem; font-weight: 700; letter-spacing: .02em;
+  color: rgba(255, 255, 255, .92);
+  background: rgba(255, 255, 255, .14);
+  border: 1px solid rgba(255, 255, 255, .28);
+  border-radius: 4px; padding: 1px 9px;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+/* 一覧の行（白地）ではシリーズは落ち着いた枠で見せる */
+.lp-row .lp-seriestag {
+  margin-top: 4px;
+  color: var(--lp-ink-soft); background: #f2f1ec;
+  border-color: var(--lp-line-strong);
+}
+.lp-page-eyebrow .lp-seriestag { color: var(--lp-ink-soft); background: #f2f1ec; border-color: var(--paper-line); }
+.lp-seriestag-btn { font-family: inherit; cursor: pointer; }
+.lp-seriestag-btn:hover { border-color: var(--lp-gold); color: var(--lp-gold-dark); }
+
+/* 同じシリーズの資料（左ページの下） */
+.lp-mates { margin-top: 17px; padding-top: 13px; border-top: 1px solid var(--paper-line); }
+.lp-mates-label {
+  display: block; font-size: .66rem; font-weight: 700; letter-spacing: .06em;
+  color: var(--lp-ink-soft); margin-bottom: 8px;
+}
+.lp-mates-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 5px; }
+.lp-mate {
+  width: 100%; font: inherit; text-align: left; cursor: pointer;
+  display: flex; align-items: center; gap: 9px;
+  background: #fff; border: 1px solid var(--paper-line); border-radius: 6px;
+  padding: 6px 10px;
+  transition: border-color .16s var(--lp-ease), box-shadow .16s var(--lp-ease);
+}
+.lp-mate:hover { border-color: var(--lp-gold); box-shadow: 0 2px 8px rgba(14, 19, 17, .1); }
+.lp-mate-name {
+  flex: 1; min-width: 0; font-size: .8rem; font-weight: 600; color: var(--lp-ink);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.lp-mate-ver {
+  font-family: ui-monospace, Menlo, Consolas, monospace;
+  font-size: .68rem; color: var(--lp-ink-soft);
+}
+
+/* ============================================================
+   一覧の見出しで並び替える
+   ============================================================ */
+.lp-sortbtn {
+  font: inherit; font-size: inherit; font-weight: 700; letter-spacing: inherit;
+  color: #fff; background: none; border: none; cursor: pointer;
+  text-align: left; padding: 0;
+  display: inline-flex; align-items: center; gap: 4px;
+}
+.lp-sortbtn::after {
+  content: "⇅"; font-size: .8em; opacity: .45;
+}
+.lp-sortbtn:hover::after { opacity: .9; }
+.lp-sortbtn.is-sorted { color: var(--lp-gold); }
+.lp-sortbtn.is-sorted[data-dir="asc"]::after  { content: "↑"; opacity: 1; }
+.lp-sortbtn.is-sorted[data-dir="desc"]::after { content: "↓"; opacity: 1; }
+
+/* 一覧で開いている行（見開きは行の下に差し込まれる） */
+.lp-row.is-open,
+.lp-row.is-open:nth-child(even) { background: #f4f2ec; }
+.lp-row.is-open::before { transform: scaleY(1); width: 5px; background: var(--lp-gold); box-shadow: none; }
+.lp-row.is-open .lp-chev { transform: rotate(180deg); background: var(--lp-gold); color: var(--lp-ink); }
+
+/* 年表の各更新を修正するボタン */
+.lp-chr-edit {
+  font: inherit; font-size: .64rem; font-weight: 700; cursor: pointer;
+  color: var(--lp-ink-soft); background: #fff;
+  border: 1px solid var(--paper-line); border-radius: 999px;
+  padding: 1px 9px;
+  transition: color .16s var(--lp-ease), border-color .16s var(--lp-ease);
+}
+.lp-chr-edit:hover { color: var(--lp-gold-dark); border-color: var(--lp-gold); }
+.lp-chr-head .lp-chr-tag + .lp-chr-edit { margin-left: 0; }
+.lp-page-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+
+/* 絞り込み・並び替え・表示切替が増えたので、狭い画面では折り返して収める */
+@media (max-width: 720px) {
+  .lp-toolbar-right { margin-left: 0; width: 100%; }
+  .lp-toolbar-right .lp-select { flex: 1 1 150px; min-width: 0; }
+  .lp-viewswitch { margin-left: auto; }
 }

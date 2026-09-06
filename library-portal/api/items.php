@@ -12,7 +12,7 @@ if ($method === 'GET') {
     api_require_login();
 
     $items = db()->query(
-        'SELECT item_id, name, category, created_by, description, download_url, created_date
+        'SELECT item_id, name, category, series, created_by, description, download_url, created_date
            FROM lp_items WHERE is_active = 1 ORDER BY item_id'
     )->fetchAll();
 
@@ -44,6 +44,7 @@ if ($method === 'GET') {
     $historyByItem = [];
     foreach ($updates as $u) {
         $historyByItem[$u['item_id']][] = [
+            'uid'     => (int)$u['update_id'],   // 修正するときに対象を特定するための番号
             'date'    => $u['updated_on'],
             'time'    => substr((string)$u['updated_time'], 0, 5),
             'author'  => $u['author'],
@@ -62,6 +63,7 @@ if ($method === 'GET') {
             'id'          => $i['item_id'],
             'name'        => $i['name'],
             'category'    => $i['category'],
+            'series'      => $i['series'] ?? '',
             'creator'     => $i['created_by'],
             'createdAt'   => $i['created_date'],
             'downloadUrl' => $i['download_url'] ?? '',
@@ -80,6 +82,7 @@ if ($method === 'POST') {
     $id      = s($b, 'id', 20);
     $name    = s($b, 'name', 120);
     $cat     = s($b, 'category', 20);
+    $series  = s($b, 'series', 60);
     $creator = s($b, 'creator', 60);
     $desc    = s($b, 'description', 2000);
     $url     = s($b, 'downloadUrl', 500);
@@ -109,13 +112,66 @@ if ($method === 'POST') {
     }
 
     $st = db()->prepare(
-        'INSERT INTO lp_items (item_id, name, category, created_by, description, download_url, created_date)
-         VALUES (?, ?, ?, ?, ?, ?, ?)'
+        'INSERT INTO lp_items (item_id, name, category, series, created_by, description, download_url, created_date)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?)'
     );
-    $st->execute([$id, $name, $cat, $creator, $desc, $url !== '' ? $url : null, $date]);
+    $st->execute([$id, $name, $cat, $series !== '' ? $series : null, $creator, $desc,
+                  $url !== '' ? $url : null, $date]);
     audit('item.create', $id, $name);
 
     json_out(['ok' => true, 'id' => $id], 201);
+}
+
+/* ------------------------------------------------------------
+   登録済みアイテムの修正（管理IDは変更しない）
+   ------------------------------------------------------------ */
+if ($method === 'PUT') {
+    api_require_admin();
+    api_verify_csrf();
+
+    $b = json_body();
+    $id      = s($b, 'id', 20);
+    $name    = s($b, 'name', 120);
+    $cat     = s($b, 'category', 20);
+    $series  = s($b, 'series', 60);
+    $creator = s($b, 'creator', 60);
+    $desc    = s($b, 'description', 2000);
+    $url     = s($b, 'downloadUrl', 500);
+    $date    = s($b, 'createdAt', 10);
+
+    $allowedCat = ['アプリ', 'プログラム', '資料', 'マニュアル'];
+    if ($id === '' || !preg_match('/^[A-Za-z0-9_-]{1,20}$/', $id)) {
+        json_error('管理IDが不正です。');
+    }
+    if ($name === '' || $creator === '') {
+        json_error('名称と作成者は必須です。');
+    }
+    if (!in_array($cat, $allowedCat, true)) {
+        json_error('種別が不正です。');
+    }
+    if (!valid_date($date)) {
+        json_error('作成日が不正です。');
+    }
+    if (!valid_url($url)) {
+        json_error('URLは http:// または https:// で入力してください。');
+    }
+
+    $st = db()->prepare(
+        'UPDATE lp_items
+            SET name = ?, category = ?, series = ?, created_by = ?,
+                description = ?, download_url = ?, created_date = ?
+          WHERE item_id = ?'
+    );
+    $st->execute([$name, $cat, $series !== '' ? $series : null, $creator, $desc,
+                  $url !== '' ? $url : null, $date, $id]);
+    if ($st->rowCount() === 0) {
+        $exists = db()->prepare('SELECT 1 FROM lp_items WHERE item_id = ?');
+        $exists->execute([$id]);
+        if (!$exists->fetchColumn()) json_error('対象のアイテムが見つかりません。', 404);
+    }
+    audit('item.update', $id, $name);
+
+    json_out(['ok' => true, 'id' => $id]);
 }
 
 json_error('許可されていないメソッドです。', 405);

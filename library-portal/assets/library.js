@@ -45,8 +45,7 @@ const CAT_ICON = {
 
 /* ---------- 状態 ---------- */
 let items = [];
-const openIds = new Set();
-const state = { q: '', category: '', sort: 'updated_desc', view: 'shelf' };
+const state = { q: '', category: '', series: '', sort: 'updated_desc', view: 'shelf' };
 let readingId = null;                          // いま開いている本（本棚ビュー）
 
 /* ---------- ユーティリティ ---------- */
@@ -144,31 +143,55 @@ function historyMatches(h, q) {
     .join(' ').toLowerCase().includes(q);
 }
 
+/* 並び替えできる項目。key は比較に使う値、type は比較のしかた */
+const SORTS = {
+  updated:  { label: '最終更新',  type: 'text', key: (it) => { const h = latest(it); return h ? `${h.date} ${h.time}` : ''; } },
+  name:     { label: '名称',      type: 'ja',   key: (it) => it.name },
+  category: { label: '種別',      type: 'ja',   key: (it) => it.category },
+  series:   { label: 'シリーズ',  type: 'ja',   key: (it) => it.series || '' },
+  creator:  { label: '作成者',    type: 'ja',   key: (it) => it.creator },
+  count:    { label: '更新回数',  type: 'num',  key: (it) => it.history.length },
+  version:  { label: '最新Ver',   type: 'ja',   key: (it) => { const h = latest(it); return (h && h.version) || ''; } },
+  created:  { label: '作成日',    type: 'text', key: (it) => String(it.createdAt) }
+};
+
+/** 'updated_desc' のような値を { field, dir } に分ける */
+function parseSort(value) {
+  const m = String(value).match(/^(\w+)_(asc|desc)$/);
+  if (!m || !SORTS[m[1]]) return { field: 'updated', dir: 'desc' };
+  return { field: m[1], dir: m[2] };
+}
+
 function visibleItems() {
   const q = state.q.trim().toLowerCase();
   const list = items.filter((it) => {
     if (state.category && it.category !== state.category) return false;
+    if (state.series && (it.series || '') !== state.series) return false;
     if (!q) return true;
-    const base = [it.id, it.name, it.category, it.creator, it.description].join(' ').toLowerCase();
+    const base = [it.id, it.name, it.category, it.series, it.creator, it.description]
+      .join(' ').toLowerCase();
     return base.includes(q) || it.history.some((h) => historyMatches(h, q));
   });
 
-  const key = (it) => { const h = latest(it); return h ? `${h.date} ${h.time}` : ''; };
+  const { field, dir } = parseSort(state.sort);
+  const spec = SORTS[field];
+  const sign = dir === 'asc' ? 1 : -1;
   list.sort((a, b) => {
-    switch (state.sort) {
-      case 'updated_asc': return key(a).localeCompare(key(b));
-      case 'created_desc': return String(b.createdAt).localeCompare(String(a.createdAt));
-      case 'name_asc': return a.name.localeCompare(b.name, 'ja');
-      default: return key(b).localeCompare(key(a));
-    }
+    const x = spec.key(a);
+    const y = spec.key(b);
+    let d;
+    if (spec.type === 'num') d = x - y;
+    else if (spec.type === 'ja') d = String(x).localeCompare(String(y), 'ja');
+    else d = String(x).localeCompare(String(y));
+    // 同じ値のときは名称順にして、並びがぶれないようにする
+    return d !== 0 ? d * sign : a.name.localeCompare(b.name, 'ja');
   });
   return list;
 }
 
 /* ---------- 更新履歴 ----------
    「何を、どのファイルで直して、最新Verに至ったのか」を軸に組み立てる。
-   ・幹（縦線）と枝は CSS の罫線で描く（library.css の .lp-hist / .lp-files）
-   ・--d には上から数えた表示順を入れ、開いたときに順に描かれるようにする   */
+   本棚・一覧のどちらから開いても、同じ見開き（spreadHtml）を使う   */
 
 /** files は旧形式（"パス : 内容" の文字列）と新形式（{path, note}）の両方を受ける */
 function normFiles(h) {
@@ -242,97 +265,6 @@ function fileTable(files, oldIdx, rounds, total) {
 }
 
 /** 更新の記録（新しい順に、幹でつないだ一本の流れとして並べる） */
-function historyList(it) {
-  if (!it.history.length) {
-    return '<p class="lp-hist-empty">更新履歴はまだ登録されていません。</p>';
-  }
-
-  const { rounds, total } = fileRounds(it);
-  const n = it.history.length;
-
-  const rows = it.history.map((e, i) => {
-    const oldIdx = n - 1 - i;                      // 古い順に数えたときの位置
-    const prev = it.history[i + 1] || null;        // ひとつ前（より古い）の更新
-    const files = normFiles(e);
-    const d = Math.min(i, 12);                     // 件数が多くても待ち時間が延びないよう上限
-
-    // 同じ版のままの修正では「→」を出さない（v2.3.0 → v2.3.0 と見えてしまうため）
-    const from = prev && prev.version !== e.version ? prev.version : '';
-    const jump = e.version
-      ? `<span class="lp-jump">${from
-            ? `<span class="lp-jump-from">${esc(from)}</span><span class="lp-jump-arrow" aria-hidden="true">${ICON_ARROW}</span>`
-            : ''}<span class="lp-jump-to">${esc(e.version)}</span></span>`
-      : '';
-
-    const tags =
-      (i === 0 ? '<span class="lp-hist-tag lp-hist-tag-now">最新</span>' : '') +
-      (prev ? '' : '<span class="lp-hist-tag lp-hist-tag-start">出発点</span>');
-
-    return `
-      <li class="lp-hist-item${i === 0 ? ' is-latest' : ''}${prev ? '' : ' is-first'}" style="--d:${d}">
-        <span class="lp-hist-no" aria-hidden="true">${oldIdx + 1}</span>
-        <div class="lp-hist-card">
-          <div class="lp-hist-head">
-            <span class="lp-hist-when">${fmtDate(e.date)}<span class="lp-hist-time">${esc(e.time)}</span></span>
-            ${kindBadge(e.kind)}
-            ${jump}
-            ${tags ? `<span class="lp-hist-tags">${tags}</span>` : ''}
-          </div>
-
-          <p class="lp-hist-what">${esc(e.summary)}</p>
-
-          <div class="lp-hist-meta">
-            <span class="lp-hist-chip"><span>対象機能</span>${esc(e.target)}</span>
-            <span class="lp-hist-chip"><span>対応者</span>${esc(e.author)}</span>
-            ${e.ticket ? `<span class="lp-hist-chip"><span>管理番号</span>${esc(e.ticket)}</span>` : ''}
-          </div>
-
-          <div class="lp-hist-files">
-            <span class="lp-hist-files-cap">実際に直したプログラム・ファイル（${files.length} 件）</span>
-            ${fileTable(files, oldIdx, rounds, total)}
-          </div>
-        </div>
-      </li>`;
-  }).join('');
-
-  return `<ol class="lp-hist">${rows}</ol>`;
-}
-
-/** パネル冒頭：このアイテムの最新Verがどうなっているか */
-function nowCard(it) {
-  const h = latest(it);
-  const url = safeUrl(it.downloadUrl);
-  const fileCount = it.history.reduce((sum, e) => sum + normFiles(e).length, 0);
-  const touched = new Set();
-  it.history.forEach((e) => normFiles(e).forEach((f) => touched.add(f.path)));
-
-  return `
-    <div class="lp-now">
-      <div class="lp-now-head">
-        <span class="lp-now-label">最新Ver</span>
-        <span class="lp-now-ver">${h && h.version ? esc(h.version) : '版数なし'}</span>
-        <span class="lp-now-when">${h
-          ? `${fmtDate(h.date)} ${esc(h.time)} の更新まで反映`
-          : 'まだ更新は登録されていません'}</span>
-        ${url ? `<a class="lp-dl" href="${esc(url)}" target="_blank" rel="noopener">${ICON_EXTERNAL}<span>開く</span></a>` : ''}
-      </div>
-
-      <div class="lp-now-body">
-        ${it.description ? `<p class="lp-now-desc">${esc(it.description)}</p>` : ''}
-
-        <dl class="lp-now-facts">
-          <div><dt>公開開始</dt><dd>${fmtDate(it.createdAt)}</dd></div>
-          <div><dt>これまでの更新</dt><dd>${it.history.length} 回</dd></div>
-          <div><dt>直したファイル</dt><dd>延べ ${fileCount} 件 ／ ${touched.size} 種類</dd></div>
-          <div><dt>作成者</dt><dd>${esc(it.creator)}</dd></div>
-          <div><dt>最終対応者</dt><dd>${h ? esc(h.author) : '—'}</dd></div>
-        </dl>
-
-        ${url ? `<p class="lp-dl-url">${esc(url)}</p>` : ''}
-      </div>
-    </div>`;
-}
-
 /** 一覧を開かなくても更新の推移が一目で分かる、区分色の小さな点の並び（古い→新しい） */
 function historyGlance(it) {
   const n = it.history.length;
@@ -392,6 +324,8 @@ function slabHtml(it) {
           <span class="lp-slab-name">${esc(it.name)}</span>
           <span class="lp-slab-by">${esc(it.id)} ／ ${esc(it.creator)}</span>
         </span>
+        <span class="lp-slab-series">${it.series
+          ? `<span class="lp-seriestag">${esc(it.series)}</span>` : ''}</span>
         <span class="lp-slab-hist">
           ${hidden > 0 ? `<span class="lp-tick-more">+${hidden}</span>` : ''}
           <span class="lp-slab-ticks" aria-hidden="true">${ticks}</span>
@@ -457,6 +391,9 @@ function chronicle(it) {
               ${jump}
               ${i === 0 ? '<span class="lp-chr-tag">最新</span>' : ''}
               ${prev ? '' : '<span class="lp-chr-tag lp-chr-tag-start">出発点</span>'}
+              ${CAN_EDIT && e.uid ? `<button class="lp-chr-edit" type="button"
+                  data-edit-update="${esc(e.uid)}" data-item="${esc(it.id)}"
+                  title="この更新内容を修正">✎ 修正</button>` : ''}
             </div>
             <p class="lp-chr-what">${esc(e.summary)}</p>
             <div class="lp-chr-meta">
@@ -482,6 +419,33 @@ function chronicle(it) {
   return `<div class="lp-chr">${blocks}</div>`;
 }
 
+/** 同じシリーズの資料（アプリとそのマニュアル・資料など）を並べる */
+function siblingsBlock(it) {
+  if (!it.series) return '';
+  const mates = items.filter((x) => x.series === it.series && x.id !== it.id);
+  if (!mates.length) return '';
+
+  const rows = mates
+    .sort((a, b) => a.category.localeCompare(b.category, 'ja') || a.name.localeCompare(b.name, 'ja'))
+    .map((x) => {
+      const h = latest(x);
+      return `
+        <li>
+          <button class="lp-mate" type="button" data-book="${esc(x.id)}">
+            <span class="lp-cat lp-cat-${CAT_CLASS[x.category] || 'prg'}">${CAT_ICON[x.category] || ''}${esc(x.category)}</span>
+            <span class="lp-mate-name">${esc(x.name)}</span>
+            <span class="lp-mate-ver">${h && h.version ? esc(h.version) : '—'}</span>
+          </button>
+        </li>`;
+    }).join('');
+
+  return `
+    <div class="lp-mates">
+      <span class="lp-mates-label">同じシリーズ（${esc(it.series)}）</span>
+      <ul class="lp-mates-list">${rows}</ul>
+    </div>`;
+}
+
 /** 左ページ：この資料の最新Verがどうなっているか */
 function spreadLeft(it) {
   const h = latest(it);
@@ -496,6 +460,8 @@ function spreadLeft(it) {
         <p class="lp-page-eyebrow">
           <span class="lp-cat lp-cat-${CAT_CLASS[it.category] || 'prg'}">${CAT_ICON[it.category] || ''}${esc(it.category)}</span>
           <span class="lp-page-id">${esc(it.id)}</span>
+          ${it.series ? `<button class="lp-seriestag lp-seriestag-btn" type="button"
+              data-series="${esc(it.series)}" title="このシリーズだけを表示">${esc(it.series)}</button>` : ''}
         </p>
 
         <h2 class="lp-page-title">${esc(it.name)}</h2>
@@ -524,9 +490,11 @@ function spreadLeft(it) {
         </dl>
 
         ${versionRoad(it)}
+        ${siblingsBlock(it)}
 
         ${CAN_EDIT ? `<p class="lp-page-actions">
           <button class="lp-btn lp-btn-ghost lp-btn-sm" type="button" data-add="${esc(it.id)}">＋ この資料の更新を登録</button>
+          <button class="lp-btn lp-btn-ghost lp-btn-sm" type="button" data-edit-item="${esc(it.id)}">✎ この資料を修正</button>
         </p>` : ''}
       </div>
       <span class="lp-folio">${esc(it.id)}</span>
@@ -549,6 +517,13 @@ function spreadHtml(it) {
     </div>`;
 }
 
+/** 一覧・棚に並んでいる項目だけを返す（見開きの中のボタンは除く） */
+function listBooks() {
+  const el = $('list');
+  if (!el) return [];
+  return [...el.querySelectorAll('[data-book]')].filter((b) => !b.closest('#spread'));
+}
+
 /** 本を開く・閉じる */
 function openBook(id) {
   const spread = $('spread');
@@ -560,16 +535,21 @@ function openBook(id) {
   if (!it) return;
 
   readingId = id;
-  let slab = null;
-  document.querySelectorAll('.lp-slab').forEach((b) => {
+  let target = null;
+  // 見開きは一覧の中に差し込まれ、その中にも data-book のボタン（同じシリーズの資料）が
+  // あるため、差し込み先は見開きの外に並んでいるものだけから探す
+  listBooks().forEach((b) => {
     const on = b.dataset.book === id;
-    if (on) slab = b;
+    if (on) target = b;
     b.classList.toggle('is-reading', on);
     b.setAttribute('aria-expanded', String(on));
+    // 一覧では行そのものに開いている印を付ける
+    const row = b.closest('.lp-row');
+    if (row) row.classList.toggle('is-open', on);
   });
 
-  // 選んだ1枚のすぐ下に開く（棚のどこを開いているかが分かるように）
-  if (slab) slab.insertAdjacentElement('afterend', spread);
+  // 選んだものの直下に開く（どれを開いているかが分かるように）
+  if (target) (target.closest('.lp-row') || target).insertAdjacentElement('afterend', spread);
 
   // いったん閉じてから開き直すと、ページがめくれる動きが必ず再生される
   spread.classList.remove('is-open');
@@ -585,9 +565,11 @@ function openBook(id) {
 function closeBook() {
   const spread = $('spread');
   readingId = null;
-  document.querySelectorAll('.lp-slab').forEach((b) => {
+  listBooks().forEach((b) => {
     b.classList.remove('is-reading');
     b.setAttribute('aria-expanded', 'false');
+    const row = b.closest('.lp-row');
+    if (row) row.classList.remove('is-open');
   });
   if (!spread) return;
   spread.classList.remove('is-open');
@@ -597,17 +579,18 @@ function closeBook() {
 /* ---------- 描画 ---------- */
 function rowHtml(it) {
   const h = latest(it);
-  const open = openIds.has(it.id);
+  const open = readingId === it.id;
   const url = safeUrl(it.downloadUrl);
 
   return `
   <article class="lp-row${open ? ' is-open' : ''}" data-id="${esc(it.id)}">
-    <div class="lp-row-head" role="button" tabindex="0" data-toggle="${esc(it.id)}"
-         aria-expanded="${open}" aria-controls="panel-${esc(it.id)}">
+    <div class="lp-row-head" role="button" tabindex="0" data-book="${esc(it.id)}"
+         aria-expanded="${open}" aria-controls="spread">
       <span><span class="lp-cat lp-cat-${CAT_CLASS[it.category] || 'prg'}">${CAT_ICON[it.category] || ''}${esc(it.category)}</span></span>
       <span>
         <span class="lp-row-name">${esc(it.name)}</span>
         <span class="lp-row-id">${esc(it.id)} ／ ${esc(it.creator)}</span>
+        ${it.series ? `<span class="lp-seriestag">${esc(it.series)}</span>` : ''}
         ${historyGlance(it)}
       </span>
       <span class="lp-row-date">${h ? fmtDate(h.date) : '—'}<span class="lp-row-time">${h ? esc(h.time) : ''}</span>
@@ -625,24 +608,6 @@ function rowHtml(it) {
       <span class="lp-chev" aria-hidden="true">${ICON_CHEVRON}</span>
     </div>
 
-    <div class="lp-panel" id="panel-${esc(it.id)}" role="region">
-      <div class="lp-panel-inner">
-        <div class="lp-panel-body">
-          ${nowCard(it)}
-          ${versionRoad(it)}
-
-          <h3 class="lp-panel-title">
-            ここに至るまでの更新
-            <span class="lp-panel-title-sub">新しい順／${it.history.length} 件</span>
-          </h3>
-          ${historyList(it)}
-
-          ${CAN_EDIT ? `<div class="lp-panel-actions">
-            <button class="lp-btn lp-btn-ghost lp-btn-sm" type="button" data-add="${esc(it.id)}">＋ このアイテムの更新を登録</button>
-          </div>` : ''}
-        </div>
-      </div>
-    </div>
   </article>`;
 }
 
@@ -651,20 +616,41 @@ function render() {
   const shelf = state.view === 'shelf';
   const listEl = $('list');
 
-  // 見開きは棚の中に差し込まれているため、描き直す前にいったん外へ出す
+  // 見開きは一覧・棚の中に差し込まれているため、描き直す前にいったん外へ出す
   const spread = $('spread');
-  if (spread && spread.parentElement === listEl.querySelector('.lp-stack')) {
-    listEl.insertAdjacentElement('afterend', spread);
-  }
+  if (spread && listEl.contains(spread)) listEl.insertAdjacentElement('afterend', spread);
 
   listEl.className = shelf ? 'lp-shelf' : 'lp-list';
   listEl.innerHTML = shelf ? shelfHtml(list) : list.map(rowHtml).join('');
 
   const head = $('listHead');
-  if (head) head.hidden = shelf;
+  if (head) {
+    head.hidden = shelf;
+    const { field, dir } = parseSort(state.sort);
+    head.querySelectorAll('[data-sort]').forEach((b) => {
+      const on = b.dataset.sort === field;
+      b.classList.toggle('is-sorted', on);
+      b.dataset.dir = on ? dir : '';
+      b.setAttribute('aria-sort', on ? (dir === 'asc' ? 'ascending' : 'descending') : 'none');
+    });
+  }
 
-  // 絞り込みで棚から消えた本が開いたままにならないようにする
-  if (shelf && readingId && !list.some((it) => it.id === readingId)) closeBook();
+  // 絞り込みで消えたものが開いたままにならないようにする。
+  // 残っていれば、描き直した要素の下に見開きを戻す
+  if (readingId) {
+    if (!list.some((it) => it.id === readingId)) {
+      closeBook();
+    } else if (spread && !spread.hidden) {
+      const target = listEl.querySelector(`[data-book="${CSS.escape(readingId)}"]`);
+      if (target) {
+        (target.closest('.lp-row') || target).insertAdjacentElement('afterend', spread);
+        target.classList.add('is-reading');
+        target.setAttribute('aria-expanded', 'true');
+        const row = target.closest('.lp-row');
+        if (row) row.classList.add('is-open');
+      }
+    }
+  }
 
   $('listEmpty').hidden = list.length > 0;
   $('statItems').textContent = items.length;
@@ -682,6 +668,35 @@ function setView(view) {
   render();
 }
 
+/** シリーズの絞り込み欄（登録されているシリーズだけを並べる） */
+function renderSeries() {
+  const sel = $('seriesSelect');
+  if (!sel) return;
+  const names = [...new Set(items.map((i) => i.series).filter(Boolean))]
+    .sort((a, b) => a.localeCompare(b, 'ja'));
+  if (!names.includes(state.series)) state.series = '';
+  sel.hidden = names.length === 0;
+  sel.innerHTML = ['<option value="">すべてのシリーズ</option>']
+    .concat(names.map((n) =>
+      `<option value="${esc(n)}"${state.series === n ? ' selected' : ''}>${esc(n)}</option>`))
+    .join('');
+}
+
+/** 並び替えの選択肢（項目 × 昇順・降順） */
+function renderSortOptions() {
+  const sel = $('sortSelect');
+  if (!sel) return;
+  const dirLabel = { updated: ['古い順', '新しい順'], created: ['古い順', '新しい順'], count: ['少ない順', '多い順'] };
+  const opts = [];
+  Object.entries(SORTS).forEach(([field, spec]) => {
+    const [asc, desc] = dirLabel[field] || ['昇順', '降順'];
+    opts.push(`<option value="${field}_desc">${spec.label}：${desc}</option>`);
+    opts.push(`<option value="${field}_asc">${spec.label}：${asc}</option>`);
+  });
+  sel.innerHTML = opts.join('');
+  sel.value = state.sort;
+}
+
 function renderChips() {
   const cats = [...new Set(items.map((i) => i.category))].sort((a, b) => a.localeCompare(b, 'ja'));
   $('chipRow').innerHTML =
@@ -696,16 +711,6 @@ function renderItemOptions() {
   if (!sel) return;
   sel.innerHTML = items
     .map((it) => `<option value="${esc(it.id)}">${esc(it.id)}：${esc(it.name)}</option>`).join('');
-}
-
-/* ---------- アコーディオン ---------- */
-function toggleRow(id) {
-  const row = document.querySelector(`.lp-row[data-id="${CSS.escape(id)}"]`);
-  if (!row) return;
-  const open = !openIds.has(id);
-  if (open) openIds.add(id); else openIds.delete(id);
-  row.classList.toggle('is-open', open);
-  row.querySelector('.lp-row-head').setAttribute('aria-expanded', String(open));
 }
 
 /* ---------- モーダル共通 ---------- */
@@ -726,20 +731,49 @@ function formError(id, message) {
 }
 
 /* ---------- 更新登録 ---------- */
-function openUpdateModal(itemId) {
+/** 更新履歴の登録・修正フォームを開く（uid を渡すとその1件の修正になる） */
+function openUpdateModal(itemId, uid) {
   if (!CAN_EDIT) return;
   renderItemOptions();
-  if (itemId) $('fItem').value = itemId;
-  const now = new Date();
-  const pad = (n) => String(n).padStart(2, '0');
-  $('fDate').value = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`;
-  $('fTime').value = `${pad(now.getHours())}:${pad(now.getMinutes())}`;
+  const form = $('updateForm');
+  const it = itemId ? items.find((x) => x.id === itemId) : null;
+  const entry = (it && uid) ? it.history.find((h) => h.uid === Number(uid)) : null;
+
+  form.dataset.mode = entry ? 'edit' : 'create';
+  form.dataset.uid = entry ? String(entry.uid) : '';
+  $('modalTitle').textContent = entry ? '更新内容の修正' : '更新内容の登録';
+  $('btnUpdateSubmit').textContent = entry ? '修正を保存' : '登録する';
+
+  if (entry) {
+    $('fItem').value = itemId;
+    $('fDate').value = entry.date;
+    $('fTime').value = entry.time;
+    $('fKind').value = entry.kind;
+    $('fAuthor').value = entry.author;
+    $('fVersion').value = entry.version || '';
+    $('fTicket').value = entry.ticket || '';
+    $('fSummary').value = entry.summary;
+    $('fTarget').value = entry.target;
+    $('fFiles').value = normFiles(entry)
+      .map((f) => (f.note ? `${f.path} : ${f.note}` : f.path)).join('\n');
+    $('fUrl').value = '';
+  } else {
+    form.reset();
+    if (itemId) $('fItem').value = itemId;
+    const now = new Date();
+    const pad = (n) => String(n).padStart(2, '0');
+    $('fDate').value = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`;
+    $('fTime').value = `${pad(now.getHours())}:${pad(now.getMinutes())}`;
+  }
+
   showModal($('updateModal'));
   $('fSummary').focus();
 }
 
 async function submitUpdate(ev) {
   ev.preventDefault();
+  const form = $('updateForm');
+  const edit = form.dataset.mode === 'edit';
   const itemId = $('fItem').value;
   const payload = {
     itemId,
@@ -755,53 +789,96 @@ async function submitUpdate(ev) {
     downloadUrl: $('fUrl').value.trim()
   };
 
+  if (edit) payload.uid = Number(form.dataset.uid);
+
   try {
-    await apiSend('updates.php', 'POST', payload);
+    await apiSend('updates.php', edit ? 'PUT' : 'POST', payload);
     await loadItems();
-    openIds.add(itemId);
+    renderSeries();
     renderChips();
     render();
-    // 開いていた本は、登録した内容を反映して開き直す
-    if (state.view === 'shelf') { readingId = null; openBook(itemId); }
+    // 開いていたものは、保存した内容を反映して開き直す
+    readingId = null;
+    openBook(itemId);
     hideModals();
-    $('updateForm').reset();
-    toast('更新履歴を登録しました');
+    form.reset();
+    toast(edit ? '更新履歴を修正しました' : '更新履歴を登録しました');
   } catch (e) {
-    formError('updateError', e.message || '登録に失敗しました。');
+    formError('updateError', e.message || (edit ? '修正' : '登録') + 'に失敗しました。');
   }
 }
 
 /* ---------- アイテム登録 ---------- */
-function openItemModal() {
+/** シリーズ名の入力候補を、登録済みのものから作る */
+function fillSeriesList() {
+  const list = $('seriesList');
+  if (!list) return;
+  const names = [...new Set(items.map((i) => i.series).filter(Boolean))]
+    .sort((a, b) => a.localeCompare(b, 'ja'));
+  list.innerHTML = names.map((n) => `<option value="${esc(n)}"></option>`).join('');
+}
+
+/** アイテムの登録・修正フォームを開く（id を渡すと修正になる） */
+function openItemModal(id) {
   if (!CAN_EDIT) return;
-  const now = new Date();
-  const pad = (n) => String(n).padStart(2, '0');
-  $('iCreated').value = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`;
+  const form = $('itemForm');
+  const it = id ? items.find((x) => x.id === id) : null;
+  fillSeriesList();
+
+  form.dataset.mode = it ? 'edit' : 'create';
+  form.dataset.id = it ? it.id : '';
+  $('itemModalTitle').textContent = it ? 'アイテムの修正' : 'アイテムの新規登録';
+  $('btnItemSubmit').textContent = it ? '修正を保存' : '登録する';
+  // 管理IDは他の記録とのつながりを保つため、修正では変更させない
+  $('iId').readOnly = !!it;
+
+  if (it) {
+    $('iId').value = it.id;
+    $('iName').value = it.name;
+    $('iCategory').value = it.category;
+    $('iSeries').value = it.series || '';
+    $('iCreator').value = it.creator;
+    $('iCreated').value = it.createdAt || '';
+    $('iDesc').value = it.description || '';
+    $('iUrl').value = it.downloadUrl || '';
+  } else {
+    form.reset();
+    const now = new Date();
+    const pad = (n) => String(n).padStart(2, '0');
+    $('iCreated').value = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`;
+  }
+
   showModal($('itemModal'));
-  $('iId').focus();
+  (it ? $('iName') : $('iId')).focus();
 }
 
 async function submitItem(ev) {
   ev.preventDefault();
+  const form = $('itemForm');
+  const edit = form.dataset.mode === 'edit';
   const payload = {
-    id: $('iId').value.trim(),
+    id: edit ? form.dataset.id : $('iId').value.trim(),
     name: $('iName').value.trim(),
     category: $('iCategory').value,
+    series: $('iSeries').value.trim(),
     creator: $('iCreator').value.trim(),
     createdAt: $('iCreated').value,
     description: $('iDesc').value.trim(),
     downloadUrl: $('iUrl').value.trim()
   };
   try {
-    await apiSend('items.php', 'POST', payload);
+    await apiSend('items.php', edit ? 'PUT' : 'POST', payload);
     await loadItems();
+    renderSeries();
     renderChips();
     render();
+    // 修正した内容がすぐ見えるよう、開いていたものは開き直す
+    if (edit && readingId === payload.id) { readingId = null; openBook(payload.id); }
     hideModals();
-    $('itemForm').reset();
-    toast('アイテムを登録しました');
+    form.reset();
+    toast(edit ? 'アイテムを修正しました' : 'アイテムを登録しました');
   } catch (e) {
-    formError('itemError', e.message || '登録に失敗しました。');
+    formError('itemError', e.message || (edit ? '修正' : '登録') + 'に失敗しました。');
   }
 }
 
@@ -860,12 +937,29 @@ async function init() {
   document.querySelectorAll('[data-view]').forEach((b) =>
     b.classList.toggle('is-on', b.dataset.view === state.view));
 
+  renderSortOptions();
+  renderSeries();
   renderChips();
   render();
   checkStylesLoaded();
 
   $('searchInput').addEventListener('input', (e) => { state.q = e.target.value; render(); });
   $('sortSelect').addEventListener('change', (e) => { state.sort = e.target.value; render(); });
+
+  const seriesSel = $('seriesSelect');
+  if (seriesSel) seriesSel.addEventListener('change', (e) => { state.series = e.target.value; render(); });
+
+  // 一覧の見出しをクリックして並び替える（同じ項目なら昇順・降順を入れ替える）
+  const listHead = $('listHead');
+  if (listHead) listHead.addEventListener('click', (e) => {
+    const btn = e.target.closest('[data-sort]');
+    if (!btn) return;
+    const { field, dir } = parseSort(state.sort);
+    const next = btn.dataset.sort === field && dir === 'desc' ? 'asc' : 'desc';
+    state.sort = `${btn.dataset.sort}_${next}`;
+    renderSortOptions();
+    render();
+  });
 
   document.querySelectorAll('[data-view]').forEach((b) =>
     b.addEventListener('click', () => setView(b.dataset.view)));
@@ -885,13 +979,30 @@ async function init() {
     if (book) { openBook(book.dataset.book); return; }
     const add = e.target.closest('[data-add]');
     if (add) { openUpdateModal(add.dataset.add); return; }
-    const head = e.target.closest('[data-toggle]');
-    if (head) toggleRow(head.dataset.toggle);
   });
 
   // 見開きの中の操作（閉じる／更新を登録）
   $('spread').addEventListener('click', (e) => {
+    // 見開きは一覧の中に差し込まれているため、ここで処理したクリックは
+    // 上位（#list）へ伝えない。伝わると同じ操作が二重に走ってしまう
+    if (e.target.closest('[data-close-spread], [data-series], [data-edit-item], [data-edit-update], [data-book], [data-add]')) {
+      e.stopPropagation();
+    }
     if (e.target.closest('[data-close-spread]')) { closeBook(); return; }
+    const ser = e.target.closest('[data-series]');
+    if (ser) {
+      state.series = ser.dataset.series;
+      renderSeries();
+      closeBook();
+      render();
+      return;
+    }
+    const editItem = e.target.closest('[data-edit-item]');
+    if (editItem) { openItemModal(editItem.dataset.editItem); return; }
+    const editUp = e.target.closest('[data-edit-update]');
+    if (editUp) { openUpdateModal(editUp.dataset.item, editUp.dataset.editUpdate); return; }
+    const mate = e.target.closest('[data-book]');
+    if (mate) { openBook(mate.dataset.book); return; }
     const add = e.target.closest('[data-add]');
     if (add) openUpdateModal(add.dataset.add);
   });
@@ -900,16 +1011,16 @@ async function init() {
   $('list').addEventListener('keydown', (e) => {
     if (e.key !== 'Enter' && e.key !== ' ') return;
     if (e.target.closest('.lp-url-link')) return;    // リンク自体のキー操作は既定の動作に任せる
-    const head = e.target.closest('[data-toggle]');
+    const head = e.target.closest('[data-book]');
     if (!head) return;
     e.preventDefault();
-    toggleRow(head.dataset.toggle);
+    openBook(head.dataset.book);
   });
 
   // 以下は index.php（ログイン後の画面）にのみ存在する要素
   const bind = (id, ev, fn) => { const el = $(id); if (el) el.addEventListener(ev, fn); };
   bind('btnNewUpdate', 'click', () => openUpdateModal());
-  bind('btnNewItem', 'click', openItemModal);
+  bind('btnNewItem', 'click', () => openItemModal());
   bind('btnCloseModal', 'click', hideModals);
   bind('btnCancel', 'click', hideModals);
   bind('btnCloseItemModal', 'click', hideModals);

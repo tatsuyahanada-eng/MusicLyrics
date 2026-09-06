@@ -8,7 +8,7 @@
   <link rel="icon" type="image/png" sizes="16x16" href="assets/favicon-16.png?v=6">
   <link rel="apple-touch-icon" href="assets/icon-192.png?v=6">
   <meta name="theme-color" content="#007a33">
-  <link rel="stylesheet" href="assets/library.css?v=19">
+  <link rel="stylesheet" href="assets/library.css?v=20">
 </head>
 <body class="lp-body">
 
@@ -43,12 +43,8 @@
       </div>
       <div class="lp-chips" id="chipRow" role="group" aria-label="種別で絞り込み"></div>
       <div class="lp-toolbar-right">
-        <select id="sortSelect" class="lp-select" aria-label="並び替え">
-          <option value="updated_desc">更新が新しい順</option>
-          <option value="updated_asc">更新が古い順</option>
-          <option value="created_desc">作成日が新しい順</option>
-          <option value="name_asc">名称順</option>
-        </select>
+        <select id="seriesSelect" class="lp-select" aria-label="シリーズで絞り込み" hidden></select>
+        <select id="sortSelect" class="lp-select" aria-label="並び替え"></select>
         <div class="lp-viewswitch" role="group" aria-label="表示の切り替え">
           <button class="lp-viewbtn" type="button" data-view="shelf">本棚</button>
           <button class="lp-viewbtn" type="button" data-view="list">一覧</button>
@@ -56,9 +52,13 @@
       </div>
     </div>
 
-    <div class="lp-listhead" id="listHead" aria-hidden="true" hidden>
-      <span>種別</span><span>名称</span><span>最終更新</span>
-      <span>最新の更新内容</span><span>作成者</span><span>URL</span><span></span>
+    <div class="lp-listhead" id="listHead" hidden>
+      <button class="lp-sortbtn" type="button" data-sort="category">種別</button>
+      <button class="lp-sortbtn" type="button" data-sort="name">名称</button>
+      <button class="lp-sortbtn" type="button" data-sort="updated">最終更新</button>
+      <span>最新の更新内容</span>
+      <button class="lp-sortbtn" type="button" data-sort="creator">作成者</button>
+      <span>URL</span><span></span>
     </div>
 
     <div id="list" class="lp-list"></div>
@@ -78,6 +78,6 @@
   <div id="toast" class="lp-toast" hidden></div>
 
   <script src="assets/sample-data.js?v=1"></script>
-  <script src="assets/library.js?v=19"></script>
+  <script src="assets/library.js?v=20"></script>
 </body>
 </html>

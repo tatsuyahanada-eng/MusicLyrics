@@ -48,6 +48,7 @@ CREATE TABLE IF NOT EXISTS lp_items (
   item_id        VARCHAR(20)  NOT NULL COMMENT '管理ID（例：APP-001）',
   name           VARCHAR(120) NOT NULL COMMENT '名称',
   category       VARCHAR(20)  NOT NULL COMMENT 'アプリ / プログラム / 資料 / マニュアル',
+  series         VARCHAR(60)      NULL COMMENT 'シリーズ（関連する資料をまとめる名前）',
   created_by     VARCHAR(60)  NOT NULL COMMENT '作成者',
   description    TEXT             NULL COMMENT '説明文',
   download_url   VARCHAR(500)     NULL COMMENT 'アプリの入口となるURL',
@@ -57,6 +58,7 @@ CREATE TABLE IF NOT EXISTS lp_items (
   updated_at     DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   PRIMARY KEY (item_id),
   KEY idx_items_category (category, is_active),
+  KEY idx_items_series (series),
   KEY idx_items_creator (created_by)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='共有ライブラリのアイテム';
 
