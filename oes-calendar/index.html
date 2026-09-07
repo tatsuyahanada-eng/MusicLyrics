@@ -143,6 +143,40 @@ input:focus,select:focus,textarea:focus{border-color:var(--blue);box-shadow:0 0 
   .dt-row .dt-f,.st-row .st-f{grid-template-columns:1fr 1fr;gap:8px;}
 }
 
+/* ---------- 作業当日：貼り付けの案内 ---------- */
+.paste-lead{
+  border:1px solid var(--sky);border-radius:var(--r-s);background:var(--blue-l2);
+  padding:11px 12px;margin-bottom:11px;
+}
+.paste-lead .pl-title{font-size:14.5px;font-weight:700;color:var(--blue-d);margin-bottom:7px;}
+.paste-lead .pl-steps{display:flex;flex-direction:column;gap:5px;margin-bottom:7px;}
+.paste-lead .pl-steps span{display:flex;align-items:center;gap:7px;font-size:12.5px;color:var(--ink);}
+.paste-lead .pl-steps b{
+  display:inline-flex;align-items:center;justify-content:center;width:19px;height:19px;flex-shrink:0;
+  border-radius:50%;background:var(--sky);color:#fff;font-size:11px;font-weight:700;
+}
+.paste-lead .pl-note{font-size:12px;color:var(--muted);line-height:1.6;}
+.paste-lead .pl-note b{color:var(--blue-d);}
+@media (min-width:600px){ .paste-lead .pl-steps{flex-direction:row;flex-wrap:wrap;gap:12px;} }
+
+/* ---------- 設定のロック（管理者パスワード） ---------- */
+.lock-bar{
+  display:flex;align-items:center;gap:8px;flex-wrap:wrap;
+  border:1px solid var(--line);border-radius:var(--r);background:var(--blue-l2);
+  padding:11px 12px;margin-bottom:8px;
+}
+.lock-bar .lb-msg{flex:1 1 220px;min-width:0;font-size:12.5px;color:var(--blue-d);font-weight:700;}
+.lock-bar .lb-msg small{display:block;font-weight:400;color:var(--muted);font-size:11.5px;margin-top:2px;}
+.lock-bar input{max-width:190px;}
+#pane-set.locked .card:not(#lock-card):not(#install-card) input,
+#pane-set.locked .card:not(#lock-card):not(#install-card) select,
+#pane-set.locked .card:not(#lock-card):not(#install-card) textarea,
+#pane-set.locked .card:not(#lock-card):not(#install-card) button{
+  pointer-events:none;opacity:.55;
+}
+/* 折りたたみの開閉と閲覧は誰でもできる（変更だけを管理者に限定する） */
+#pane-set.locked .card:not(#lock-card) .gy-head{pointer-events:auto;opacity:1;}
+
 .empty{padding:22px 14px;text-align:center;color:var(--muted);font-size:13px;}
 
 .grid2{display:grid;grid-template-columns:1fr 1fr;gap:8px;}
@@ -174,6 +208,8 @@ input:focus,select:focus,textarea:focus{border-color:var(--blue);box-shadow:0 0 
 .gy-item.open .gy-head .caret{transform:rotate(90deg);}
 .gy-name{font-size:14px;font-weight:700;color:var(--blue-d);flex:1;min-width:0;}
 .gy-meta{font-size:11px;color:var(--muted);}
+.gy-ops{display:flex;gap:5px;flex-shrink:0;}
+.gy-ops button{width:34px;padding:0;justify-content:center;}
 .gy-body{padding:12px;display:none;border-top:1px solid var(--line-w);}
 .gy-item.open .gy-body{display:block;}
 .slot-edit{border:1px dashed #A9CDF0;border-radius:var(--r-s);padding:11px;background:#FAFCFF;}
@@ -390,27 +426,27 @@ input:focus,select:focus,textarea:focus{border-color:var(--blue);box-shadow:0 0 
         <input type="date" id="day-date" onchange="onDayDateChange()" style="max-width:170px;">
       </div>
       <div class="card-body">
-        <div class="field" style="margin-bottom:11px;max-width:320px;">
-          <label for="day-staff">自分（読み込む担当者）</label>
-          <select id="day-staff" onchange="onDayStaffChange()"></select>
+        <div class="paste-lead">
+          <div class="pl-title">Googleカレンダーの説明文を貼り付けるだけ</div>
+          <div class="pl-steps">
+            <span><b>1</b>ご自分のGoogleカレンダーで今日の予定を開く</span>
+            <span><b>2</b>説明文をコピー</span>
+            <span><b>3</b>下の欄に貼り付けて青いボタンを押す</span>
+          </div>
+          <div class="pl-note">これだけで <b>①入店連絡／②中間報告／③退店連絡</b> に自動で振り分けられ、それぞれワンタップでコピーできます。</div>
         </div>
-        <div class="row-btns">
-          <button class="btn btn-sub btn-sm" onclick="loadDayFromList()">登録リストから探す</button>
-          <button class="btn btn-sub btn-sm" onclick="loadDayFromCalendar()">Googleカレンダーから読み込む</button>
-        </div>
-        <div class="hint" style="margin-top:7px;">
-          「自分」を選んでおくと、その方自身の予定・カレンダーだけを読み込みます。複数人で同じ端末を使う場合は、
-          作業のたびにここで選び直してください。
-        </div>
-        <div id="day-cands" style="margin-top:11px;"></div>
-        <div class="field" style="margin-top:14px;">
-          <label for="day-paste">または、Googleカレンダーの説明文を貼り付ける</label>
-          <textarea id="day-paste" rows="6" placeholder="Googleカレンダーの予定を開いて、説明文をコピーしてここに貼り付けてください。&#10;貼り付けたあと「連絡文を作る」を押すと、入店・中間報告・退店に自動で振り分けます。"></textarea>
+        <div class="field">
+          <label for="day-paste">Googleカレンダーの説明文を貼り付け</label>
+          <textarea id="day-paste" rows="7" placeholder="Googleカレンダーの予定を開いて、説明文をコピーしてここに貼り付けてください。&#10;貼り付けたあと下のボタンを押すと、入店・中間報告・退店に自動で振り分けます。"></textarea>
         </div>
         <div class="row-btns" style="margin-top:9px;">
-          <button class="btn btn-primary btn-sm" onclick="loadDayFromPaste()">貼り付けた内容で連絡文を作る</button>
-          <button class="btn btn-ghost btn-sm" onclick="clearDayPaste()">貼り付け欄をクリア</button>
+          <button class="btn btn-primary btn-block" onclick="loadDayFromPaste()">貼り付けた内容で連絡文を作る</button>
         </div>
+        <div class="row-btns" style="margin-top:9px;">
+          <button class="btn btn-ghost btn-sm" onclick="clearDayPaste()">貼り付け欄をクリア</button>
+          <button class="btn btn-ghost btn-sm" onclick="loadDayFromList()">このアプリの登録リストから探す</button>
+        </div>
+        <div id="day-cands" style="margin-top:11px;"></div>
       </div>
     </div>
 
@@ -472,7 +508,24 @@ input:focus,select:focus,textarea:focus{border-color:var(--blue);box-shadow:0 0 
   </section>
 
   <!-- ============ 画面4: 設定 ============ -->
-  <section id="pane-set" class="hidden">
+  <section id="pane-set" class="hidden locked">
+    <div class="card" id="lock-card">
+      <div class="card-body">
+        <div class="lock-bar">
+          <div class="lb-msg" id="lock-msg">🔒 設定の変更には管理者パスワードが必要です
+            <small>ここで登録した業態・定型文・よく使う文は、共有設定ファイルを通じて全員が同じ内容を使います。</small>
+          </div>
+          <input type="password" id="admin-pw" placeholder="管理者パスワード" onkeydown="if(event.key==='Enter')unlockSettings()">
+          <button class="btn btn-primary btn-sm" id="btn-unlock" onclick="unlockSettings()">解除</button>
+          <button class="btn btn-ghost btn-sm hidden" id="btn-lock" onclick="lockSettings()">ロックする</button>
+        </div>
+        <div class="row-btns" style="margin-top:9px;">
+          <button class="btn btn-sub btn-sm" onclick="reloadSharedSettings()">共有設定を再読み込み</button>
+        </div>
+        <div class="hint" id="shared-status" style="margin-top:7px;"></div>
+      </div>
+    </div>
+
     <div class="card">
       <div class="card-head">
         <div class="card-title">業態ごとの定型文・時間帯</div>
@@ -490,27 +543,10 @@ input:focus,select:focus,textarea:focus{border-color:var(--blue);box-shadow:0 0 
             <span class="ph" onclick="copyPh(this)">{開始}</span>
             <span class="ph" onclick="copyPh(this)">{終了}</span>
             <span class="ph" onclick="copyPh(this)">{時間帯}</span>
-            <span class="ph" onclick="copyPh(this)">{担当者}</span>
-            <span class="ph" onclick="copyPh(this)">{担当者定型文}</span>
           </div>
+          並び順は各業態の「↑」「↓」で入れ替えられます（カレンダー画面のプルダウンの順番になります）。
         </div>
         <div id="gy-list"></div>
-      </div>
-    </div>
-
-    <div class="card">
-      <div class="card-head">
-        <div class="card-title">担当者と担当者定型文</div>
-        <div class="row-btns">
-          <button class="btn btn-sub btn-sm" onclick="addStaff()">＋ 担当者を追加</button>
-        </div>
-      </div>
-      <div class="card-body">
-        <div class="hint" style="margin-bottom:9px;">
-          会社の担当者を登録しておくと、各画面でそれぞれが自分の名前を選んで使えます。
-          <span class="ph" onclick="copyPh(this)">{担当者}</span> / <span class="ph" onclick="copyPh(this)">{担当者定型文}</span> で定型文に差し込めます。
-        </div>
-        <div id="staff-list"></div>
       </div>
     </div>
 
@@ -597,9 +633,11 @@ input:focus,select:focus,textarea:focus{border-color:var(--blue);box-shadow:0 0 
             <div id="store-chat-list" style="margin-bottom:9px;"></div>
             <button class="btn btn-sub btn-sm" onclick="addStoreChat()">＋ 店舗のChat URLを追加</button>
 
-            <div class="hint" style="margin:16px 0 6px;font-weight:700;color:#3D6B99;">共通のGoogleカレンダー連携（予備）</div>
+            <div class="hint" style="margin:16px 0 6px;font-weight:700;color:#3D6B99;">Googleカレンダー連携（現在は停止中）</div>
             <div class="hint" style="margin-bottom:9px;">
-              基本は上の「担当者」欄でご本人のURLを登録してください。ここは、個人のURLが無いときの予備です（未設定でも貼り付けだけで使えます）。
+              <b>Googleカレンダーから予定を直接読み込む機能は、現在は使っていません。</b>
+              （利用者ごとにカレンダーが違い、共有設定と噛み合わないため。作業当日タブでは「説明文を貼り付ける」方式をお使いください。）<br>
+              将来また使う場合のために、設定項目だけ残してあります。
               <button class="btn btn-ghost btn-sm" style="margin-top:6px;" onclick="showAppsScriptCode()">Apps Script のコードを見る</button>
             </div>
             <div class="grid-form">
@@ -623,22 +661,25 @@ input:focus,select:focus,textarea:focus{border-color:var(--blue);box-shadow:0 0 
     </div>
 
     <div class="card">
-      <div class="card-head"><div class="card-title">設定の保存・持ち出し</div></div>
+      <div class="card-head"><div class="card-title">共有設定の保存（全員で同じ内容を使う）</div></div>
       <div class="card-body">
-        <div class="hint" style="margin-bottom:8px;">
-          複数人で同じ業態・担当者一覧を使うときは、管理者が1つのファイルに書き出し、各自の端末で読み込んでください。<br>
-          「自分（読み込む担当者）」の選択自体はこの端末だけに残ります。
+        <div class="note" style="margin-bottom:9px;">
+          <b>設定は「サーバー上の1つのファイル（settings.json）」で全員が共有します。</b><br>
+          変更したら <b>「共有設定を保存」</b> を押してください。サーバーに保存できない環境では
+          <code>settings.json</code> がダウンロードされるので、<b>index.html と同じ場所へFTPでアップロード</b>してください。
+          次に各自がアプリを開いたときから、その内容が全員に反映されます。
         </div>
         <div class="row-btns">
-          <button class="btn btn-sub btn-sm" onclick="exportSettings()">設定を書き出す（JSON）</button>
-          <button class="btn btn-sub btn-sm" onclick="document.getElementById('import-file').click()">設定を読み込む</button>
+          <button class="btn btn-primary btn-sm" onclick="saveSharedSettings()">共有設定を保存（settings.json）</button>
+          <button class="btn btn-sub btn-sm" onclick="document.getElementById('import-file').click()">ファイルから読み込む</button>
           <button class="btn btn-danger btn-sm" onclick="resetSettings()">初期設定に戻す</button>
         </div>
         <input type="file" id="import-file" accept="application/json,.json" class="hidden" onchange="importSettings(this)">
+        <div class="hint" id="save-status" style="margin-top:7px;"></div>
       </div>
     </div>
 
-    <div class="card">
+    <div class="card" id="install-card">
       <div class="card-head"><div class="card-title">📱 アプリとしてインストール</div></div>
       <div class="card-body">
         <div class="hint" style="margin-bottom:9px;">ホーム画面にアイコンを追加して、アプリのように起動できます。</div>
@@ -675,10 +716,6 @@ input:focus,select:focus,textarea:focus{border-color:var(--blue);box-shadow:0 0 
 var STORAGE_KEY = 'oes-calendar-settings-v1';
 
 /* ---------- 定型文のひな形 ---------- */
-var TPL_STAFF = [
-  '担当: {担当者}'
-].join('\n');
-
 var TPL_STANDARD = [
   '{業態} {店舗名} 入店 {開始}',
   '',
@@ -729,20 +766,19 @@ function defaultSettings(){
     ],
     calendarApiUrl: '',
     calendarQuery: '',
-    staff: [],
     storeChats: [],
     gyotai: [
-      { id:'g-olive', name:'オリーブの丘', titleTemplate:'', defaultStaffId:'', slots:[
+      { id:'g-olive', name:'オリーブの丘', titleTemplate:'', slots:[
         { id:'s-olive-am', label:'午前 (AM)', start:'08:00', end:'09:00', body:TPL_STANDARD }
       ]},
-      { id:'g-sukiya', name:'すき家', titleTemplate:'', defaultStaffId:'', slots:[
+      { id:'g-sukiya', name:'すき家', titleTemplate:'', slots:[
         { id:'s-sukiya-am', label:'午前 (AM)', start:'08:30', end:'09:30', body:TPL_SUKIYA },
         { id:'s-sukiya-pm', label:'午後 (PM)', start:'14:30', end:'15:30', body:TPL_SUKIYA }
       ]},
-      { id:'g-hanaya', name:'華屋与兵衛', titleTemplate:'', defaultStaffId:'', slots:[
+      { id:'g-hanaya', name:'華屋与兵衛', titleTemplate:'', slots:[
         { id:'s-hanaya-am', label:'午前 (AM)', start:'08:00', end:'09:00', body:TPL_STANDARD }
       ]},
-      { id:'g-hama', name:'はま寿司', titleTemplate:'', defaultStaffId:'', slots:[
+      { id:'g-hama', name:'はま寿司', titleTemplate:'', slots:[
         { id:'s-hama-am', label:'午前 (AM)', start:'08:00', end:'09:00', body:TPL_STANDARD },
         { id:'s-hama-pm', label:'午後 (PM)', start:'14:30', end:'15:30', body:TPL_STANDARD }
       ]}
@@ -790,7 +826,6 @@ function normalizeSettings(o){
     calendarApiUrl: strOr(o.calendarApiUrl, ''),
     calendarQuery:  strOr(o.calendarQuery,  ''),
     phrases: [],
-    staff: [],
     storeChats: [],
     gyotai: []
   };
@@ -810,22 +845,11 @@ function normalizeSettings(o){
     if(!tenpo || !url) return;
     s.storeChats.push({ id: (sc && sc.id) ? sc.id : uid('sc'), gyotai: gyotai, tenpo: tenpo, url: url });
   });
-  (o.staff||[]).forEach(function(st){
-    s.staff.push({
-      id: st.id || uid('t'),
-      name: String(st.name || '（担当者名未設定）'),
-      contact: typeof st.contact === 'string' ? st.contact : '',
-      body: typeof st.body === 'string' ? st.body : TPL_STAFF,
-      calendarApiUrl: typeof st.calendarApiUrl === 'string' ? st.calendarApiUrl : '',
-      calendarQuery:  typeof st.calendarQuery  === 'string' ? st.calendarQuery  : ''
-    });
-  });
   (o.gyotai||[]).forEach(function(g){
     var ng = {
       id: g.id || uid('g'),
       name: String(g.name || '（名称未設定）'),
       titleTemplate: typeof g.titleTemplate === 'string' ? g.titleTemplate : '',
-      defaultStaffId: typeof g.defaultStaffId === 'string' ? g.defaultStaffId : '',
       slots: []
     };
     (g.slots||[]).forEach(function(sl){
@@ -843,11 +867,6 @@ function normalizeSettings(o){
     s.gyotai.push(ng);
   });
   if(!s.gyotai.length) s.gyotai = d.gyotai;
-  s.gyotai.forEach(function(g){
-    var found = false;
-    s.staff.forEach(function(st){ if(st.id === g.defaultStaffId) found = true; });
-    if(!found) g.defaultStaffId = '';
-  });
   return s;
 }
 function strOr(v, dflt){ return (typeof v === 'string' && v !== '') ? v : dflt; }
@@ -903,11 +922,6 @@ function findGyotai(id){
   for(var i=0;i<settings.gyotai.length;i++){ if(settings.gyotai[i].id === id) return settings.gyotai[i]; }
   return null;
 }
-function findStaff(id){
-  if(!id) return null;
-  for(var i=0;i<settings.staff.length;i++){ if(settings.staff[i].id === id) return settings.staff[i]; }
-  return null;
-}
 function findSlot(g, id){
   if(!g) return null;
   for(var i=0;i<g.slots.length;i++){ if(g.slots[i].id === id) return g.slots[i]; }
@@ -944,9 +958,9 @@ function applySuffix(name){
 /* ---------- 差し込み ---------- */
 function fillTemplate(tpl, ctx){
   return String(tpl == null ? '' : tpl)
-    /* 担当者定型文は先に差し込む（その中の差し込み文字も置換されるように） */
-    .replace(/\{担当者定型文\}/g, ctx.staffBody || '')
-    .replace(/\{担当者\}/g, ctx.staff || '')
+    /* 担当者の機能は廃止済み。旧い設定ファイルに残っていても空文字にして消す */
+    .replace(/\{担当者定型文\}/g, '')
+    .replace(/\{担当者\}/g, '')
     .replace(/\{業態\}/g,   ctx.gyotai || '')
     .replace(/\{店舗名\}/g, ctx.tenpo  || '')
     .replace(/\{日付\}/g,   ctx.date   || '')
@@ -960,10 +974,7 @@ function fillTemplate(tpl, ctx){
     .replace(/★3/g, ctx.end    || '');
 }
 function entryCtx(en){
-  var st = findStaff(en.staffId);
   return {
-    staff: st ? st.name : (en.staffName || ''),
-    staffBody: st ? st.body : '',
     gyotai: en.gyotaiName || '',
     tenpo:  en.tenpo || '',
     date:   fmtDateJp(en.date),
@@ -992,7 +1003,7 @@ function showTab(name){
     $('pane-' + n).classList.toggle('hidden', n !== name);
     $('tab-' + n).classList.toggle('active', n === name);
   });
-  if(name === 'set') renderSettings();
+  if(name === 'set'){ applyLockState(); renderSettings(); }
   if(name === 'day') openDayTab();
   window.scrollTo(0, 0);
 }
@@ -1022,13 +1033,6 @@ function renderWizardForm(keepValues){
 
   updateWizardHints();
   renderStoreRows();
-}
-function staffOptionsHtml(selectedId){
-  var html = '<option value="">（指定なし）</option>';
-  settings.staff.forEach(function(st){
-    html += '<option value="' + esc(st.id) + '"' + (st.id === selectedId ? ' selected' : '') + '>' + esc(st.name) + '</option>';
-  });
-  return html;
 }
 function onWizGyotaiChange(){
   updateWizardHints();
@@ -1182,15 +1186,9 @@ function submitStoreRows(){
       gyotaiId: g.id, gyotaiName: g.name,
       slotId: sl.id, slotLabel: sl.label,
       start: sl.start, end: sl.end,
-      staffId: '', staffName: '',
       tenpo: applySuffix(tenpo), address: addr,
       desc: '', descEdited: false
     };
-    /* 担当者は業態の「既定の担当者」を自動で使う（カレンダー画面では選ばせない） */
-    if(g.defaultStaffId){
-      var dst = findStaff(g.defaultStaffId);
-      if(dst){ en.staffId = dst.id; en.staffName = dst.name; }
-    }
     en.desc = buildDesc(en);
     entries.push(en);
     added++;
@@ -1326,10 +1324,6 @@ function enSetGyotai(id, v){
   en.gyotaiId = g.id; en.gyotaiName = g.name;
   var sl = g.slots[0];
   if(sl){ en.slotId = sl.id; en.slotLabel = sl.label; en.start = sl.start; en.end = sl.end; }
-  if(!en.staffId && g.defaultStaffId){
-    var dst = findStaff(g.defaultStaffId);
-    if(dst){ en.staffId = dst.id; en.staffName = dst.name; }
-  }
   en.desc = en.descEdited ? en.desc : buildDesc(en);
   refreshEntry(id);
 }
@@ -1406,13 +1400,8 @@ function addEmptyEntry(){
     gyotaiId: g ? g.id : '', gyotaiName: g ? g.name : '',
     slotId: sl ? sl.id : '', slotLabel: sl ? sl.label : '',
     start: sl ? sl.start : '08:00', end: sl ? sl.end : '09:00',
-    staffId: '', staffName: '',
     tenpo: '', address: '', desc: '', descEdited: false
   };
-  if(g && g.defaultStaffId){
-    var dst0 = findStaff(g.defaultStaffId);
-    if(dst0){ en.staffId = dst0.id; en.staffName = dst0.name; }
-  }
   en.desc = buildDesc(en);
   entries.push(en);
   renderEntries();
@@ -1584,44 +1573,12 @@ var dayMsgs = { in:'', mid:'', out:'' }; /* 3つの連絡文 */
 var dayCands = [];                       /* 候補一覧 */
 var dayCandIdx = -1;
 
-var DAY_STAFF_KEY = 'oes-calendar-day-staff-v1';
-/* 「自分（読み込む担当者）」の選択は端末固有の状態であり、設定の書き出し・読み込みには含めない */
-function getDayStaffId(){
-  var el = $('day-staff');
-  return el ? el.value : '';
-}
-function renderDayStaffSelect(){
-  var el = $('day-staff');
-  if(!el) return;
-  var saved = '';
-  try{ saved = localStorage.getItem(DAY_STAFF_KEY) || ''; }catch(e){}
-  if(saved && !findStaff(saved)) saved = '';
-  el.innerHTML = staffOptionsHtml(saved);
-}
-function onDayStaffChange(){
-  try{ localStorage.setItem(DAY_STAFF_KEY, getDayStaffId()); }catch(e){}
-  if(dayCands.length && dayCands[0].source === 'calendar') return; /* カレンダー由来の候補は選び直すまで維持 */
-  collectListCands();
-  renderDayCandidates();
-}
-function resolveCalendarConn(){
-  var st = findStaff(getDayStaffId());
-  if(st && st.calendarApiUrl){
-    return { url: st.calendarApiUrl, query: st.calendarQuery, staff: st };
-  }
-  return { url: settings.calendarApiUrl, query: settings.calendarQuery, staff: st };
-}
-
 function openDayTab(){
   if(!$('day-date').value) $('day-date').value = todayStr();
-  renderDayStaffSelect();
   renderPhraseChips();
-  /* カレンダーから読み込んだ候補は残す。それ以外は登録リストの内容で候補を作り直す */
-  if(dayCands.length && dayCands[0].source === 'calendar'){ renderDayCandidates(); return; }
-  var had = !!dayCtx;
+  /* 表示中の連絡文は上書きしない。登録リストの候補だけ作り直す */
   collectListCands();
   renderDayCandidates();
-  if(!had && dayCands.length === 1) pickDayCand(0);
 }
 function onDayDateChange(){ loadDayFromList(true); }
 
@@ -1632,7 +1589,7 @@ function phraseText(ph){
   return fillTemplate(ph.text, {
     gyotai: dayCtx.gyotai || '', tenpo: dayCtx.tenpo || '',
     date: fmtDateJp(dayCtx.date), start: dayCtx.start || '', end: dayCtx.end || '',
-    slot: '', staff: dayCtx.staff || '', staffBody: ''
+    slot: ''
   });
 }
 function renderPhraseChips(){
@@ -1746,18 +1703,16 @@ function detectFromText(text){
 /* ---------- 候補の読み込み ---------- */
 function collectListCands(){
   var d = $('day-date').value || todayStr();
-  var staffId = getDayStaffId();
   dayCands = [];
   dayCandIdx = -1;
   entries.forEach(function(en){
     if(en.date !== d) return;
-    if(staffId && en.staffId !== staffId) return; /* 自分の担当分だけに絞り込む */
     dayCands.push({
       source: 'list',
       title: buildTitle(en),
       gyotai: en.gyotaiName, tenpo: en.tenpo,
       start: en.start, end: en.end,
-      address: en.address, staff: en.staffName,
+      address: en.address,
       description: en.desc, date: en.date
     });
   });
@@ -1767,53 +1722,8 @@ function loadDayFromList(silent){
   renderDayCandidates();
   if(dayCands.length === 1){ pickDayCand(0); }
   else if(!dayCands.length && !silent){
-    var d = $('day-date').value || todayStr();
-    var staffId = getDayStaffId();
-    var anyOnDate = entries.some(function(en){ return en.date === d; });
-    toast((staffId && anyOnDate)
-      ? 'この日の予定はありますが、選んだ担当者のものはありません（「指定なし」にするとすべて表示します）'
-      : '登録リストにこの日の予定はありません');
+    toast('このアプリの登録リストに、この日の予定はありません');
   }
-}
-function loadDayFromCalendar(){
-  var conn = resolveCalendarConn();
-  if(!conn.url){
-    var msg = conn.staff
-      ? '「' + conn.staff.name + '」さんご自身のカレンダー連携URLが未設定です。\n'
-        + '「⚙️ 設定」の「担当者」欄でご本人のURLを登録するか、共通のURLを登録してください。\n'
-        + '登録しなくても、説明文の貼り付けから連絡文を作れます。'
-      : '読み込む担当者（自分）を選ぶか、「⚙️ 設定」でGoogleカレンダー連携のURLを登録してください。\n'
-        + '登録しなくても、説明文の貼り付けから連絡文を作れます。';
-    alert(msg);
-    showTab('set');
-    return;
-  }
-  var d = $('day-date').value || todayStr();
-  var host = $('day-cands');
-  host.innerHTML = '<div class="hint">読み込んでいます…</div>';
-  var staffName = conn.staff ? conn.staff.name : '';
-  fetchCalendar(conn.url, d, conn.query).then(function(o){
-    dayCands = [];
-    (o.events || []).forEach(function(ev){
-      var det = detectFromText((ev.title || '') + '\n' + (ev.description || ''));
-      dayCands.push({
-        source: 'calendar',
-        title: ev.title || '(無題)',
-        gyotai: det.gyotai, tenpo: det.tenpo,
-        start: ev.start || det.start, end: ev.end || det.end,
-        address: ev.location || '', staff: staffName,
-        description: htmlToText(ev.description || ''), date: o.date || d
-      });
-    });
-    dayCandIdx = -1;
-    renderDayCandidates();
-    if(!dayCands.length) toast('この日の予定は見つかりませんでした');
-    else if(dayCands.length === 1) pickDayCand(0);
-  }, function(err){
-    host.innerHTML = '<div class="note">読み込めませんでした（' + esc(err && err.message ? err.message : '通信エラー') + '）。<br>'
-      + 'URLが正しいか、Apps Script を「全員（匿名ユーザーを含む）」がアクセスできる設定で公開しているかご確認ください。<br>'
-      + 'うまくいかないときは、下の貼り付け欄をお使いください。</div>';
-  });
 }
 function fetchCalendar(url, dateStr, q){
   var u = url + (url.indexOf('?') === -1 ? '?' : '&') + 'date=' + encodeURIComponent(dateStr);
@@ -1827,7 +1737,6 @@ function loadDayFromPaste(){
   var raw = $('day-paste').value;
   if(!raw.trim()){ toast('説明文を貼り付けてください'); return; }
   var det = detectFromText(raw);
-  var st = findStaff(getDayStaffId());
   dayCands = [];
   dayCandIdx = -1;
   renderDayCandidates();
@@ -1836,7 +1745,7 @@ function loadDayFromPaste(){
     title: '',
     gyotai: det.gyotai, tenpo: det.tenpo,
     start: det.start, end: det.end,
-    address: '', staff: st ? st.name : '',
+    address: '',
     description: raw, date: $('day-date').value || todayStr()
   });
 }
@@ -1933,7 +1842,6 @@ function renderDaySummary(){
       + ' <a href="https://www.google.com/maps/search/?api=1&query=' + encodeURIComponent(c.address)
       + '" target="_blank" rel="noopener noreferrer">地図</a>');
   }
-  if(c.staff) meta.push('担当: ' + esc(c.staff));
   $('day-sum').innerHTML =
       '<div class="ds-date">' + esc(fmtDateJp(c.date) || '') + '</div>'
     + '<div class="ds-main">' + esc(name) + '</div>'
@@ -1988,6 +1896,7 @@ function renderStoreChatList(){
   host.innerHTML = html;
 }
 function addStoreChat(){
+  if(!requireAdmin()) return;
   settings.storeChats.push({ id: uid('sc'), gyotai: '', tenpo: '', url: '' });
   saveSettings();
   renderStoreChatList();
@@ -2000,6 +1909,7 @@ function setStoreChatField(i, field, v){
   saveSettings();
 }
 function removeStoreChat(i){
+  if(!requireAdmin()) return;
   if(!settings.storeChats[i]) return;
   settings.storeChats.splice(i, 1);
   saveSettings();
@@ -2070,18 +1980,18 @@ var APPS_SCRIPT_CODE = [
   '/**',
   ' * OES入替作業APP用 / 指定日の予定を返すウェブアプリ',
   ' *',
-  ' * このアプリは複数人で使うことを前提にしています。担当者一人ひとりが、',
-  ' * 自分自身のGoogleアカウントで下記の手順を行ってください（コードは全員共通）。',
+  ' * ※ 現在このアプリでは、Googleカレンダーからの直接読み込みは使っていません',
+  ' *   （作業当日タブは「説明文を貼り付ける」方式）。将来また使う場合のための参考コードです。',
   ' *',
   ' * 導入手順',
-  ' *  1. 自分自身の https://script.google.com/ で新しいプロジェクトを作る',
+  ' *  1. https://script.google.com/ で新しいプロジェクトを作る',
   ' *  2. このコードを貼り付けて保存',
   ' *  3. 「デプロイ」→「新しいデプロイ」→ 種類は「ウェブアプリ」',
   ' *  4. 次のユーザーとして実行: 自分',
   ' *     アクセスできるユーザー: 全員',
   ' *     （これで自分自身のカレンダーを返すURLになります）',
-  ' *  5. 表示された /exec で終わるURLを、このツールの「⚙️ 設定」→「担当者」欄の',
-  ' *     自分の行にある「この担当者ご本人のGoogleカレンダー連携URL」に貼り付ける',
+  ' *  5. 表示された /exec で終わるURLを、このツールの「⚙️ 設定」→「詳細設定」→',
+  ' *     「Googleカレンダー連携（現在は停止中）」に貼り付ける',
   ' */',
   'function doGet(e) {',
   '  var p = (e && e.parameter) ? e.parameter : {};',
@@ -2150,7 +2060,6 @@ function renderSettings(){
   $('set-cal-q').value       = settings.calendarQuery;
 
   renderPhraseList();
-  renderStaffList();
   renderStoreChatList();
 
   var host = $('gy-list'), html = '';
@@ -2160,6 +2069,10 @@ function renderSettings(){
       +   '<span class="caret">▶</span>'
       +   '<span class="gy-name" id="gyname-' + g.id + '">' + esc(g.name) + '</span>'
       +   '<span class="gy-meta">時間帯 ' + g.slots.length + '件</span>'
+      +   '<span class="gy-ops" onclick="event.stopPropagation()">'
+      +     '<button class="btn btn-ghost btn-sm" onclick="moveGyotai(' + gi + ',-1)"' + (gi === 0 ? ' disabled' : '') + ' aria-label="上へ">↑</button>'
+      +     '<button class="btn btn-ghost btn-sm" onclick="moveGyotai(' + gi + ',1)"' + (gi === settings.gyotai.length-1 ? ' disabled' : '') + ' aria-label="下へ">↓</button>'
+      +   '</span>'
       + '</div>'
       + '<div class="gy-body" onclick="event.stopPropagation()">'
       +   '<div class="grid-form" style="margin-bottom:12px;">'
@@ -2168,8 +2081,6 @@ function renderSettings(){
       +     '<div class="field"><label>タイトル書式（空欄なら共通設定を使用）</label>'
       +       '<input type="text" value="' + esc(g.titleTemplate) + '" placeholder="' + esc(settings.titleTemplate) + '" '
       +       'onchange="setGyTitleTpl(\'' + g.id + '\',this.value)"></div>'
-      +     '<div class="field"><label>既定の担当者</label>'
-      +       '<select onchange="setGyStaff(\'' + g.id + '\',this.value)">' + staffOptionsHtml(g.defaultStaffId) + '</select></div>'
       +   '</div>';
 
     g.slots.forEach(function(sl, si){
@@ -2221,6 +2132,7 @@ function renderPhraseList(){
   host.innerHTML = html;
 }
 function addPhrase(){
+  if(!requireAdmin()) return;
   settings.phrases.push({ id: uid('p'), text: '' });
   afterSettingsChange(true);
   var boxes = document.querySelectorAll('#phrase-list textarea');
@@ -2233,6 +2145,7 @@ function setPhrase(i, v){
   renderPhraseChips();
 }
 function removePhrase(i){
+  if(!requireAdmin()) return;
   if(!settings.phrases[i]) return;
   var t = settings.phrases[i].text || '';
   if(t.trim() && !confirm('「' + t.split('\n')[0] + '」を削除します。よろしいですか？')) return;
@@ -2240,6 +2153,7 @@ function removePhrase(i){
   afterSettingsChange(true);
 }
 function movePhrase(i, d){
+  if(!requireAdmin()) return;
   var j = i + d;
   if(j < 0 || j >= settings.phrases.length) return;
   var tmp = settings.phrases[i];
@@ -2248,74 +2162,15 @@ function movePhrase(i, d){
   afterSettingsChange(true);
 }
 
-function renderStaffList(){
-  var host = $('staff-list');
-  if(!host) return;
-  if(!settings.staff.length){
-    host.innerHTML = '<div class="empty">担当者はまだ登録されていません。<br>「＋ 担当者を追加」から登録してください。</div>';
-    return;
-  }
-  var html = '';
-  settings.staff.forEach(function(st, i){
-    var gid = 'st-' + st.id;
-    html += '<div class="gy-item' + (i === 0 ? ' open' : '') + '" id="gy-' + gid + '">'
-      + '<div class="gy-head" onclick="toggleGy(\'' + gid + '\')">'
-      +   '<span class="caret">▶</span>'
-      +   '<span class="gy-name" id="gyname-' + gid + '">' + esc(st.name || '（担当者名未設定）') + '</span>'
-      + '</div>'
-      + '<div class="gy-body" onclick="event.stopPropagation()">'
-      +   '<div class="grid-form">'
-      +     '<div class="field"><label>担当者名</label>'
-      +       '<input type="text" value="' + esc(st.name) + '" oninput="setStaff(\'' + st.id + '\',\'name\',this.value)"></div>'
-      +     '<div class="field"><label>連絡先・所属（任意）</label>'
-      +       '<input type="text" value="' + esc(st.contact) + '" placeholder="例: 090-0000-0000" onchange="setStaff(\'' + st.id + '\',\'contact\',this.value)"></div>'
-      +     '<div class="field col-span"><label>担当者定型文（{担当者定型文} に差し込まれます）</label>'
-      +       '<textarea rows="4" oninput="setStaff(\'' + st.id + '\',\'body\',this.value)">' + esc(st.body) + '</textarea></div>'
-      +     '<div class="field col-span"><label>この担当者ご本人のGoogleカレンダー連携URL（任意）</label>'
-      +       '<input type="text" value="' + esc(st.calendarApiUrl) + '" placeholder="https://script.google.com/macros/s/…/exec" '
-      +       'onchange="setStaff(\'' + st.id + '\',\'calendarApiUrl\',this.value.trim())"></div>'
-      +     '<div class="field"><label>予定の絞り込み文字（任意）</label>'
-      +       '<input type="text" value="' + esc(st.calendarQuery) + '" placeholder="例: OES" '
-      +       'onchange="setStaff(\'' + st.id + '\',\'calendarQuery\',this.value.trim())"></div>'
-      +   '</div>'
-      +   '<div class="row-btns" style="margin-top:9px;">'
-      +     '<button class="btn btn-danger btn-sm" onclick="removeStaff(\'' + st.id + '\')">この担当者を削除</button>'
-      +   '</div>'
-      + '</div></div>';
-  });
-  host.innerHTML = html;
-}
-function addStaff(){
-  var name = prompt('追加する担当者名を入力してください', '');
-  if(name === null) return;
-  name = name.trim();
-  if(!name){ toast('担当者名を入力してください'); return; }
-  settings.staff.push({ id: uid('t'), name: name, contact: '', body: TPL_STAFF, calendarApiUrl: '', calendarQuery: '' });
+/* 業態の並び替え（カレンダー画面のプルダウンの順番になる） */
+function moveGyotai(i, d){
+  if(!requireAdmin()) return;
+  var j = i + d;
+  if(j < 0 || j >= settings.gyotai.length) return;
+  var tmp = settings.gyotai[i];
+  settings.gyotai[i] = settings.gyotai[j];
+  settings.gyotai[j] = tmp;
   afterSettingsChange(true);
-  toast('担当者「' + name + '」を追加しました');
-}
-function setStaff(id, field, v){
-  var st = findStaff(id); if(!st) return;
-  st[field] = v;
-  if(field === 'name'){
-    var lb = $('gyname-st-' + id);
-    if(lb) lb.textContent = v || '（担当者名未設定）';
-  }
-  afterSettingsChange(false);
-}
-function removeStaff(id){
-  var st = findStaff(id); if(!st) return;
-  if(!confirm('担当者「' + st.name + '」を削除します。よろしいですか？')) return;
-  for(var i = 0; i < settings.staff.length; i++){
-    if(settings.staff[i].id === id){ settings.staff.splice(i, 1); break; }
-  }
-  settings.gyotai.forEach(function(g){ if(g.defaultStaffId === id) g.defaultStaffId = ''; });
-  afterSettingsChange(true);
-}
-function setGyStaff(gid, v){
-  var g = findGyotai(gid); if(!g) return;
-  g.defaultStaffId = v;
-  afterSettingsChange(false);
 }
 
 function setGyName(id, v){
@@ -2350,6 +2205,7 @@ function removeSlot(gid, sid){
   afterSettingsChange(true);
 }
 function addGyotai(){
+  if(!requireAdmin()) return;
   var name = prompt('追加する業態名を入力してください', '');
   if(name === null) return;
   name = name.trim();
@@ -2362,6 +2218,7 @@ function addGyotai(){
   toast('「' + name + '」を追加しました');
 }
 function removeGyotai(id){
+  if(!requireAdmin()) return;
   if(settings.gyotai.length <= 1){ alert('業態は1件以上必要です。'); return; }
   var g = findGyotai(id); if(!g) return;
   if(!confirm('業態「' + g.name + '」を削除します。よろしいですか？')) return;
@@ -2392,7 +2249,6 @@ function afterSettingsChange(rerenderSettingsPane){
   renderWizardForm(true);
   renderEntries();
   renderPhraseChips();
-  renderDayStaffSelect();
   if(rerenderSettingsPane) renderSettings();
 }
 function syncEntriesWithSettings(){
@@ -2403,9 +2259,6 @@ function syncEntriesWithSettings(){
       var sl = findSlot(g, en.slotId);
       if(sl) en.slotLabel = sl.label;
     }
-    var st = findStaff(en.staffId);
-    if(st){ en.staffName = st.name; }
-    else { en.staffId = ''; en.staffName = ''; }
     if(!en.descEdited) en.desc = buildDesc(en);
   });
 }
@@ -2420,15 +2273,137 @@ function copyPh(el){
 }
 
 /* ---------- 設定の書き出し・読み込み・初期化 ---------- */
-function exportSettings(){
-  var blob = new Blob([JSON.stringify(settings, null, 2)], {type:'application/json'});
-  var d = new Date();
-  saveBlob(blob, 'oes-settings-' + d.getFullYear() + pad(d.getMonth()+1) + pad(d.getDate()) + '.json');
-  toast('設定を書き出しました');
+/* =========================================================================
+   管理者ロック（設定の変更にはパスワードが必要）
+   ※ 単一HTMLのため簡易的な入力チェック。厳密なアクセス制御は .htaccess 等で行う
+   ========================================================================= */
+var ADMIN_PASSWORD = 'Welsys@1234';
+var ADMIN_KEY = 'oes-calendar-admin-unlocked';
+function isAdminUnlocked(){
+  try{ return sessionStorage.getItem(ADMIN_KEY) === '1'; }catch(e){ return false; }
 }
+function applyLockState(){
+  var pane = $('pane-set');
+  if(!pane) return;
+  var open = isAdminUnlocked();
+  pane.classList.toggle('locked', !open);
+  var msg = $('lock-msg'), pw = $('admin-pw'), bu = $('btn-unlock'), bl = $('btn-lock');
+  if(msg){
+    msg.innerHTML = open
+      ? '🔓 管理者として編集できます'
+        + '<small>変更したら下の「共有設定を保存」を押すと、全員が同じ内容を使えるようになります。</small>'
+      : '🔒 設定の変更には管理者パスワードが必要です'
+        + '<small>ここで登録した業態・定型文・よく使う文は、共有設定ファイルを通じて全員が同じ内容を使います。</small>';
+  }
+  if(pw) pw.classList.toggle('hidden', open);
+  if(bu) bu.classList.toggle('hidden', open);
+  if(bl) bl.classList.toggle('hidden', !open);
+}
+function unlockSettings(){
+  var el = $('admin-pw');
+  var v = el ? el.value : '';
+  if(v !== ADMIN_PASSWORD){ toast('パスワードが違います'); return; }
+  try{ sessionStorage.setItem(ADMIN_KEY, '1'); }catch(e){}
+  if(el) el.value = '';
+  applyLockState();
+  toast('設定を編集できるようになりました');
+}
+function lockSettings(){
+  try{ sessionStorage.removeItem(ADMIN_KEY); }catch(e){}
+  applyLockState();
+  toast('設定をロックしました');
+}
+/* 変更系の処理はここを通す（ロック中は何も変更させない） */
+function requireAdmin(){
+  if(isAdminUnlocked()) return true;
+  toast('設定の変更には管理者パスワードが必要です');
+  return false;
+}
+
+/* =========================================================================
+   共有設定（サーバー上の settings.json を全員で共有する）
+   - 読み込み: index.html と同じ場所の settings.json を起動時に取得する
+   - 保存:     settings-save.php があればそこへ保存。無ければファイルとして書き出し、
+               FTPで同じ場所へ置いてもらう（保存場所は常にこの1ファイルだけ）
+   ========================================================================= */
+var SHARED_FILE = 'settings.json';
+var SHARED_SAVE_ENDPOINT = 'settings-save.php';
+var sharedState = { loaded:false, message:'' };
+
+function setSharedStatus(msg){
+  sharedState.message = msg;
+  var el = $('shared-status');
+  if(el) el.textContent = msg;
+}
+/* 起動時に共有設定を読む。取得できなければ、この端末に残っている内容→初期設定の順で使う */
+function loadSharedSettings(){
+  if(typeof fetch !== 'function'){ setSharedStatus('この端末では共有設定を読み込めません（保存済みの内容を使用中）'); return Promise.resolve(false); }
+  if(location.protocol === 'file:'){
+    /* ファイルを直接開いた場合はブラウザの制限で読めないため、試行せず案内だけ出す */
+    setSharedStatus('ファイルを直接開いているため共有設定は読み込めません（サーバーに置くと ' + SHARED_FILE + ' を自動で読み込みます）');
+    return Promise.resolve(false);
+  }
+  return fetch(SHARED_FILE + '?t=' + Date.now(), { cache:'no-store' }).then(function(r){
+    if(!r.ok) throw new Error('HTTP ' + r.status);
+    return r.json();
+  }).then(function(o){
+    if(!o || !o.gyotai || !o.gyotai.length) throw new Error('形式が違います');
+    settings = normalizeSettings(o);
+    saveSettings();                       /* 次回オフラインでも同じ内容で開けるように控えを残す */
+    sharedState.loaded = true;
+    setSharedStatus('共有設定（' + SHARED_FILE + '）を読み込みました。全員が同じ内容を使用しています。');
+    return true;
+  }, function(){
+    setSharedStatus('共有設定（' + SHARED_FILE + '）が見つかりません。この端末に保存された内容で動作しています。');
+    return false;
+  });
+}
+function reloadSharedSettings(){
+  setSharedStatus('読み込んでいます…');
+  loadSharedSettings().then(function(okFlag){
+    renderWizardForm(true);
+    renderEntries();
+    renderPhraseChips();
+    renderSettings();
+    toast(okFlag ? '共有設定を読み込みました' : '共有設定が見つかりませんでした');
+  });
+}
+/* 管理者が変更した内容を共有設定として保存する */
+function saveSharedSettings(){
+  if(!requireAdmin()) return;
+  var json = JSON.stringify(settings, null, 2);
+  var st = $('save-status');
+  if(st) st.textContent = 'サーバーへ保存しています…';
+  var done = function(msg){ if(st) st.textContent = msg; };
+
+  if(typeof fetch !== 'function'){ downloadSharedFile(json, done); return; }
+  fetch(SHARED_SAVE_ENDPOINT, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ password: ADMIN_PASSWORD, settings: settings })
+  }).then(function(r){
+    if(!r.ok) throw new Error('HTTP ' + r.status);
+    return r.json();
+  }).then(function(o){
+    if(!o || o.ok !== true) throw new Error((o && o.error) || '保存できませんでした');
+    sharedState.loaded = true;
+    done('サーバーの ' + SHARED_FILE + ' に保存しました。次に各自がアプリを開いたときから全員に反映されます。');
+    toast('共有設定を保存しました');
+  }, function(){
+    downloadSharedFile(json, done);
+  });
+}
+function downloadSharedFile(json, done){
+  saveBlob(new Blob([json], {type:'application/json'}), SHARED_FILE);
+  done('サーバーに直接保存できないため ' + SHARED_FILE + ' をダウンロードしました。'
+     + 'index.html と同じ場所へFTPでアップロードすると、全員に反映されます。');
+  toast(SHARED_FILE + ' を書き出しました');
+}
+
 function importSettings(input){
   var f = input.files && input.files[0];
   if(!f) return;
+  if(!requireAdmin()){ input.value = ''; return; }
   var r = new FileReader();
   r.onload = function(){
     try{
@@ -2445,6 +2420,7 @@ function importSettings(input){
   r.readAsText(f);
 }
 function resetSettings(){
+  if(!requireAdmin()) return;
   if(!confirm('設定を初期状態に戻します。追加・変更した内容は失われます。よろしいですか？')) return;
   settings = defaultSettings();
   afterSettingsChange(true);
@@ -2487,9 +2463,17 @@ function installPwa(){
   $('cr-year').textContent = d.getFullYear();
 
   renderWizardForm(false);
-  renderDayStaffSelect();
   renderEntries();
   renderPhraseChips();
+  applyLockState();
+
+  /* サーバー上の共有設定（settings.json）があれば、それを全員共通の内容として使う */
+  loadSharedSettings().then(function(okFlag){
+    if(!okFlag) return;
+    renderWizardForm(true);
+    renderEntries();
+    renderPhraseChips();
+  });
 
   window.addEventListener('beforeunload', function(e){
     if(entries.length){ e.preventDefault(); e.returnValue = ''; }
