@@ -11,14 +11,13 @@
  * PHPが使えないサーバーの場合はこのファイルを置かなくて構いません。
  * その場合はアプリが settings.json をダウンロードするので、FTPで手動アップロードしてください。
  *
- * ※ パスワードは index.html の ADMIN_PASSWORD と同じ値にしてください。
+ * ※ パスワードは同じ場所に置く config.php から読み込みます（このファイルには書きません）。
  */
 
 declare(strict_types=1);
 
-const ADMIN_PASSWORD = 'Welsys@1234';
-const TARGET_FILE    = __DIR__ . '/settings.json';
-const MAX_BYTES      = 1048576; // 1MB
+const TARGET_FILE = __DIR__ . '/settings.json';
+const MAX_BYTES   = 1048576; // 1MB
 
 header('Content-Type: application/json; charset=utf-8');
 header('Cache-Control: no-store');
@@ -33,6 +32,17 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') !== 'POST') {
     fail('POSTで送信してください', 405);
 }
 
+// 管理者パスワードは config.php の1か所だけに置く
+$configFile = __DIR__ . '/config.php';
+if (!is_file($configFile)) {
+    fail('config.php がありません（index.html と同じ場所に置いてください）', 500);
+}
+$config = require $configFile;
+$adminPassword = (string)($config['admin_password'] ?? '');
+if ($adminPassword === '') {
+    fail('config.php に admin_password がありません', 500);
+}
+
 $raw = file_get_contents('php://input');
 if ($raw === false || $raw === '') {
     fail('データが空です');
@@ -45,7 +55,7 @@ $body = json_decode($raw, true);
 if (!is_array($body)) {
     fail('JSONを読み取れませんでした');
 }
-if (!isset($body['password']) || !hash_equals(ADMIN_PASSWORD, (string)$body['password'])) {
+if (!isset($body['password']) || !hash_equals($adminPassword, (string)$body['password'])) {
     fail('パスワードが違います', 403);
 }
 

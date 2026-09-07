@@ -11,10 +11,16 @@
   index.html と同じ場所に置く **`settings.json` の1ファイルだけ**。起動時にこれを読み込み、
   全員が同じ内容で動く（`loadSharedSettings()`）。ブラウザの `localStorage` は、共有設定を
   読めなかったときの控えとしてのみ使う。
-- **設定の変更は管理者だけが行う。** 設定タブは既定でロックされ、管理者パスワード
-  （`ADMIN_PASSWORD` = `Welsys@1234`）を入れないと編集できない（`unlockSettings()`）。
-  単一HTMLのためパスワードはソース内にあり、厳密な保護ではない点は割り切る
-  （本当に守りたい場合は `deploy/.htaccess.sample` のBasic認証を併用する）。
+- **設定の変更は管理者だけが行う。** 設定タブは既定でロックされ、管理者パスワードを
+  入れないと編集できない（`unlockSettings()`）。**パスワードの平文を `index.html` に書かないこと。**
+  照合は `verifyAdminPassword()` が次の順で行う。
+  ① `admin-auth.php`（あればサーバー側で照合。パスワードは `config.php` の中だけにあり、
+     ブラウザからは見えない＝推奨） → ② `config.json` の `adminPasswordHash`（SHA-256、
+     ソルトは `ADMIN_SALT` = `'oes-calendar:'`） → ③ 組み込みの `ADMIN_HASH_FALLBACK`（初期パスワード）。
+  ②③はハッシュなので平文は読めないが総当たりは防げない。厳密に守るなら①か
+  `deploy/.htaccess.sample` のBasic認証を併用する。初期パスワードは `deploy/config.php` を参照。
+  解除時に入力された平文は `adminPw`（メモリのみ・`lockSettings()` で破棄）に置き、
+  共有設定の保存POSTにだけ使う。**sessionStorage等に保存しないこと。**
 - **「担当者」という概念は廃止済み。** 担当者名・担当者定型文・担当者ごとのカレンダーURL・
   差し込み文字 `{担当者}` `{担当者定型文}` はすべて削除した。復活させないこと
   （旧い設定ファイルに残っていても `fillTemplate()` が空文字に置き換えて消す）。
@@ -28,20 +34,29 @@ GoogleカレンダーへOES入替作業の予定を登録するための、単�
 
 | ファイル | 役割 |
 |---|---|
-| `index.html` | 本体。HTML/CSS/JS＋ロゴ画像（data URI）を1ファイルに内包 |
+| `index.html` | 本体。HTML/CSS/JS＋画面用の画像（data URI）を内包 |
+| `manifest.webmanifest` | PWAのマニフェスト（**実ファイルであることが必須**。data URIに戻さない） |
+| `sw.js` | Service Worker。Androidで独立したアプリ（WebAPK）として登録されるために必要 |
 | `manual.html` | 操作マニュアル（レスポンシブHTML。ブラウザの印刷でPDF化可） |
 | `assets/welsys-logo.jpg` | ウェルシス株式会社ロゴ（manual.html が参照。index.html は同じ画像をbase64で内包） |
 | `assets/device-printer.jpg` `assets/device-kitchen.jpg` | 対象機器の画像（マルチプリンター／マルチステーション）。manual.html が参照。index.html は縮小版をbase64で内包 |
-| `assets/icon-*.png` | PWAアイコン（192/512/180/512-maskable）。manual.htmlからは参照しない。index.htmlの `<link rel="manifest">` にJSONごとdata URIで内包。手元での再確認・差し替え用に同梱 |
+| `assets/icon-*.png` | PWAアイコン（192/512/180/512-maskable）。**`manifest.webmanifest` から実URLで参照する**（Androidでアイコンを取得するために必須）。180はapple-touch-iconとしてindex.htmlにdata URIで内包 |
 | `apps-script/Code.gs` | Googleカレンダー連携用のApps Scriptコード（現在は停止中の機能。参考用に保持） |
 | `deploy/.htaccess.sample` | Basic認証用サンプル |
 | `deploy/settings-save.php` | 共有設定をサーバーに保存するための任意のエンドポイント（PHPが動く場合のみ。`settings-save.php` という名前で index.html と同じ場所に置く） |
+| `deploy/config.php` | 管理者パスワードの置き場所（PHP。ここが唯一の平文。`config.php` として置く） |
+| `deploy/admin-auth.php` | `config.php` を使ってサーバー側でパスワードを照合するエンドポイント |
+| `deploy/config.json.sample` | PHPが使えない場合のパスワード設定（SHA-256ハッシュ）。`config.json` として置く |
+| `deploy/make-hash.html` | `config.json` 用のハッシュを作る手元用ページ（**サーバーには置かない**） |
 | `legacy/` | Claude Chat時代の旧版（参照用・非稼働） |
 
 ## 重要なルール
 
-- **`index.html` は1ファイル完結**を維持する。フレームワーク・ビルドツール・外部CDN・npmパッケージは導入しない。バニラJS（ES5相当）で書く。
-- 画像も外部ファイルにせず data URI で埋め込む（FTPで `index.html` 1つ置けば動く状態を保つ）。
+- **フレームワーク・ビルドツール・外部CDN・npmパッケージは導入しない。** バニラJS（ES5相当）で書く。
+- **画面に表示する画像は data URI で `index.html` に埋め込む**（ロゴ・機器写真・スプラッシュのアイコンなど）。
+  ただし**PWAに必要なファイル（`manifest.webmanifest` `sw.js` `assets/icon-*.png`）だけは実ファイルにする**。
+  Androidでは data URI のマニフェストだとWebAPKが作られず、Chromeのマークが付いたただのショートカットに
+  なってしまうため。**この3つをdata URI化・削除しないこと。**
 - **設定の保存場所は「サーバー上の `settings.json` 1か所」**。起動時に `fetch` で読み込む（`SHARED_FILE`）。
   `localStorage`（キー: `oes-calendar-settings-v1`）は共有設定を読めなかったときの控えに過ぎない。
   保存は `settings-save.php` があればそこへPOSTし、無ければ `settings.json` をダウンロードさせて
@@ -58,7 +73,12 @@ GoogleカレンダーへOES入替作業の予定を登録するための、単�
 - **パソコン・スマートフォン両対応。スマホでの利用を重視し、余白・文字は必要最小限に詰める。**
   入力欄の `font-size` は16px以上を維持（iOSの自動ズーム防止）。タップ領域は**34px以上を死守**しつつ、
   それ以上は無闇に広げない（旧仕様の42px基準は廃止済み。詰めすぎて34px未満にしないことだけ守る）。
-- **フッターのコピーライトは小さく1行で**（ロゴ34px＋社名・コピーライトを横並び）。目立たせない。
+- **フッターのコピーライトは、利用者から支給されたデザインに合わせた「バッジ」で表示する**
+  （`.welsys-badge`：淡い緑 `#E7F4ED` の角丸ピル＋白地のWELSYSロゴ＋濃緑 `#003416` 太字の
+  `© ウェルシス株式会社`）。**西暦は入れない。** この見た目は指定されたものなので勝手に変えない。
+- **起動時にスプラッシュ（`#splash`）を出す。** OESアイコン＋アプリ名「OES入替作業APP」＋
+  フッターと同じWELSYSバッジを1.2秒表示してフェードで消し、DOMから取り除く。
+  **`pointer-events:none` を維持すること**（操作を妨げず、自動テストのクリックも遮らないため）。
 - **カレンダーの月グリッドは廃止した。** 稼働件数ぶんの行にそれぞれ日付入力（`<input type=date>`）が付くため、
   月をめくって視認するUIは不要になった。カレンダーグリッド（`.cal-*`／`.day`／`renderCalendars()`等）を復活させないこと。
 - **「カレンダー」画面は質問形式（ウィザード）で、①業態と稼働件数 → ②日付と時間帯 → ③店舗名と住所 →
@@ -91,11 +111,16 @@ GoogleカレンダーへOES入替作業の予定を登録するための、単�
   **該当する登録が無い場合は、`prompt()`等で案内せずそのまま一般のGoogle Chat（`https://chat.google.com/`）を開く。**
   自動登録プロンプトは廃止済み。登録は設定の「詳細設定」内の一覧（`#store-chat-list`）から手動で行う
   （業態・店舗名・URLの3項目、追加・編集・削除ができる）。
-- **PWA対応（ホーム画面に追加できる）。** `<link rel="manifest">` にJSONをdata URIで直接埋め込み、
-  別ファイル（manifest.jsonやService Worker）を増やさず1ファイル完結を保つ。アイコンは
+- **PWA対応（ホーム画面に追加できる）。** Androidで**Chromeのマークが付かない独立したアプリ（WebAPK）**として
+  登録されるには、次がすべて必要（1つでも欠けるとただのショートカットになる）。
+  ①`https://` 配信 ②`<link rel="manifest" href="manifest.webmanifest">`（**実ファイル**）
+  ③`manifest.webmanifest` に `id` `start_url` `scope` `display:standalone` と
+  192/512/512-maskable のアイコンを**実URL**で書く ④`sw.js`（fetchハンドラを持つService Worker）を登録する。
+  `sw.js` はネットワーク優先（FTPで差し替えたらすぐ反映されるように）で、
+  `settings.json` `config.json` `*.php` はキャッシュしない。アイコンは
   `assets/device-printer.jpg` に「OES」の青いバッジを重ねたもの（`assets/icon-*.png` に元データを同梱）。
-  アイコンやアプリ名を変える場合は、`<link rel=manifest>` のdata URIとアイコンのdata URIを作り直すこと
-  （手作業では編集できないので、Pythonなどでbase64を再生成してから文字列を差し替える）。
+  アイコンやアプリ名を変える場合は `manifest.webmanifest` と `assets/icon-*.png` を差し替える
+  （スプラッシュ用のアイコンはindex.html内のdata URIなので、Pythonなどでbase64を作り直して差し替える）。
   設定タブに「📱 アプリとしてインストール」カードを置き、`beforeinstallprompt`イベントを受け取れた場合だけ
   ボタン（`#btn-install-pwa`）を表示してその場でインストールできるようにする（`installPwa()`）。
   イベントに対応しないブラウザ（iOS Safari等）ではボタンは出さず、下の案内文とマニュアルへのリンクのみ表示する。
@@ -165,6 +190,9 @@ GoogleカレンダーへOES入替作業の予定を登録するための、単�
 | `renderEquipRow()` / `onEquipInput(code,v)` / `dayCounts` | 機器台数プルダウン（1〜10）の描画・変更ハンドラ・現在値（候補切替でリセット） |
 | `openStoreChat()` / `findStoreChat(gyotai,tenpo)` | 業態＋店舗のGoogle Chatを直接開く／検索。該当なしなら案内せず一般のChatを開く |
 | `renderStoreChatList()` ほか | 設定画面での業態・店舗Chat URLの追加・編集・削除（`settings.storeChats`） |
+| `sha256Hex(str)` | 外部ライブラリを使わないSHA-256。管理者パスワードの照合に使う（httpsでない環境でも動くようにするため） |
+| `loadAdminConfig()` / `verifyAdminPassword(v, cb)` | `config.json` の読み込みと、パスワードの照合（admin-auth.php → ハッシュの順） |
+| `currentAdminPw()` | 共有設定の保存に使う平文パスワード。無ければ聞き直す（保存はしない） |
 | `installPwa()` | `beforeinstallprompt`で保持したイベントの`.prompt()`を呼び、PWAインストールダイアログを出す |
 | `renderPhraseChips()` / `copyPhrase(i)` | よく使う文のチップ描画とコピー |
 | `renderPhraseList()` ほか | 設定画面でのよく使う文の追加・並び替え・削除 |
@@ -192,6 +220,11 @@ GoogleカレンダーへOES入替作業の予定を登録するための、単�
 ICSの中身、作業当日の貼り付けからの振り分け・コピー・業態＋店舗別Chatボタン（未登録時に案内なしで
 一般Chatへフォールバックすること）、機器台数プルダウン、PWAインストールボタンの表示切り替え、
 横スクロールが出ないこと、JSエラーが出ないこと。
+管理者パスワードは、①設定ファイル無し（組み込みハッシュ）②`config.json` を置いた場合
+③`admin-auth.php` を置いた場合の3通りで、正しい／誤ったパスワードの挙動を確認する。
+`index.html` に平文パスワードが含まれていないこと（`grep -c 'Welsys@1234' index.html` が 0）も確認する。
+PWAは `manifest.webmanifest` がdata URIでなく実ファイルとして参照でき、アイコンのURLが全て取得でき、
+Service Workerが登録されることを確認する（`http://` の簡易サーバーでも登録自体は確認できる）。
 
 ## 配置
 

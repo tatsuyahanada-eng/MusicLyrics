@@ -16,10 +16,16 @@ GoogleカレンダーへOES入替作業の予定を登録するためのWebツ�
 
 ## 1. 概要
 
-- 単一のHTMLファイル (`index.html`)。外部依存なし（プレーンなHTML/CSS/JavaScript、ロゴ・アイコンはdata URIで内包）。
+- 本体は1つのHTMLファイル (`index.html`)。外部ライブラリ・CDN・ビルドツールは使わない
+  （プレーンなHTML/CSS/JavaScript、画面に使うロゴ・写真・スプラッシュのアイコンはdata URIで内包）。
 - サーバーにFTPでアップロードして使用。必要に応じて `.htaccess` でBasic認証。
-- **PWA（ホーム画面に追加してアプリのように使える）対応。** `<link rel="manifest">` にJSONをdata URIで直接埋め込む
-  （別ファイルを増やさず1ファイル完結を保つ）。アイコンはマルチプリンター（SEIKO）の写真に「OES」バッジを重ねたもの。
+- **PWA（ホーム画面に追加してアプリのように使える）対応。** Androidで独立したアプリとして登録させるため、
+  マニフェスト（`manifest.webmanifest`）とService Worker（`sw.js`）、アイコン（`assets/icon-*.png`）は
+  **実ファイルとして配置する**（2.1節）。アイコンはマルチプリンター（SEIKO）の写真に「OES」バッジを重ねたもの。
+- **管理者パスワードは `index.html` に書かない。** サーバー上の設定ファイル（`config.php` または `config.json`）
+  から読み込む（5.0節）。
+- **起動時にスプラッシュを表示する。** OESアイコン＋アプリ名「OES入替作業APP」＋ウェルシス株式会社のバッジを
+  1.2秒表示してフェードで消す。`pointer-events:none` で操作は妨げない。
 - 画面は3タブ構成（カレンダー／作業当日／設定）。カレンダーは**質問形式（ウィザード）**で、
   ①業態と稼働件数 → ②日付と時間帯 → ③店舗名と住所 → ④一覧確認・Googleカレンダーへ登録、の4ステップを1画面で完結する
   (旧版の「登録リスト」タブは「カレンダー」タブに統合)。パソコン・スマートフォン両対応、スマホでの利用を重視したコンパクトな余白。
@@ -48,7 +54,8 @@ GoogleカレンダーへOES入替作業の予定を登録するためのWebツ�
 | ストレージ | 使用禁止 | 設定はサーバー上の settings.json（localStorageは控え。登録リストは揮発） |
 | 画面幅 | PC前提（最小980px） | レスポンシブ（スマホ〜PC） |
 | マニュアル | manual.pdf | manual.html（印刷でPDF化可） |
-| フッター | なし | ウェルシス株式会社ロゴ＋コピーライト（小さく1行で表示） |
+| フッター | なし | ウェルシス株式会社のバッジ（淡い緑のピル＋ロゴ＋`© ウェルシス株式会社`。西暦は入れない） |
+| 起動画面 | なし | スプラッシュ（OESアイコン＋アプリ名＋ウェルシス株式会社のバッジ、1.2秒） |
 | PWA | 非対応 | ホーム画面に追加してアプリのように起動可能。アイコンは写真＋「OES」バッジ |
 | 設定画面 | — | 使用頻度の低い項目は「詳細設定」に折りたたみ、初期表示をシンプルに |
 
@@ -74,10 +81,21 @@ GoogleカレンダーへOES入替作業の予定を登録するためのWebツ�
 
 ### 2.1 PWA（ホーム画面への追加）
 
-- `<link rel="manifest" href="data:application/manifest+json;base64,…">` でマニフェストを直接埋め込む（別ファイル不要）。
-- マニフェストの内容: `name`/`short_name`「OES入替作業APP」、`display:"standalone"`、`theme_color:"#1565C0"`、
-  `background_color:"#EBF3FB"`、`icons`（192/512、`purpose:"any"` と 512の `purpose:"maskable"`）。`start_url` は指定せず、
-  ブラウザのフォールバック（マニフェストを参照した文書のURL）に任せる。
+- `<link rel="manifest" href="manifest.webmanifest">` で**実ファイル**を参照する。
+  data URIのマニフェストではAndroidでWebAPKが生成されず、**Chromeのマークが重なったただのショートカット**に
+  なってしまうため、data URIに戻さないこと。
+- マニフェスト（`manifest.webmanifest`）の内容: `id:"./"`、`name`/`short_name`「OES入替作業APP」/「OES入替作業」、
+  `start_url:"./index.html"`、`scope:"./"`、`display:"standalone"`、`theme_color:"#1565C0"`、
+  `background_color:"#EAF7FD"`、`orientation:"portrait-primary"`、`lang:"ja"`、
+  `icons`（`assets/icon-192.png`・`assets/icon-512.png` が `purpose:"any"`、`assets/icon-512-maskable.png` が
+  `purpose:"maskable"`）。**アイコンは実URLで書く**（WebAPK生成時にサーバーから取得されるため）。
+- `sw.js`（Service Worker）を `navigator.serviceWorker.register('sw.js')` で登録する。`file://` では登録しない。
+  方式はネットワーク優先（FTPで差し替えたら次に開いたときすぐ反映される）＋オフライン時のみキャッシュ。
+  `settings.json` `config.json` `*.php` は共有設定が古くならないよう**キャッシュしない**。
+- **Androidで独立したアプリ（WebAPK）として登録される条件**（1つでも欠けるとショートカット扱いになる）:
+  ①`https://` 配信 ②実ファイルのマニフェスト ③`id`/`start_url`/`scope`/`display:standalone` ④192・512・
+  maskableのアイコンが取得できる ⑤fetchハンドラを持つService Workerが登録されている。
+  すでにショートカットとして追加済みの場合は、一度削除してから追加し直す必要がある。
 - アイコンは `assets/device-printer.jpg`（マルチプリンター写真）を土台に、中央下寄りに青いバッジで「OES」の文字を重ねたもの。
   マスカブル版は安全領域（中心80%）に収まるよう画像とバッジを一回り小さく配置する。
 - `<link rel="apple-touch-icon">`（180x180）と `apple-mobile-web-app-*` 系メタタグでiOSのホーム画面追加にも対応。
@@ -288,16 +306,31 @@ GoogleカレンダーへOES入替作業の予定を登録するためのWebツ�
 
 - **設定の変更は管理者だけが行う。** 設定タブは既定でロックされ、`#pane-set` に `locked` クラスが付く。
   ロック中はCSSで、設定カード内の入力・選択・ボタンを操作不可（`pointer-events:none` ＋ 半透明）にする。
-- パスワードは `ADMIN_PASSWORD`（`Welsys@1234`）。`unlockSettings()` で照合し、合っていれば
-  `sessionStorage`（キー `oes-calendar-admin-unlocked`）に解除状態を持つ（ブラウザを閉じると再びロック）。
+- **パスワードの平文は `index.html` に書かない。** `verifyAdminPassword(v, cb)` が次の順で照合する。
+  1. **`admin-auth.php`**（あれば）へ `{password}` をPOSTし、`{"ok":true|false}` の返答に従う。
+     パスワードは `config.php` の中だけにあり、ブラウザへは一切送られない（**推奨・最も安全**）。
+  2. 無ければ **`config.json`** の `adminPasswordHash`（SHA-256。ソルトは `ADMIN_SALT` = `'oes-calendar:'`、
+     つまり `sha256('oes-calendar:' + パスワード)` の16進64桁）と照合する。起動時に `loadAdminConfig()` が読み込む。
+  3. `config.json` も無ければ、組み込みの `ADMIN_HASH_FALLBACK`（初期パスワードのハッシュ）と照合する。
+  1が404等で失敗した場合は `adminConfig.useEndpoint = false` にして以降は試さない。
+  `file://` で開いた場合は1・2を行わず3のみ。
+- SHA-256は外部ライブラリを使わず `sha256Hex()` で実装する（`crypto.subtle` は `https://` でないと使えないため）。
+- 照合が通ると `sessionStorage`（キー `oes-calendar-admin-unlocked`）に解除状態を持つ（ブラウザを閉じると再びロック）。
   「ロックする」（`lockSettings()`）でいつでも戻せる。
+- 入力された平文は `adminPw`（**メモリ上のみ**。`lockSettings()` で破棄）に保持し、`settings-save.php` への
+  保存POSTにだけ使う。`localStorage` / `sessionStorage` には保存しない。リロード等で失われていた場合は
+  `currentAdminPw()` が保存時に一度だけ聞き直す。
 - **ロック中でもできること**: 設定内容の閲覧、折りたたみの開閉、「共有設定を再読み込み」（`#lock-card`内）、
   「アプリとしてインストール」（`#install-card`）。これらは管理者以外にも必要なため、ロック対象から除外する。
 - 変更系の関数（`addGyotai()` `moveGyotai()` `removeGyotai()` `addPhrase()` `movePhrase()` `removePhrase()`
   `addStoreChat()` `removeStoreChat()` `importSettings()` `resetSettings()` `saveSharedSettings()`）には
   `requireAdmin()` を入れ、CSSをすり抜けた場合にも変更されないようにする。
-- **単一HTMLのためパスワードはソース内にあり、厳密なアクセス制御ではない**（画面の誤操作防止が目的）。
-  本当に制限したい場合は `deploy/.htaccess.sample` のBasic認証を併用する。
+- **`admin-auth.php` を使わない場合、`index.html` や `config.json` から読めるのはハッシュだけで平文は分からないが、
+  総当たりまでは防げない**（画面の誤操作防止が主目的）。厳密に制限したい場合は `admin-auth.php` を置くか、
+  `deploy/.htaccess.sample` のBasic認証を併用する。
+- パスワードの変更: PHPが使える場合は `config.php` の `admin_password` を書き換えるだけ。使えない場合は
+  `deploy/make-hash.html` を**手元のブラウザで**開いて新しいハッシュを作り、`config.json` を差し替える
+  （`make-hash.html` はサーバーに置かない）。
 
 ### 5.1 業態ごとの定型文・時間帯
 - 業態: 業態名 / タイトル書式（空欄なら共通設定）/ 時間帯（1件以上）。
@@ -359,8 +392,8 @@ GoogleカレンダーへOES入替作業の予定を登録するためのWebツ�
      **index.html と同じ場所へFTPでアップロードすれば同じ結果になる。**
 - 「ファイルから読み込む」（`importSettings()`）と「初期設定に戻す」（`resetSettings()`）も管理者のみ。
   読み込み時は `normalizeSettings()` で検証・補完し、壊れたファイルは読み込まない。
-- `deploy/settings-save.php` はPHPが動くサーバー向けのサンプル。パスワードを照合し、一時ファイル経由で
-  `settings.json` を書き換える。PHPが使えない場合は置かなくてよい（上記2の手順で運用する）。
+- `deploy/settings-save.php` はPHPが動くサーバー向けのサンプル。パスワードは `config.php` から読み込んで照合し、
+  一時ファイル経由で `settings.json` を書き換える。PHPが使えない場合は置かなくてよい（上記2の手順で運用する）。
 
 ### 5.6 アプリとしてインストール
 
@@ -501,8 +534,10 @@ sessionStorage['oes-calendar-admin-unlocked'] = '1'
 - 登録リストはリロード・タブを閉じると消える（未登録の予定があるときは離脱確認を表示）。
 - 共有設定（`settings.json`）は静的ファイルとして誰でも読める。秘密にしたい情報（Chatの内部URLなど）を
   入れる場合は、`deploy/.htaccess.sample` のBasic認証などでフォルダ全体を保護すること。
-- 管理者パスワードは単一HTML内の定数のため、ソースを見れば分かる。設定画面の誤操作防止が目的であり、
-  厳密なアクセス制御ではない（`settings-save.php` を使う場合はサーバー側でも同じ値を照合する）。
+- 管理者パスワードは `admin-auth.php` を置かない限り、ハッシュがブラウザから読める状態になる
+  （平文は分からないが総当たりは防げない）。設定画面の誤操作防止が主目的であり、厳密なアクセス制御ではない。
+- PWAは `https://` 配信でないとAndroidで独立したアプリ（WebAPK）にならず、アイコンにChromeのマークが付いた
+  ショートカットになる。また `manifest.webmanifest` `sw.js` `assets/icon-*.png` を置き忘れた場合も同様。
 - `settings.json` の読み込みは `file://` では動かない（ブラウザの制限）。サーバーに置いて使うこと。
 - `localStorage` が使えない環境（シークレットモード等）では設定が保存されない。動作自体は初期設定で継続する。
 - 外部APIは、Googleカレンダー連携を設定した場合の Apps Script のURLのみ（未設定なら通信は一切発生しない）。

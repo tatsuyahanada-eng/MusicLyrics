@@ -1,0 +1,4 @@
+{
+  "_comment": "OES入替作業APP / 管理者パスワードの設定ファイル（PHPが使えないサーバー向け）。index.html と同じ場所に config.json という名前で置きます。adminPasswordHash は SHA-256（'oes-calendar:' + パスワード）の16進64桁。deploy/make-hash.html で作れます。この値は初期パスワード Welsys@1234 のものです。",
+  "adminPasswordHash": "83b6424f230bff56e1036b10e9c23b58a14bfb277466d0ec8cb2052952fb0882"
+}

@@ -4,7 +4,7 @@ GoogleカレンダーへOES入替作業の予定をまとめて登録するた�
 パソコン・スマートフォンのどちらからでも使えます。**会社の複数の担当者が、それぞれ自分の端末で使うこと**を想定しています。
 ホーム画面に追加すればアプリのように起動できます（PWA対応）。
 
-- 本体: [`index.html`](index.html)（単一ファイル・外部依存なし）
+- 本体: [`index.html`](index.html)（HTML/CSS/JS＋画像を内包。外部ライブラリなし）
 - 操作マニュアル: [`manual.html`](manual.html)
 - 仕様書: [`SPEC.md`](SPEC.md) ／ 開発時の指示書: [`CLAUDE.md`](CLAUDE.md)
 
@@ -22,6 +22,20 @@ GoogleカレンダーへOES入替作業の予定をまとめて登録するた�
 3. **⚙️ 設定** — 業態・時間帯ごとの定型文（並び替え可）、よく使う文、業態・店舗ごとのGoogle Chat URLなどを編集。
    **設定はサーバー上の `settings.json` 1ファイルで全員が共有**し、**変更には管理者パスワードが必要**です。
    対応ブラウザでは「アプリとしてインストール」ボタンからその場でホーム画面に追加できます。
+
+### 管理者パスワードの置き場所
+
+パスワードは `index.html` には書かず、**同じ場所に置く設定ファイル**から読み込みます。次の順で照合します。
+
+| 優先 | 置くもの | パスワードの見え方 |
+|---|---|---|
+| ① | `config.php` ＋ `admin-auth.php`（[サンプル](deploy/config.php)・[サンプル](deploy/admin-auth.php)） | PHPが実行されるのでブラウザからは**一切見えない**（推奨） |
+| ② | `config.json`（[サンプル](deploy/config.json.sample)） | SHA-256ハッシュのみ。平文は読めない |
+| ③ | 何も置かない | `index.html` 内の既定ハッシュ（初期パスワード）で動く |
+
+パスワードを変えるときは①なら `config.php` を書き換えるだけ、②なら
+[`deploy/make-hash.html`](deploy/make-hash.html) を**手元のブラウザで開いて**新しいハッシュを作り、
+`config.json` を差し替えます。
 
 ### 設定の共有について
 
@@ -48,14 +62,38 @@ GoogleカレンダーへOES入替作業の予定をまとめて登録するた�
 ```
 index.html
 manual.html
+manifest.webmanifest   ← PWA（アプリとしてインストール）に必要
+sw.js                  ← 同上（Androidで独立したアプリとして登録されるために必要）
 settings.json          ← 共有設定（アプリの「共有設定を保存」で作成。無くても初期設定で動きます）
-settings-save.php      ← 任意。PHPが使えるサーバーなら deploy/settings-save.php をこの名前で置く
+config.php             ← 任意。管理者パスワード（PHPが使えるサーバー向け・推奨）
+admin-auth.php         ← 任意。config.php とセットで使うパスワード照合用
+settings-save.php      ← 任意。PHPが使えるサーバーなら共有設定をその場で保存できる
+config.json            ← 任意。PHPが使えない場合のパスワード設定（ハッシュ）
+assets/icon-192.png
+assets/icon-512.png
+assets/icon-512-maskable.png
 assets/welsys-logo.jpg
 assets/device-printer.jpg
 assets/device-kitchen.jpg
 ```
 
-`index.html` は画像をすべて内包しているため単体でも動作します。`manual.html` は `assets/` の画像を参照します。
+`index.html` は画面に使う画像を内包しているため単体でも表示できますが、
+**「アプリとしてインストール」を正しく動かすには `manifest.webmanifest` `sw.js` `assets/icon-*.png` を
+同じ場所へ置き、`https://` で配信する必要があります**（下記）。`manual.html` は `assets/` の画像を参照します。
+
+### Androidで「アプリとしてインストール」したときにChromeのマークが付く場合
+
+アイコンにChromeの小さなマークが重なるのは、**ただのショートカット**として登録された状態です。
+独立したアプリ（WebAPK）として登録されるには、次がすべて揃っている必要があります。
+
+- `https://` で配信されている（`http://` では不可）
+- `manifest.webmanifest` が実ファイルとして置かれ、`index.html` から参照できる
+- `sw.js`（Service Worker）が置かれ、登録できている
+- `assets/icon-192.png` `assets/icon-512.png` `assets/icon-512-maskable.png` が取得できる
+
+すでにショートカットとして追加してしまっている場合は、**一度ホーム画面から削除し、
+上記を配置したうえで追加し直してください**（Chromeのメニュー →「アプリをインストール」）。
+`deploy/.htaccess.sample` に `.webmanifest` のMIMEタイプ設定と `sw.js` のキャッシュ設定のサンプルがあります。
 
 Basic認証をかける場合は [`deploy/.htaccess.sample`](deploy/.htaccess.sample) を参考にしてください
 （`AuthUserFile` は配置先サーバーの絶対パスに書き換えが必要です）。
@@ -68,7 +106,8 @@ Basic認証をかける場合は [`deploy/.htaccess.sample`](deploy/.htaccess.sa
 | `manual.html` | 操作マニュアル |
 | `assets/` | ロゴ画像・機器画像・PWAアイコン |
 | `apps-script/` | Googleカレンダー連携用のApps Scriptコード（現在は停止中の機能。参考用） |
-| `deploy/` | サーバー配置用サンプル（Basic認証・共有設定の保存エンドポイント） |
+| `manifest.webmanifest` `sw.js` | PWA（アプリとしてインストール）用 |
+| `deploy/` | サーバー配置用サンプル（Basic認証・管理者パスワード・共有設定の保存エンドポイント・ハッシュ作成ページ） |
 | `legacy/` | Claude Chatで作成した旧版（参照用・非稼働） |
 
 ---

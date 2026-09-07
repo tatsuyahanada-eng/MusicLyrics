@@ -30,10 +30,10 @@ pre{background:#F7FAFE;border:1px solid #DCEAF8;border-radius:8px;padding:11px 1
 .step{counter-reset:st;list-style:none;margin-left:0;}
 .step > li{counter-increment:st;position:relative;padding-left:34px;margin-bottom:10px;}
 .step > li::before{content:counter(st);position:absolute;left:0;top:2px;width:24px;height:24px;border-radius:50%;background:var(--blue);color:#fff;font-size:13px;font-weight:700;display:flex;align-items:center;justify-content:center;}
-.footer{max-width:820px;margin:16px auto 0;background:#fff;border:1px solid var(--line);border-radius:12px;padding:18px;text-align:center;}
-.footer img{width:118px;height:auto;}
-.footer .cn{font-size:12.5px;font-weight:700;color:var(--blue-d);margin-top:8px;}
-.footer .cr{font-size:11.5px;color:var(--muted);margin-top:4px;}
+.footer{max-width:820px;margin:16px auto 0;padding:18px;display:flex;justify-content:center;}
+.welsys-badge{display:inline-flex;align-items:center;gap:12px;background:#E7F4ED;border-radius:999px;padding:8px 22px 8px 8px;}
+.welsys-badge img{width:44px;height:auto;display:block;background:#fff;border-radius:6px;padding:2px;}
+.welsys-badge .cr{font-size:15px;font-weight:700;color:#003416;letter-spacing:.02em;white-space:nowrap;}
 .back{display:inline-block;margin-bottom:12px;font-size:13px;color:var(--blue-d);}
 .figs{display:grid;grid-template-columns:1fr;gap:14px;margin:14px 0 4px;}
 .fig{border:1px solid var(--line);border-radius:10px;padding:12px;background:#FBFDFF;text-align:center;}
@@ -143,6 +143,22 @@ pre{background:#F7FAFE;border:1px solid #DCEAF8;border-radius:8px;padding:11px 1
     <li>アドレスバー右側のインストールアイコン（表示されていれば）、またはメニューの<b>「アプリをインストール」</b>を選びます。</li>
   </ol>
   <div class="tip">アイコンは、マルチプリンターの写真に「OES」の青いバッジを重ねたものです。インストール後もタブ名・アイコンは「OES入替作業APP」のまま変わりません。</div>
+
+  <h3>アイコンに小さなChromeのマークが付いてしまうとき（Android）</h3>
+  <p>ホーム画面のアイコンの右下に小さなChromeのマークが重なっている場合、それは<b>「独立したアプリ」ではなく、
+  「ただのインターネットのショートカット」として追加された状態</b>です。動作はしますが、正しい状態ではありません。</p>
+  <p>独立したアプリとして追加するには、サーバー側に次のファイルが揃っていて、<code>https://</code> で開いている必要があります。</p>
+  <ul>
+    <li><code>manifest.webmanifest</code>（アプリ名やアイコンの情報）</li>
+    <li><code>sw.js</code>（オフライン対応のファイル）</li>
+    <li><code>assets/icon-192.png</code> / <code>assets/icon-512.png</code> / <code>assets/icon-512-maskable.png</code></li>
+  </ul>
+  <ol class="step">
+    <li>上のファイルが <code>index.html</code> と同じ場所にアップロードされているか確認します。</li>
+    <li>ホーム画面の<b>今のアイコンを長押しして削除</b>します。</li>
+    <li>Chromeでもう一度ページを開き、「⋮」→<b>「アプリをインストール」</b>を選び直します。</li>
+  </ol>
+  <div class="note">メニューに「アプリをインストール」ではなく「ホーム画面に追加」しか出ない場合は、まだショートカットしか作れない状態です。上のファイルの配置と <code>https://</code> での表示をご確認ください。</div>
   <div class="note">アプリとして開いても機能は通常のブラウザ表示と同じです。設定はサーバー上の共有ファイルから読み込むため、インストールしても内容は全員と同じです。</div>
 
   <h2 id="s3">3. 基本の使い方（4ステップの質問形式）</h2>
@@ -380,8 +396,26 @@ pre{background:#F7FAFE;border:1px solid #DCEAF8;border-radius:8px;padding:11px 1
     <li>次に各自がアプリを開いたとき（または「共有設定を再読み込み」を押したとき）から、全員に反映されます。</li>
   </ol>
   <div class="tip">作業が終わったら「<b>ロックする</b>」を押しておくと、誤って設定を触ってしまうのを防げます。ブラウザのタブを閉じても自動的にロック状態へ戻ります。</div>
-  <div class="note">管理者パスワードは<b>誤操作を防ぐためのもの</b>です。アプリは1つのHTMLファイルでできているため、厳密な秘密にはできません。
-  外部から見られたくない場合は、サーバー側のBasic認証（<code>deploy/.htaccess.sample</code> を参照）を併用してください。<br>
+  <h3>管理者パスワードの置き場所と変え方</h3>
+  <p>パスワードは <code>index.html</code> の中には書かれていません。サーバー上の<b>設定ファイル</b>から読み込みます。</p>
+  <div class="tbl-wrap">
+  <table>
+    <tr><th style="width:150px;">置くファイル</th><th>説明</th></tr>
+    <tr><td><code>config.php</code>＋<br><code>admin-auth.php</code></td>
+        <td><b>おすすめ。</b>PHPが使えるサーバー向け。パスワードはサーバーの中だけで照合されるため、
+        利用者のブラウザには一切送られません。変えるときは <code>config.php</code> の1行を書き換えるだけです。</td></tr>
+    <tr><td><code>config.json</code></td>
+        <td>PHPが使えないサーバー向け。パスワードそのものではなく<b>ハッシュ（元に戻せない文字列）</b>だけを置きます。
+        変えるときは <code>deploy/make-hash.html</code> を手元のパソコンで開き、新しいパスワードを入力して出てきた内容を
+        <code>config.json</code> として保存し、アップロードします。</td></tr>
+    <tr><td>どちらも置かない</td><td>初期パスワードで動きます。</td></tr>
+  </table>
+  </div>
+
+  <div class="note">管理者パスワードは<b>誤操作を防ぐためのもの</b>です。<code>config.json</code> の方式では、
+  パスワードそのものは分からないものの、総当たりで試されることまでは防げません。
+  しっかり守りたい場合は <code>config.php</code>＋<code>admin-auth.php</code> の方式にするか、
+  サーバー側のBasic認証（<code>deploy/.htaccess.sample</code> を参照）を併用してください。<br>
   また、<code>settings.json</code> の読み込みはブラウザの制限により、ファイルをダブルクリックして直接開いた状態（<code>file://</code>）では動きません。
   サーバーに置いた <code>https://…</code> のアドレスから開いてください。</div>
 
@@ -463,9 +497,10 @@ BP    個</pre>
 </div>
 
 <div class="footer">
-  <img src="assets/welsys-logo.jpg" alt="ウェルシス株式会社 WELSYS">
-  <div class="cn">ウェルシス株式会社</div>
-  <div class="cr">&copy; 2026 WELSYS Inc. All rights reserved.</div>
+  <div class="welsys-badge">
+    <img src="assets/welsys-logo.jpg" alt="ウェルシス株式会社 WELSYS">
+    <div class="cr">&copy; ウェルシス株式会社</div>
+  </div>
 </div>
 </body>
 </html>

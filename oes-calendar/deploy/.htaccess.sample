@@ -20,3 +20,22 @@ Require valid-user
 <Files ".htpasswd">
     Require all denied
 </Files>
+
+# 設定ファイルへの直接アクセスを禁止する
+# （config.php はPHPとして実行されるので中身は見えませんが、念のため）
+<Files "config.php">
+    Require all denied
+</Files>
+
+# manifest / Service Worker が正しいMIMEタイプで返るようにする
+# （Androidでアプリとしてインストールするために必要。既にサーバー側で設定済みなら不要）
+<IfModule mod_mime.c>
+    AddType application/manifest+json .webmanifest
+</IfModule>
+
+# Service Worker はキャッシュさせない（更新が届かなくなるため）
+<Files "sw.js">
+    <IfModule mod_headers.c>
+        Header set Cache-Control "no-cache"
+    </IfModule>
+</Files>
