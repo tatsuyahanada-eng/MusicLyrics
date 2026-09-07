@@ -12,10 +12,10 @@ var CORE = [
   './',
   './index.html',
   './manual.html',
-  './manifest.webmanifest',
-  './assets/icon-192.png',
-  './assets/icon-512.png',
-  './assets/icon-512-maskable.png'
+  './manifest.json',
+  './icon-192.png',
+  './icon-512.png',
+  './icon-512-maskable.png'
 ];
 
 self.addEventListener('install', function(e){

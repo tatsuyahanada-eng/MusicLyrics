@@ -59,7 +59,7 @@ pre{background:#F7FAFE;border:1px solid #DCEAF8;border-radius:8px;padding:11px 1
       <li><a href="#s3">基本の使い方（4ステップの質問形式）</a></li>
       <li><a href="#s4">Googleカレンダーへの登録方法（2通り）</a></li>
       <li><a href="#s5">一覧で確認してGoogleカレンダーへ登録（登録リスト）</a></li>
-      <li><a href="#s5b">作業当日：連絡文をコピーして Google Chat へ</a></li>
+      <li><a href="#s5b">作業当日：業態と店舗名から連絡文を作って Google Chat へ</a></li>
       <li><a href="#s6">設定：業態ごとの定型文と時間帯</a></li>
       <li><a href="#s7">設定：よく使う文と業態の並び替え</a></li>
       <li><a href="#s7b">設定：業態・店舗ごとのGoogle Chat URL</a></li>
@@ -127,6 +127,11 @@ pre{background:#F7FAFE;border:1px solid #DCEAF8;border-radius:8px;padding:11px 1
     <li>ボタンが表示されていれば、それを押すだけでインストールできます（Android版Chrome・Edgeなど対応ブラウザのみ）。</li>
   </ol>
   <div class="note">ボタンが表示されない場合（iPhoneのSafariなど）は、そのブラウザが自動インストールに対応していません。下の手動手順をお使いください。</div>
+  <h3>画面の一番下の「📱 アプリインストールはこちらから」</h3>
+  <p>どのタブからでも、画面を一番下までスクロールすると<b>「📱 アプリインストールはこちらから」</b>があります。
+  ここを押すと、インストールできる状態ならそのままインストールの確認が出ます。
+  出せない場合は、お使いの端末に合わせた手順が表示されます。</p>
+
   <h3>スマートフォン（Android・Chrome）</h3>
   <ol class="step">
     <li>Chromeでこのページを開きます。</li>
@@ -150,9 +155,9 @@ pre{background:#F7FAFE;border:1px solid #DCEAF8;border-radius:8px;padding:11px 1
   「ただのインターネットのショートカット」として追加された状態</b>です。動作はしますが、正しい状態ではありません。</p>
   <p>独立したアプリとして追加するには、サーバー側に次のファイルが揃っていて、<code>https://</code> で開いている必要があります。</p>
   <ul>
-    <li><code>manifest.webmanifest</code>（アプリ名やアイコンの情報）</li>
+    <li><code>manifest.json</code>（アプリ名やアイコンの情報）</li>
     <li><code>sw.js</code>（オフライン対応のファイル）</li>
-    <li><code>assets/icon-192.png</code> / <code>assets/icon-512.png</code> / <code>assets/icon-512-maskable.png</code></li>
+    <li><code>icon-192.png</code> / <code>icon-512.png</code> / <code>icon-512-maskable.png</code></li>
   </ul>
   <ol class="step">
     <li>上のファイルが <code>index.html</code> と同じ場所にアップロードされているか確認します。</li>
@@ -220,21 +225,27 @@ pre{background:#F7FAFE;border:1px solid #DCEAF8;border-radius:8px;padding:11px 1
     <li><b>＋ 空の行を追加</b>：カレンダーを使わずに1件だけ手入力したいときに使います。</li>
   </ul>
 
-  <h2 id="s5b">5-2. 作業当日：連絡文をコピーして Google Chat へ</h2>
-  <p>作業当日は「🛠️ 作業当日」タブを使います。その日の予定を読み込むと、説明文が
-  <b>①入店連絡 ／ ②中間報告 ／ ③退店連絡</b> の3つに自動で振り分けられ、それぞれ「コピー」ボタンが付きます。</p>
+  <h2 id="s5b">5-2. 作業当日：業態と店舗名から連絡文を作って Google Chat へ</h2>
+  <p>作業当日は「🛠️ 作業当日」タブを使います。<b>業態を選んで店舗名を入れるだけ</b>で、
+  <b>①入店連絡 ／ ②中間報告 ／ ③退店連絡</b> の3つが作られ、それぞれ「コピー」ボタンが付きます。</p>
 
-  <h3>使い方は「コピーして貼り付けるだけ」</h3>
-  <p><b>ご自分のGoogleカレンダーに登録した説明文を貼り付けるだけで使えます。</b>準備や設定は何も要りません。</p>
+  <h3>使い方は「業態を選んで、店舗名を入れるだけ」</h3>
   <ol class="step">
-    <li>ご自分のGoogleカレンダー（アプリでもブラウザでも可）で、<b>今日の予定を開きます</b>。</li>
-    <li>予定の<b>説明文をコピー</b>します（長押し／ドラッグで選択してコピー）。</li>
-    <li>このアプリの「🛠️ 作業当日」タブを開き、<b>貼り付け欄に貼り付けて</b>、
-      幅いっぱいの青いボタン「<b>貼り付けた内容で連絡文を作る</b>」を押します。</li>
+    <li><b>業態</b>をプルダウンから選びます。</li>
+    <li><b>店舗名</b>を入力します（「渋谷」と入れれば「渋谷店」になります）。</li>
+    <li>その業態に時間帯が2つ以上ある場合は、<b>午前／午後</b>を選びます（1つしかない業態では表示されません）。</li>
+    <li>「<b>この内容で連絡文を作る</b>」を押します。</li>
   </ol>
-  <div class="tip">これだけで <b>①入店連絡 ／ ②中間報告 ／ ③退店連絡</b> に自動で振り分けられ、
-  それぞれ「コピー」ボタンでワンタップでコピーできます。「今日の作業」に<b>業態・店舗名・時刻</b>も表示されます。</div>
-  <p>このアプリのカレンダー画面で当日分を作ってある場合は、「<b>このアプリの登録リストから探す</b>」から呼び出すこともできます
+  <div class="tip">その業態・時間帯の<b>定型文</b>から、①②③の3つの連絡文が自動で作られます。
+  Googleカレンダーを開く必要も、コピー＆貼り付けも要りません。「今日の作業」に<b>業態・店舗名・時刻</b>も表示されます。</div>
+
+  <h3>Googleカレンダーの説明文を貼り付けて使うこともできます</h3>
+  <p>定型文とは違う内容で連絡したいときは、「<b>別の方法：Googleカレンダーの説明文を貼り付ける</b>」をタップして開きます。</p>
+  <ol class="step">
+    <li>ご自分のGoogleカレンダーで<b>今日の予定を開き</b>、<b>説明文をコピー</b>します。</li>
+    <li>開いた欄に<b>貼り付けて</b>、「<b>貼り付けた内容で連絡文を作る</b>」を押します。</li>
+  </ol>
+  <p>このアプリのカレンダー画面で当日分を作ってある場合は、同じ場所の「<b>このアプリの登録リストから探す</b>」からも呼び出せます
   （候補が複数あるときは一覧から選びます）。</p>
 
   <h3>Google Chat への送り方</h3>
@@ -446,9 +457,9 @@ pre{background:#F7FAFE;border:1px solid #DCEAF8;border-radius:8px;padding:11px 1
   <table>
     <tr><th style="width:230px;">チェック結果</th><th>対処</th></tr>
     <tr><td>https:// で開いていません</td><td>サーバーのSSL設定をご確認ください。<code>http://</code> ではアプリになりません。</td></tr>
-    <tr><td>manifest.webmanifest がありません<br>sw.js がありません</td>
+    <tr><td>manifest.json がありません<br>sw.js がありません</td>
         <td>この2つを <code>index.html</code> と同じ場所へアップロードしてください。無いとChromeのマーク付きショートカットにしかなりません。</td></tr>
-    <tr><td>アイコンの画像が見つかりません</td><td><code>assets</code> フォルダをアップロードし直してください。</td></tr>
+    <tr><td>アイコンの画像が見つかりません</td><td><code>icon-192.png</code> などを <code>index.html</code> と同じ場所へアップロードし直してください。</td></tr>
   </table>
   </div>
   <div class="note">すでにChromeのマーク付きで追加してしまっている場合は、上の項目をすべて ✅ にしたうえで、

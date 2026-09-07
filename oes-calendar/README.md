@@ -15,8 +15,9 @@ GoogleカレンダーへOES入替作業の予定をまとめて登録するた�
    ③各件の店舗名と住所を入力（②で選んだ日付・時間帯が各件の見出しに出ます）→
    ④一覧で内容を確認・修正し、Googleカレンダーへ順番に登録（または ICS で一括取込）。
    これらすべてを1画面で完結できます。
-2. **🛠️ 作業当日** — **自分のGoogleカレンダーの予定を開いて、説明文をコピー＆貼り付けるだけ。**
-   入店連絡／中間報告／退店連絡に自動で振り分けられ、それぞれワンタップでコピーできます。
+2. **🛠️ 作業当日** — **業態をプルダウンで選び、店舗名を入れて「この内容で連絡文を作る」だけ。**
+   その業態の定型文から入店連絡／中間報告／退店連絡が作られ、それぞれワンタップでコピーできます
+   （Googleカレンダーの説明文の貼り付けも、折りたたみの中から使えます）。
    隣の「Chat」ボタンでその業態・店舗のGoogle Chatを直接開いて貼り付け（未登録の店舗の場合は一般のGoogle Chatを開きます）。
    退店連絡はMPR/MST/HT/BC/BPの台数（1〜10のプルダウン）を選んだ機器だけ自動で反映される
 3. **⚙️ 設定** — 業態・時間帯ごとの定型文（並び替え可）、よく使う文、業態・店舗ごとのGoogle Chat URLなどを編集。
@@ -53,7 +54,7 @@ GoogleカレンダーへOES入替作業の予定をまとめて登録するた�
 ### うまく共有されない・インストールできないとき
 
 設定タブの「🩺 **サーバーの状態をチェック**」を開いて「チェックする」を押すと、
-`settings.json` が置かれているか、`settings-save.php` が使えるか、`manifest.webmanifest` や
+`settings.json` が置かれているか、`settings-save.php` が使えるか、`manifest.json` や
 アイコン・Service Worker が揃っているかを1つずつ確認して、原因と対処方法を表示します。
 ロック中（管理者パスワードなし）でも、スマートフォンからでも実行できます。
 
@@ -76,23 +77,23 @@ GoogleカレンダーへOES入替作業の予定をまとめて登録するた�
 ```
 index.html
 manual.html
-manifest.webmanifest   ← PWA（アプリとしてインストール）に必要
+manifest.json          ← PWA（アプリとしてインストール）に必要
 sw.js                  ← 同上（Androidで独立したアプリとして登録されるために必要）
+icon-192.png           ← PWAアイコン（index.html と同じ階層に置く）
+icon-512.png
+icon-512-maskable.png
 settings.json          ← 共有設定（アプリの「共有設定を保存」で作成。無くても初期設定で動きます）
 config.php             ← 任意。管理者パスワード（PHPが使えるサーバー向け・推奨）
 admin-auth.php         ← 任意。config.php とセットで使うパスワード照合用
 settings-save.php      ← 任意。PHPが使えるサーバーなら共有設定をその場で保存できる
 config.json            ← 任意。PHPが使えない場合のパスワード設定（ハッシュ）
-assets/icon-192.png
-assets/icon-512.png
-assets/icon-512-maskable.png
 assets/welsys-logo.jpg
 assets/device-printer.jpg
 assets/device-kitchen.jpg
 ```
 
 `index.html` は画面に使う画像を内包しているため単体でも表示できますが、
-**「アプリとしてインストール」を正しく動かすには `manifest.webmanifest` `sw.js` `assets/icon-*.png` を
+**「アプリとしてインストール」を正しく動かすには `manifest.json` `sw.js` `icon-*.png` を
 同じ場所へ置き、`https://` で配信する必要があります**（下記）。`manual.html` は `assets/` の画像を参照します。
 
 ### Androidで「アプリとしてインストール」したときにChromeのマークが付く場合
@@ -101,9 +102,9 @@ assets/device-kitchen.jpg
 独立したアプリ（WebAPK）として登録されるには、次がすべて揃っている必要があります。
 
 - `https://` で配信されている（`http://` では不可）
-- `manifest.webmanifest` が実ファイルとして置かれ、`index.html` から参照できる
+- `manifest.json` が実ファイルとして置かれ、`index.html` から参照できる
 - `sw.js`（Service Worker）が置かれ、登録できている
-- `assets/icon-192.png` `assets/icon-512.png` `assets/icon-512-maskable.png` が取得できる
+- `icon-192.png` `icon-512.png` `icon-512-maskable.png` が **index.html と同じ場所に**置かれている
 
 すでにショートカットとして追加してしまっている場合は、**一度ホーム画面から削除し、
 上記を配置したうえで追加し直してください**（Chromeのメニュー →「アプリをインストール」）。
@@ -120,7 +121,7 @@ Basic認証をかける場合は [`deploy/.htaccess.sample`](deploy/.htaccess.sa
 | `manual.html` | 操作マニュアル |
 | `assets/` | ロゴ画像・機器画像・PWAアイコン |
 | `apps-script/` | Googleカレンダー連携用のApps Scriptコード（現在は停止中の機能。参考用） |
-| `manifest.webmanifest` `sw.js` | PWA（アプリとしてインストール）用 |
+| `manifest.json` `sw.js` `icon-*.png` | PWA（アプリとしてインストール）用 |
 | `deploy/` | サーバー配置用サンプル（Basic認証・管理者パスワード・共有設定の保存エンドポイント・ハッシュ作成ページ） |
 | `legacy/` | Claude Chatで作成した旧版（参照用・非稼働） |
 
