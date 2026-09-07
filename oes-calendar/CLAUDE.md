@@ -61,6 +61,18 @@ GoogleカレンダーへOES入替作業の予定を登録するための、単�
   `localStorage`（キー: `oes-calendar-settings-v1`）は共有設定を読めなかったときの控えに過ぎない。
   保存は `settings-save.php` があればそこへPOSTし、無ければ `settings.json` をダウンロードさせて
   FTPでアップロードしてもらう（`saveSharedSettings()`）。**登録リスト（作業予定）は保存しない**（揮発）。
+- **「保存し忘れ」で共有されない事故を起こさないこと。** 設定を変えたら `markSharedDirty()` が
+  `sharedState.dirty` を立て、設定タブに未共有バナー（`#dirty-bar`）を出し、離脱時に警告する。
+  起動時の `probeSaveEndpoint()` で `settings-save.php` が本当に使えると分かっている場合は、
+  変更の1.5秒後に**自動でサーバーへ保存する**（管理者が押し忘れても共有される）。
+  この「変更＝未共有として見せる」「使えるなら自動保存する」動作を外さないこと。
+- **原因を利用者が自分で特定できるようにする。** 設定タブの `#diag-card`（`runDiagnostics()`）で
+  https / `settings.json` / `settings-save.php` / パスワード設定 / `manifest.webmanifest` / アイコン /
+  Service Worker / インストール状態を1つずつ確認し、✅⚠️❌と「どうすればよいか」を日本語で出す。
+  **ロック中でも実行できるようにする**（管理者以外のスマホから確認する用途があるため、
+  `#lock-card` `#install-card` と同様にロック対象から除外する）。
+  `settings.json` の読み込み成功時は、業態の並び順とサーバー上の更新日時を `#shared-status` に出して、
+  PCとスマホで見比べられるようにする。
 - **設定タブは管理者パスワードでロックする。** ロック中は `#pane-set` に `locked` クラスが付き、
   CSSで入力・ボタンを操作不可にする。ただし**閲覧・折りたたみの開閉・「アプリとしてインストール」
   （`#install-card`）・「共有設定を再読み込み」（`#lock-card`）はロック中でも使える**
@@ -184,6 +196,9 @@ GoogleカレンダーへOES入替作業の予定を登録するための、単�
 | `moveGyotai(i, d)` | 業態の並び替え（カレンダー画面のプルダウンの順番になる） |
 | `applyLockState()` / `unlockSettings()` / `lockSettings()` / `requireAdmin()` | 設定タブの管理者ロック |
 | `loadSharedSettings()` / `saveSharedSettings()` / `reloadSharedSettings()` | 共有設定（`settings.json`）の読み込み・保存 |
+| `markSharedDirty()` / `updateDirtyBar()` | 未共有の変更を記録し、設定タブに警告バーを出す。保存できる環境なら自動保存を予約する |
+| `probeSaveEndpoint()` | 起動時に `settings-save.php` が本当に使えるかを判定する（PHP未実行・config.php欠落・404を区別する） |
+| `runDiagnostics()` / `diagRow()` | 設定タブの「サーバーの状態をチェック」。共有されない／インストールできない原因を1つずつ表示する |
 | `toggleGy(id)` | 折りたたみ（業態・「詳細設定」で共通利用）の開閉。要素idは `gy-<id>` |
 | `splitReport(text)` | 説明文を入店/中間報告/退店に振り分ける。目印は `settings.dayKeywords` |
 | `stripEquipmentLines(text)` / `rebuildEquipmentBlock()` | ③退店連絡の機器台数（MPR/MST/HT/BC/BP）を除去・再構築。入力した機器だけ固定順で反映する |

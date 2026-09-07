@@ -168,10 +168,10 @@ input:focus,select:focus,textarea:focus{border-color:var(--blue);box-shadow:0 0 
 .lock-bar .lb-msg{flex:1 1 220px;min-width:0;font-size:12.5px;color:var(--blue-d);font-weight:700;}
 .lock-bar .lb-msg small{display:block;font-weight:400;color:var(--muted);font-size:11.5px;margin-top:2px;}
 .lock-bar input{max-width:190px;}
-#pane-set.locked .card:not(#lock-card):not(#install-card) input,
-#pane-set.locked .card:not(#lock-card):not(#install-card) select,
-#pane-set.locked .card:not(#lock-card):not(#install-card) textarea,
-#pane-set.locked .card:not(#lock-card):not(#install-card) button{
+#pane-set.locked .card:not(#lock-card):not(#install-card):not(#diag-card) input,
+#pane-set.locked .card:not(#lock-card):not(#install-card):not(#diag-card) select,
+#pane-set.locked .card:not(#lock-card):not(#install-card):not(#diag-card) textarea,
+#pane-set.locked .card:not(#lock-card):not(#install-card):not(#diag-card) button{
   pointer-events:none;opacity:.55;
 }
 /* 折りたたみの開閉と閲覧は誰でもできる（変更だけを管理者に限定する） */
@@ -310,6 +310,31 @@ input:focus,select:focus,textarea:focus{border-color:var(--blue);box-shadow:0 0 
   .welsys-badge img{width:36px;}
   .welsys-badge .cr{font-size:13px;}
 }
+
+/* ---------- 未共有の変更バー / 診断 ---------- */
+#diag-card .gy-name{flex:1 1 auto;}
+#diag-card .gy-meta{flex:1 1 100%;margin-left:20px;}
+
+.dirty-bar{
+  display:flex; align-items:center; gap:10px; flex-wrap:wrap;
+  background:#FFF4E0; border:1px solid #F0C36D; border-left:5px solid #B26A00;
+  border-radius:var(--r); padding:11px 13px; margin-bottom:8px;
+}
+.dirty-bar .db-msg{flex:1 1 240px;font-size:12.5px;color:#7A4B00;font-weight:700;line-height:1.45;}
+.dirty-bar .db-msg small{display:block;font-weight:400;font-size:11.5px;margin-top:3px;color:#8A6428;}
+#pane-set.locked .dirty-bar{display:none !important;}
+
+.diag{display:flex;flex-direction:column;gap:6px;}
+.diag-row{display:flex;gap:8px;align-items:flex-start;font-size:12.5px;line-height:1.45;
+  border:1px solid var(--line-w);border-radius:var(--r-s);padding:8px 10px;background:#fff;}
+.diag-row .dg-icon{flex-shrink:0;font-size:14px;line-height:1.3;}
+.diag-row .dg-body{flex:1;min-width:0;}
+.diag-row .dg-name{font-weight:700;}
+.diag-row .dg-note{color:var(--muted);font-size:11.5px;margin-top:2px;word-break:break-word;}
+.diag-row.ng{background:#FFF5F5;border-color:#F0B4B4;}
+.diag-row.ng .dg-note{color:#9B3A3A;}
+.diag-row.warn{background:#FFF9EC;border-color:#F0D79B;}
+.diag-row.warn .dg-note{color:#8A6428;}
 
 /* ---------- 起動時のスプラッシュ ---------- */
 #splash{
@@ -572,6 +597,31 @@ input:focus,select:focus,textarea:focus{border-color:var(--blue);box-shadow:0 0 
           <button class="btn btn-sub btn-sm" onclick="reloadSharedSettings()">共有設定を再読み込み</button>
         </div>
         <div class="hint" id="shared-status" style="margin-top:7px;"></div>
+      </div>
+    </div>
+
+    <div class="dirty-bar hidden" id="dirty-bar">
+      <div class="db-msg" id="dirty-msg"></div>
+      <button class="btn btn-primary btn-sm" onclick="saveSharedSettings()">今すぐ全員へ共有する</button>
+    </div>
+
+    <div class="card" id="diag-card">
+      <div class="card-body" style="padding:0;">
+        <div class="gy-item" id="gy-diag">
+          <div class="gy-head" onclick="toggleGy('diag')">
+            <span class="caret">▶</span>
+            <span class="gy-name">🩺 サーバーの状態をチェック</span>
+            <span class="gy-meta">設定が反映されない／インストールできないとき</span>
+          </div>
+          <div class="gy-body" onclick="event.stopPropagation()">
+            <div class="hint" style="margin-bottom:9px;">
+              「パソコンで変えた設定がスマホに反映されない」「アプリとしてインストールできない」ときは、
+              下のボタンで原因が分かります。管理者以外・スマートフォンからでも実行できます。
+            </div>
+            <button class="btn btn-primary btn-sm" id="btn-diag" onclick="runDiagnostics()">チェックする</button>
+            <div id="diag-out" style="margin-top:10px;"></div>
+          </div>
+        </div>
       </div>
     </div>
 
@@ -2293,6 +2343,7 @@ function onCommonChange(){
 }
 function afterSettingsChange(rerenderSettingsPane){
   saveSettings();
+  markSharedDirty();
   syncEntriesWithSettings();
   renderWizardForm(true);
   renderEntries();
@@ -2475,7 +2526,7 @@ function requireAdmin(){
    ========================================================================= */
 var SHARED_FILE = 'settings.json';
 var SHARED_SAVE_ENDPOINT = 'settings-save.php';
-var sharedState = { loaded:false, message:'' };
+var sharedState = { loaded:false, message:'', dirty:false, canSave:null, saveError:'', lastModified:'', srcInfo:'' };
 
 function setSharedStatus(msg){
   sharedState.message = msg;
@@ -2492,16 +2543,25 @@ function loadSharedSettings(){
   }
   return fetch(SHARED_FILE + '?t=' + Date.now(), { cache:'no-store' }).then(function(r){
     if(!r.ok) throw new Error('HTTP ' + r.status);
+    sharedState.lastModified = r.headers.get('Last-Modified') || '';
     return r.json();
   }).then(function(o){
     if(!o || !o.gyotai || !o.gyotai.length) throw new Error('形式が違います');
     settings = normalizeSettings(o);
     saveSettings();                       /* 次回オフラインでも同じ内容で開けるように控えを残す */
     sharedState.loaded = true;
-    setSharedStatus('共有設定（' + SHARED_FILE + '）を読み込みました。全員が同じ内容を使用しています。');
+    sharedState.dirty = false;
+    /* 端末どうしで見比べられるように、読み込んだ内容の要点を出す */
+    var names = settings.gyotai.map(function(g){ return g.name; }).join('→');
+    sharedState.srcInfo = '業態' + settings.gyotai.length + '件（' + names + '）';
+    setSharedStatus('✅ サーバーの共有設定を読み込みました｜' + sharedState.srcInfo
+      + (sharedState.lastModified ? '｜更新: ' + sharedState.lastModified : ''));
+    updateDirtyBar();
     return true;
   }, function(){
-    setSharedStatus('共有設定（' + SHARED_FILE + '）が見つかりません。この端末に保存された内容で動作しています。');
+    setSharedStatus('⚠ サーバーに ' + SHARED_FILE + ' がありません。この端末に保存された内容で動作しています'
+      + '（他の人には反映されません）。管理者が設定を変更して「共有設定を保存」を押してください。');
+    updateDirtyBar();
     return false;
   });
 }
@@ -2536,8 +2596,11 @@ function saveSharedSettings(){
   }).then(function(o){
     if(!o || o.ok !== true) throw new Error((o && o.error) || '保存できませんでした');
     sharedState.loaded = true;
-    done('サーバーの ' + SHARED_FILE + ' に保存しました。次に各自がアプリを開いたときから全員に反映されます。');
-    toast('共有設定を保存しました');
+    sharedState.canSave = true;
+    sharedState.dirty = false;
+    updateDirtyBar();
+    done('✅ サーバーに保存しました。他の端末では、アプリを開き直すか「共有設定を再読み込み」で反映されます。');
+    toast('全員に共有しました');
   }, function(){
     downloadSharedFile(json, done);
   });
@@ -2551,9 +2614,74 @@ function currentAdminPw(){
 }
 function downloadSharedFile(json, done){
   saveBlob(new Blob([json], {type:'application/json'}), SHARED_FILE);
-  done('サーバーに直接保存できないため ' + SHARED_FILE + ' をダウンロードしました。'
-     + 'index.html と同じ場所へFTPでアップロードすると、全員に反映されます。');
+  sharedState.canSave = false;
+  sharedState.dirty = true;   /* アップロードが済むまでは「未共有」のまま */
+  updateDirtyBar();
+  done('⚠ サーバーに直接保存できないため ' + SHARED_FILE + ' をダウンロードしました。'
+     + 'このファイルを index.html と同じ場所へFTPでアップロードするまで、他の人には反映されません。');
   toast(SHARED_FILE + ' を書き出しました');
+}
+
+/* =========================================================================
+   未共有の変更を見逃さないための仕組み
+   - 管理者が設定を変えたら「まだ全員に共有されていない」状態にする
+   - settings-save.php が使えるサーバーでは自動で保存する（押し忘れを防ぐ）
+   ========================================================================= */
+var autoSaveTimer = null;
+function markSharedDirty(){
+  if(!isAdminUnlocked()) return;      /* 変更できるのは管理者だけ */
+  sharedState.dirty = true;
+  updateDirtyBar();
+  if(sharedState.canSave === true && adminPw){
+    if(autoSaveTimer) clearTimeout(autoSaveTimer);
+    autoSaveTimer = setTimeout(function(){ autoSaveTimer = null; saveSharedSettings(); }, 1500);
+  }
+}
+function updateDirtyBar(){
+  var bar = $('dirty-bar'), msg = $('dirty-msg');
+  if(!bar || !msg) return;
+  if(!sharedState.dirty){ bar.classList.add('hidden'); return; }
+  bar.classList.remove('hidden');
+  msg.innerHTML = '⚠ この変更は、まだ他の人には反映されていません'
+    + '<small>' + (sharedState.canSave === true
+        ? 'サーバーへの自動保存を試みています。反映されない場合は右のボタンを押してください。'
+        : 'ボタンを押すと ' + SHARED_FILE + ' が保存（またはダウンロード）されます。'
+          + 'ダウンロードされた場合は、そのファイルを index.html と同じ場所へFTPでアップロードしてください。')
+    + '</small>';
+}
+/* settings-save.php が本当に使えるかを起動時に確かめる */
+function probeSaveEndpoint(){
+  if(typeof fetch !== 'function' || location.protocol === 'file:'){
+    sharedState.canSave = false; sharedState.saveError = 'サーバーに置かれていません'; return Promise.resolve(false);
+  }
+  return fetch(SHARED_SAVE_ENDPOINT, {
+    method:'POST', cache:'no-store',
+    headers:{'Content-Type':'application/json'}, body:'{}'
+  }).then(function(r){
+    return r.text().then(function(t){
+      var o = null;
+      try{ o = JSON.parse(t); }catch(e){}
+      if(t.indexOf('<?php') >= 0){
+        sharedState.canSave = false;
+        sharedState.saveError = 'PHPが動いていません（ファイルの中身がそのまま返ってきています）';
+      }else if(r.status === 404){
+        sharedState.canSave = false;
+        sharedState.saveError = SHARED_SAVE_ENDPOINT + ' が置かれていません';
+      }else if(o && o.ok === false && String(o.error||'').indexOf('config.php') >= 0){
+        sharedState.canSave = false;
+        sharedState.saveError = 'config.php が置かれていません';
+      }else if(o && typeof o.ok === 'boolean'){
+        sharedState.canSave = true;    /* パスワード違いで弾かれる＝正常に動いている */
+        sharedState.saveError = '';
+      }else{
+        sharedState.canSave = false;
+        sharedState.saveError = 'HTTP ' + r.status;
+      }
+      return sharedState.canSave;
+    });
+  }, function(){
+    sharedState.canSave = false; sharedState.saveError = '応答がありません'; return false;
+  });
 }
 
 function importSettings(input){
@@ -2581,6 +2709,156 @@ function resetSettings(){
   settings = defaultSettings();
   afterSettingsChange(true);
   toast('初期設定に戻しました');
+}
+
+/* =========================================================================
+   サーバーの状態をチェック（設定が共有されない／インストールできない、の原因調べ）
+   ========================================================================= */
+function diagRow(state, name, note){
+  var icon = state === 'ok' ? '✅' : (state === 'warn' ? '⚠️' : '❌');
+  var cls  = state === 'ok' ? '' : (state === 'warn' ? ' warn' : ' ng');
+  return '<div class="diag-row' + cls + '"><div class="dg-icon">' + icon + '</div>'
+       + '<div class="dg-body"><div class="dg-name">' + esc(name) + '</div>'
+       + (note ? '<div class="dg-note">' + note + '</div>' : '') + '</div></div>';
+}
+function diagFetchOk(url){
+  return fetch(url + (url.indexOf('?') < 0 ? '?t=' : '&t=') + Date.now(), { cache:'no-store' })
+    .then(function(r){ return { ok:r.ok, status:r.status, res:r }; },
+          function(){ return { ok:false, status:0, res:null }; });
+}
+function runDiagnostics(){
+  var out = $('diag-out'), btn = $('btn-diag');
+  if(!out) return;
+  if(btn) btn.disabled = true;
+  out.innerHTML = '<div class="hint">チェックしています…</div>';
+
+  /* 完了順ではなく、いつも同じ順番で並ぶように場所を決めておく */
+  var rows = new Array(8);
+  var finish = function(){
+    out.innerHTML = '<div class="diag">' + rows.filter(function(x){ return !!x; }).join('') + '</div>';
+    if(btn) btn.disabled = false;
+  };
+
+  if(location.protocol === 'file:'){
+    rows[0] = diagRow('ng', 'ファイルを直接開いています',
+      'このままでは設定の共有もアプリのインストールもできません。サーバーにアップロードして <code>https://…</code> のアドレスから開いてください。');
+    finish(); return;
+  }
+
+  /* ① https か */
+  var secure = (location.protocol === 'https:' || location.hostname === 'localhost' || location.hostname === '127.0.0.1');
+  rows[0] = secure
+    ? diagRow('ok', 'https:// で開いています', '')
+    : diagRow('ng', 'https:// で開いていません（現在: ' + esc(location.protocol) + '）',
+        'Androidでアプリとしてインストールするには https が必要です。サーバーのSSL設定をご確認ください。');
+
+  var jobs = [];
+
+  /* ② 共有設定ファイル */
+  jobs.push(diagFetchOk(SHARED_FILE).then(function(r){
+    if(!r.ok){
+      rows[1] = diagRow('ng', SHARED_FILE + ' がサーバーにありません（HTTP ' + r.status + '）',
+        'まだ一度も共有設定が保存されていません。管理者が設定を変更して「共有設定を保存」を押し、'
+        + 'ダウンロードされた ' + SHARED_FILE + ' を index.html と同じ場所へアップロードしてください。'
+        + '<b>これが「パソコンで変えてもスマホに反映されない」いちばん多い原因です。</b>');
+      return;
+    }
+    var lm = r.res.headers.get('Last-Modified') || '';
+    return r.res.json().then(function(o){
+      var names = (o && o.gyotai || []).map(function(g){ return g.name; }).join('→');
+      rows[1] = diagRow('ok', SHARED_FILE + ' を読み込めました',
+        '業態の順番: <b>' + esc(names || '（なし）') + '</b>'
+        + (lm ? '<br>サーバー上の更新日時: ' + esc(lm) : '')
+        + '<br>この順番がパソコンと違う場合は、パソコン側で「共有設定を保存」がまだ済んでいません。');
+    }, function(){
+      rows[1] = diagRow('ng', SHARED_FILE + 'の中身が読めません', 'ファイルが壊れている可能性があります。保存し直してください。');
+    });
+  }));
+
+  /* ③ サーバー直接保存 */
+  jobs.push(probeSaveEndpoint().then(function(ok){
+    rows[2] = ok
+      ? diagRow('ok', 'settings-save.php が使えます',
+          '設定を変えると自動でサーバーに保存され、全員に共有されます（FTPの手動アップロードは不要です）。')
+      : diagRow('warn', 'settings-save.php は使えません（' + esc(sharedState.saveError || '不明') + '）',
+          '設定変更のたびに ' + SHARED_FILE + ' がダウンロードされるので、'
+          + '毎回それを index.html と同じ場所へFTPでアップロードする必要があります。<br>'
+          + 'サーバーでPHPが使えるなら、<code>config.php</code> と <code>settings-save.php</code> を'
+          + ' index.html の隣に置くと自動保存になります。');
+  }));
+
+  /* ④ 管理者パスワードの置き場所 */
+  jobs.push(diagFetchOk(ADMIN_CONFIG_FILE).then(function(r){
+    if(sharedState.canSave === true || adminConfig.source === ADMIN_AUTH_ENDPOINT){
+      rows[3] = diagRow('ok', '管理者パスワードはサーバー側にあります', 'ブラウザからは見えません。');
+    }else if(r.ok){
+      rows[3] = diagRow('ok', 'config.json を読み込めました', 'パスワードはハッシュで保存されています。');
+    }else{
+      rows[3] = diagRow('warn', 'パスワードの設定ファイルがありません',
+        '初期パスワードで動作しています。変更する場合は README-first.txt をご覧ください。');
+    }
+  }));
+
+  /* ⑤ マニフェスト＋アイコン */
+  jobs.push(diagFetchOk('manifest.webmanifest').then(function(r){
+    if(!r.ok){
+      rows[4] = diagRow('ng', 'manifest.webmanifest がありません（HTTP ' + r.status + '）',
+        'このファイルが無いと、Androidではアイコンに<b>Chromeのマークが付いたショートカット</b>にしかなりません。index.html と同じ場所へアップロードしてください。');
+      return;
+    }
+    return r.res.json().then(function(mj){
+      var icons = (mj.icons || []);
+      return Promise.all(icons.map(function(ic){
+        return diagFetchOk(ic.src).then(function(ir){ return { src:ic.src, ok:ir.ok }; });
+      })).then(function(res){
+        var ng = res.filter(function(x){ return !x.ok; });
+        rows[4] = diagRow('ok', 'manifest.webmanifest を読み込めました', 'アプリ名: ' + esc(mj.name || ''));
+        rows[5] = ng.length
+          ? diagRow('ng', 'アイコンの画像が見つかりません',
+              '足りないファイル: ' + esc(ng.map(function(x){ return x.src; }).join(', '))
+              + '<br>assets フォルダをアップロードし直してください。アイコンが取得できないとアプリになりません。')
+          : diagRow('ok', 'アイコン' + res.length + '点すべて読み込めました', '');
+      });
+    }, function(){
+      rows[4] = diagRow('ng', 'manifest.webmanifest の中身が読めません', 'アップロードし直してください。');
+    });
+  }));
+
+  /* ⑥ Service Worker */
+  jobs.push(diagFetchOk('sw.js').then(function(r){
+    if(!r.ok){
+      rows[6] = diagRow('ng', 'sw.js がありません（HTTP ' + r.status + '）',
+        'このファイルが無いと、Androidでアプリとして登録されません。index.html と同じ場所へアップロードしてください。');
+      return null;
+    }
+    if(!('serviceWorker' in navigator)){
+      rows[6] = diagRow('warn', 'このブラウザはService Workerに対応していません', 'iPhoneのSafariなどでは通常の「ホーム画面に追加」をお使いください。');
+      return null;
+    }
+    return navigator.serviceWorker.getRegistration().then(function(reg){
+      rows[6] = reg
+        ? diagRow('ok', 'Service Workerが登録されています', '')
+        : diagRow('warn', 'Service Workerがまだ登録されていません', 'ページを一度再読み込みしてから、もう一度チェックしてください。');
+    }, function(){
+      rows[6] = diagRow('warn', 'Service Workerの状態を取得できませんでした', '');
+    });
+  }));
+
+  Promise.all(jobs).then(function(){
+    /* ⑦ インストールの状態 */
+    var standalone = (window.matchMedia && window.matchMedia('(display-mode: standalone)').matches) || navigator.standalone === true;
+    if(standalone){
+      rows[7] = diagRow('ok', 'アプリとして起動しています', 'ブラウザではなくインストール済みのアプリで開いています。');
+    }else if(deferredInstallPrompt){
+      rows[7] = diagRow('ok', 'このままインストールできます', '設定タブの「📱 アプリとしてインストール」ボタンからどうぞ。');
+    }else{
+      rows[7] = diagRow('warn', 'インストールのボタンが出ていません',
+        '上の項目がすべて ✅ なのにボタンが出ない場合は、①すでにインストール済み ②iPhoneのSafari（メニューの「ホーム画面に追加」をお使いください）'
+        + ' ③ページを何度か開くとブラウザが判定する、のいずれかです。<br>'
+        + '<b>すでにChromeのマーク付きで追加してしまっている場合は、一度アイコンを削除してから、Chromeの「⋮」→「アプリをインストール」で追加し直してください。</b>');
+    }
+    finish();
+  }, function(){ finish(); });
 }
 
 /* ---------- PWAとしてインストール ---------- */
@@ -2638,6 +2916,8 @@ function installPwa(){
   renderPhraseChips();
   applyLockState();
 
+  probeSaveEndpoint();
+
   /* サーバー上の共有設定（settings.json）があれば、それを全員共通の内容として使う */
   loadSharedSettings().then(function(okFlag){
     if(!okFlag) return;
@@ -2647,7 +2927,7 @@ function installPwa(){
   });
 
   window.addEventListener('beforeunload', function(e){
-    if(entries.length){ e.preventDefault(); e.returnValue = ''; }
+    if(entries.length || sharedState.dirty){ e.preventDefault(); e.returnValue = ''; }
   });
   document.addEventListener('keydown', function(e){
     if(e.key === 'Escape') closeModal();
