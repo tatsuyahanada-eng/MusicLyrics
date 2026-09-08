@@ -228,6 +228,15 @@ input:focus,select:focus,textarea:focus{border-color:var(--blue);box-shadow:0 0 
 .msg-ta{min-height:120px;}
 .copy-ok{background:var(--green) !important;border-color:var(--green) !important;color:#fff !important;}
 .equip-row{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:7px;}
+/* 入店連絡に足す文（チェックしたものだけが本文に入る） */
+.note-row{display:flex;flex-direction:column;gap:5px;margin-bottom:7px;}
+.note-row label{
+  display:flex;align-items:flex-start;gap:8px;min-height:34px;padding:6px 9px;
+  border:1px solid var(--line-w);border-radius:var(--r-s);background:var(--white);
+  font-size:12.5px;line-height:1.45;color:#54759B;cursor:pointer;
+}
+.note-row label.on{background:var(--blue-l2);border-color:var(--line);color:var(--blue-d);font-weight:700;}
+.note-row input{width:17px;height:17px;flex-shrink:0;margin-top:1px;accent-color:var(--blue);}
 .equip-item{display:flex;align-items:center;gap:5px;border:1px solid var(--line);border-radius:var(--r-s);padding:4px 7px;background:var(--blue-l2);}
 .equip-item .eq-code{font-size:11px;font-weight:700;color:var(--blue-d);}
 .equip-item select{width:66px;min-height:34px;padding:3px 20px 3px 7px;flex:none;
@@ -296,6 +305,23 @@ input:focus,select:focus,textarea:focus{border-color:var(--blue);box-shadow:0 0 
   .welsys-badge img{width:36px;}
   .welsys-badge .cr{font-size:13px;}
 }
+
+/* ---------- ステップの進行案内 ---------- */
+.step-badge{
+  margin-left:auto; font-size:11px; font-weight:700; padding:3px 9px; border-radius:999px;
+  background:var(--blue-l2); color:#6B87A6; white-space:nowrap;
+}
+.step-badge.ok{background:#E3F5EA;color:var(--green);}
+.step-badge.now{background:var(--blue);color:#fff;}
+.step-card.now{box-shadow:0 0 0 2px var(--sky), var(--shadow);}
+.step-next{
+  display:none; align-items:center; gap:10px; flex-wrap:wrap; margin-top:11px;
+  padding:9px 11px; border-radius:var(--r-s);
+  background:var(--blue-l2); border:1px solid var(--line-w);
+}
+.step-next.show{display:flex;}
+.step-next .sn-msg{flex:1 1 180px;font-size:12.5px;font-weight:700;color:var(--blue-d);line-height:1.45;}
+.step-next button{flex-shrink:0;}
 
 /* ---------- アプリインストールへの導線 ---------- */
 .install-link-bar{margin-top:14px;text-align:center;}
@@ -430,9 +456,9 @@ input:focus,select:focus,textarea:focus{border-color:var(--blue);box-shadow:0 0 
 
   <!-- ============ 画面1: カレンダー登録（この画面で完結） ============ -->
   <section id="pane-cal">
-    <div class="card">
+    <div class="card step-card" id="step1">
       <div class="card-head">
-        <div class="card-title"><img class="title-img" src="data:image/jpeg;base64,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" alt=""><span class="step">1</span>業態と稼働件数を選ぶ</div>
+        <div class="card-title"><img class="title-img" src="data:image/jpeg;base64,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" alt=""><span class="step">1</span>業態と稼働件数を選ぶ<span class="step-badge" id="badge1"></span></div>
       </div>
       <div class="card-body">
         <div class="grid-form">
@@ -448,35 +474,44 @@ input:focus,select:focus,textarea:focus{border-color:var(--blue);box-shadow:0 0 
             <div class="hint" id="w-time-hint"></div>
           </div>
         </div>
+        <div class="step-next" id="next1">
+          <span class="sn-msg"></span>
+          <button class="btn btn-primary btn-sm" onclick="goStep(2)">次へ：日付と時刻を選ぶ ↓</button>
+        </div>
       </div>
     </div>
 
-    <div class="card">
+    <div class="card step-card" id="step2">
       <div class="card-head">
-        <div class="card-title"><span class="step">2</span>日付と時間帯を選ぶ</div>
+        <div class="card-title"><span class="step">2</span>日付と時刻を選ぶ<span class="step-badge" id="badge2"></span></div>
       </div>
       <div class="card-body">
-        <div class="hint" style="margin-bottom:9px;">件数ぶんの日付を1件ずつ選びます。同じ日に何件でも、別々の日でもかまいません。</div>
+        <div class="hint" style="margin-bottom:9px;">件数ぶんの日付と時刻を1件ずつ選びます。同じ日に何件でも、別々の日でもかまいません。</div>
         <div id="date-rows"></div>
+        <div class="step-next" id="next2">
+          <span class="sn-msg"></span>
+          <button class="btn btn-primary btn-sm" onclick="goStep(3)">次へ：店舗名を入力する ↓</button>
+        </div>
       </div>
     </div>
 
-    <div class="card">
+    <div class="card step-card" id="step3">
       <div class="card-head">
-        <div class="card-title"><span class="step">3</span>店舗名と住所を入力</div>
+        <div class="card-title"><span class="step">3</span>店舗名と住所を入力<span class="step-badge" id="badge3"></span></div>
       </div>
       <div class="card-body">
         <div class="hint" style="margin-bottom:9px;">②で選んだ日付・時間帯が各件の見出しに表示されます。住所は空欄でもかまいません。</div>
         <div id="store-rows"></div>
+        <div class="step-next" id="next3"><span class="sn-msg"></span></div>
         <button class="btn btn-primary btn-block" style="margin-top:11px;" onclick="submitStoreRows()">
           <span id="btn-submit-rows-label">この1件を登録リストへ</span>
         </button>
       </div>
     </div>
 
-    <div class="card">
+    <div class="card step-card" id="step4">
       <div class="card-head">
-        <div class="card-title"><span class="step">4</span>一覧で確認してGoogleカレンダーへ登録</div>
+        <div class="card-title"><span class="step">4</span>一覧で確認してGoogleカレンダーへ登録<span class="step-badge" id="badge4"></span></div>
       </div>
       <div class="list-toolbar">
         <button class="btn btn-primary btn-sm" onclick="startQueue()">
@@ -520,12 +555,21 @@ input:focus,select:focus,textarea:focus{border-color:var(--blue);box-shadow:0 0 
                    onkeydown="if(event.key==='Enter')buildDayFromGyotai()">
           </div>
         </div>
-        <div class="field hidden" id="day-slot-field" style="margin-top:9px;">
-          <label>時間帯</label>
-          <div class="ampm" id="day-slot-row"></div>
+        <div class="grid2" style="margin-top:9px;">
+          <div class="field">
+            <label for="day-start">開始</label>
+            <select id="day-start" onchange="onDayTimeChange('start')"></select>
+          </div>
+          <div class="field">
+            <label for="day-end">終了</label>
+            <select id="day-end" onchange="onDayTimeChange('end')"></select>
+          </div>
         </div>
         <div class="row-btns" style="margin-top:11px;">
           <button class="btn btn-primary btn-block" onclick="buildDayFromGyotai()">この内容で連絡文を作る</button>
+        </div>
+        <div class="row-btns" style="margin-top:9px;">
+          <button class="btn btn-ghost btn-sm" onclick="clearDayAll()">クリア（最初からやり直す）</button>
         </div>
 
         <div class="gy-item" id="gy-paste" style="margin-top:12px;">
@@ -555,10 +599,7 @@ input:focus,select:focus,textarea:focus{border-color:var(--blue);box-shadow:0 0 
     <div class="card hidden" id="day-summary-card">
       <div class="card-head">
         <div class="card-title"><span class="step">2</span>今日の作業</div>
-        <span class="row-btns">
-          <button class="btn btn-sub btn-sm" onclick="openStoreChat()">Google Chat を開く</button>
-          <button class="btn btn-ghost btn-sm" onclick="openChatRegister()">Chatを登録</button>
-        </span>
+        <button class="btn btn-sub btn-sm" onclick="openStoreChat()">Google Chat を開く</button>
       </div>
       <div class="card-body"><div class="day-sum" id="day-sum"></div></div>
     </div>
@@ -579,6 +620,7 @@ input:focus,select:focus,textarea:focus{border-color:var(--blue);box-shadow:0 0 
               <button class="btn btn-primary btn-sm" id="cp-in" onclick="copyMsg('in')">コピー</button>
               <button class="btn btn-sub btn-sm" onclick="openStoreChat()">Chat</button>
             </span></div>
+          <div class="note-row" id="entry-note-row"></div>
           <textarea id="msg-in" class="msg-ta" rows="6" oninput="onMsgInput('in',this.value)"></textarea>
         </div>
 
@@ -634,6 +676,22 @@ input:focus,select:focus,textarea:focus{border-color:var(--blue);box-shadow:0 0 
     <div class="dirty-bar hidden" id="dirty-bar">
       <div class="db-msg" id="dirty-msg"></div>
       <button class="btn btn-primary btn-sm" onclick="saveSharedSettings()">今すぐ全員へ共有する</button>
+    </div>
+
+    <div class="card">
+      <div class="card-head">
+        <div class="card-title">入店連絡に足す文</div>
+        <div class="row-btns">
+          <button class="btn btn-sub btn-sm" onclick="addEntryNote()">＋ 文を追加</button>
+        </div>
+      </div>
+      <div class="card-body">
+        <div class="hint" style="margin-bottom:9px;">
+          作業当日タブの「①入店連絡」の上にチェック欄として並びます。
+          チェックした文だけが入店連絡の本文に入ります（例: POSレジ清算済み、電源ケーブル流用の申し送りなど）。
+        </div>
+        <div id="entry-note-list"></div>
+      </div>
     </div>
 
     <div class="card" id="diag-card">
@@ -867,8 +925,6 @@ var TPL_STANDARD = [
 
 var TPL_SUKIYA = [
   '{業態} {店舗名} 入店 {開始}',
-  'POSレジ清算済み',
-  'POSレジ清算 今から開始をお願いいたしました',
   '',
   '{業態} {店舗名} 中間報告',
   '',
@@ -882,6 +938,15 @@ var TPL_SUKIYA = [
   'BC    台',
   'BP    個'
 ].join('\n');
+
+/* 入店連絡に足せる文（当日タブでチェックした文だけが入店連絡に入る） */
+var DEFAULT_ENTRY_NOTES = [
+  'POSレジ清算済み',
+  'POSレジ清算 今から開始をお願いいたしました',
+  '高所の為、電源ケーブル流用させて頂きます',
+  'スパイラル多用の為、電源ケーブル流用させて頂きます',
+  '店舗名多忙の為、入替作業は状況見て実施します。'
+];
 
 /* ---------- 初期設定 ---------- */
 function defaultSettings(){
@@ -900,6 +965,7 @@ function defaultSettings(){
       { id:'p5', text:'作業完了しました' },
       { id:'p6', text:'ありがとうございました' }
     ],
+    entryNotes: DEFAULT_ENTRY_NOTES.map(function(t){ return { id: uid('en'), text: t }; }),
     calendarApiUrl: '',
     calendarQuery: '',
     storeChats: [],
@@ -953,7 +1019,9 @@ function collectDraft(){
     gyotaiId: gy ? gy.value : '',
     tenpo: tp ? tp.value : '',
     date: dd ? dd.value : '',
-    slotIdx: daySlotIdx,
+    start: $('day-start') ? $('day-start').value : '',
+    end: $('day-end') ? $('day-end').value : '',
+    notes: dayNotes,
     ctx: dayCtx,
     msgs: dayMsgs,
     counts: dayCounts,
@@ -965,10 +1033,11 @@ function collectDraft(){
     var i = row.getAttribute('data-idx');
     var sRow = document.querySelector('#store-rows .st-row[data-idx="' + i + '"]');
     var dtEl = row.querySelector('.dr-date');
-    var ap = row.querySelector('.ampm input:checked');
+    var sEl = row.querySelector('.dr-start'), eEl = row.querySelector('.dr-end');
     rows.push({
       date: dtEl ? dtEl.value : '',
-      ap: ap ? ap.value : '',
+      start: sEl ? sEl.value : '',
+      end: eEl ? eEl.value : '',
       tenpo: sRow ? sRow.querySelector('.sr-tenpo').value : '',
       address: sRow ? sRow.querySelector('.sr-addr').value : ''
     });
@@ -1002,8 +1071,10 @@ function restoreDraft(){
   var day = d.day || {};
   if(day.gyotaiId && findGyotai(day.gyotaiId) && $('day-gyotai')) $('day-gyotai').value = day.gyotaiId;
   if(day.date && $('day-date')) $('day-date').value = day.date;
-  daySlotIdx = day.slotIdx || 0;
-  renderDaySlotRow();
+  applyGyotaiTimesToDay();
+  if(day.start && $('day-start')){ $('day-start').innerHTML = timeOptionsHtml(day.start); $('day-start').value = day.start; }
+  if(day.end && $('day-end')){ $('day-end').innerHTML = timeOptionsHtml(day.end); $('day-end').value = day.end; }
+  if(day.notes) dayNotes = day.notes.slice();
   if(day.tenpo && $('day-tenpo')){ $('day-tenpo').value = day.tenpo; restored = true; }
   if(day.paste && $('day-paste')) $('day-paste').value = day.paste;
   if(day.ctx){
@@ -1011,6 +1082,7 @@ function restoreDraft(){
     dayMsgs = day.msgs || { in:'', mid:'', out:'' };
     if(day.counts) EQUIPMENT_CODES.forEach(function(c){ dayCounts[c] = day.counts[c] || ''; });
     renderEquipRow();
+    renderEntryNoteRow();
     renderDaySummary();
     renderDayMsgs();
     renderPhraseChips();
@@ -1034,13 +1106,13 @@ function restoreDraft(){
     if(dtEl && r.date){ dtEl.value = r.date; restored = true; }
     if(sRow && r.tenpo){ sRow.querySelector('.sr-tenpo').value = r.tenpo; restored = true; }
     if(sRow && r.address){ sRow.querySelector('.sr-addr').value = r.address; restored = true; }
-    if(r.ap === 'pm'){
-      var el = dRow.querySelector('.ampm input[value="pm"]');
-      if(el && !el.checked){ el.checked = true; onRowAmPmChange(el, i); }
-    }
+    var sEl = dRow.querySelector('.dr-start'), eEl = dRow.querySelector('.dr-end');
+    if(sEl && r.start){ sEl.innerHTML = timeOptionsHtml(r.start); sEl.value = r.start; }
+    if(eEl && r.end){   eEl.innerHTML = timeOptionsHtml(r.end);   eEl.value = r.end; }
     if(r.date) updateRowWhen(i);
   });
   updateWizardHints();
+  updateWizardNav();
   draftReady = true;
   if(restored) toast('前回の入力内容を復元しました');
   return restored;
@@ -1079,6 +1151,7 @@ function normalizeSettings(o){
     calendarApiUrl: strOr(o.calendarApiUrl, ''),
     calendarQuery:  strOr(o.calendarQuery,  ''),
     phrases: [],
+    entryNotes: [],
     storeChats: [],
     gyotai: []
   };
@@ -1089,6 +1162,14 @@ function normalizeSettings(o){
     (o.phrases || []).forEach(function(ph){
       var txt = (typeof ph === 'string') ? ph : (ph && typeof ph.text === 'string' ? ph.text : '');
       s.phrases.push({ id: (ph && ph.id) ? ph.id : uid('p'), text: txt });
+    });
+  }
+  if(o.entryNotes === undefined){
+    s.entryNotes = DEFAULT_ENTRY_NOTES.map(function(t){ return { id: uid('en'), text: t }; });
+  }else{
+    (o.entryNotes || []).forEach(function(en){
+      var txt = (typeof en === 'string') ? en : (en && typeof en.text === 'string' ? en.text : '');
+      if(txt) s.entryNotes.push({ id: (en && en.id) ? en.id : uid('en'), text: txt });
     });
   }
   (o.storeChats||[]).forEach(function(sc){
@@ -1286,29 +1367,153 @@ function renderWizardForm(keepValues){
 
   updateWizardHints();
   renderStoreRows();
+  updateWizardNav();
 }
 function onWizGyotaiChange(){
   updateWizardHints();
+  applyGyotaiTimesToRows();
+  updateWizardNav();
+  saveDraftSoon();
+}
+/* 業態を変えたら、②の各行の開始・終了時刻をその業態の時刻に入れ替える */
+function applyGyotaiTimesToRows(){
+  var d = wizDefaultTimes();
+  Array.prototype.forEach.call(document.querySelectorAll('#date-rows .dt-row'), function(row){
+    var sEl = row.querySelector('.dr-start'), eEl = row.querySelector('.dr-end');
+    if(sEl){ sEl.innerHTML = timeOptionsHtml(d.start); sEl.value = d.start; }
+    if(eEl){ eEl.innerHTML = timeOptionsHtml(d.end);   eEl.value = d.end; }
+  });
+  updateAllRowWhen();
 }
 function onWCountChange(){
   renderStoreRows();
+  updateWizardNav();
   saveDraftSoon();
 }
-/* 午前は最初の時間帯、午後は2つめの時間帯を使う（2つめが無い業態は最初の時間帯のまま） */
-function wizSlotFor(ap){
-  var g = findGyotai($('w-gyotai').value);
+/* =========================================================================
+   ①→②→③→④の進行案内
+   いま何をすればよいかを各カードのバッジで示し、その項目が終わったら
+   次のカードへ進むボタンを出す。
+   ========================================================================= */
+function wizStepState(){
+  var cnt = parseInt(($('w-count') ? $('w-count').value : '1'), 10) || 1;
+  var dated = 0, named = 0;
+  for(var i = 0; i < cnt; i++){
+    var dRow = dateRow(i);
+    var sRow = document.querySelector('#store-rows .st-row[data-idx="' + i + '"]');
+    if(dRow && dRow.querySelector('.dr-date').value) dated++;
+    if(sRow && sRow.querySelector('.sr-tenpo').value.trim()) named++;
+  }
+  return { count: cnt, dated: dated, named: named, entries: entries.length };
+}
+function updateWizardNav(){
+  if(!$('date-rows')) return;
+  var st = wizStepState();
+  var step1ok = !!($('w-gyotai') && $('w-gyotai').value);
+  var step2ok = st.dated > 0;
+  var step3ok = step2ok && st.named > 0;
+
+  /* いま取り組むステップ（未完のいちばん手前） */
+  var now = !step1ok ? 1 : (!step2ok ? 2 : (!step3ok ? 3 : (st.entries ? 4 : 3)));
+
+  setBadge(1, step1ok ? 'ok' : 'now', step1ok ? (st.count + '件') : '選んでください');
+  setBadge(2, step2ok ? (st.dated === st.count ? 'ok' : 'now') : (now === 2 ? 'now' : ''),
+    st.dated + ' / ' + st.count + '件');
+  setBadge(3, step3ok ? (st.named === st.dated ? 'ok' : 'now') : (now === 3 ? 'now' : ''),
+    st.named + ' / ' + st.count + '件');
+  setBadge(4, st.entries ? 'ok' : '', st.entries + '件');
+
+  Array.prototype.forEach.call(document.querySelectorAll('#pane-cal .step-card'), function(card, i){
+    card.classList.toggle('now', (i + 1) === now);
+  });
+
+  setNext(1, step1ok && !step2ok,
+    '① ができました。次は <b>②で日付と時刻</b>を選びます。');
+  setNext(2, step2ok && !step3ok,
+    st.dated + '件の日付が決まりました。次は <b>③で店舗名</b>を入力します。');
+  setNext(3, step3ok,
+    '入力できたら、下の「この' + st.count + '件を登録リストへ」を押してください。');
+}
+function setBadge(n, cls, text){
+  var el = $('badge' + n);
+  if(!el) return;
+  el.className = 'step-badge' + (cls ? ' ' + cls : '');
+  el.textContent = text;
+}
+function setNext(n, show, html){
+  var el = $('next' + n);
+  if(!el) return;
+  el.classList.toggle('show', !!show);
+  var msg = el.querySelector('.sn-msg');
+  if(msg) msg.innerHTML = html;
+}
+/* 次のカードへ移動して、最初の入力欄にすぐ入力できるようにする */
+function goStep(n){
+  var card = $('step' + n);
+  if(!card) return;
+  if(card.scrollIntoView) card.scrollIntoView({ behavior:'smooth', block:'start' });
+  setTimeout(function(){
+    var el = (n === 2) ? document.querySelector('#date-rows .dr-date')
+           : (n === 3) ? document.querySelector('#store-rows .sr-tenpo') : null;
+    if(el && el.focus) el.focus();
+  }, 350);
+}
+
+/* 選んだ業態の最初の時間帯を、行の初期の開始・終了時刻として使う */
+function wizDefaultTimes(){
+  var g = findGyotai($('w-gyotai') ? $('w-gyotai').value : '');
+  var sl = (g && g.slots.length) ? g.slots[0] : null;
+  return { start: sl ? sl.start : '08:00', end: sl ? sl.end : '09:00' };
+}
+/* 指定した開始時刻に一番近い時間帯を返す（どの定型文を使うかの判断に使う） */
+function slotNearestTime(g, hhmm){
   if(!g || !g.slots.length) return null;
-  if(ap === 'pm' && g.slots.length > 1) return g.slots[1];
-  return g.slots[0];
+  var target = hhmmToMin(hhmm);
+  if(target === null) return g.slots[0];
+  var best = g.slots[0], bestDiff = null;
+  g.slots.forEach(function(sl){
+    var m = hhmmToMin(sl.start);
+    if(m === null) return;
+    var diff = Math.abs(m - target);
+    if(bestDiff === null || diff < bestDiff){ bestDiff = diff; best = sl; }
+  });
+  return best;
+}
+function hhmmToMin(v){
+  var m = String(v || '').match(/^(\d{1,2}):(\d{2})$/);
+  return m ? (parseInt(m[1],10) * 60 + parseInt(m[2],10)) : null;
+}
+/* 開始より前の終了時刻が選ばれたら、開始に合わせる */
+function fixRowTimes(i, changed){
+  var row = dateRow(i);
+  if(!row) return;
+  var sEl = row.querySelector('.dr-start'), eEl = row.querySelector('.dr-end');
+  if(!sEl || !eEl) return;
+  var sm = hhmmToMin(sEl.value), em = hhmmToMin(eEl.value);
+  if(sm === null || em === null || em > sm) return;
+  if(changed === 'start'){ eEl.innerHTML = timeOptionsHtml(sEl.value); eEl.value = sEl.value; }
+  else{ sEl.innerHTML = timeOptionsHtml(eEl.value); sEl.value = eEl.value; }
+}
+function onRowTimeChange(i, which){
+  fixRowTimes(i, which);
+  updateRowWhen(i);
+  updateWizardNav();
+  saveDraftSoon();
+}
+function rowTimes(i){
+  var row = dateRow(i);
+  if(!row) return wizDefaultTimes();
+  var sEl = row.querySelector('.dr-start'), eEl = row.querySelector('.dr-end');
+  return { start: sEl ? sEl.value : '', end: eEl ? eEl.value : '' };
 }
 function updateWizardHints(){
   var g  = findGyotai($('w-gyotai').value);
   var th = $('w-time-hint');
   if(!th) return;
   if(!g || !g.slots.length){ th.textContent = ''; return; }
-  var am = g.slots[0], pm = g.slots.length > 1 ? g.slots[1] : g.slots[0];
-  var note = g.slots.length > 1 ? '' : '（午後の時間帯は未設定のため午前と同じ時刻です。設定で追加できます）';
-  th.textContent = '午前 ' + am.start + '〜' + am.end + ' ／ 午後 ' + pm.start + '〜' + pm.end + note;
+  th.textContent = 'この業態の時間帯: '
+    + g.slots.map(function(sl){ return sl.label + ' ' + sl.start + '〜' + sl.end; }).join(' ／ ')
+    + '（②では1件ずつ自由な時刻に変えられます）';
   updateAllRowWhen();
 }
 
@@ -1316,17 +1521,17 @@ function updateWizardHints(){
    ②と③は同じ件数ぶんの行を持ち、行番号（data-idx）で1対1に対応する。
    ②で選んだ日付・時間帯は、③の各行の見出しにそのまま表示する。            */
 function dateRowHtml(i){
+  var d = wizDefaultTimes();
   return ''
    + '<div class="dt-row" data-idx="' + i + '">'
    +   '<span class="st-no">' + (i+1) + '件目</span>'
    +   '<div class="dt-f">'
    +     '<div class="field"><label>日付</label>'
    +       '<input type="date" class="dr-date" onchange="onRowDateChange(' + i + ')"></div>'
-   +     '<div class="field"><label>時間帯</label>'
-   +       '<div class="ampm dr-ampm">'
-   +         '<label class="on"><input type="radio" name="dr-ampm-' + i + '" value="am" checked onchange="onRowAmPmChange(this,' + i + ')">午前 (AM)</label>'
-   +         '<label><input type="radio" name="dr-ampm-' + i + '" value="pm" onchange="onRowAmPmChange(this,' + i + ')">午後 (PM)</label>'
-   +       '</div></div>'
+   +     '<div class="field"><label>開始</label>'
+   +       '<select class="dr-start" onchange="onRowTimeChange(' + i + ',\'start\')">' + timeOptionsHtml(d.start) + '</select></div>'
+   +     '<div class="field"><label>終了</label>'
+   +       '<select class="dr-end" onchange="onRowTimeChange(' + i + ',\'end\')">' + timeOptionsHtml(d.end) + '</select></div>'
    +   '</div>'
    + '</div>';
 }
@@ -1338,30 +1543,13 @@ function storeRowHtml(i){
    +     '<span class="st-when" id="st-when-' + i + '">日付を選んでください</span>'
    +   '</div>'
    +   '<div class="st-f">'
-   +     '<div class="field"><label>店舗名</label><input type="text" class="sr-tenpo" placeholder="例: 渋谷" oninput="saveDraftSoon()"></div>'
+   +     '<div class="field"><label>店舗名</label><input type="text" class="sr-tenpo" placeholder="例: 渋谷" oninput="updateWizardNav(); saveDraftSoon();"></div>'
    +     '<div class="field"><label>住所（任意）</label><input type="text" class="sr-addr" placeholder="例: 東京都渋谷区…" oninput="saveDraftSoon()"></div>'
    +   '</div>'
    + '</div>';
 }
-function onRowAmPmChange(el, i){
-  var wrap = el.closest('.ampm');
-  if(wrap){
-    var pmOn = !!wrap.querySelector('input[value="pm"]').checked;
-    var labels = wrap.querySelectorAll('label');
-    labels[0].classList.toggle('on', !pmOn);
-    labels[1].classList.toggle('on', pmOn);
-  }
-  updateRowWhen(i);
-  saveDraftSoon();
-}
-function onRowDateChange(i){ updateRowWhen(i); saveDraftSoon(); }
+function onRowDateChange(i){ updateRowWhen(i); updateWizardNav(); saveDraftSoon(); }
 function dateRow(i){ return document.querySelector('#date-rows .dt-row[data-idx="' + i + '"]'); }
-function rowAmPm(i){
-  var row = dateRow(i);
-  if(!row) return 'am';
-  var checked = row.querySelector('.dr-ampm input:checked');
-  return checked ? checked.value : 'am';
-}
 /* ②の内容を③の見出し（何月何日の何時からか）に反映する */
 function updateRowWhen(i){
   var el = $('st-when-' + i);
@@ -1369,11 +1557,9 @@ function updateRowWhen(i){
   var row = dateRow(i);
   var ds = row ? row.querySelector('.dr-date').value : '';
   if(!ds){ el.textContent = '日付を選んでください'; el.classList.add('empty-when'); return; }
-  var ap = rowAmPm(i);
-  var sl = wizSlotFor(ap);
+  var t = rowTimes(i);
   el.classList.remove('empty-when');
-  el.textContent = fmtDateShort(ds) + '　' + (ap === 'pm' ? '午後' : '午前')
-                 + (sl ? ' ' + sl.start + '〜' + sl.end : '');
+  el.textContent = fmtDateShort(ds) + '　' + t.start + '〜' + t.end;
 }
 function updateAllRowWhen(){
   var cnt = parseInt($('w-count').value, 10) || 1;
@@ -1408,18 +1594,19 @@ function renderStoreRows(){
   updateAllRowWhen();
 }
 function resetStoreRows(){
-  document.querySelectorAll('#date-rows .dt-row').forEach(function(row){
+  var d = wizDefaultTimes();
+  Array.prototype.forEach.call(document.querySelectorAll('#date-rows .dt-row'), function(row){
     row.querySelector('.dr-date').value = '';
-    row.querySelector('.dr-ampm input[value="am"]').checked = true;
-    row.querySelector('.dr-ampm input[value="pm"]').checked = false;
-    var labels = row.querySelectorAll('.dr-ampm label');
-    labels[0].classList.add('on'); labels[1].classList.remove('on');
+    var sEl = row.querySelector('.dr-start'), eEl = row.querySelector('.dr-end');
+    if(sEl){ sEl.innerHTML = timeOptionsHtml(d.start); sEl.value = d.start; }
+    if(eEl){ eEl.innerHTML = timeOptionsHtml(d.end);   eEl.value = d.end; }
   });
   document.querySelectorAll('#store-rows .st-row').forEach(function(row){
     row.querySelector('.sr-tenpo').value = '';
     row.querySelector('.sr-addr').value = '';
   });
   updateAllRowWhen();
+  updateWizardNav();
   saveDraftSoon();
 }
 function submitStoreRows(){
@@ -1433,7 +1620,8 @@ function submitStoreRows(){
     if(!dRow || !sRow) continue;
     var ds = dRow.querySelector('.dr-date').value;
     if(!ds){ skipped++; continue; }
-    var sl = wizSlotFor(rowAmPm(i));
+    var t = rowTimes(i);
+    var sl = slotNearestTime(g, t.start);   /* どの定型文を使うかは開始時刻から決める */
     if(!sl) continue;
     var tenpo = sRow.querySelector('.sr-tenpo').value.trim();
     var addr  = sRow.querySelector('.sr-addr').value.trim();
@@ -1441,7 +1629,7 @@ function submitStoreRows(){
       id: uid('e'), date: ds,
       gyotaiId: g.id, gyotaiName: g.name,
       slotId: sl.id, slotLabel: sl.label,
-      start: sl.start, end: sl.end,
+      start: t.start, end: t.end,
       tenpo: applySuffix(tenpo), address: addr,
       desc: '', descEdited: false
     };
@@ -1452,6 +1640,7 @@ function submitStoreRows(){
   if(!added){ toast(skipped ? '②で日付を選んでください' : '入力できる行がありません'); return; }
   sortEntries();
   renderEntries();
+  updateWizardNav();
   toast(added + '件を登録リストに追加しました' + (skipped ? '（日付未選択の' + skipped + '件はスキップ）' : ''));
   resetStoreRows();
 }
@@ -1484,8 +1673,10 @@ function entrySummary(en){
 function renderEntries(){
   var host = $('entries');
   $('list-count').textContent = entries.length;
+  setTimeout(updateWizardNav, 0);
   if(!entries.length){
-    host.innerHTML = '<div class="empty">まだ1件も追加されていません。<br>①で業態と稼働件数 → ②で日付と時間帯 → ③で店舗名と住所を入力してください。</div>';
+    host.innerHTML = '<div class="empty">まだ1件も追加されていません。<br>①で業態と稼働件数 → ②で日付と時刻 → ③で店舗名と住所を入力してください。</div>';
+    updateWizardNav();
     return;
   }
   var html = '';
@@ -1838,7 +2029,6 @@ var dayMsgs = { in:'', mid:'', out:'' }; /* 3つの連絡文 */
 var dayCands = [];                       /* 候補一覧 */
 var dayCandIdx = -1;
 
-var daySlotIdx = 0;
 function renderDayGyotaiForm(keepValue){
   var sel = $('day-gyotai');
   if(!sel) return;
@@ -1849,47 +2039,70 @@ function renderDayGyotaiForm(keepValue){
   });
   sel.innerHTML = html;
   if(prev && findGyotai(prev)) sel.value = prev;
-  renderDaySlotRow();
+  applyGyotaiTimesToDay();
 }
 function dayGyotai(){ var sel = $('day-gyotai'); return sel ? findGyotai(sel.value) : null; }
-function onDayGyotaiChange(){ daySlotIdx = 0; renderDaySlotRow(); }
-function renderDaySlotRow(){
-  var g = dayGyotai(), field = $('day-slot-field'), host = $('day-slot-row');
-  if(!field || !host) return;
-  var slots = g ? g.slots : [];
-  /* 時間帯が1つしかない業態では選ばせない（迷わせないため） */
-  if(slots.length < 2){ field.classList.add('hidden'); host.innerHTML = ''; daySlotIdx = 0; return; }
-  if(daySlotIdx >= slots.length) daySlotIdx = 0;
-  field.classList.remove('hidden');
-  var html = '';
-  slots.forEach(function(sl, i){
-    html += '<label class="' + (i === daySlotIdx ? 'on' : '') + '">'
-          + '<input type="radio" name="day-slot" ' + (i === daySlotIdx ? 'checked' : '')
-          + ' onchange="onDaySlotChange(' + i + ')">'
-          + esc(sl.label) + ' ' + esc(sl.start) + '〜' + esc(sl.end) + '</label>';
-  });
-  host.innerHTML = html;
+function onDayGyotaiChange(){ applyGyotaiTimesToDay(); }
+/* 業態を選んだら、その業態の最初の時間帯の時刻を初期値として入れる */
+function applyGyotaiTimesToDay(){
+  var g = dayGyotai(), sEl = $('day-start'), eEl = $('day-end');
+  if(!sEl || !eEl) return;
+  var sl = (g && g.slots.length) ? g.slots[0] : null;
+  var st = sl ? sl.start : '08:00', en = sl ? sl.end : '09:00';
+  sEl.innerHTML = timeOptionsHtml(st); sEl.value = st;
+  eEl.innerHTML = timeOptionsHtml(en); eEl.value = en;
 }
-function onDaySlotChange(i){ daySlotIdx = i; renderDaySlotRow(); saveDraftSoon(); }
+function onDayTimeChange(which){
+  var sEl = $('day-start'), eEl = $('day-end');
+  if(sEl && eEl){
+    var sm = hhmmToMin(sEl.value), em = hhmmToMin(eEl.value);
+    if(sm !== null && em !== null && em <= sm){
+      if(which === 'start'){ eEl.innerHTML = timeOptionsHtml(sEl.value); eEl.value = sEl.value; }
+      else{ sEl.innerHTML = timeOptionsHtml(eEl.value); sEl.value = eEl.value; }
+    }
+  }
+  saveDraftSoon();
+}
+/* 入力をすべて消して最初からやり直す */
+function clearDayAll(){
+  if($('day-tenpo')) $('day-tenpo').value = '';
+  if($('day-paste')) $('day-paste').value = '';
+  dayCtx = null;
+  dayMsgs = { in:'', mid:'', out:'' };
+  dayCands = []; dayCandIdx = -1;
+  resetDayCounts();
+  resetEntryNotes();
+  renderDayCandidates();
+  renderDayMsgs();
+  renderPhraseChips();
+  applyGyotaiTimesToDay();
+  $('day-summary-card').classList.add('hidden');
+  $('day-msg-card').classList.add('hidden');
+  clearDraft();
+  saveDraftSoon();
+  toast('入力をクリアしました');
+}
 /* 業態と店舗名だけで、その業態の定型文から連絡文を作る */
 function buildDayFromGyotai(){
   var g = dayGyotai();
   if(!g){ toast('業態を選んでください'); return; }
   var raw = ($('day-tenpo').value || '').trim();
   if(!raw){ toast('店舗名を入力してください'); $('day-tenpo').focus(); return; }
-  var sl = g.slots[daySlotIdx] || g.slots[0];
+  var st = $('day-start') ? $('day-start').value : '';
+  var ed = $('day-end') ? $('day-end').value : '';
+  var sl = slotNearestTime(g, st) || g.slots[0];   /* どの定型文を使うかは開始時刻から決める */
   var date = $('day-date').value || todayStr();
   var tenpo = applySuffix(raw);
   var desc = fillTemplate(sl.body, {
     gyotai: g.name, tenpo: tenpo, date: fmtDateJp(date),
-    start: sl.start, end: sl.end, slot: sl.label
+    start: st, end: ed, slot: sl.label
   });
   dayCands = []; dayCandIdx = -1;
   renderDayCandidates();
   setDayCtx({
     source: 'gyotai', title: '',
     gyotai: g.name, tenpo: tenpo,
-    start: sl.start, end: sl.end,
+    start: st, end: ed,
     address: '', description: desc, date: date
   });
   toast('連絡文を作りました');
@@ -2102,6 +2315,55 @@ var EQUIP_MAX = 10;   /* 台数はプルダウンで1〜10から選ぶ */
 var dayCounts = { MPR:'', MST:'', HT:'', BC:'', BP:'' };
 var EQUIP_LINE_RE = new RegExp('^(' + EQUIPMENT_CODES.join('|') + ')\\b');
 
+/* ---------- 入店連絡に足す文（チェックしたものだけ本文に入れる） ---------- */
+var dayNotes = [];   /* チェックされている文（本文そのもの） */
+function resetEntryNotes(){ dayNotes = []; }
+function stripEntryNoteLines(text){
+  var all = settings.entryNotes.map(function(n){ return n.text; });
+  var lines = String(text == null ? '' : text).split('\n');
+  var kept = lines.filter(function(l){ return all.indexOf(l.trim()) < 0; });
+  while(kept.length && kept[kept.length - 1].trim() === '') kept.pop();
+  return kept.join('\n');
+}
+function renderEntryNoteRow(){
+  var host = $('entry-note-row');
+  if(!host) return;
+  if(!settings.entryNotes.length){ host.innerHTML = ''; return; }
+  var html = '';
+  settings.entryNotes.forEach(function(n, i){
+    var on = dayNotes.indexOf(n.text) >= 0;
+    html += '<label class="' + (on ? 'on' : '') + '">'
+          + '<input type="checkbox"' + (on ? ' checked' : '')
+          + ' onchange="onEntryNoteToggle(' + i + ',this.checked)">'
+          + '<span>' + esc(n.text) + '</span></label>';
+  });
+  host.innerHTML = html;
+}
+function onEntryNoteToggle(i, on){
+  var n = settings.entryNotes[i];
+  if(!n) return;
+  var pos = dayNotes.indexOf(n.text);
+  if(on && pos < 0) dayNotes.push(n.text);
+  if(!on && pos >= 0) dayNotes.splice(pos, 1);
+  rebuildEntryNoteBlock();
+  renderEntryNoteRow();
+  saveDraftSoon();
+}
+/* 入店連絡の1行目（見出し）の直後に、チェックした文を設定の並び順で入れる */
+function rebuildEntryNoteBlock(){
+  var base = stripEntryNoteLines(dayMsgs.in);
+  var picked = settings.entryNotes
+    .filter(function(n){ return dayNotes.indexOf(n.text) >= 0; })
+    .map(function(n){ return n.text; });
+  if(picked.length){
+    var lines = base.split('\n');
+    var head = lines.length ? [lines.shift()] : [];
+    base = head.concat(picked, lines).join('\n');
+  }
+  dayMsgs.in = base;
+  if($('msg-in')) $('msg-in').value = dayMsgs.in;
+}
+
 function resetDayCounts(){
   EQUIPMENT_CODES.forEach(function(c){ dayCounts[c] = ''; });
 }
@@ -2148,8 +2410,11 @@ function setDayCtx(c){
   dayCtx = c;
   dayMsgs = splitReport(c.description || '');
   dayMsgs.out = stripEquipmentLines(dayMsgs.out);
+  dayMsgs.in = stripEntryNoteLines(dayMsgs.in);
   resetDayCounts();
+  resetEntryNotes();
   renderEquipRow();
+  renderEntryNoteRow();
   renderDaySummary();
   renderDayMsgs();
   renderPhraseChips();
@@ -2183,7 +2448,10 @@ function rebuildDayMsgs(){
   if(!dayCtx){ toast('先に作業を読み込んでください'); return; }
   dayMsgs = splitReport(dayCtx.description || '');
   dayMsgs.out = stripEquipmentLines(dayMsgs.out);
+  dayMsgs.in  = stripEntryNoteLines(dayMsgs.in);
   rebuildEquipmentBlock();
+  rebuildEntryNoteBlock();
+  renderEntryNoteRow();
   renderDayMsgs();
   toast('読み込んだ内容から作り直しました');
 }
@@ -2266,63 +2534,6 @@ function openStoreChat(){
   chatWin = w;
   chatWinKey = key;
   try{ if(w) w.focus(); }catch(e){}
-}
-/* 開いているChatのURLを登録しておくと、次からその部屋が直接開く */
-function openChatRegister(){
-  if(!dayCtx || !dayCtx.tenpo){ toast('先に業態と店舗名を入れてください'); return; }
-  var g = dayCtx.gyotai || '', t = dayCtx.tenpo || '';
-  var found = findStoreChat(g, t);
-  var locked = !isAdminUnlocked();
-  var html =
-      '<div class="hint" style="margin-bottom:10px;">'
-    +   '<b>' + esc((g + ' ' + t).trim()) + '</b> のGoogle ChatのURLを登録すると、'
-    +   '次からは「Chat」ボタンでその部屋が直接開きます（一覧から探す必要がなくなります）。'
-    + '</div>'
-    + '<ol class="inst-steps">'
-    +   '<li>Google Chatでその店舗の部屋を開きます。</li>'
-    +   '<li>ブラウザの<b>アドレスバーのURLをコピー</b>します'
-    +     '（<code>https://chat.google.com/room/…</code> のような形です）。</li>'
-    +   '<li>下の欄に貼り付けて「登録する」を押します。</li>'
-    + '</ol>'
-    + '<div class="field" style="margin-top:10px;">'
-    +   '<label for="chat-reg-url">Chat のURL</label>'
-    +   '<input type="url" id="chat-reg-url" placeholder="https://chat.google.com/room/..." value="'
-    +     esc(found ? found.url : '') + '">'
-    + '</div>'
-    + (locked
-        ? '<div class="field" style="margin-top:9px;">'
-          + '<label for="chat-reg-pw">管理者パスワード</label>'
-          + '<input type="password" id="chat-reg-pw" placeholder="登録には管理者パスワードが必要です">'
-          + '</div>'
-        : '');
-  openModal('このお店のChatを登録する', html,
-    '<button class="btn btn-primary btn-sm" onclick="saveChatRegister()">登録する</button>'
-    + '<button class="btn btn-ghost btn-sm" onclick="closeModal()">閉じる</button>');
-}
-function saveChatRegister(){
-  var url = ($('chat-reg-url') ? $('chat-reg-url').value : '').trim();
-  if(!url){ toast('URLを貼り付けてください'); return; }
-  if(!/^https?:\/\//i.test(url)){ toast('http:// または https:// で始まるURLを貼り付けてください'); return; }
-  var done = function(){
-    var g = dayCtx.gyotai || '', t = dayCtx.tenpo || '';
-    var found = findStoreChat(g, t);
-    if(found){ found.url = url; }
-    else{ settings.storeChats.push({ id: uid('sc'), gyotai: g, tenpo: t, url: url }); }
-    afterSettingsChange(true);
-    chatWinKey = '';               /* 次に押したときは新しいURLで開き直す */
-    closeModal();
-    toast('登録しました。次からこの部屋が直接開きます');
-  };
-  if(isAdminUnlocked()){ done(); return; }
-  var pw = ($('chat-reg-pw') ? $('chat-reg-pw').value : '').trim();
-  if(!pw){ toast('管理者パスワードを入力してください'); return; }
-  verifyAdminPassword(pw, function(ok){
-    if(!ok){ toast('パスワードが違います'); return; }
-    try{ sessionStorage.setItem(ADMIN_KEY, '1'); }catch(e){}
-    adminPw = pw;
-    applyLockState();
-    done();
-  });
 }
 
 /* ---------- コピー ---------- */
@@ -2462,6 +2673,7 @@ function renderSettings(){
   $('set-cal-q').value       = settings.calendarQuery;
 
   renderPhraseList();
+  renderEntryNoteList();
   renderStoreChatList();
 
   var host = $('gy-list'), html = '';
@@ -2510,6 +2722,56 @@ function renderSettings(){
   host.innerHTML = html;
 }
 function toggleGy(id){ var el = $('gy-' + id); if(el) el.classList.toggle('open'); }
+
+function renderEntryNoteList(){
+  var host = $('entry-note-list');
+  if(!host) return;
+  if(!settings.entryNotes.length){
+    host.innerHTML = '<div class="empty">まだありません。<br>「＋ 文を追加」から登録してください。</div>';
+    return;
+  }
+  var html = '';
+  settings.entryNotes.forEach(function(n, i){
+    html += '<div class="ph-row">'
+      + '<input type="text" placeholder="例: POSレジ清算済み" value="' + esc(n.text) + '"'
+      +   ' oninput="setEntryNote(' + i + ',this.value)">'
+      + '<div class="ph-ops">'
+      +   '<button class="btn btn-ghost btn-sm" onclick="moveEntryNote(' + i + ',-1)"' + (i === 0 ? ' disabled' : '') + ' aria-label="上へ">↑</button>'
+      +   '<button class="btn btn-ghost btn-sm" onclick="moveEntryNote(' + i + ',1)"' + (i === settings.entryNotes.length-1 ? ' disabled' : '') + ' aria-label="下へ">↓</button>'
+      +   '<button class="btn btn-danger btn-sm" onclick="removeEntryNote(' + i + ')" aria-label="削除">✕</button>'
+      + '</div>'
+      + '</div>';
+  });
+  host.innerHTML = html;
+}
+function addEntryNote(){
+  if(!requireAdmin()) return;
+  settings.entryNotes.push({ id: uid('en'), text: '' });
+  afterSettingsChange(true);
+  var boxes = document.querySelectorAll('#entry-note-list input');
+  if(boxes.length) boxes[boxes.length-1].focus();
+}
+function setEntryNote(i, v){
+  if(!settings.entryNotes[i]) return;
+  settings.entryNotes[i].text = v;
+  saveSettings();
+  markSharedDirty();
+  renderEntryNoteRow();
+}
+function moveEntryNote(i, d){
+  if(!requireAdmin()) return;
+  var j = i + d;
+  if(j < 0 || j >= settings.entryNotes.length) return;
+  var t = settings.entryNotes[i];
+  settings.entryNotes[i] = settings.entryNotes[j];
+  settings.entryNotes[j] = t;
+  afterSettingsChange(true);
+}
+function removeEntryNote(i){
+  if(!requireAdmin()) return;
+  settings.entryNotes.splice(i, 1);
+  afterSettingsChange(true);
+}
 
 function renderPhraseList(){
   var host = $('phrase-list');
@@ -2653,6 +2915,7 @@ function afterSettingsChange(rerenderSettingsPane){
   renderDayGyotaiForm(true);
   renderEntries();
   renderPhraseChips();
+  renderEntryNoteRow();
   if(rerenderSettingsPane) renderSettings();
 }
 function syncEntriesWithSettings(){
