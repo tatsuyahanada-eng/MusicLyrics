@@ -58,6 +58,12 @@ GoogleカレンダーへOES入替作業の予定を登録するための、単�
   ただし**PWAに必要なファイル（`manifest.json` `sw.js` `icon-*.png`）だけは実ファイルにする**。
   Androidでは data URI のマニフェストだとWebAPKが作られず、Chromeのマークが付いたただのショートカットに
   なってしまうため。**この3つをdata URI化・削除しないこと。**
+- **入力途中の内容は端末に一時保存する（下書き）。** スマホでは画面の更新やアプリの切り替えだけで
+  入力が消えてしまうため、当日タブ（業態・店舗名・日付・時間帯・連絡文・機器台数）とカレンダータブの
+  ①②③の入力を `localStorage`（キー: `oes-calendar-draft-v1`）へ400ms遅延で保存し、開き直したときに戻す
+  （`saveDraftSoon()` / `restoreDraft()`）。**24時間経った下書きは使わずに消す**（前日の入力が残らないように）。
+  復元は**共有設定の読み込みが終わってから**行う（先に戻すと行の作り直しで消えるため）。
+  これは「入力中の内容」だけで、**登録リスト（`entries`）は従来どおり保存しない**。
 - **設定の保存場所は「サーバー上の `settings.json` 1か所」**。起動時に `fetch` で読み込む（`SHARED_FILE`）。
   `localStorage`（キー: `oes-calendar-settings-v1`）は共有設定を読めなかったときの控えに過ぎない。
   保存は `settings-save.php` があればそこへPOSTし、無ければ `settings.json` をダウンロードさせて
@@ -128,8 +134,15 @@ GoogleカレンダーへOES入替作業の予定を登録するための、単�
   URLは`settings.storeChats[]`（`{id, gyotai, tenpo, url}`）に業態＋店舗名の組み合わせで保存する
   （同じ店舗名でも業態が違えば別ルームのことがあるため、店舗名だけでなく業態も含めて照合する＝`findStoreChat(gyotai,tenpo)`）。
   **該当する登録が無い場合は、`prompt()`等で案内せずそのまま一般のGoogle Chat（`https://chat.google.com/`）を開く。**
-  自動登録プロンプトは廃止済み。登録は設定の「詳細設定」内の一覧（`#store-chat-list`）から手動で行う
-  （業態・店舗名・URLの3項目、追加・編集・削除ができる）。
+  自動登録プロンプトは廃止済み。
+- **Chatは毎回新しいタブを開かず、名前付きウィンドウ（`oes-store-chat`）1枚を使い回す。**
+  さらに**直前と同じ業態＋店舗であればURLを読み込み直さず、そのタブを前面に出すだけ**にする
+  （`chatWin` / `chatWinKey`）。一覧から探して開いた状態がそのまま残り、毎回探し直さずに済むため。
+  この動作を「毎回 `_blank` で開く」に戻さないこと。
+- 登録は設定の「詳細設定」内の一覧（`#store-chat-list`）に加えて、**作業当日タブの「Chatを登録」
+  （`openChatRegister()` / `saveChatRegister()`）からも行える**。表示中の業態＋店舗名に対してURLを貼るだけで
+  登録でき、ロック中はモーダル内で管理者パスワードを入れればその場で解除して保存する
+  （現場でその場で登録できるようにするための導線。`prompt()` は使わず、押したときだけ開く）。
 - **PWA対応（ホーム画面に追加できる）。** Androidで**Chromeのマークが付かない独立したアプリ（WebAPK）**として
   登録されるには、次がすべて必要（1つでも欠けるとただのショートカットになる）。
   ①`https://` 配信 ②`<link rel="manifest" href="manifest.json">`（**実ファイル**。`.webmanifest` は
@@ -215,7 +228,9 @@ GoogleカレンダーへOES入替作業の予定を登録するための、単�
 | `splitReport(text)` | 説明文を入店/中間報告/退店に振り分ける。目印は `settings.dayKeywords` |
 | `stripEquipmentLines(text)` / `rebuildEquipmentBlock()` | ③退店連絡の機器台数（MPR/MST/HT/BC/BP）を除去・再構築。入力した機器だけ固定順で反映する |
 | `renderEquipRow()` / `onEquipInput(code,v)` / `dayCounts` | 機器台数プルダウン（1〜10）の描画・変更ハンドラ・現在値（候補切替でリセット） |
-| `openStoreChat()` / `findStoreChat(gyotai,tenpo)` | 業態＋店舗のGoogle Chatを直接開く／検索。該当なしなら案内せず一般のChatを開く |
+| `openStoreChat()` / `findStoreChat(gyotai,tenpo)` | 業態＋店舗のGoogle Chatを開く／検索。同じ店舗の2回目以降はタブを前面に出すだけ。該当なしなら案内せず一般のChatを開く |
+| `openChatRegister()` / `saveChatRegister()` | 作業当日タブから、表示中の店舗のChat URLを登録する（ロック中はモーダル内でパスワード入力） |
+| `saveDraftSoon()` / `saveDraft()` / `restoreDraft()` / `clearDraft()` | 入力途中の内容の一時保存と復元（`oes-calendar-draft-v1`、24時間で失効） |
 | `renderStoreChatList()` ほか | 設定画面での業態・店舗Chat URLの追加・編集・削除（`settings.storeChats`） |
 | `sha256Hex(str)` | 外部ライブラリを使わないSHA-256。管理者パスワードの照合に使う（httpsでない環境でも動くようにするため） |
 | `loadAdminConfig()` / `verifyAdminPassword(v, cb)` | `config.json` の読み込みと、パスワードの照合（admin-auth.php → ハッシュの順） |
@@ -249,6 +264,8 @@ GoogleカレンダーへOES入替作業の予定を登録するための、単�
 ICSの中身、作業当日の貼り付けからの振り分け・コピー・業態＋店舗別Chatボタン（未登録時に案内なしで
 一般Chatへフォールバックすること）、機器台数プルダウン、PWAインストールボタンの表示切り替え、
 横スクロールが出ないこと、JSエラーが出ないこと。
+入力途中の内容が画面の更新で消えないこと（当日タブの業態・店舗名・連絡文・機器台数、カレンダータブの
+①②③の入力）、24時間経った下書きは復元されないこと、Chatボタンを同じ店舗で続けて押しても開き直さないこと。
 管理者パスワードは、①設定ファイル無し（組み込みハッシュ）②`config.json` を置いた場合
 ③`admin-auth.php` を置いた場合の3通りで、正しい／誤ったパスワードの挙動を確認する。
 `index.html` に平文パスワードが含まれていないこと（`grep -c 'Welsys@1234' index.html` が 0）も確認する。
