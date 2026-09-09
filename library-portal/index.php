@@ -11,6 +11,9 @@ if ($user === null) {
 }
 $isAdmin = ($user['role'] ?? '') === 'admin';
 $csrf    = csrf_token();
+// sql/upgrade.sql をまだ実行していないと使えない項目を、画面側にも伝えておく
+// （フォームでは選べるのに保存されない、という状態を防ぐため）
+$dbMissing = $isAdmin ? lp_missing_columns() : [];
 ?>
 <!DOCTYPE html>
 <html lang="ja">
@@ -23,7 +26,7 @@ $csrf    = csrf_token();
   <link rel="apple-touch-icon" href="assets/icon-192.png?v=6">
   <link rel="manifest" href="manifest.webmanifest">
   <meta name="theme-color" content="#007a33">
-  <link rel="stylesheet" href="assets/library.css?v=23">
+  <link rel="stylesheet" href="assets/library.css?v=24">
 </head>
 <body class="lp-body">
 
@@ -137,7 +140,10 @@ $csrf    = csrf_token();
           <select id="fBump" class="lp-select">
             <option value="minor">通常の更新（1.1 → 1.2）</option>
             <option value="revision">微修正（1.1 → 1.11）</option>
-          </select></label>
+          </select>
+          <span class="lp-field-hint lp-field-hint-warn" id="fBumpNote" hidden>
+            データベースの更新（sql/upgrade.sql）がまだのため、ここを選んでも反映されません。
+          </span></label>
         <label class="lp-field"><span class="lp-field-label">管理番号</span>
           <input id="fTicket" class="lp-input" type="text" placeholder="WLS-1234"></label>
       </div>
@@ -194,6 +200,9 @@ $csrf    = csrf_token();
         <datalist id="seriesList"></datalist>
         <span class="lp-field-hint">同じ名前を付けたアプリ・マニュアル・資料が、ひとまとまりとして扱われます。
           既に使った名前は入力欄の候補から選べます。</span>
+        <span class="lp-field-hint lp-field-hint-warn" id="iSeriesNote" hidden>
+          データベースの更新（sql/upgrade.sql）がまだのため、ここに入力しても保存されません。
+        </span>
       </label>
       <label class="lp-field"><span class="lp-field-label">説明</span>
         <textarea id="iDesc" class="lp-input lp-textarea" rows="3"></textarea></label>
@@ -241,10 +250,11 @@ $csrf    = csrf_token();
         name: <?= json_encode($user['display_name']) ?>,
         role: <?= json_encode($user['role']) ?>
       },
-      canEdit: <?= $isAdmin ? 'true' : 'false' ?>
+      canEdit: <?= $isAdmin ? 'true' : 'false' ?>,
+      dbMissing: <?= json_encode($dbMissing) ?>
     };
   </script>
-  <script src="assets/library.js?v=23"></script>
+  <script src="assets/library.js?v=24"></script>
   <script src="assets/pwa.js?v=2"></script>
   <script>
     // インストール導線：すぐに実行できる端末ではその場で、それ以外は案内ページへ

@@ -13,6 +13,12 @@ const LP_CFG = window.LP || null;              // 本番なら PHP から埋め�
 const CAN_EDIT = !!(LP_CFG && LP_CFG.canEdit); // 管理者のみ true
 const API = LP_CFG ? LP_CFG.apiBase : null;
 
+// sql/upgrade.sql をまだ実行していないサーバーでは、この2項目は選んでも保存されない。
+// フォーム側で選べないようにして、「保存したのに反映されない」を防ぐ
+const DB_MISSING = (LP_CFG && LP_CFG.dbMissing) || [];
+const DB_HAS_BUMP   = !DB_MISSING.includes('lp_updates.bump_type');
+const DB_HAS_SERIES = !DB_MISSING.includes('lp_items.series');
+
 const KIND_CLASS = {
   '機能追加': 'feature',
   '不具合修正': 'bugfix',
@@ -849,6 +855,11 @@ function openUpdateModal(itemId, uid) {
     $('fTime').value = `${pad(now.getHours())}:${pad(now.getMinutes())}`;
   }
 
+  // 列がまだ無いサーバーでは、選んでも保存されない項目を触らせない
+  $('fBump').disabled = !DB_HAS_BUMP;
+  if (!DB_HAS_BUMP) { $('fBump').value = 'minor'; }
+  $('fBumpNote').hidden = DB_HAS_BUMP;
+
   showModal($('updateModal'));
   $('fSummary').focus();
 }
@@ -930,6 +941,10 @@ function openItemModal(id) {
     const pad = (n) => String(n).padStart(2, '0');
     $('iCreated').value = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`;
   }
+
+  $('iSeries').disabled = !DB_HAS_SERIES;
+  if (!DB_HAS_SERIES) { $('iSeries').value = ''; }
+  $('iSeriesNote').hidden = DB_HAS_SERIES;
 
   showModal($('itemModal'));
   (it ? $('iName') : $('iId')).focus();
