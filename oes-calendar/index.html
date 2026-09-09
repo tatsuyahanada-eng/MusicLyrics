@@ -473,6 +473,9 @@ input:focus,select:focus,textarea:focus{border-color:var(--blue);box-shadow:0 0 
             <div class="hint" id="w-time-hint"></div>
           </div>
         </div>
+        <div class="row-btns" style="margin-top:9px;">
+          <button class="btn btn-ghost btn-sm" id="btn-cal-clear" onclick="clearWizardAll()">クリア（最初からやり直す）</button>
+        </div>
         <div class="step-next" id="next1">
           <span class="sn-msg"></span>
           <button class="btn btn-primary btn-sm" onclick="goStep(2)">次へ：日付と時刻を選ぶ ↓</button>
@@ -568,7 +571,7 @@ input:focus,select:focus,textarea:focus{border-color:var(--blue);box-shadow:0 0 
           <button class="btn btn-primary btn-block" onclick="buildDayFromGyotai()">この内容で連絡文を作る</button>
         </div>
         <div class="row-btns" style="margin-top:9px;">
-          <button class="btn btn-ghost btn-sm" onclick="clearDayAll()">クリア（最初からやり直す）</button>
+          <button class="btn btn-ghost btn-sm" id="btn-day-clear" onclick="clearDayAll()">クリア（最初からやり直す）</button>
         </div>
 
         <div class="gy-item" id="gy-paste" style="margin-top:12px;">
@@ -629,6 +632,7 @@ input:focus,select:focus,textarea:focus{border-color:var(--blue);box-shadow:0 0 
               <button class="btn btn-primary btn-sm" id="cp-mid" onclick="copyMsg('mid')">コピー</button>
               <button class="btn btn-sub btn-sm" onclick="openStoreChat()">Chat</button>
             </span></div>
+          <div class="note-row" id="mid-note-row"></div>
           <textarea id="msg-mid" class="msg-ta" rows="4" oninput="onMsgInput('mid',this.value)"></textarea>
         </div>
 
@@ -695,6 +699,22 @@ input:focus,select:focus,textarea:focus{border-color:var(--blue);box-shadow:0 0 
           チェックした文だけが入店連絡の本文に入ります（例: POSレジ清算済み、電源ケーブル流用の申し送りなど）。
         </div>
         <div id="entry-note-list"></div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-head">
+        <div class="card-title">中間報告に足す文</div>
+        <div class="row-btns">
+          <button class="btn btn-sub btn-sm" onclick="addMidNote()">＋ 文を追加</button>
+        </div>
+      </div>
+      <div class="card-body">
+        <div class="hint" style="margin-bottom:9px;">
+          作業当日タブの「②中間報告」の上にチェック欄として並びます。
+          チェックした文だけが中間報告の本文に入ります（例: 電源ケーブル流用の申し送り、実施状況の見合わせなど）。
+        </div>
+        <div id="mid-note-list"></div>
       </div>
     </div>
 
@@ -944,7 +964,11 @@ var TPL_SUKIYA = [
 /* 入店連絡に足せる文（当日タブでチェックした文だけが入店連絡に入る） */
 var DEFAULT_ENTRY_NOTES = [
   'POSレジ清算済み',
-  'POSレジ清算 今から開始をお願いいたしました',
+  'POSレジ清算 今から開始をお願いいたしました'
+];
+
+/* 中間報告に足せる文（当日タブでチェックした文だけが中間報告に入る） */
+var DEFAULT_MID_NOTES = [
   '高所の為、電源ケーブル流用させて頂きます',
   'スパイラル多用の為、電源ケーブル流用させて頂きます',
   '店舗名多忙の為、入替作業は状況見て実施します。'
@@ -968,6 +992,7 @@ function defaultSettings(){
       { id:'p6', text:'ありがとうございました' }
     ],
     entryNotes: DEFAULT_ENTRY_NOTES.map(function(t){ return { id: uid('en'), text: t }; }),
+    midNotes: DEFAULT_MID_NOTES.map(function(t){ return { id: uid('mn'), text: t }; }),
     calendarApiUrl: '',
     calendarQuery: '',
     storeChats: [],
@@ -1024,6 +1049,7 @@ function collectDraft(){
     start: $('day-start') ? $('day-start').value : '',
     end: $('day-end') ? $('day-end').value : '',
     notes: dayNotes,
+    midNotes: dayMidNotes,
     ctx: dayCtx,
     msgs: dayMsgs,
     counts: dayCounts,
@@ -1078,6 +1104,7 @@ function restoreDraft(){
   if(day.start && $('day-start')){ $('day-start').innerHTML = timeOptionsHtml(day.start); $('day-start').value = day.start; }
   if(day.end && $('day-end')){ $('day-end').innerHTML = timeOptionsHtml(day.end); $('day-end').value = day.end; }
   if(day.notes) dayNotes = day.notes.slice();
+  if(day.midNotes) dayMidNotes = day.midNotes.slice();
   if(day.tenpo && $('day-tenpo')){ $('day-tenpo').value = day.tenpo; restored = true; }
   if(day.paste && $('day-paste')) $('day-paste').value = day.paste;
   if(day.ctx){
@@ -1089,6 +1116,7 @@ function restoreDraft(){
     if($('msg-remark')) $('msg-remark').value = dayRemark;
     renderEquipRow();
     renderEntryNoteRow();
+    renderMidNoteRow();
     renderDaySummary();
     renderDayMsgs();
     renderPhraseChips();
@@ -1158,6 +1186,7 @@ function normalizeSettings(o){
     calendarQuery:  strOr(o.calendarQuery,  ''),
     phrases: [],
     entryNotes: [],
+    midNotes: [],
     storeChats: [],
     gyotai: []
   };
@@ -1176,6 +1205,14 @@ function normalizeSettings(o){
     (o.entryNotes || []).forEach(function(en){
       var txt = (typeof en === 'string') ? en : (en && typeof en.text === 'string' ? en.text : '');
       if(txt) s.entryNotes.push({ id: (en && en.id) ? en.id : uid('en'), text: txt });
+    });
+  }
+  if(o.midNotes === undefined){
+    s.midNotes = DEFAULT_MID_NOTES.map(function(t){ return { id: uid('mn'), text: t }; });
+  }else{
+    (o.midNotes || []).forEach(function(mn){
+      var txt = (typeof mn === 'string') ? mn : (mn && typeof mn.text === 'string' ? mn.text : '');
+      if(txt) s.midNotes.push({ id: (mn && mn.id) ? mn.id : uid('mn'), text: txt });
     });
   }
   (o.storeChats||[]).forEach(function(sc){
@@ -1614,6 +1651,17 @@ function resetStoreRows(){
   updateAllRowWhen();
   updateWizardNav();
   saveDraftSoon();
+}
+/* ①②③の入力をすべて最初の状態に戻す（④の登録リストは対象外。そちらは「全て削除」で扱う） */
+function clearWizardAll(){
+  var gySel = $('w-gyotai'), cntSel = $('w-count');
+  if(gySel && gySel.options.length) gySel.selectedIndex = 0;
+  if(cntSel) cntSel.value = '1';
+  renderStoreRows();
+  resetStoreRows();
+  updateWizardHints();
+  updateWizardNav();
+  toast('入力をクリアしました');
 }
 function submitStoreRows(){
   var g = findGyotai($('w-gyotai').value);
@@ -2078,7 +2126,10 @@ function clearDayAll(){
   dayCands = []; dayCandIdx = -1;
   resetDayCounts();
   resetEntryNotes();
+  resetMidNotes();
   resetDayRemark();
+  renderEntryNoteRow();
+  renderMidNoteRow();
   renderDayCandidates();
   renderDayMsgs();
   renderPhraseChips();
@@ -2371,6 +2422,55 @@ function rebuildEntryNoteBlock(){
   if($('msg-in')) $('msg-in').value = dayMsgs.in;
 }
 
+/* ---------- 中間報告に足す文（チェックしたものだけ本文に入れる） ---------- */
+var dayMidNotes = [];   /* チェックされている文（本文そのもの） */
+function resetMidNotes(){ dayMidNotes = []; }
+function stripMidNoteLines(text){
+  var all = settings.midNotes.map(function(n){ return n.text; });
+  var lines = String(text == null ? '' : text).split('\n');
+  var kept = lines.filter(function(l){ return all.indexOf(l.trim()) < 0; });
+  while(kept.length && kept[kept.length - 1].trim() === '') kept.pop();
+  return kept.join('\n');
+}
+function renderMidNoteRow(){
+  var host = $('mid-note-row');
+  if(!host) return;
+  if(!settings.midNotes.length){ host.innerHTML = ''; return; }
+  var html = '';
+  settings.midNotes.forEach(function(n, i){
+    var on = dayMidNotes.indexOf(n.text) >= 0;
+    html += '<label class="' + (on ? 'on' : '') + '">'
+          + '<input type="checkbox"' + (on ? ' checked' : '')
+          + ' onchange="onMidNoteToggle(' + i + ',this.checked)">'
+          + '<span>' + esc(n.text) + '</span></label>';
+  });
+  host.innerHTML = html;
+}
+function onMidNoteToggle(i, on){
+  var n = settings.midNotes[i];
+  if(!n) return;
+  var pos = dayMidNotes.indexOf(n.text);
+  if(on && pos < 0) dayMidNotes.push(n.text);
+  if(!on && pos >= 0) dayMidNotes.splice(pos, 1);
+  rebuildMidNoteBlock();
+  renderMidNoteRow();
+  saveDraftSoon();
+}
+/* 中間報告の1行目（見出し）の直後に、チェックした文を設定の並び順で入れる */
+function rebuildMidNoteBlock(){
+  var base = stripMidNoteLines(dayMsgs.mid);
+  var picked = settings.midNotes
+    .filter(function(n){ return dayMidNotes.indexOf(n.text) >= 0; })
+    .map(function(n){ return n.text; });
+  if(picked.length){
+    var lines = base.split('\n');
+    var head = lines.length ? [lines.shift()] : [];
+    base = head.concat(picked, lines).join('\n');
+  }
+  dayMsgs.mid = base;
+  if($('msg-mid')) $('msg-mid').value = dayMsgs.mid;
+}
+
 function resetDayCounts(){
   EQUIPMENT_CODES.forEach(function(c){ dayCounts[c] = ''; });
 }
@@ -2456,11 +2556,14 @@ function setDayCtx(c){
   dayMsgs = splitReport(c.description || '');
   dayMsgs.out = stripEquipmentLines(dayMsgs.out);
   dayMsgs.in = stripEntryNoteLines(dayMsgs.in);
+  dayMsgs.mid = stripMidNoteLines(dayMsgs.mid);
   resetDayCounts();
   resetEntryNotes();
+  resetMidNotes();
   resetDayRemark();
   renderEquipRow();
   renderEntryNoteRow();
+  renderMidNoteRow();
   renderDaySummary();
   renderDayMsgs();
   renderPhraseChips();
@@ -2495,10 +2598,13 @@ function rebuildDayMsgs(){
   dayMsgs = splitReport(dayCtx.description || '');
   dayMsgs.out = stripEquipmentLines(dayMsgs.out);
   dayMsgs.in  = stripEntryNoteLines(dayMsgs.in);
+  dayMsgs.mid = stripMidNoteLines(dayMsgs.mid);
   appliedRemark = '';
   rebuildOutBlock();
   rebuildEntryNoteBlock();
+  rebuildMidNoteBlock();
   renderEntryNoteRow();
+  renderMidNoteRow();
   renderDayMsgs();
   toast('読み込んだ内容から作り直しました');
 }
@@ -2726,6 +2832,7 @@ function renderSettings(){
 
   renderPhraseList();
   renderEntryNoteList();
+  renderMidNoteList();
   renderStoreChatList();
 
   var host = $('gy-list'), html = '';
@@ -2822,6 +2929,56 @@ function moveEntryNote(i, d){
 function removeEntryNote(i){
   if(!requireAdmin()) return;
   settings.entryNotes.splice(i, 1);
+  afterSettingsChange(true);
+}
+
+function renderMidNoteList(){
+  var host = $('mid-note-list');
+  if(!host) return;
+  if(!settings.midNotes.length){
+    host.innerHTML = '<div class="empty">まだありません。<br>「＋ 文を追加」から登録してください。</div>';
+    return;
+  }
+  var html = '';
+  settings.midNotes.forEach(function(n, i){
+    html += '<div class="ph-row">'
+      + '<input type="text" placeholder="例: 高所の為、電源ケーブル流用させて頂きます" value="' + esc(n.text) + '"'
+      +   ' oninput="setMidNote(' + i + ',this.value)">'
+      + '<div class="ph-ops">'
+      +   '<button class="btn btn-ghost btn-sm" onclick="moveMidNote(' + i + ',-1)"' + (i === 0 ? ' disabled' : '') + ' aria-label="上へ">↑</button>'
+      +   '<button class="btn btn-ghost btn-sm" onclick="moveMidNote(' + i + ',1)"' + (i === settings.midNotes.length-1 ? ' disabled' : '') + ' aria-label="下へ">↓</button>'
+      +   '<button class="btn btn-danger btn-sm" onclick="removeMidNote(' + i + ')" aria-label="削除">✕</button>'
+      + '</div>'
+      + '</div>';
+  });
+  host.innerHTML = html;
+}
+function addMidNote(){
+  if(!requireAdmin()) return;
+  settings.midNotes.push({ id: uid('mn'), text: '' });
+  afterSettingsChange(true);
+  var boxes = document.querySelectorAll('#mid-note-list input');
+  if(boxes.length) boxes[boxes.length-1].focus();
+}
+function setMidNote(i, v){
+  if(!settings.midNotes[i]) return;
+  settings.midNotes[i].text = v;
+  saveSettings();
+  markSharedDirty();
+  renderMidNoteRow();
+}
+function moveMidNote(i, d){
+  if(!requireAdmin()) return;
+  var j = i + d;
+  if(j < 0 || j >= settings.midNotes.length) return;
+  var t = settings.midNotes[i];
+  settings.midNotes[i] = settings.midNotes[j];
+  settings.midNotes[j] = t;
+  afterSettingsChange(true);
+}
+function removeMidNote(i){
+  if(!requireAdmin()) return;
+  settings.midNotes.splice(i, 1);
   afterSettingsChange(true);
 }
 
@@ -2968,6 +3125,7 @@ function afterSettingsChange(rerenderSettingsPane){
   renderEntries();
   renderPhraseChips();
   renderEntryNoteRow();
+  renderMidNoteRow();
   if(rerenderSettingsPane) renderSettings();
 }
 function syncEntriesWithSettings(){
