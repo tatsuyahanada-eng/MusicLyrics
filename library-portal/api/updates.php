@@ -22,7 +22,7 @@ $date    = s($b, 'date', 10);
 $time    = s($b, 'time', 5);
 $author  = s($b, 'author', 60);
 $kind    = s($b, 'kind', 20);
-$version = s($b, 'version', 20);
+$bump    = s($b, 'bump', 10) === 'revision' ? 'revision' : 'minor';
 $summary = s($b, 'summary', 500);
 $target  = s($b, 'target', 200);
 $ticket  = s($b, 'ticket', 30);
@@ -59,12 +59,12 @@ try {
         $st = $pdo->prepare(
             'UPDATE lp_updates
                 SET item_id = ?, updated_on = ?, updated_time = ?, author = ?, update_kind = ?,
-                    version = ?, summary = ?, target_feature = ?, ticket_no = ?
+                    bump_type = ?, summary = ?, target_feature = ?, ticket_no = ?
               WHERE update_id = ?'
         );
         $st->execute([
             $itemId, $date, $time . ':00', $author, $kind,
-            $version !== '' ? $version : null, $summary, $target,
+            $bump, $summary, $target,
             $ticket !== '' ? $ticket : null, $uid,
         ]);
         $updateId = $uid;
@@ -73,12 +73,12 @@ try {
     } else {
         $st = $pdo->prepare(
             'INSERT INTO lp_updates
-               (item_id, updated_on, updated_time, author, author_user_id, update_kind, version, summary, target_feature, ticket_no)
+               (item_id, updated_on, updated_time, author, author_user_id, update_kind, bump_type, summary, target_feature, ticket_no)
              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
         );
         $st->execute([
             $itemId, $date, $time . ':00', $author, $user['user_id'], $kind,
-            $version !== '' ? $version : null, $summary, $target, $ticket !== '' ? $ticket : null,
+            $bump, $summary, $target, $ticket !== '' ? $ticket : null,
         ]);
         $updateId = (int)$pdo->lastInsertId();
     }

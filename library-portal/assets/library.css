@@ -355,7 +355,8 @@
 }
 .lp-page-inner {
   min-width: 0;
-  padding: 26px 30px 4px;
+  /* 下は「ノンブル」（ページ番号）が重ならないぶんだけ空けておく */
+  padding: 26px 30px 26px;
   max-height: min(760px, 76vh); overflow-y: auto; overscroll-behavior: contain;
 }
 .lp-page-inner::-webkit-scrollbar { width: 8px; }
@@ -550,7 +551,8 @@
 }
 @media (max-width: 560px) {
   .lp-slab-face { grid-template-columns: minmax(0, 1fr) auto 22px; }
-  .lp-slab-ver { display: none; }
+  /* 版数は一番見たい情報なので残し、代わりに更新回数の目盛りを畳む */
+  .lp-slab-hist { display: none; }
   .lp-slab-name { font-size: .88rem; }
   .lp-slab:hover, .lp-slab.is-reading { transform: translateX(6px); }
 }
@@ -560,8 +562,11 @@
   .lp-page-r, .lp-page-l { transform-origin: top center; transform: rotateX(-88deg); }
   .lp-spread.is-open .lp-page-l, .lp-spread.is-open .lp-page-r { transform: rotateX(0deg); }
   .lp-page-l::before, .lp-page-r::before, .lp-gutter { display: none; }
-  .lp-page-inner, .lp-page-l .lp-page-inner, .lp-page-r .lp-page-inner { padding: 20px 16px 4px; }
+  .lp-page-inner, .lp-page-l .lp-page-inner, .lp-page-r .lp-page-inner { padding: 20px 16px 26px; }
   .lp-page { min-height: 0; }
+  /* 縦に並ぶので、ページの中でさらにスクロールさせない
+     （入れ子のスクロールだと「同じシリーズ」やボタンが隠れてしまう） */
+  .lp-page-inner { max-height: none; overflow-y: visible; }
 }
 
 /* ---------- 一覧は表（テーブル）の見た目に統一する ---------- */
@@ -1684,4 +1689,77 @@
   .lp-toolbar-right { margin-left: 0; width: 100%; }
   .lp-toolbar-right .lp-select { flex: 1 1 150px; min-width: 0; }
   .lp-viewswitch { margin-left: auto; }
+}
+
+/* ============================================================
+   更新の年表：一覧は「日付・版数・項目名」だけ。押すと詳細が開く
+   ============================================================ */
+.lp-page-h { flex-wrap: wrap; }
+/* 見開きのときは右上に「✕ 閉じる」が重なるので、その分だけ空ける */
+@media (min-width: 761px) {
+  .lp-page-r .lp-page-h { padding-right: 96px; }
+}
+.lp-allbtn {
+  font: inherit; font-family: var(--lp-font, inherit);
+  font-size: .68rem; font-weight: 700; cursor: pointer;
+  color: var(--lp-ink-soft); background: #fff;
+  border: 1px solid var(--paper-line); border-radius: 999px;
+  padding: 3px 12px;
+  transition: color .16s var(--lp-ease), border-color .16s var(--lp-ease), background .16s var(--lp-ease);
+}
+.lp-allbtn:hover { color: var(--lp-gold-dark); border-color: var(--lp-gold); }
+.lp-allbtn.is-on { background: var(--lp-ink); color: #fff; border-color: var(--lp-ink); }
+
+.lp-chr-item { padding-bottom: 3px; }
+.lp-chr-item::before { display: none; }        /* 一覧形式なので縦線は使わない */
+
+.lp-chr-row {
+  width: 100%; font: inherit; text-align: left; cursor: pointer;
+  display: grid;
+  grid-template-columns: 92px 58px minmax(0, 1fr) auto 18px;
+  align-items: center; gap: 10px;
+  background: none; border: none;
+  border-bottom: 1px solid var(--paper-line);
+  padding: 8px 4px;
+  transition: background .14s var(--lp-ease);
+}
+.lp-chr-row:hover { background: #f4f2ec; }
+.lp-chr-item.is-open > .lp-chr-row { background: #f4f2ec; border-bottom-color: transparent; }
+.lp-chr-item.is-latest > .lp-chr-row { border-left: 3px solid var(--lp-gold); padding-left: 8px; }
+
+.lp-chr-row .lp-chr-date {
+  font-family: ui-monospace, Menlo, Consolas, monospace;
+  font-size: .74rem; font-weight: 700; color: var(--lp-ink); white-space: nowrap;
+}
+.lp-chr-ver {
+  font-family: ui-monospace, Menlo, Consolas, monospace;
+  font-size: .74rem; font-weight: 700; text-align: center;
+  color: var(--lp-ink); background: #f2f1ea;
+  border: 1px solid var(--paper-line); border-radius: 4px; padding: 1px 0;
+}
+.lp-chr-item.is-latest .lp-chr-ver {
+  color: #fff; background: var(--lp-ink); border-color: var(--lp-ink);
+}
+.lp-chr-title {
+  font-size: .84rem; font-weight: 600; color: var(--lp-ink);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.lp-chr-mark {
+  display: grid; place-items: center; color: var(--lp-ink-soft);
+  transition: transform .22s var(--lp-ease);
+}
+.lp-chr-item.is-open .lp-chr-mark { transform: rotate(180deg); color: var(--lp-gold-dark); }
+
+.lp-chr-detail {
+  padding: 11px 4px 14px 12px;
+  border-left: 2px solid var(--paper-line);
+  margin: 0 0 4px 8px;
+  animation: lp-ink-in .26s var(--lp-ease) both;
+}
+.lp-chr-detail .lp-chr-head { padding-bottom: 0; }
+.lp-chr-detail .lp-chr-time { font-size: .7rem; }
+
+@media (max-width: 760px) {
+  .lp-chr-row { grid-template-columns: 78px 52px minmax(0, 1fr) 18px; gap: 8px; }
+  .lp-chr-row .lp-chr-tag { display: none; }
 }

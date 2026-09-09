@@ -23,7 +23,7 @@ $csrf    = csrf_token();
   <link rel="apple-touch-icon" href="assets/icon-192.png?v=6">
   <link rel="manifest" href="manifest.webmanifest">
   <meta name="theme-color" content="#007a33">
-  <link rel="stylesheet" href="assets/library.css?v=20">
+  <link rel="stylesheet" href="assets/library.css?v=22">
 </head>
 <body class="lp-body">
 
@@ -133,8 +133,11 @@ $csrf    = csrf_token();
       <div class="lp-field-row">
         <label class="lp-field"><span class="lp-field-label">対応者 <em>必須</em></span>
           <input id="fAuthor" class="lp-input" type="text" value="<?= h($user['display_name']) ?>" required></label>
-        <label class="lp-field"><span class="lp-field-label">版数</span>
-          <input id="fVersion" class="lp-input" type="text" placeholder="v1.2.0"></label>
+        <label class="lp-field"><span class="lp-field-label">更新の大きさ</span>
+          <select id="fBump" class="lp-select">
+            <option value="minor">通常の更新（1.1 → 1.2）</option>
+            <option value="revision">微修正（1.1 → 1.11）</option>
+          </select></label>
         <label class="lp-field"><span class="lp-field-label">管理番号</span>
           <input id="fTicket" class="lp-input" type="text" placeholder="WLS-1234"></label>
       </div>
@@ -152,6 +155,7 @@ $csrf    = csrf_token();
       </label>
       <label class="lp-field"><span class="lp-field-label">URL（変更がある場合のみ）</span>
         <input id="fUrl" class="lp-input" type="url" placeholder="https://share.example.co.jp/..."></label>
+      <p class="lp-field-hint">版数は登録順から自動で決まります（最初の登録が 1.00、以降 1.1・1.2…、微修正は 1.11・1.12…）。</p>
       <p class="lp-form-error" id="updateError" hidden></p>
       <div class="lp-form-actions">
         <button type="button" id="btnCancel" class="lp-btn lp-btn-ghost">キャンセル</button>
@@ -240,7 +244,7 @@ $csrf    = csrf_token();
       canEdit: <?= $isAdmin ? 'true' : 'false' ?>
     };
   </script>
-  <script src="assets/library.js?v=20"></script>
+  <script src="assets/library.js?v=22"></script>
   <script src="assets/pwa.js?v=2"></script>
   <script>
     // インストール導線：すぐに実行できる端末ではその場で、それ以外は案内ページへ

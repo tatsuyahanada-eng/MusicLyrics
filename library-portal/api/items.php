@@ -22,7 +22,7 @@ if ($method === 'GET') {
 
     $updates = db()->query(
         'SELECT u.update_id, u.item_id, u.updated_on, u.updated_time, u.author, u.update_kind,
-                u.version, u.summary, u.target_feature, u.ticket_no
+                u.bump_type, u.summary, u.target_feature, u.ticket_no
            FROM lp_updates u
            JOIN lp_items i ON i.item_id = u.item_id AND i.is_active = 1
           ORDER BY u.updated_on DESC, u.updated_time DESC, u.update_id DESC'
@@ -49,12 +49,23 @@ if ($method === 'GET') {
             'time'    => substr((string)$u['updated_time'], 0, 5),
             'author'  => $u['author'],
             'kind'    => $u['update_kind'],
-            'version' => $u['version'] ?? '',
+            'bump'    => ($u['bump_type'] ?? 'minor') === 'revision' ? 'revision' : 'minor',
             'summary' => $u['summary'],
             'target'  => $u['target_feature'],
             'files'   => $filesByUpdate[(int)$u['update_id']] ?? [],
             'ticket'  => $u['ticket_no'] ?? '',
         ];
+    }
+
+    // 版数は登録順から決まる決まりごとなので、保存値ではなく毎回ここで数える。
+    // $historyByItem は新しい順なので、古い順に数えてから戻す。
+    foreach ($historyByItem as $itemId => $hist) {
+        $oldestFirst = array_reverse($hist);
+        $labels = lp_version_series(array_column($oldestFirst, 'bump'));
+        foreach ($oldestFirst as $i => $_) {
+            $oldestFirst[$i]['version'] = $labels[$i];
+        }
+        $historyByItem[$itemId] = array_reverse($oldestFirst);
     }
 
     $out = [];
@@ -69,6 +80,8 @@ if ($method === 'GET') {
             'downloadUrl' => $i['download_url'] ?? '',
             'description' => $i['description'] ?? '',
             'history'     => $historyByItem[$i['item_id']] ?? [],
+            // 更新がまだ無い資料も、登録した時点で 1.00 とする（「版数なし」を無くす）
+            'version'     => $historyByItem[$i['item_id']][0]['version'] ?? lp_version_label(1, 0, 0),
         ];
     }
     json_out($out);

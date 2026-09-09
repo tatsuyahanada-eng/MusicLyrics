@@ -73,6 +73,8 @@ lp_items 1 ──< lp_updates 1 ──< lp_update_files
     "id": "APP-001",
     "name": "交通費精算ツール",
     "category": "アプリ",
+    "series": "交通費精算",
+    "version": "1.3",
     "creator": "花田 達也",
     "createdAt": "2024-04-18",
     "downloadUrl": "https://share.example.co.jp/apps/expense-tool/v2.3.1/setup.zip",
@@ -80,7 +82,7 @@ lp_items 1 ──< lp_updates 1 ──< lp_update_files
     "history": [
       {
         "date": "2025-08-21", "time": "14:30", "author": "花田 達也",
-        "kind": "機能追加", "version": "v2.3.1",
+        "kind": "機能追加", "bump": "minor", "version": "1.3",
         "summary": "CSV出力に「部署コード」列を追加し、経理システムへの取込を自動化",
         "target": "CSV出力機能 / 月次精算書出力",
         "files": ["src/export/csvExporter.js : buildRow() に deptCode を追加"],
@@ -92,6 +94,20 @@ lp_items 1 ──< lp_updates 1 ──< lp_update_files
 ```
 
 `history` は更新日時の降順です。
+
+`version` は **保存していません**。`lp_updates.bump_type`（`minor` ＝ 通常の更新 /
+`revision` ＝ 微修正）だけを保存し、取得時に古い順から数え直して付けています。
+決まりは `includes/helpers.php` の `lp_version_series()` にまとめてあります。
+
+| きっかけ | 版数 |
+|---|---|
+| 最初の登録 | `1.00` |
+| 通常の更新（`minor`） | `1.1` → `1.2` → `1.3` … |
+| 微修正（`revision`） | `1.1` → `1.11` → `1.12` … |
+
+微修正が 9 を超えると通常の更新へ（`1.19` の次は `1.2`）、
+通常の更新が 9 を超えるとメジャーへ繰り上がります（`1.9` の次は `2.00`）。
+履歴を修正・削除すると版数は自動で振り直されます。
 
 ### 修正ファイルの保存形式
 
@@ -105,7 +121,7 @@ lp_items 1 ──< lp_updates 1 ──< lp_update_files
 
 ```sql
 SELECT i.item_id, i.name, i.category, i.created_by, i.download_url, i.created_date,
-       u.updated_on, u.updated_time, u.author, u.update_kind, u.version,
+       i.series, u.updated_on, u.updated_time, u.author, u.update_kind, u.bump_type,
        u.summary, u.target_feature
 FROM lp_items i
 LEFT JOIN lp_updates u

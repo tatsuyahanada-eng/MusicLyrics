@@ -134,6 +134,33 @@ async function loadItems() {
     items = await apiGet('items.php');
   }
   items.forEach(sortHistory);
+  // 本番は API が版数を付けて返す。プレビューは付いてこないのでここで数える
+  items.forEach((it) => { if (!it.version) numberVersions(it); });
+}
+
+/* 版数の決まり：最初の登録が 1.00、通常の更新で 1.1・1.2…、微修正で 1.11・1.12…。
+   桁があふれたら繰り上げる（1.9 の次は 2.00）ので、同じ表記は二度出ない。
+   本番では api/items.php が同じ規則で数えている（includes/helpers.php）。 */
+function numberVersions(it) {
+  let major = 1, minor = 0, rev = 0;
+  const label = () => (minor === 0 && rev === 0)
+    ? `${major}.00`
+    : (rev === 0 ? `${major}.${minor}` : `${major}.${minor}${rev}`);
+
+  [...it.history].reverse().forEach((e, i) => {         // 古い順に数える
+    if (i === 0) {
+      // 最初の登録は 1.00
+    } else if (e.bump === 'revision') {
+      rev++;
+      if (rev > 9) { rev = 0; minor++; }
+      if (minor > 9) { minor = 0; major++; }
+    } else {
+      minor++; rev = 0;
+      if (minor > 9) { minor = 0; major++; }
+    }
+    e.version = label();
+  });
+  it.version = it.history.length ? it.history[0].version : '1.00';
 }
 
 /* ---------- 絞り込み ---------- */
@@ -151,7 +178,7 @@ const SORTS = {
   series:   { label: 'シリーズ',  type: 'ja',   key: (it) => it.series || '' },
   creator:  { label: '作成者',    type: 'ja',   key: (it) => it.creator },
   count:    { label: '更新回数',  type: 'num',  key: (it) => it.history.length },
-  version:  { label: '最新Ver',   type: 'ja',   key: (it) => { const h = latest(it); return (h && h.version) || ''; } },
+  version:  { label: '最新Ver',   type: 'ja',   key: (it) => it.version || '1.00' },
   created:  { label: '作成日',    type: 'text', key: (it) => String(it.createdAt) }
 };
 
@@ -331,7 +358,7 @@ function slabHtml(it) {
           <span class="lp-slab-ticks" aria-hidden="true">${ticks}</span>
           <span class="lp-slab-count">${n ? `更新 ${n} 回` : '更新なし'}</span>
         </span>
-        ${h && h.version ? `<span class="lp-slab-ver">${esc(h.version)}</span>` : '<span class="lp-slab-ver lp-muted">—</span>'}
+        <span class="lp-slab-ver">${esc(it.version || (h && h.version) || '1.00')}</span>
         <span class="lp-slab-date">${h ? fmtDate(h.date) : '—'}</span>
         <span class="lp-slab-chev" aria-hidden="true">${ICON_CHEVRON}</span>
       </span>
@@ -374,28 +401,36 @@ function chronicle(it) {
       const step = Math.min(d++, 14);
 
       const from = prev && prev.version !== e.version ? prev.version : '';
-      const jump = e.version
-        ? `<span class="lp-jump">${from
-              ? `<span class="lp-jump-from">${esc(from)}</span><span class="lp-jump-arrow" aria-hidden="true">${ICON_ARROW}</span>`
-              : ''}<span class="lp-jump-to">${esc(e.version)}</span></span>`
+      const jump = from
+        ? `<span class="lp-jump">
+             <span class="lp-jump-from">${esc(from)}</span>
+             <span class="lp-jump-arrow" aria-hidden="true">${ICON_ARROW}</span>
+             <span class="lp-jump-to">${esc(e.version)}</span>
+           </span>`
         : '';
 
+      // 一覧は「日付・版数・項目名」だけ。詳細は押したときに開く
       return `
         <li class="lp-chr-item${i === 0 ? ' is-latest' : ''}${prev ? '' : ' is-first'}" style="--d:${step}">
-          <span class="lp-chr-no" aria-hidden="true">${oldIdx + 1}</span>
-          <div class="lp-chr-body">
+          <button class="lp-chr-row" type="button" data-open-entry="${esc(e.uid || oldIdx)}"
+                  aria-expanded="false">
+            <span class="lp-chr-date">${fmtDate(e.date)}</span>
+            <span class="lp-chr-ver">${esc(e.version)}</span>
+            <span class="lp-chr-title">${esc(e.summary)}</span>
+            ${i === 0 ? '<span class="lp-chr-tag">最新</span>' : ''}
+            ${prev ? '' : '<span class="lp-chr-tag lp-chr-tag-start">出発点</span>'}
+            <span class="lp-chr-mark" aria-hidden="true">${ICON_CHEVRON}</span>
+          </button>
+
+          <div class="lp-chr-detail" hidden>
             <div class="lp-chr-head">
-              <span class="lp-chr-date">${String(e.date).slice(5).replace('-', '/')}</span>
-              <span class="lp-chr-time">${esc(e.time)}</span>
+              <span class="lp-chr-time">${esc(e.time)} 登録</span>
               ${kindBadge(e.kind)}
               ${jump}
-              ${i === 0 ? '<span class="lp-chr-tag">最新</span>' : ''}
-              ${prev ? '' : '<span class="lp-chr-tag lp-chr-tag-start">出発点</span>'}
               ${CAN_EDIT && e.uid ? `<button class="lp-chr-edit" type="button"
                   data-edit-update="${esc(e.uid)}" data-item="${esc(it.id)}"
                   title="この更新内容を修正">✎ 修正</button>` : ''}
             </div>
-            <p class="lp-chr-what">${esc(e.summary)}</p>
             <div class="lp-chr-meta">
               <span><b>対象機能</b>${esc(e.target)}</span>
               <span><b>対応者</b>${esc(e.author)}</span>
@@ -419,6 +454,34 @@ function chronicle(it) {
   return `<div class="lp-chr">${blocks}</div>`;
 }
 
+/** 更新1件の詳細を開閉する */
+function toggleEntry(btn) {
+  const detail = btn.parentElement.querySelector('.lp-chr-detail');
+  if (!detail) return;
+  const open = detail.hidden;
+  detail.hidden = !open;
+  btn.setAttribute('aria-expanded', String(open));
+  btn.closest('.lp-chr-item').classList.toggle('is-open', open);
+}
+
+/** 「全ての更新履歴」…すべての詳細をまとめて開く／閉じる */
+function toggleAllEntries(btn) {
+  const spread = $('spread');
+  if (!spread) return;
+  const rows = [...spread.querySelectorAll('.lp-chr-row')];
+  if (!rows.length) return;
+  // 1件でも閉じていれば「全部開く」、すべて開いていれば「全部閉じる」
+  const open = rows.some((r) => r.getAttribute('aria-expanded') !== 'true');
+  rows.forEach((r) => {
+    const detail = r.parentElement.querySelector('.lp-chr-detail');
+    if (detail) detail.hidden = !open;
+    r.setAttribute('aria-expanded', String(open));
+    r.closest('.lp-chr-item').classList.toggle('is-open', open);
+  });
+  btn.textContent = open ? '詳細を閉じる' : '全ての更新履歴';
+  btn.classList.toggle('is-on', open);
+}
+
 /** 同じシリーズの資料（アプリとそのマニュアル・資料など）を並べる */
 function siblingsBlock(it) {
   if (!it.series) return '';
@@ -434,7 +497,7 @@ function siblingsBlock(it) {
           <button class="lp-mate" type="button" data-book="${esc(x.id)}">
             <span class="lp-cat lp-cat-${CAT_CLASS[x.category] || 'prg'}">${CAT_ICON[x.category] || ''}${esc(x.category)}</span>
             <span class="lp-mate-name">${esc(x.name)}</span>
-            <span class="lp-mate-ver">${h && h.version ? esc(h.version) : '—'}</span>
+            <span class="lp-mate-ver">${esc(x.version || (h && h.version) || '1.00')}</span>
           </button>
         </li>`;
     }).join('');
@@ -469,7 +532,7 @@ function spreadLeft(it) {
 
         <div class="lp-nowbox">
           <span class="lp-nowbox-label">最新Ver</span>
-          <span class="lp-nowbox-ver">${h && h.version ? esc(h.version) : '版数なし'}</span>
+          <span class="lp-nowbox-ver">${esc(it.version || (h && h.version) || '1.00')}</span>
           <span class="lp-nowbox-when">${h
             ? `${fmtDate(h.date)} ${esc(h.time)} の更新まで反映`
             : 'まだ更新は登録されていません'}</span>
@@ -508,7 +571,10 @@ function spreadHtml(it) {
       ${spreadLeft(it)}
       <section class="lp-page lp-page-r">
         <div class="lp-page-inner">
-          <h3 class="lp-page-h">更新の年表<span>新しい順 ／ ${it.history.length} 件</span></h3>
+          <h3 class="lp-page-h">更新の年表
+            <span>新しい順 ／ ${it.history.length} 件</span>
+            ${it.history.length ? '<button class="lp-allbtn" type="button" data-all-entries>全ての更新履歴</button>' : ''}
+          </h3>
           ${chronicle(it)}
         </div>
         <span class="lp-folio">${it.history.length} 回の更新</span>
@@ -557,9 +623,22 @@ function openBook(id) {
   spread.innerHTML = spreadHtml(it);
   void spread.offsetWidth;                       // ここで一度レイアウトを確定させる
   spread.classList.add('is-open');
+  showLatestOnRoad(spread);
 
-  const top = spread.getBoundingClientRect().top + window.scrollY - 96;
+  // 画面の上に貼り付いているもの（ヘッダー・一覧の見出し行）の下に隠れないように送る
+  const stuck = (el) => (el && el.offsetParent !== null ? el.getBoundingClientRect().height : 0);
+  const offset = stuck(document.querySelector('.lp-header')) + stuck($('listHead')) + 14;
+  const top = spread.getBoundingClientRect().top + window.scrollY - offset;
   window.scrollTo({ top, behavior: 'smooth' });
+}
+
+/** 「版数の道のり」は横に長いので、いちばん見たい最新版が見えるところまで送っておく */
+function showLatestOnRoad(spread) {
+  const track = spread.querySelector('.lp-road-track');
+  if (!track) return;
+  const go = () => { track.scrollLeft = track.scrollWidth; };
+  go();
+  window.requestAnimationFrame(go);              // 開くアニメーションで幅が変わるため念のためもう一度
 }
 
 function closeBook() {
@@ -594,7 +673,7 @@ function rowHtml(it) {
         ${historyGlance(it)}
       </span>
       <span class="lp-row-date">${h ? fmtDate(h.date) : '—'}<span class="lp-row-time">${h ? esc(h.time) : ''}</span>
-        ${h && h.version ? `<span class="lp-row-ver">${esc(h.version)}</span>` : ''}</span>
+        <span class="lp-row-ver">${esc(it.version || (h && h.version) || '1.00')}</span></span>
       <span>
         <span class="lp-row-summary">${h ? esc(h.summary) : '更新履歴なし'}</span>
         ${h ? `<span class="lp-row-target">対象機能：${esc(h.target)}</span>` : ''}
@@ -750,7 +829,7 @@ function openUpdateModal(itemId, uid) {
     $('fTime').value = entry.time;
     $('fKind').value = entry.kind;
     $('fAuthor').value = entry.author;
-    $('fVersion').value = entry.version || '';
+    $('fBump').value = entry.bump === 'revision' ? 'revision' : 'minor';
     $('fTicket').value = entry.ticket || '';
     $('fSummary').value = entry.summary;
     $('fTarget').value = entry.target;
@@ -781,7 +860,7 @@ async function submitUpdate(ev) {
     time: $('fTime').value,
     author: $('fAuthor').value.trim(),
     kind: $('fKind').value,
-    version: $('fVersion').value.trim(),
+    bump: $('fBump').value,
     summary: $('fSummary').value.trim(),
     target: $('fTarget').value.trim(),
     files: $('fFiles').value.split('\n').map((s) => s.trim()).filter(Boolean),
@@ -985,7 +1064,7 @@ async function init() {
   $('spread').addEventListener('click', (e) => {
     // 見開きは一覧の中に差し込まれているため、ここで処理したクリックは
     // 上位（#list）へ伝えない。伝わると同じ操作が二重に走ってしまう
-    if (e.target.closest('[data-close-spread], [data-series], [data-edit-item], [data-edit-update], [data-book], [data-add]')) {
+    if (e.target.closest('[data-close-spread], [data-series], [data-edit-item], [data-edit-update], [data-book], [data-add], [data-open-entry], [data-all-entries]')) {
       e.stopPropagation();
     }
     if (e.target.closest('[data-close-spread]')) { closeBook(); return; }
@@ -997,6 +1076,10 @@ async function init() {
       render();
       return;
     }
+    const allBtn = e.target.closest('[data-all-entries]');
+    if (allBtn) { toggleAllEntries(allBtn); return; }
+    const entry = e.target.closest('[data-open-entry]');
+    if (entry) { toggleEntry(entry); return; }
     const editItem = e.target.closest('[data-edit-item]');
     if (editItem) { openItemModal(editItem.dataset.editItem); return; }
     const editUp = e.target.closest('[data-edit-update]');

@@ -79,3 +79,51 @@ function audit(string $action, ?string $target = null, ?string $detail = null): 
         error_log('[library-portal] audit failed: ' . $e->getMessage());
     }
 }
+
+/* ============================================================
+   版数の採番
+     ・最初の登録は 1.00
+     ・通常の更新は 1.1 → 1.2 …（マイナーが上がる）
+     ・微修正は 1.1 → 1.11 → 1.12 …（リビジョンが上がる）
+   桁があふれたときは繰り上げる（1.9 の次は 2.00、1.19 の次は 1.2）ので、
+   同じ表記が二度出ることはありません。
+   ============================================================ */
+
+/** major / minor / revision を「1.00」「1.1」「1.11」の形にする */
+function lp_version_label(int $major, int $minor, int $rev): string
+{
+    if ($minor === 0 && $rev === 0) {
+        return $major . '.00';
+    }
+    return $rev === 0 ? "{$major}.{$minor}" : "{$major}.{$minor}{$rev}";
+}
+
+/**
+ * 更新履歴（古い順）から、各更新時点の版数を順に求める。
+ *
+ * @param array $bumps 各更新の 'minor'（通常）または 'revision'（微修正）
+ * @return string[]    古い順の版数
+ */
+function lp_version_series(array $bumps): array
+{
+    $major = 1;
+    $minor = 0;
+    $rev   = 0;
+    $out   = [];
+
+    foreach ($bumps as $i => $bump) {
+        if ($i === 0) {
+            // 最初の登録は必ず 1.00
+        } elseif ($bump === 'revision') {
+            $rev++;
+            if ($rev > 9) { $rev = 0; $minor++; }        // 1.19 の次は 1.2
+            if ($minor > 9) { $minor = 0; $major++; }
+        } else {
+            $minor++;
+            $rev = 0;
+            if ($minor > 9) { $minor = 0; $major++; }    // 1.9 の次は 2.00
+        }
+        $out[] = lp_version_label($major, $minor, $rev);
+    }
+    return $out;
+}
