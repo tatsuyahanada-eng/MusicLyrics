@@ -74,9 +74,42 @@ function require_admin(): array
     return $u;
 }
 
+/**
+ * API で例外が起きたとき、白紙の 500 ではなく理由の分かる JSON を返すようにする。
+ *
+ * 詳しい内容はサーバーのエラーログにだけ書き、画面には「何をすれば直るか」だけを出す。
+ */
+function api_install_error_handler(): void
+{
+    static $done = false;
+    if ($done) { return; }
+    $done = true;
+
+    set_exception_handler(static function (Throwable $e): void {
+        error_log('[library-portal] API error: ' . $e->getMessage());
+
+        $code = $e instanceof PDOException ? (string)$e->getCode() : '';
+        $message = match ($code) {
+            // 列が足りない：ファイルだけ新しくして sql/upgrade.sql を流していないとき
+            '42S22' => 'データベースの更新がまだ行われていません。'
+                     . 'phpMyAdmin で sql/upgrade.sql を実行してください。',
+            // テーブルごと無い：まだ sql/schema.sql を流していないとき
+            '42S02' => 'データベースのテーブルがありません。'
+                     . 'phpMyAdmin で sql/schema.sql を実行してください。',
+            default => 'サーバー側でエラーが発生しました。'
+                     . 'サーバーのエラーログをご確認ください。',
+        };
+
+        if (!headers_sent()) {
+            json_error($message, 500);
+        }
+    });
+}
+
 /** API 用：未ログイン / 権限不足は JSON で返す */
 function api_require_login(): array
 {
+    api_install_error_handler();
     lp_session_start();
     $u = current_user();
     if ($u === null) {

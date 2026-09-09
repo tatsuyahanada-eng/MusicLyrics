@@ -1763,3 +1763,13 @@
   .lp-chr-row { grid-template-columns: 78px 52px minmax(0, 1fr) 18px; gap: 8px; }
   .lp-chr-row .lp-chr-tag { display: none; }
 }
+
+/* 一覧を読み込めなかったときに出す帯（原因と次にやることを書く） */
+.lp-alert {
+  background: var(--lp-danger-soft); border: 1px solid var(--lp-danger-line);
+  border-left: 3px solid var(--lp-danger);
+  border-radius: 8px; padding: 12px 15px; margin-bottom: 15px;
+}
+.lp-alert-title { font-weight: 700; font-size: .84rem; color: var(--lp-danger); margin: 0 0 4px; }
+.lp-alert-msg   { font-size: .79rem; color: #3b4741; margin: 0; }
+.lp-alert-act   { margin: 10px 0 0; }

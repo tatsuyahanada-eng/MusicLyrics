@@ -11,9 +11,14 @@ $method = $_SERVER['REQUEST_METHOD'] ?? 'GET';
 if ($method === 'GET') {
     api_require_login();
 
+    // sql/upgrade.sql をまだ流していないサーバーでも一覧が出るように、
+    // 後から足した列は「あれば読む・無ければ既定値」で扱う
+    $seriesCol = lp_has_column('lp_items', 'series') ? 'series' : "'' AS series";
+    $bumpCol   = lp_has_column('lp_updates', 'bump_type') ? 'u.bump_type' : "'minor' AS bump_type";
+
     $items = db()->query(
-        'SELECT item_id, name, category, series, created_by, description, download_url, created_date
-           FROM lp_items WHERE is_active = 1 ORDER BY item_id'
+        "SELECT item_id, name, category, {$seriesCol}, created_by, description, download_url, created_date
+           FROM lp_items WHERE is_active = 1 ORDER BY item_id"
     )->fetchAll();
 
     if (!$items) {
@@ -21,11 +26,11 @@ if ($method === 'GET') {
     }
 
     $updates = db()->query(
-        'SELECT u.update_id, u.item_id, u.updated_on, u.updated_time, u.author, u.update_kind,
-                u.bump_type, u.summary, u.target_feature, u.ticket_no
+        "SELECT u.update_id, u.item_id, u.updated_on, u.updated_time, u.author, u.update_kind,
+                {$bumpCol}, u.summary, u.target_feature, u.ticket_no
            FROM lp_updates u
            JOIN lp_items i ON i.item_id = u.item_id AND i.is_active = 1
-          ORDER BY u.updated_on DESC, u.updated_time DESC, u.update_id DESC'
+          ORDER BY u.updated_on DESC, u.updated_time DESC, u.update_id DESC"
     )->fetchAll();
 
     $files = db()->query(
@@ -124,12 +129,16 @@ if ($method === 'POST') {
         json_error('その管理IDは既に登録されています。');
     }
 
-    $st = db()->prepare(
-        'INSERT INTO lp_items (item_id, name, category, series, created_by, description, download_url, created_date)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?)'
-    );
-    $st->execute([$id, $name, $cat, $series !== '' ? $series : null, $creator, $desc,
-                  $url !== '' ? $url : null, $date]);
+    // series はデータベースの更新（sql/upgrade.sql）で足す列なので、まだ無ければ書かない
+    $hasSeries = lp_has_column('lp_items', 'series');
+    $st = db()->prepare($hasSeries
+        ? 'INSERT INTO lp_items (item_id, name, category, series, created_by, description, download_url, created_date)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?)'
+        : 'INSERT INTO lp_items (item_id, name, category, created_by, description, download_url, created_date)
+           VALUES (?, ?, ?, ?, ?, ?, ?)');
+    $st->execute($hasSeries
+        ? [$id, $name, $cat, $series !== '' ? $series : null, $creator, $desc, $url !== '' ? $url : null, $date]
+        : [$id, $name, $cat, $creator, $desc, $url !== '' ? $url : null, $date]);
     audit('item.create', $id, $name);
 
     json_out(['ok' => true, 'id' => $id], 201);
@@ -169,14 +178,19 @@ if ($method === 'PUT') {
         json_error('URLは http:// または https:// で入力してください。');
     }
 
-    $st = db()->prepare(
-        'UPDATE lp_items
-            SET name = ?, category = ?, series = ?, created_by = ?,
-                description = ?, download_url = ?, created_date = ?
-          WHERE item_id = ?'
-    );
-    $st->execute([$name, $cat, $series !== '' ? $series : null, $creator, $desc,
-                  $url !== '' ? $url : null, $date, $id]);
+    $hasSeries = lp_has_column('lp_items', 'series');
+    $st = db()->prepare($hasSeries
+        ? 'UPDATE lp_items
+              SET name = ?, category = ?, series = ?, created_by = ?,
+                  description = ?, download_url = ?, created_date = ?
+            WHERE item_id = ?'
+        : 'UPDATE lp_items
+              SET name = ?, category = ?, created_by = ?,
+                  description = ?, download_url = ?, created_date = ?
+            WHERE item_id = ?');
+    $st->execute($hasSeries
+        ? [$name, $cat, $series !== '' ? $series : null, $creator, $desc, $url !== '' ? $url : null, $date, $id]
+        : [$name, $cat, $creator, $desc, $url !== '' ? $url : null, $date, $id]);
     if ($st->rowCount() === 0) {
         $exists = db()->prepare('SELECT 1 FROM lp_items WHERE item_id = ?');
         $exists->execute([$id]);

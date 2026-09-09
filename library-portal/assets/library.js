@@ -106,7 +106,11 @@ async function apiGet(path) {
     credentials: 'same-origin'
   });
   if (res.status === 401) { location.href = 'login.php'; throw new Error('unauthorized'); }
-  if (!res.ok) throw new Error(`GET ${path} ${res.status}`);
+  if (!res.ok) {
+    // サーバーが理由を返していればそれを見せる（原因が分からないままにしない）
+    const data = await res.json().catch(() => ({}));
+    throw new Error(data.error || `データを取得できませんでした（エラー ${res.status}）。`);
+  }
   return res.json();
 }
 
@@ -982,6 +986,32 @@ async function submitPassword(ev) {
 }
 
 /* ---------- トースト ---------- */
+/**
+ * 一覧を取得できなかったときは、消えるトーストではなく画面に残る帯で理由を出す。
+ * 「データの取得に失敗しました」だけだと、何をすれば直るのかが分からないため。
+ */
+function showLoadError(msg) {
+  const main = document.querySelector('.lp-main');
+  if (!main) { toast(msg); return; }
+
+  let el = $('loadError');
+  if (!el) {
+    el = document.createElement('div');
+    el.id = 'loadError';
+    el.className = 'lp-alert';
+    el.setAttribute('role', 'alert');
+    main.insertBefore(el, main.firstElementChild);
+  }
+  el.innerHTML = `
+    <p class="lp-alert-title">ライブラリを読み込めませんでした</p>
+    <p class="lp-alert-msg"></p>
+    <p class="lp-alert-act">
+      <button class="lp-btn lp-btn-sm lp-btn-primary" type="button" data-reload>もう一度読み込む</button>
+    </p>`;
+  el.querySelector('.lp-alert-msg').textContent = msg;
+  el.querySelector('[data-reload]').addEventListener('click', () => location.reload());
+}
+
 let toastTimer = null;
 function toast(msg) {
   const el = $('toast');
@@ -996,7 +1026,7 @@ async function init() {
   try {
     await loadItems();
   } catch (e) {
-    if (String(e.message) !== 'unauthorized') toast('データの取得に失敗しました');
+    if (String(e.message) !== 'unauthorized') showLoadError(e.message);
     items = [];
   }
   // 見開きの受け皿を一覧の直後に用意する（index.php / preview.html 共通）

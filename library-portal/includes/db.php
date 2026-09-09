@@ -45,3 +45,46 @@ function db(): PDO
     }
     return $pdo;
 }
+
+/**
+ * その列がテーブルにあるかどうか。
+ *
+ * ファイルだけ新しくしてデータベースの更新（sql/upgrade.sql）をまだ流していない、
+ * という状態でも画面が真っ白にならないように、後から足した列は
+ * 「あれば使う」扱いにしています。1リクエストにつき1回だけ調べます。
+ */
+function lp_has_column(string $table, string $column): bool
+{
+    static $cache = [];
+    $key = $table . '.' . $column;
+    if (!array_key_exists($key, $cache)) {
+        try {
+            $st = db()->prepare(
+                'SELECT COUNT(*) FROM information_schema.COLUMNS
+                  WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ? AND COLUMN_NAME = ?'
+            );
+            $st->execute([$table, $column]);
+            $cache[$key] = (int)$st->fetchColumn() > 0;
+        } catch (PDOException $e) {
+            error_log('[library-portal] column check failed: ' . $e->getMessage());
+            $cache[$key] = false;
+        }
+    }
+    return $cache[$key];
+}
+
+/** 画面を出すのに足りない列があれば、その一覧を返す（空なら更新済み） */
+function lp_missing_columns(): array
+{
+    $need = [
+        'lp_items.series'      => ['lp_items', 'series'],
+        'lp_updates.bump_type' => ['lp_updates', 'bump_type'],
+    ];
+    $missing = [];
+    foreach ($need as $label => [$table, $column]) {
+        if (!lp_has_column($table, $column)) {
+            $missing[] = $label;
+        }
+    }
+    return $missing;
+}

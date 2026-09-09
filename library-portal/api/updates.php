@@ -55,31 +55,40 @@ $pdo = db();
 try {
     $pdo->beginTransaction();
 
+    // bump_type はデータベースの更新（sql/upgrade.sql）で足す列。まだ無ければ書かず、
+    // 版数はすべて「通常の更新」として数えられる（あとから流せばそのまま反映される）
+    $hasBump = lp_has_column('lp_updates', 'bump_type');
+
     if ($isEdit) {
-        $st = $pdo->prepare(
-            'UPDATE lp_updates
-                SET item_id = ?, updated_on = ?, updated_time = ?, author = ?, update_kind = ?,
-                    bump_type = ?, summary = ?, target_feature = ?, ticket_no = ?
-              WHERE update_id = ?'
-        );
-        $st->execute([
-            $itemId, $date, $time . ':00', $author, $kind,
-            $bump, $summary, $target,
-            $ticket !== '' ? $ticket : null, $uid,
-        ]);
+        $st = $pdo->prepare($hasBump
+            ? 'UPDATE lp_updates
+                  SET item_id = ?, updated_on = ?, updated_time = ?, author = ?, update_kind = ?,
+                      bump_type = ?, summary = ?, target_feature = ?, ticket_no = ?
+                WHERE update_id = ?'
+            : 'UPDATE lp_updates
+                  SET item_id = ?, updated_on = ?, updated_time = ?, author = ?, update_kind = ?,
+                      summary = ?, target_feature = ?, ticket_no = ?
+                WHERE update_id = ?');
+        $args = [$itemId, $date, $time . ':00', $author, $kind];
+        if ($hasBump) { $args[] = $bump; }
+        array_push($args, $summary, $target, $ticket !== '' ? $ticket : null, $uid);
+        $st->execute($args);
         $updateId = $uid;
         // 修正したファイルは入れ替える（残したまま足すと重複するため）
         $pdo->prepare('DELETE FROM lp_update_files WHERE update_id = ?')->execute([$updateId]);
     } else {
-        $st = $pdo->prepare(
-            'INSERT INTO lp_updates
-               (item_id, updated_on, updated_time, author, author_user_id, update_kind, bump_type, summary, target_feature, ticket_no)
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
-        );
-        $st->execute([
-            $itemId, $date, $time . ':00', $author, $user['user_id'], $kind,
-            $bump, $summary, $target, $ticket !== '' ? $ticket : null,
-        ]);
+        $st = $pdo->prepare($hasBump
+            ? 'INSERT INTO lp_updates
+                 (item_id, updated_on, updated_time, author, author_user_id, update_kind, bump_type, summary, target_feature, ticket_no)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
+            : 'INSERT INTO lp_updates
+                 (item_id, updated_on, updated_time, author, author_user_id, update_kind, summary, target_feature, ticket_no)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)');
+        $st->execute($hasBump
+            ? [$itemId, $date, $time . ':00', $author, $user['user_id'], $kind,
+               $bump, $summary, $target, $ticket !== '' ? $ticket : null]
+            : [$itemId, $date, $time . ':00', $author, $user['user_id'], $kind,
+               $summary, $target, $ticket !== '' ? $ticket : null]);
         $updateId = (int)$pdo->lastInsertId();
     }
 
