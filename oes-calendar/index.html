@@ -641,6 +641,11 @@ input:focus,select:focus,textarea:focus{border-color:var(--blue);box-shadow:0 0 
             </span></div>
           <div class="equip-row" id="equip-row"></div>
           <textarea id="msg-out" class="msg-ta" rows="9" oninput="onMsgInput('out',this.value)"></textarea>
+          <div class="field" style="margin-top:9px;">
+            <label for="msg-remark">特記事項（任意）</label>
+            <textarea id="msg-remark" rows="2" placeholder="入力すると、退店連絡の一番下に追加されます（空欄なら何も入りません）"
+                      oninput="onRemarkInput(this.value)"></textarea>
+          </div>
         </div>
       </div>
     </div>
@@ -1025,6 +1030,7 @@ function collectDraft(){
     ctx: dayCtx,
     msgs: dayMsgs,
     counts: dayCounts,
+    remark: dayRemark,
     paste: $('day-paste') ? $('day-paste').value : ''
   };
   var wg = $('w-gyotai'), wc = $('w-count');
@@ -1081,6 +1087,9 @@ function restoreDraft(){
     dayCtx = day.ctx;
     dayMsgs = day.msgs || { in:'', mid:'', out:'' };
     if(day.counts) EQUIPMENT_CODES.forEach(function(c){ dayCounts[c] = day.counts[c] || ''; });
+    dayRemark = day.remark || '';
+    appliedRemark = dayRemark.replace(/^\s+|\s+$/g, '');
+    if($('msg-remark')) $('msg-remark').value = dayRemark;
     renderEquipRow();
     renderEntryNoteRow();
     renderDaySummary();
@@ -2072,6 +2081,7 @@ function clearDayAll(){
   dayCands = []; dayCandIdx = -1;
   resetDayCounts();
   resetEntryNotes();
+  resetDayRemark();
   renderDayCandidates();
   renderDayMsgs();
   renderPhraseChips();
@@ -2393,16 +2403,52 @@ function onEquipInput(code, v){
   rebuildEquipmentBlock();
   saveDraftSoon();
 }
-function rebuildEquipmentBlock(){
-  var base = stripEquipmentLines(dayMsgs.out);
+/* 退店連絡の本文を「本文 → 機器台数 → 特記事項」の順に組み立て直す。
+   機器台数も特記事項も、入力されたものだけが入る（空なら何も足さない）。 */
+var dayRemark = '';       /* 特記事項の入力内容 */
+var appliedRemark = '';   /* いま本文の末尾に入っている特記事項（消すときの目印） */
+
+function resetDayRemark(){
+  dayRemark = '';
+  appliedRemark = '';
+  var ta = $('msg-remark');
+  if(ta) ta.value = '';
+}
+function stripRemarkBlock(text){
+  var t = String(text == null ? '' : text);
+  if(!appliedRemark) return t;
+  if(t.slice(-appliedRemark.length) === appliedRemark){
+    t = t.slice(0, t.length - appliedRemark.length);
+    return t.replace(/\n+$/, '');
+  }
+  return t;   /* 手で書き換えられていたら、そのまま残す */
+}
+function rebuildOutBlock(){
+  var base = stripEquipmentLines(stripRemarkBlock(dayMsgs.out));
+
   var block = [];
   EQUIPMENT_CODES.forEach(function(code){
     var v = String(dayCounts[code] || '').trim();
     if(v !== '') block.push(code + '   ' + v + EQUIPMENT_UNITS[code]);
   });
-  dayMsgs.out = block.length ? (base ? base + '\n\n' + block.join('\n') : block.join('\n')) : base;
+  var out = block.length ? (base ? base + '\n\n' + block.join('\n') : block.join('\n')) : base;
+
+  var r = String(dayRemark || '').replace(/^\s+|\s+$/g, '');
+  if(r){
+    out = out ? out + '\n\n' + r : r;
+  }
+  appliedRemark = r;
+
+  dayMsgs.out = out;
   var ta = $('msg-out');
   if(ta) ta.value = dayMsgs.out;
+}
+/* 既存の呼び出し名はそのまま使えるようにしておく */
+function rebuildEquipmentBlock(){ rebuildOutBlock(); }
+function onRemarkInput(v){
+  dayRemark = v;
+  rebuildOutBlock();
+  saveDraftSoon();
 }
 
 /* ---------- 表示と連絡文の生成 ---------- */
@@ -2413,6 +2459,7 @@ function setDayCtx(c){
   dayMsgs.in = stripEntryNoteLines(dayMsgs.in);
   resetDayCounts();
   resetEntryNotes();
+  resetDayRemark();
   renderEquipRow();
   renderEntryNoteRow();
   renderDaySummary();
@@ -2449,7 +2496,8 @@ function rebuildDayMsgs(){
   dayMsgs = splitReport(dayCtx.description || '');
   dayMsgs.out = stripEquipmentLines(dayMsgs.out);
   dayMsgs.in  = stripEntryNoteLines(dayMsgs.in);
-  rebuildEquipmentBlock();
+  appliedRemark = '';
+  rebuildOutBlock();
   rebuildEntryNoteBlock();
   renderEntryNoteRow();
   renderDayMsgs();

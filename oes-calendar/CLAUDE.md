@@ -146,6 +146,11 @@ GoogleカレンダーへOES入替作業の予定を登録するための、単�
   スパイラル多用の為、電源ケーブル流用させて頂きます／店舗名多忙の為、入替作業は状況見て実施します。
   **これらを業態の定型文に直接書き戻さないこと**（`TPL_SUKIYA` からPOSの2行は削除済み）。
   設定画面「入店連絡に足す文」で追加・編集・並び替え・削除ができる。
+- **③退店連絡の一番下に「特記事項」の入力欄（`#msg-remark`）を置く。** 入力された場合だけ、
+  退店連絡の本文の**いちばん最後**（機器台数よりさらに後ろ）に空行をはさんで追記する。
+  空欄・空白だけのときは何も足さない。本文は `rebuildOutBlock()` で
+  「本文 → 機器台数 → 特記事項」の順に毎回組み立て直す（`dayRemark` / `appliedRemark`）。
+  書き換えても二重にならないよう、直前に入れた内容（`appliedRemark`）を目印に取り除いてから足し直す。
 - **作業当日タブの③退店連絡にある機器台数（MPR/MST/HT/BC/BP）は、入力した機器だけ反映する。**
   台数は**1〜10のプルダウン（`<select>`）で選ぶ**（数値入力の`<input type=number>`には戻さない）。
   空欄（未選択）のものは表示しない（テンプレート由来の空欄プレースホルダ行も読み込み時に除去する）。
@@ -250,7 +255,8 @@ GoogleカレンダーへOES入替作業の予定を登録するための、単�
 | `runDiagnostics()` / `diagRow()` | 設定タブの「サーバーの状態をチェック」。共有されない／インストールできない原因を1つずつ表示する |
 | `toggleGy(id)` | 折りたたみ（業態・「詳細設定」で共通利用）の開閉。要素idは `gy-<id>` |
 | `splitReport(text)` | 説明文を入店/中間報告/退店に振り分ける。目印は `settings.dayKeywords` |
-| `stripEquipmentLines(text)` / `rebuildEquipmentBlock()` | ③退店連絡の機器台数（MPR/MST/HT/BC/BP）を除去・再構築。入力した機器だけ固定順で反映する |
+| `rebuildOutBlock()` / `stripEquipmentLines(text)` / `stripRemarkBlock(text)` | ③退店連絡の本文を「本文 → 機器台数 → 特記事項」の順に組み立て直す。入力したものだけ反映する |
+| `onRemarkInput(v)` / `resetDayRemark()` | 特記事項の入力と初期化（`dayRemark` / `appliedRemark`） |
 | `renderEquipRow()` / `onEquipInput(code,v)` / `dayCounts` | 機器台数プルダウン（1〜10）の描画・変更ハンドラ・現在値（候補切替でリセット） |
 | `openStoreChat()` / `findStoreChat(gyotai,tenpo)` | 業態＋店舗のGoogle Chatを開く／検索。同じ店舗の2回目以降はタブを前面に出すだけ。該当なしなら案内せず一般のChatを開く |
 | `saveDraftSoon()` / `saveDraft()` / `restoreDraft()` / `clearDraft()` | 入力途中の内容の一時保存と復元（`oes-calendar-draft-v1`、24時間で失効） |
