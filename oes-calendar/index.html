@@ -2405,8 +2405,9 @@ function onEquipInput(code, v){
 }
 /* 退店連絡の本文を「本文 → 機器台数 → 特記事項」の順に組み立て直す。
    機器台数も特記事項も、入力されたものだけが入る（空なら何も足さない）。 */
-var dayRemark = '';       /* 特記事項の入力内容 */
-var appliedRemark = '';   /* いま本文の末尾に入っている特記事項（消すときの目印） */
+var REMARK_HEADING = '【特記事項】';
+var dayRemark = '';        /* 特記事項の入力内容（見出しは含まない） */
+var appliedRemark = '';    /* いま本文の末尾に入っているブロック（見出し込み。消すときの目印） */
 
 function resetDayRemark(){
   dayRemark = '';
@@ -2434,10 +2435,11 @@ function rebuildOutBlock(){
   var out = block.length ? (base ? base + '\n\n' + block.join('\n') : block.join('\n')) : base;
 
   var r = String(dayRemark || '').replace(/^\s+|\s+$/g, '');
-  if(r){
-    out = out ? out + '\n\n' + r : r;
+  var block2 = r ? (REMARK_HEADING + '\n' + r) : '';
+  if(block2){
+    out = out ? out + '\n\n' + block2 : block2;
   }
-  appliedRemark = r;
+  appliedRemark = block2;
 
   dayMsgs.out = out;
   var ta = $('msg-out');
