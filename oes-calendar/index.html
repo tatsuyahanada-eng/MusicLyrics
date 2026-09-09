@@ -1552,8 +1552,8 @@ function storeRowHtml(i){
    +     '<span class="st-when" id="st-when-' + i + '">日付を選んでください</span>'
    +   '</div>'
    +   '<div class="st-f">'
-   +     '<div class="field"><label>店舗名</label><input type="text" class="sr-tenpo" placeholder="例: 渋谷" oninput="updateWizardNav(); saveDraftSoon();"></div>'
-   +     '<div class="field"><label>住所（任意）</label><input type="text" class="sr-addr" placeholder="例: 東京都渋谷区…" oninput="saveDraftSoon()"></div>'
+   +     '<div class="field"><label>店舗名</label><input type="text" class="sr-tenpo" placeholder="例: 渋谷" autocomplete="off" oninput="updateWizardNav(); saveDraftSoon();"></div>'
+   +     '<div class="field"><label>住所（任意）</label><input type="text" class="sr-addr" placeholder="例: 東京都渋谷区…" autocomplete="off" oninput="saveDraftSoon()"></div>'
    +   '</div>'
    + '</div>';
 }
@@ -2561,7 +2561,13 @@ function removeStoreChat(i){
 /* 該当の業態＋店舗の登録が無ければ、案内せずそのまま一般のGoogle Chatを開く */
 /* Chatは毎回新しいタブを開かず、同じ1枚のタブ（名前付きウィンドウ）を使い回す。
    同じ業態・店舗で2回目以降に押したときは読み込み直さず、そのタブを前に出すだけにする。
-   こうすると、一覧から店舗を探して開いた状態がそのまま残り、探し直さずに済む。 */
+   こうすると、一覧から店舗を探して開いた状態がそのまま残り、探し直さずに済む。
+
+   Google Chat側は別オリジンのため、いま開いているタブが本当に閉じられているかを
+   こちらのJSから正しく判定できない（`.closed` がクロスオリジンの保護でtrueを返すことがある）。
+   誤って「閉じている」と判定して開き直すと、せっかく開いていた部屋のページが
+   一覧（トップページ）に戻ってしまう。そのため、同じ店舗のあいだは closed の状態に
+   関わらず開き直さず、前面に出す（focus）だけにする。 */
 var chatWin = null;
 var chatWinKey = '';
 function openStoreChat(){
@@ -2569,11 +2575,10 @@ function openStoreChat(){
   var tenpo  = dayCtx ? (dayCtx.tenpo  || '') : '';
   var key = gyotai + '|' + tenpo;
 
-  /* 前に開いたタブが生きていて、同じ店舗なら、そのまま表示するだけ */
-  var alive = false;
-  try{ alive = !!(chatWin && !chatWin.closed); }catch(e){ alive = false; }
-  if(alive && chatWinKey === key){
-    try{ chatWin.focus(); return; }catch(e){ /* 参照できない場合は開き直す */ }
+  /* 同じ店舗ですでに一度開いていれば、開き直さず前面に出すだけ */
+  if(chatWin && chatWinKey === key){
+    try{ chatWin.focus(); }catch(e){}
+    return;
   }
 
   var found = tenpo ? findStoreChat(gyotai, tenpo) : null;
