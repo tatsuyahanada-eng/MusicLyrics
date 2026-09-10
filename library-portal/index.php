@@ -26,7 +26,7 @@ $dbMissing = $isAdmin ? lp_missing_columns() : [];
   <link rel="apple-touch-icon" href="assets/icon-192.png?v=6">
   <link rel="manifest" href="manifest.webmanifest">
   <meta name="theme-color" content="#007a33">
-  <link rel="stylesheet" href="assets/library.css?v=25">
+  <link rel="stylesheet" href="assets/library.css?v=26">
 </head>
 <body class="lp-body">
 
