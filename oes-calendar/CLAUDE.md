@@ -244,11 +244,25 @@ GoogleカレンダーへOES入替作業の予定を登録するための、単�
   イベントに対応しないブラウザ（iOS Safari等）ではボタンは出さず、下の案内文とマニュアルへのリンクのみ表示する。
 - **業態は設定画面で並び替えできる**（各業態の見出しの「↑」「↓」＝`moveGyotai()`）。
   この並び順がそのままカレンダー画面の業態プルダウンの順番になる。
-- **業態ごとに「注意事項」（`g.notes`、自由記述）を設定できる。** 設定画面の各業態の中に
-  「注意事項（任意・当日タブに表示）」というテキストエリアがあり、報告用の写真の撮り方・撮影項目などを
-  書いておける。**空欄なら作業当日タブには何も表示しない**（利用者の指定）。
-  作業当日タブで業態を選ぶと、店舗名の下（開始・終了時刻の上）の`#day-gyotai-notes`にそのまま表示される
-  （`updateDayGyotaiNotes()`。業態を切り替えるたびに更新／内容が空なら`hidden`属性でごと消す）。
+- **業態ごとに「注意事項」（`g.notes`、`[{id, place, text}]`の配列）を複数登録できる。**
+  `place`は`'in'`（①入店連絡）／`'mid'`（②中間報告）／`'out'`（③退店連絡）のいずれか。
+  設定画面の各業態の中に「＋ 注意事項を追加」（`addGyNote()`）があり、1件ごとに
+  「表示する欄」の選択（`setGyNotePlace()`）と自由記述のテキストエリア（`setGyNoteText()`）、
+  削除ボタン（`removeGyNote()`）を持つ（**利用者の指定で、単一の自由記述欄から
+  「配置を選べる・複数登録できる」形に変更済み**）。報告用の写真の撮り方・撮影項目などを想定。
+  **空欄（該当する`place`の注意事項が無い）欄には何も表示しない。**
+  作業当日タブの③カード内、①②③それぞれの連絡文欄（`#msg-in`/`#msg-mid`/`#msg-out`）の直前に
+  同じ`place`の注意事項だけをまとめて表示する（`#day-gyotai-notes-in`/`-mid`/`-out`、
+  `updateDayGyotaiNotes()`）。同じ欄に複数あれば空行区切りで並べる。業態を切り替えるたびに更新し、
+  該当が無い欄は`hidden`属性でごと消す。
+  **旧仕様（1業態1本の自由記述文字列）からの互換**: `normalizeSettings()`の`normalizeGyotaiNotes()`が、
+  文字列のままの`g.notes`を「①入店連絡向けの1件」として自動で配列に変換する（過去の設定が消えないように）。
+  **各行の先頭・末尾の空白は`trimLines()`で取り除く**（textareaの入力ぶれで見た目がずれるのを防ぐため。
+  利用者から実際に「見え方がずれている」と指摘されて追加した処理）。
+  **HTMLテンプレート側の注意**: `.day-notes`は`white-space:pre-wrap`なので、
+  `<span class="dn-label">`と本文の`<span>`の間に改行やインデント用の空白を入れると、
+  その空白がそのまま描画されて1行目だけ字下げされたように見える不具合になる
+  （実際に発生した不具合。タグの間には空白を入れず詰めて書くこと）。
 - **設定タブは常時表示を最小限にする。** 使用頻度の低い項目（共通設定・作業当日の目印・カレンダー連携）は
   「詳細設定」1枚に折りたたむ（既定は閉）。新しい設定項目を追加する場合も、まず「詳細設定」に入れることを検討する
   （毎回必ず調整するような項目だけを常時表示に置く）。
@@ -311,7 +325,9 @@ GoogleカレンダーへOES入替作業の予定を登録するための、単�
 | `applyFirstRowTimeToOthers()` / `firstRowTimesOrDefault()` | 1件目の開始・終了時刻を2件目以降にコピーする（既存行への反映／新規行の初期値） |
 | `updateWizardNav()` / `goStep(n)` / `setBadge()` / `setNext()` | ①②③④の進捗バッジと「次へ」の案内 |
 | `applyGyotaiTimesToDay()` / `onDayTimeChange()` / `clearDayAll()` | 作業当日タブの時刻指定とクリア |
-| `updateDayGyotaiNotes()` / `setGyNotes(id,v)` | 業態ごとの「注意事項」（`g.notes`）を作業当日タブに表示／設定画面での編集。空なら`#day-gyotai-notes`ごと非表示 |
+| `updateDayGyotaiNotes()` | 業態ごとの「注意事項」（`g.notes[]`）を、`place`ごとに`#day-gyotai-notes-in/-mid/-out`へ振り分けて表示。該当なしは非表示 |
+| `addGyNote(gid)` / `removeGyNote(gid,nid)` / `setGyNotePlace(gid,nid,place)` / `setGyNoteText(gid,nid,v)` | 設定画面での注意事項の追加・削除・配置変更・編集 |
+| `normalizeGyotaiNotes(raw)` / `trimLines(s)` | 注意事項の正規化（旧・文字列形式からの移行を含む）／各行の前後空白除去 |
 | `renderEntryNoteRow()` / `onEntryNoteToggle()` / `rebuildEntryNoteBlock()` / `stripEntryNoteLines()` | ①入店連絡に足す文（選択式） |
 | `renderEntryNoteList()` ほか | 設定画面での「入店連絡に足す文」の追加・編集・並び替え・削除 |
 | `renderMidNoteRow()` / `onMidNoteToggle()` / `rebuildMidNoteBlock()` / `stripMidNoteLines()` | ②中間報告に足す文（選択式。entryNotesと同じ仕組みをmidNotesに複製したもの） |

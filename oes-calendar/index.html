@@ -232,7 +232,7 @@ input:focus,select:focus,textarea:focus{border-color:var(--blue);box-shadow:0 0 
 .day-notes{
   background:var(--blue-l2); border:1px solid var(--line); border-left:4px solid var(--sky);
   border-radius:var(--r-s); padding:9px 11px; font-size:12.5px; line-height:1.55;
-  color:var(--ink); white-space:pre-wrap; word-break:break-word; margin-top:9px;
+  color:var(--ink); white-space:pre-wrap; word-break:break-word; margin:9px 0;
 }
 .day-notes .dn-label{display:block; font-weight:700; color:var(--blue-d); margin-bottom:3px;}
 /* 入店連絡に足す文（チェックしたものだけが本文に入る） */
@@ -562,10 +562,6 @@ input:focus,select:focus,textarea:focus{border-color:var(--blue);box-shadow:0 0 
                    onkeydown="if(event.key==='Enter')buildDayFromGyotai()">
           </div>
         </div>
-        <div class="day-notes" id="day-gyotai-notes" hidden>
-          <span class="dn-label">📌 この業態の注意事項</span>
-          <span id="day-gyotai-notes-body"></span>
-        </div>
         <div class="grid2" style="margin-top:9px;">
           <div class="field">
             <label for="day-start">開始</label>
@@ -631,6 +627,7 @@ input:focus,select:focus,textarea:focus{border-color:var(--blue);box-shadow:0 0 
               <button class="btn btn-primary btn-sm" id="cp-in" onclick="copyMsg('in')">コピー</button>
               <button class="btn btn-sub btn-sm" onclick="openStoreChat()">Chat</button>
             </span></div>
+          <div class="day-notes" id="day-gyotai-notes-in" hidden><span class="dn-label">📌 注意事項</span><span id="day-gyotai-notes-in-body"></span></div>
           <div class="note-row" id="entry-note-row"></div>
           <textarea id="msg-in" class="msg-ta" rows="6" oninput="onMsgInput('in',this.value)"></textarea>
         </div>
@@ -641,6 +638,7 @@ input:focus,select:focus,textarea:focus{border-color:var(--blue);box-shadow:0 0 
               <button class="btn btn-primary btn-sm" id="cp-mid" onclick="copyMsg('mid')">コピー</button>
               <button class="btn btn-sub btn-sm" onclick="openStoreChat()">Chat</button>
             </span></div>
+          <div class="day-notes" id="day-gyotai-notes-mid" hidden><span class="dn-label">📌 注意事項</span><span id="day-gyotai-notes-mid-body"></span></div>
           <div class="note-row" id="mid-note-row"></div>
           <textarea id="msg-mid" class="msg-ta" rows="4" oninput="onMsgInput('mid',this.value)"></textarea>
         </div>
@@ -651,6 +649,7 @@ input:focus,select:focus,textarea:focus{border-color:var(--blue);box-shadow:0 0 
               <button class="btn btn-primary btn-sm" id="cp-out" onclick="copyMsg('out')">コピー</button>
               <button class="btn btn-sub btn-sm" onclick="openStoreChat()">Chat</button>
             </span></div>
+          <div class="day-notes" id="day-gyotai-notes-out" hidden><span class="dn-label">📌 注意事項</span><span id="day-gyotai-notes-out-body"></span></div>
           <div class="equip-row" id="equip-row"></div>
           <textarea id="msg-out" class="msg-ta" rows="9" oninput="onMsgInput('out',this.value)"></textarea>
           <div class="field" style="margin-top:9px;">
@@ -1006,17 +1005,17 @@ function defaultSettings(){
     calendarQuery: '',
     storeChats: [],
     gyotai: [
-      { id:'g-olive', name:'オリーブの丘', titleTemplate:'', notes:'', slots:[
+      { id:'g-olive', name:'オリーブの丘', titleTemplate:'', notes:[], slots:[
         { id:'s-olive-am', label:'午前 (AM)', start:'08:00', end:'09:00', body:TPL_STANDARD }
       ]},
-      { id:'g-sukiya', name:'すき家', titleTemplate:'', notes:'', slots:[
+      { id:'g-sukiya', name:'すき家', titleTemplate:'', notes:[], slots:[
         { id:'s-sukiya-am', label:'午前 (AM)', start:'08:30', end:'09:30', body:TPL_SUKIYA },
         { id:'s-sukiya-pm', label:'午後 (PM)', start:'14:30', end:'15:30', body:TPL_SUKIYA }
       ]},
-      { id:'g-hanaya', name:'華屋与兵衛', titleTemplate:'', notes:'', slots:[
+      { id:'g-hanaya', name:'華屋与兵衛', titleTemplate:'', notes:[], slots:[
         { id:'s-hanaya-am', label:'午前 (AM)', start:'08:00', end:'09:00', body:TPL_STANDARD }
       ]},
-      { id:'g-hama', name:'はま寿司', titleTemplate:'', notes:'', slots:[
+      { id:'g-hama', name:'はま寿司', titleTemplate:'', notes:[], slots:[
         { id:'s-hama-am', label:'午前 (AM)', start:'08:00', end:'09:00', body:TPL_STANDARD },
         { id:'s-hama-pm', label:'午後 (PM)', start:'14:30', end:'15:30', body:TPL_STANDARD }
       ]}
@@ -1110,6 +1109,7 @@ function restoreDraft(){
   if(day.gyotaiId && findGyotai(day.gyotaiId) && $('day-gyotai')) $('day-gyotai').value = day.gyotaiId;
   if(day.date && $('day-date')) $('day-date').value = day.date;
   applyGyotaiTimesToDay();
+  updateDayGyotaiNotes();
   if(day.start && $('day-start')){ $('day-start').innerHTML = timeOptionsHtml(day.start); $('day-start').value = day.start; }
   if(day.end && $('day-end')){ $('day-end').innerHTML = timeOptionsHtml(day.end); $('day-end').value = day.end; }
   if(day.notes) dayNotes = day.notes.slice();
@@ -1236,7 +1236,7 @@ function normalizeSettings(o){
       id: g.id || uid('g'),
       name: String(g.name || '（名称未設定）'),
       titleTemplate: typeof g.titleTemplate === 'string' ? g.titleTemplate : '',
-      notes: typeof g.notes === 'string' ? g.notes : '',
+      notes: normalizeGyotaiNotes(g.notes),
       slots: []
     };
     (g.slots||[]).forEach(function(sl){
@@ -1267,6 +1267,29 @@ function normTime(v, dflt){
   var m = v.match(/^(\d{1,2}):(\d{2})$/);
   if(!m) return dflt;
   return pad(Math.min(23, parseInt(m[1],10))) + ':' + pad(Math.min(59, parseInt(m[2],10)));
+}
+/* 業態の「注意事項」を配列 [{id, place, text}] に正規化する。
+   place は 'in'(入店連絡)/'mid'(中間報告)/'out'(退店連絡) のいずれか。
+   旧仕様（1業態につき1本の自由記述文字列）からの引き継ぎは、入店連絡向けとして1件に変換する。 */
+var GYOTAI_NOTE_PLACES = ['in', 'mid', 'out'];
+function normalizeGyotaiNotes(raw){
+  if(typeof raw === 'string'){
+    var t = trimLines(raw);
+    return t ? [{ id: uid('gn'), place: 'in', text: t }] : [];
+  }
+  if(!Array.isArray(raw)) return [];
+  var out = [];
+  raw.forEach(function(n){
+    var txt = (n && typeof n.text === 'string') ? trimLines(n.text) : '';
+    if(!txt) return;
+    var place = (n && GYOTAI_NOTE_PLACES.indexOf(n.place) !== -1) ? n.place : 'in';
+    out.push({ id: (n && n.id) ? n.id : uid('gn'), place: place, text: txt });
+  });
+  return out;
+}
+/* 各行の先頭・末尾の余分な空白を取り除く（textareaの入力ぶれで見た目がずれるのを防ぐ） */
+function trimLines(s){
+  return String(s || '').split('\n').map(function(l){ return l.replace(/^[ \t]+|[ \t]+$/g, ''); }).join('\n').trim();
 }
 
 /* ---------- 小物 ---------- */
@@ -2138,15 +2161,19 @@ function renderDayGyotaiForm(keepValue){
 }
 function dayGyotai(){ var sel = $('day-gyotai'); return sel ? findGyotai(sel.value) : null; }
 function onDayGyotaiChange(){ applyGyotaiTimesToDay(); updateDayGyotaiNotes(); }
-/* 選んだ業態の注意事項を表示する（空なら非表示） */
+/* 選んだ業態の注意事項を、①入店連絡／②中間報告／③退店連絡それぞれの欄に表示する
+   （同じ欄に複数あれば、空行を挟んで並べる。該当が無い欄は非表示） */
 function updateDayGyotaiNotes(){
-  var box = $('day-gyotai-notes'), body = $('day-gyotai-notes-body');
-  if(!box || !body) return;
   var g = dayGyotai();
-  var notes = (g && typeof g.notes === 'string') ? g.notes.trim() : '';
-  if(!notes){ box.hidden = true; body.textContent = ''; return; }
-  body.textContent = notes;
-  box.hidden = false;
+  GYOTAI_NOTE_PLACES.forEach(function(place){
+    var box = $('day-gyotai-notes-' + place), body = $('day-gyotai-notes-' + place + '-body');
+    if(!box || !body) return;
+    var texts = (g ? g.notes : []).filter(function(n){ return n.place === place && n.text; })
+      .map(function(n){ return trimLines(n.text); }).filter(function(t){ return t; });
+    if(!texts.length){ box.hidden = true; body.textContent = ''; return; }
+    body.textContent = texts.join('\n\n');
+    box.hidden = false;
+  });
 }
 /* 業態を選んだら、その業態の最初の時間帯の時刻を初期値として入れる */
 function applyGyotaiTimesToDay(){
@@ -2713,22 +2740,24 @@ function removeStoreChat(i){
   renderStoreChatList();
 }
 /* 該当の業態＋店舗の登録が無ければ、案内せずそのまま一般のGoogle Chatを開く */
-/* Chatは毎回新しいタブを開かず、同じ1枚のタブ（名前付きウィンドウ）を使い回す。
-   同じ業態・店舗で2回目以降に押したときは読み込み直さず、そのタブを前に出すだけにする。
-   こうすると、一覧から店舗を探して開いた状態がそのまま残り、探し直さずに済む。
+/* Chatは毎回新しいタブを開かず、同じ1枚のタブ（名前付きウィンドウ 'oes-store-chat'）を使い回す。
 
-   Google Chat側は別オリジンで、しかもCOOP（Cross-Origin-Opener-Policy）を送るため、
-   一度でもそちらへ移動したポップアップへの参照（chatWin）はこちらのJSから
-   事実上使い物にならなくなる（`.closed` が常にtrueを返したり、`.focus()` が
-   例外も投げずに何も起きない「無反応」になったりする）。そのため、保存しておいた
-   JS参照を信用するのではなく、**毎回名前つきウィンドウ（'oes-store-chat'）を
-   window.open('', ...) で取りに行く**方式にする。この呼び方は「同じ名前の
-   ウィンドウがすでにあればURLを変えずにそれを返す（＝再読み込みされない）、
-   無ければ空白の新規ウィンドウを開く」という、こちらのJS参照の生死に左右されない
-   ブラウザ側の仕組みなので、COOPで参照が壊れていても確実に反応する。
-   すでに存在するウィンドウ（＝別オリジンに移動済み＝location.hrefを読むと例外になる）
-   ならそのまま前面に出すだけ、まだ何も読み込んでいない新規ウィンドウ（about:blank）
-   か店舗が変わった場合だけ、目的のURLへ移動させる。 */
+   過去に2回、別の方式を試して失敗している。経緯を残す（同じ轍を踏まないため）。
+   ①「保存しておいたJS参照(chatWin)に対して .focus() だけ呼ぶ」方式
+     → Google ChatはCOOP（Cross-Origin-Opener-Policy）を送るため、一度でも別オリジンへ
+       移動したポップアップへの参照は、例外も投げずに .focus() が無反応になることがあり、
+       ボタンを押しても何も起きなくなる不具合が実際に発生した。
+   ②「毎回 window.open('', name) で名前つきウィンドウを取りに行く」方式（空URLで取得のみ）
+     → 一部の環境（特にモバイル）でポップアップブロッカーが「空URLで開いて後からlocationを
+       書き換える」動きを不審な挙動とみなしてブロックすることがあり、これもボタンが無反応に
+       なる不具合が実際に発生した。
+
+   そのため、**毎回 window.open(url, 'oes-store-chat') に実際のURLを渡して呼ぶ**、
+   最初に採用していた最も素直な方式に戻す。この呼び方はポップアップブロッカーに
+   引っかかりにくく、確実に反応する。同じ名前のウィンドウがすでに存在し、かつ
+   すでにそのURLを開いている場合はブラウザ側で再読み込みは起きない（実機で確認済み）。
+   利用者がポップアップ内で別のURLへ手動移動したあとに再度押した場合だけ、
+   登録したURLへ戻る（「そのお店のChatを開く」ボタンとしては正しい挙動）。 */
 var chatWin = null;
 var chatWinKey = '';
 function openStoreChat(){
@@ -2739,22 +2768,13 @@ function openStoreChat(){
   var url = found ? found.url : 'https://chat.google.com/';
 
   var w = null;
-  try{ w = window.open('', 'oes-store-chat'); }catch(e){ w = null; }
+  try{ w = window.open(url, 'oes-store-chat'); }catch(e){ w = null; }
   if(!w){
-    /* ポップアップブロック等で取得自体に失敗した場合のみ、URL指定で新規に開く */
     try{ w = window.open(url, '_blank', 'noopener'); }catch(e){ w = null; }
-    chatWin = w; chatWinKey = key;
-    return;
-  }
-
-  var isFresh = true;
-  try{ isFresh = (w.location.href === 'about:blank' || w.location.href === ''); }catch(e){ isFresh = false; }
-  if(isFresh || chatWinKey !== key){
-    try{ w.location.href = url; }catch(e){}
   }
   chatWin = w;
   chatWinKey = key;
-  try{ w.focus(); }catch(e){}
+  try{ if(w) w.focus(); }catch(e){}
 }
 
 /* ---------- コピー ---------- */
@@ -2917,10 +2937,32 @@ function renderSettings(){
       +     '<div class="field"><label>タイトル書式（空欄なら共通設定を使用）</label>'
       +       '<input type="text" value="' + esc(g.titleTemplate) + '" placeholder="' + esc(settings.titleTemplate) + '" '
       +       'onchange="setGyTitleTpl(\'' + g.id + '\',this.value)"></div>'
-      +     '<div class="field col-span"><label>注意事項（任意・当日タブに表示）</label>'
-      +       '<textarea rows="4" placeholder="例: 作業前にレシート発行口の写真を1枚、作業後に接続後の全体写真を1枚撮影してください" '
-      +       'oninput="setGyNotes(\'' + g.id + '\',this.value)">' + esc(g.notes) + '</textarea></div>'
       +   '</div>';
+
+    html += '<div class="hint" style="margin-bottom:7px;">注意事項（任意）: 報告用の写真の撮り方など、'
+      + '当日タブの該当する連絡文の欄にそのまま表示されます。表示する欄（①入店連絡／②中間報告／③退店連絡）を'
+      + '選べます。空なら何も表示されません。複数登録できます。</div>';
+    html += '<div class="gynote-list" id="gynote-list-' + g.id + '">';
+    (g.notes || []).forEach(function(gn, ni){
+      html += '<div class="slot-edit gynote-edit">'
+        + '<div class="slot-edit-head"><span class="t">注意事項 ' + (ni+1) + '</span>'
+        + '<button class="btn btn-danger btn-sm" onclick="removeGyNote(\'' + g.id + '\',\'' + gn.id + '\')">この注意事項を削除</button></div>'
+        + '<div class="grid-form">'
+        +   '<div class="field"><label>表示する欄</label>'
+        +     '<select onchange="setGyNotePlace(\'' + g.id + '\',\'' + gn.id + '\',this.value)">'
+        +       '<option value="in"'  + (gn.place === 'in'  ? ' selected' : '') + '>①入店連絡</option>'
+        +       '<option value="mid"' + (gn.place === 'mid' ? ' selected' : '') + '>②中間報告</option>'
+        +       '<option value="out"' + (gn.place === 'out' ? ' selected' : '') + '>③退店連絡</option>'
+        +     '</select></div>'
+        +   '<div class="field col-span"><label>内容</label>'
+        +     '<textarea rows="3" placeholder="例: 入替前にレシート発行口の写真を1枚、入替後に接続状態の写真を1枚撮影してください" '
+        +     'oninput="setGyNoteText(\'' + g.id + '\',\'' + gn.id + '\',this.value)">' + esc(gn.text) + '</textarea></div>'
+        + '</div></div>';
+    });
+    html += '</div>';
+    html += '<div class="row-btns" style="margin:10px 0 14px;">'
+      +   '<button class="btn btn-sub btn-sm" onclick="addGyNote(\'' + g.id + '\')">＋ 注意事項を追加</button>'
+      + '</div>';
 
     g.slots.forEach(function(sl, si){
       html += '<div class="slot-edit">'
@@ -3123,9 +3165,33 @@ function setGyTitleTpl(id, v){
   g.titleTemplate = v;
   afterSettingsChange(false);
 }
-function setGyNotes(id, v){
-  var g = findGyotai(id); if(!g) return;
-  g.notes = v;
+function findGyNote(g, nid){
+  if(!g) return null;
+  for(var i = 0; i < g.notes.length; i++){ if(g.notes[i].id === nid) return g.notes[i]; }
+  return null;
+}
+function addGyNote(gid){
+  var g = findGyotai(gid); if(!g) return;
+  g.notes.push({ id: uid('gn'), place: 'in', text: '' });
+  afterSettingsChange(true);
+}
+function removeGyNote(gid, nid){
+  var g = findGyotai(gid); if(!g) return;
+  for(var i = 0; i < g.notes.length; i++){
+    if(g.notes[i].id === nid){ g.notes.splice(i, 1); break; }
+  }
+  updateDayGyotaiNotes();
+  afterSettingsChange(true);
+}
+function setGyNotePlace(gid, nid, place){
+  var n = findGyNote(findGyotai(gid), nid); if(!n) return;
+  n.place = (GYOTAI_NOTE_PLACES.indexOf(place) !== -1) ? place : 'in';
+  updateDayGyotaiNotes();
+  afterSettingsChange(false);
+}
+function setGyNoteText(gid, nid, v){
+  var n = findGyNote(findGyotai(gid), nid); if(!n) return;
+  n.text = v;
   updateDayGyotaiNotes();
   afterSettingsChange(false);
 }
