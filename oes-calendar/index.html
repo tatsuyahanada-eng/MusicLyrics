@@ -228,6 +228,13 @@ input:focus,select:focus,textarea:focus{border-color:var(--blue);box-shadow:0 0 
 .msg-ta{min-height:120px;}
 .copy-ok{background:var(--green) !important;border-color:var(--green) !important;color:#fff !important;}
 .equip-row{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:7px;}
+/* 業態ごとの注意事項（設定で入力・空なら非表示） */
+.day-notes{
+  background:var(--blue-l2); border:1px solid var(--line); border-left:4px solid var(--sky);
+  border-radius:var(--r-s); padding:9px 11px; font-size:12.5px; line-height:1.55;
+  color:var(--ink); white-space:pre-wrap; word-break:break-word; margin-top:9px;
+}
+.day-notes .dn-label{display:block; font-weight:700; color:var(--blue-d); margin-bottom:3px;}
 /* 入店連絡に足す文（チェックしたものだけが本文に入る） */
 .note-row{display:flex;flex-direction:column;gap:5px;margin-bottom:7px;}
 .note-row label{
@@ -554,6 +561,10 @@ input:focus,select:focus,textarea:focus{border-color:var(--blue);box-shadow:0 0 
                    oninput="saveDraftSoon()"
                    onkeydown="if(event.key==='Enter')buildDayFromGyotai()">
           </div>
+        </div>
+        <div class="day-notes" id="day-gyotai-notes" hidden>
+          <span class="dn-label">📌 この業態の注意事項</span>
+          <span id="day-gyotai-notes-body"></span>
         </div>
         <div class="grid2" style="margin-top:9px;">
           <div class="field">
@@ -995,17 +1006,17 @@ function defaultSettings(){
     calendarQuery: '',
     storeChats: [],
     gyotai: [
-      { id:'g-olive', name:'オリーブの丘', titleTemplate:'', slots:[
+      { id:'g-olive', name:'オリーブの丘', titleTemplate:'', notes:'', slots:[
         { id:'s-olive-am', label:'午前 (AM)', start:'08:00', end:'09:00', body:TPL_STANDARD }
       ]},
-      { id:'g-sukiya', name:'すき家', titleTemplate:'', slots:[
+      { id:'g-sukiya', name:'すき家', titleTemplate:'', notes:'', slots:[
         { id:'s-sukiya-am', label:'午前 (AM)', start:'08:30', end:'09:30', body:TPL_SUKIYA },
         { id:'s-sukiya-pm', label:'午後 (PM)', start:'14:30', end:'15:30', body:TPL_SUKIYA }
       ]},
-      { id:'g-hanaya', name:'華屋与兵衛', titleTemplate:'', slots:[
+      { id:'g-hanaya', name:'華屋与兵衛', titleTemplate:'', notes:'', slots:[
         { id:'s-hanaya-am', label:'午前 (AM)', start:'08:00', end:'09:00', body:TPL_STANDARD }
       ]},
-      { id:'g-hama', name:'はま寿司', titleTemplate:'', slots:[
+      { id:'g-hama', name:'はま寿司', titleTemplate:'', notes:'', slots:[
         { id:'s-hama-am', label:'午前 (AM)', start:'08:00', end:'09:00', body:TPL_STANDARD },
         { id:'s-hama-pm', label:'午後 (PM)', start:'14:30', end:'15:30', body:TPL_STANDARD }
       ]}
@@ -1225,6 +1236,7 @@ function normalizeSettings(o){
       id: g.id || uid('g'),
       name: String(g.name || '（名称未設定）'),
       titleTemplate: typeof g.titleTemplate === 'string' ? g.titleTemplate : '',
+      notes: typeof g.notes === 'string' ? g.notes : '',
       slots: []
     };
     (g.slots||[]).forEach(function(sl){
@@ -2118,9 +2130,20 @@ function renderDayGyotaiForm(keepValue){
   sel.innerHTML = html;
   if(prev && findGyotai(prev)) sel.value = prev;
   applyGyotaiTimesToDay();
+  updateDayGyotaiNotes();
 }
 function dayGyotai(){ var sel = $('day-gyotai'); return sel ? findGyotai(sel.value) : null; }
-function onDayGyotaiChange(){ applyGyotaiTimesToDay(); }
+function onDayGyotaiChange(){ applyGyotaiTimesToDay(); updateDayGyotaiNotes(); }
+/* 選んだ業態の注意事項を表示する（空なら非表示） */
+function updateDayGyotaiNotes(){
+  var box = $('day-gyotai-notes'), body = $('day-gyotai-notes-body');
+  if(!box || !body) return;
+  var g = dayGyotai();
+  var notes = (g && typeof g.notes === 'string') ? g.notes.trim() : '';
+  if(!notes){ box.hidden = true; body.textContent = ''; return; }
+  body.textContent = notes;
+  box.hidden = false;
+}
 /* 業態を選んだら、その業態の最初の時間帯の時刻を初期値として入れる */
 function applyGyotaiTimesToDay(){
   var g = dayGyotai(), sEl = $('day-start'), eEl = $('day-end');
@@ -2878,6 +2901,9 @@ function renderSettings(){
       +     '<div class="field"><label>タイトル書式（空欄なら共通設定を使用）</label>'
       +       '<input type="text" value="' + esc(g.titleTemplate) + '" placeholder="' + esc(settings.titleTemplate) + '" '
       +       'onchange="setGyTitleTpl(\'' + g.id + '\',this.value)"></div>'
+      +     '<div class="field col-span"><label>注意事項（任意・当日タブに表示）</label>'
+      +       '<textarea rows="4" placeholder="例: 作業前にレシート発行口の写真を1枚、作業後に接続後の全体写真を1枚撮影してください" '
+      +       'oninput="setGyNotes(\'' + g.id + '\',this.value)">' + esc(g.notes) + '</textarea></div>'
       +   '</div>';
 
     g.slots.forEach(function(sl, si){
@@ -3079,6 +3105,12 @@ function setGyName(id, v){
 function setGyTitleTpl(id, v){
   var g = findGyotai(id); if(!g) return;
   g.titleTemplate = v;
+  afterSettingsChange(false);
+}
+function setGyNotes(id, v){
+  var g = findGyotai(id); if(!g) return;
+  g.notes = v;
+  updateDayGyotaiNotes();
   afterSettingsChange(false);
 }
 function setSlot(gid, sid, field, v){

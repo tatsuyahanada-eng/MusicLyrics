@@ -228,6 +228,11 @@ GoogleカレンダーへOES入替作業の予定を登録するための、単�
   イベントに対応しないブラウザ（iOS Safari等）ではボタンは出さず、下の案内文とマニュアルへのリンクのみ表示する。
 - **業態は設定画面で並び替えできる**（各業態の見出しの「↑」「↓」＝`moveGyotai()`）。
   この並び順がそのままカレンダー画面の業態プルダウンの順番になる。
+- **業態ごとに「注意事項」（`g.notes`、自由記述）を設定できる。** 設定画面の各業態の中に
+  「注意事項（任意・当日タブに表示）」というテキストエリアがあり、報告用の写真の撮り方・撮影項目などを
+  書いておける。**空欄なら作業当日タブには何も表示しない**（利用者の指定）。
+  作業当日タブで業態を選ぶと、店舗名の下（開始・終了時刻の上）の`#day-gyotai-notes`にそのまま表示される
+  （`updateDayGyotaiNotes()`。業態を切り替えるたびに更新／内容が空なら`hidden`属性でごと消す）。
 - **設定タブは常時表示を最小限にする。** 使用頻度の低い項目（共通設定・作業当日の目印・カレンダー連携）は
   「詳細設定」1枚に折りたたむ（既定は閉）。新しい設定項目を追加する場合も、まず「詳細設定」に入れることを検討する
   （毎回必ず調整するような項目だけを常時表示に置く）。
@@ -287,6 +292,7 @@ GoogleカレンダーへOES入替作業の予定を登録するための、単�
 | `applyFirstRowTimeToOthers()` / `firstRowTimesOrDefault()` | 1件目の開始・終了時刻を2件目以降にコピーする（既存行への反映／新規行の初期値） |
 | `updateWizardNav()` / `goStep(n)` / `setBadge()` / `setNext()` | ①②③④の進捗バッジと「次へ」の案内 |
 | `applyGyotaiTimesToDay()` / `onDayTimeChange()` / `clearDayAll()` | 作業当日タブの時刻指定とクリア |
+| `updateDayGyotaiNotes()` / `setGyNotes(id,v)` | 業態ごとの「注意事項」（`g.notes`）を作業当日タブに表示／設定画面での編集。空なら`#day-gyotai-notes`ごと非表示 |
 | `renderEntryNoteRow()` / `onEntryNoteToggle()` / `rebuildEntryNoteBlock()` / `stripEntryNoteLines()` | ①入店連絡に足す文（選択式） |
 | `renderEntryNoteList()` ほか | 設定画面での「入店連絡に足す文」の追加・編集・並び替え・削除 |
 | `renderMidNoteRow()` / `onMidNoteToggle()` / `rebuildMidNoteBlock()` / `stripMidNoteLines()` | ②中間報告に足す文（選択式。entryNotesと同じ仕組みをmidNotesに複製したもの） |
