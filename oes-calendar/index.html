@@ -1688,8 +1688,10 @@ function resetStoreRows(){
   updateWizardNav();
   saveDraftSoon();
 }
-/* ①②③の入力をすべて最初の状態に戻す（④の登録リストは対象外。そちらは「全て削除」で扱う） */
+/* ①②③の入力と④の登録リストを、すべて最初の状態に戻す（利用者の指定：
+   「最初からやり直す」なので、まだGoogleカレンダーへ登録していない④の一覧も一緒に消す） */
 function clearWizardAll(){
+  if(entries.length && !confirm('入力中の内容と、登録リストの' + entries.length + '件をすべてクリアします。よろしいですか？')) return;
   var gySel = $('w-gyotai'), cntSel = $('w-count');
   if(gySel && gySel.options.length) gySel.selectedIndex = 0;
   if(cntSel) cntSel.value = '1';
@@ -1697,7 +1699,9 @@ function clearWizardAll(){
   resetStoreRows();
   updateWizardHints();
   updateWizardNav();
-  toast('入力をクリアしました');
+  entries = [];
+  renderEntries();
+  toast('入力と登録リストをクリアしました');
 }
 function submitStoreRows(){
   var g = findGyotai($('w-gyotai').value);
