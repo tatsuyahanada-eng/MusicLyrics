@@ -127,3 +127,80 @@ function lp_version_series(array $bumps): array
     }
     return $out;
 }
+
+/* ============================================================
+   添付ファイル（画像・PDF・ZIP）のアップロード
+   ============================================================ */
+
+/** アップロードを許可する拡張子と、それぞれで許容する MIME タイプ */
+function lp_upload_allowed_types(): array
+{
+    return [
+        'jpg'  => ['image/jpeg'],
+        'jpeg' => ['image/jpeg'],
+        'png'  => ['image/png'],
+        'gif'  => ['image/gif'],
+        'webp' => ['image/webp'],
+        'pdf'  => ['application/pdf'],
+        // ZIP は OS やブラウザによって報告される MIME がまちまちなので幅を持たせる
+        'zip'  => ['application/zip', 'application/x-zip-compressed', 'application/octet-stream'],
+    ];
+}
+
+/** 添付ファイルの上限サイズ（バイト）。config.php で upload_max_bytes を指定すればそれに従う */
+function lp_upload_max_bytes(): int
+{
+    $c = lp_config();
+    return (int)($c['upload_max_bytes'] ?? (20 * 1024 * 1024)); // 既定 20MB
+}
+
+/**
+ * $_FILES の1件を検証する。
+ * 問題なければ ['ok' => true, 'ext' => ..., 'mime' => ...]、
+ * 問題があれば ['ok' => false, 'error' => 'ユーザー向けメッセージ'] を返す。
+ */
+function lp_validate_upload(array $file): array
+{
+    $code = $file['error'] ?? UPLOAD_ERR_NO_FILE;
+    if ($code === UPLOAD_ERR_NO_FILE) {
+        return ['ok' => false, 'error' => null]; // ファイルは選ばれていない（エラーではない）
+    }
+    if ($code !== UPLOAD_ERR_OK) {
+        $messages = [
+            UPLOAD_ERR_INI_SIZE   => 'ファイルサイズが大きすぎます。',
+            UPLOAD_ERR_FORM_SIZE  => 'ファイルサイズが大きすぎます。',
+            UPLOAD_ERR_PARTIAL    => 'アップロードが途中で失敗しました。もう一度お試しください。',
+            UPLOAD_ERR_NO_TMP_DIR => 'サーバー側の一時保存先の設定に問題があります。',
+            UPLOAD_ERR_CANT_WRITE => 'サーバーへの書き込みに失敗しました。',
+        ];
+        return ['ok' => false, 'error' => $messages[$code] ?? 'アップロードに失敗しました。'];
+    }
+
+    $tmp = $file['tmp_name'] ?? '';
+    if ($tmp === '' || !is_uploaded_file($tmp)) {
+        return ['ok' => false, 'error' => 'アップロードに失敗しました。'];
+    }
+
+    $max = lp_upload_max_bytes();
+    if ((int)($file['size'] ?? 0) > $max) {
+        $mb = number_format($max / (1024 * 1024), 0);
+        return ['ok' => false, 'error' => "ファイルサイズが大きすぎます（上限 {$mb}MB）。"];
+    }
+
+    $name = (string)($file['name'] ?? '');
+    $ext  = strtolower(pathinfo($name, PATHINFO_EXTENSION));
+    $allowed = lp_upload_allowed_types();
+    if ($ext === '' || !isset($allowed[$ext])) {
+        return ['ok' => false, 'error' => '画像（jpg / png / gif / webp）・PDF・ZIP のみアップロードできます。'];
+    }
+
+    // 拡張子を偽装しただけのファイルを弾くため、中身の MIME も確認する
+    $finfo = finfo_open(FILEINFO_MIME_TYPE);
+    $mime  = $finfo ? finfo_file($finfo, $tmp) : false;
+    if ($finfo) { finfo_close($finfo); }
+    if ($mime === false || !in_array($mime, $allowed[$ext], true)) {
+        return ['ok' => false, 'error' => 'ファイルの種類が確認できませんでした（拡張子と中身が一致しません）。'];
+    }
+
+    return ['ok' => true, 'ext' => $ext, 'mime' => $mime];
+}

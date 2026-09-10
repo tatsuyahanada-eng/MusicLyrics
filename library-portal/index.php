@@ -26,7 +26,7 @@ $dbMissing = $isAdmin ? lp_missing_columns() : [];
   <link rel="apple-touch-icon" href="assets/icon-192.png?v=6">
   <link rel="manifest" href="manifest.webmanifest">
   <meta name="theme-color" content="#007a33">
-  <link rel="stylesheet" href="assets/library.css?v=24">
+  <link rel="stylesheet" href="assets/library.css?v=25">
 </head>
 <body class="lp-body">
 
@@ -159,6 +159,20 @@ $dbMissing = $isAdmin ? lp_missing_columns() : [];
         <span class="lp-field-hint">1行に1件。<code>ファイルのパス</code> と <code>直した内容</code> を
           <code> : </code>（半角スペース＋コロン＋半角スペース）で区切ると、履歴に表として並びます。</span>
       </label>
+      <label class="lp-field">
+        <span class="lp-field-label">添付ファイル（画像・PDF・ZIP）</span>
+        <input id="fAttachment" class="lp-input" type="file"
+               accept=".jpg,.jpeg,.png,.gif,.webp,.pdf,.zip,image/jpeg,image/png,image/gif,image/webp,application/pdf,application/zip">
+        <span class="lp-field-hint">この版で配布するファイルをそのまま保存できます（上限 <span id="fAttachmentLimit">20MB</span>）。
+          更新ごとに保存されるので、過去のバージョンのファイルもあとから取り出せます。</span>
+        <div class="lp-attach-current" id="fAttachmentCurrent" hidden>
+          <span class="lp-attach-current-info">現在のファイル：<a id="fAttachmentCurrentLink" href="#" target="_blank" rel="noopener"></a></span>
+          <label class="lp-attach-remove"><input type="checkbox" id="fRemoveAttachment"> このファイルを削除する</label>
+        </div>
+        <span class="lp-field-hint lp-field-hint-warn" id="fAttachmentNote" hidden>
+          データベースの更新（sql/upgrade.sql）がまだのため、ここにファイルを付けても保存されません。
+        </span>
+      </label>
       <label class="lp-field"><span class="lp-field-label">URL（変更がある場合のみ）</span>
         <input id="fUrl" class="lp-input" type="url" placeholder="https://share.example.co.jp/..."></label>
       <p class="lp-field-hint">版数は登録順から自動で決まります（最初の登録が 1.00、以降 1.1・1.2…、微修正は 1.11・1.12…）。</p>
@@ -251,10 +265,11 @@ $dbMissing = $isAdmin ? lp_missing_columns() : [];
         role: <?= json_encode($user['role']) ?>
       },
       canEdit: <?= $isAdmin ? 'true' : 'false' ?>,
-      dbMissing: <?= json_encode($dbMissing) ?>
+      dbMissing: <?= json_encode($dbMissing) ?>,
+      uploadMaxBytes: <?= (int)lp_upload_max_bytes() ?>
     };
   </script>
-  <script src="assets/library.js?v=24"></script>
+  <script src="assets/library.js?v=25"></script>
   <script src="assets/pwa.js?v=2"></script>
   <script>
     // インストール導線：すぐに実行できる端末ではその場で、それ以外は案内ページへ

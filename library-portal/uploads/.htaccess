@@ -1,0 +1,9 @@
+# uploads/ 配下のファイルへ、ブラウザから直接アクセスするのを禁止
+# （ダウンロードは download.php を経由し、ログイン済みかどうかを確認してから配信する）
+<IfModule mod_authz_core.c>
+  Require all denied
+</IfModule>
+<IfModule !mod_authz_core.c>
+  Order allow,deny
+  Deny from all
+</IfModule>

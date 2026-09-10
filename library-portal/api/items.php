@@ -15,6 +15,10 @@ if ($method === 'GET') {
     // 後から足した列は「あれば読む・無ければ既定値」で扱う
     $seriesCol = lp_has_column('lp_items', 'series') ? 'series' : "'' AS series";
     $bumpCol   = lp_has_column('lp_updates', 'bump_type') ? 'u.bump_type' : "'minor' AS bump_type";
+    $hasFileCols = lp_has_column('lp_updates', 'file_path');
+    $fileCols = $hasFileCols
+        ? 'u.file_path, u.file_name, u.file_size, u.file_mime'
+        : "NULL AS file_path, NULL AS file_name, NULL AS file_size, NULL AS file_mime";
 
     $items = db()->query(
         "SELECT item_id, name, category, {$seriesCol}, created_by, description, download_url, created_date
@@ -27,7 +31,7 @@ if ($method === 'GET') {
 
     $updates = db()->query(
         "SELECT u.update_id, u.item_id, u.updated_on, u.updated_time, u.author, u.update_kind,
-                {$bumpCol}, u.summary, u.target_feature, u.ticket_no
+                {$bumpCol}, u.summary, u.target_feature, u.ticket_no, {$fileCols}
            FROM lp_updates u
            JOIN lp_items i ON i.item_id = u.item_id AND i.is_active = 1
           ORDER BY u.updated_on DESC, u.updated_time DESC, u.update_id DESC"
@@ -59,6 +63,12 @@ if ($method === 'GET') {
             'target'  => $u['target_feature'],
             'files'   => $filesByUpdate[(int)$u['update_id']] ?? [],
             'ticket'  => $u['ticket_no'] ?? '',
+            'attachment' => $u['file_path'] ? [
+                'name' => $u['file_name'] ?: basename($u['file_path']),
+                'size' => (int)$u['file_size'],
+                'mime' => $u['file_mime'] ?: '',
+                'url'  => 'download.php?uid=' . (int)$u['update_id'],
+            ] : null,
         ];
     }
 

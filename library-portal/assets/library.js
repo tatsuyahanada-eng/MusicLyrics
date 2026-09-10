@@ -13,11 +13,20 @@ const LP_CFG = window.LP || null;              // 本番なら PHP から埋め�
 const CAN_EDIT = !!(LP_CFG && LP_CFG.canEdit); // 管理者のみ true
 const API = LP_CFG ? LP_CFG.apiBase : null;
 
-// sql/upgrade.sql をまだ実行していないサーバーでは、この2項目は選んでも保存されない。
+// sql/upgrade.sql をまだ実行していないサーバーでは、この項目は選んでも保存されない。
 // フォーム側で選べないようにして、「保存したのに反映されない」を防ぐ
 const DB_MISSING = (LP_CFG && LP_CFG.dbMissing) || [];
 const DB_HAS_BUMP   = !DB_MISSING.includes('lp_updates.bump_type');
 const DB_HAS_SERIES = !DB_MISSING.includes('lp_items.series');
+const DB_HAS_FILES  = !DB_MISSING.includes('lp_updates.file_path');
+
+/** バイト数を「1.2MB」のように短く表示する */
+function fmtBytes(n) {
+  n = Number(n) || 0;
+  if (n < 1024) return `${n}B`;
+  if (n < 1024 * 1024) return `${(n / 1024).toFixed(1)}KB`;
+  return `${(n / (1024 * 1024)).toFixed(1)}MB`;
+}
 
 const KIND_CLASS = {
   '機能追加': 'feature',
@@ -38,6 +47,10 @@ const ICON_EXTERNAL = `<svg viewBox="0 0 24 24" width="13" height="13" fill="non
 /* 版数の遷移（v1.2.0 → v1.4.0）に使う矢印 */
 const ICON_ARROW = `<svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor"
   stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h13"/><path d="m12 5 7 7-7 7"/></svg>`;
+/* 添付ファイル（クリップ）。年表の一覧で「この回にファイルが付いている」ことを示す */
+const ICON_CLIP = `<svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor"
+  stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+  <path d="M21.44 11.05l-9.19 9.19a5.5 5.5 0 0 1-7.78-7.78l9.19-9.19a3.5 3.5 0 0 1 4.95 4.95l-9.2 9.19a1.5 1.5 0 0 1-2.12-2.12l8.49-8.48"/></svg>`;
 
 /* 種別ごとのアイコン（一覧で種類をひと目で見分けられるように） */
 const SVG = (paths) => `<svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor"
@@ -134,6 +147,23 @@ async function apiSend(path, method, body) {
   const data = await res.json().catch(() => ({}));
   if (res.status === 401) { location.href = 'login.php'; throw new Error('unauthorized'); }
   if (!res.ok) throw new Error(data.error || `${method} ${path} ${res.status}`);
+  return data;
+}
+
+/**
+ * 添付ファイルを含む送信専用。PHP は PUT の multipart/form-data を $_FILES に
+ * 展開してくれないため、常に POST で送り、修正のときだけ _method=PUT を同封する。
+ */
+async function apiSendMultipart(path, formData) {
+  const res = await fetch(`${API}/${path}`, {
+    method: 'POST',
+    headers: { 'X-CSRF-Token': LP_CFG.csrf, Accept: 'application/json' },
+    credentials: 'same-origin',
+    body: formData
+  });
+  const data = await res.json().catch(() => ({}));
+  if (res.status === 401) { location.href = 'login.php'; throw new Error('unauthorized'); }
+  if (!res.ok) throw new Error(data.error || `POST ${path} ${res.status}`);
   return data;
 }
 
@@ -427,6 +457,7 @@ function chronicle(it) {
             <span class="lp-chr-date">${fmtDate(e.date)}</span>
             <span class="lp-chr-ver">${esc(e.version)}</span>
             <span class="lp-chr-title">${esc(e.summary)}</span>
+            ${e.attachment ? `<span class="lp-chr-clip" title="添付ファイルあり：${esc(e.attachment.name)}">${ICON_CLIP}</span>` : ''}
             ${i === 0 ? '<span class="lp-chr-tag">最新</span>' : ''}
             ${prev ? '' : '<span class="lp-chr-tag lp-chr-tag-start">出発点</span>'}
             <span class="lp-chr-mark" aria-hidden="true">${ICON_CHEVRON}</span>
@@ -446,6 +477,11 @@ function chronicle(it) {
               <span><b>対応者</b>${esc(e.author)}</span>
               ${e.ticket ? `<span><b>管理番号</b>${esc(e.ticket)}</span>` : ''}
             </div>
+            ${e.attachment ? `<p class="lp-attach-box">
+              ${ICON_CLIP}
+              <a class="lp-attach-link" href="${esc(e.attachment.url)}">${esc(e.attachment.name)}</a>
+              <span class="lp-attach-size">${fmtBytes(e.attachment.size)}</span>
+            </p>` : ''}
             <div class="lp-chr-files">
               <span class="lp-hist-files-cap">実際に直したプログラム・ファイル（${files.length} 件）</span>
               ${fileTable(files, oldIdx, rounds, total)}
@@ -523,6 +559,8 @@ function siblingsBlock(it) {
 function spreadLeft(it) {
   const h = latest(it);
   const url = safeUrl(it.downloadUrl);
+  // URL が未設定でも、最新の更新にファイルが添付されていればそれを「開く」先にする
+  const attach = (!url && h && h.attachment) ? h.attachment : null;
   const fileCount = it.history.reduce((sum, e) => sum + normFiles(e).length, 0);
   const touched = new Set();
   it.history.forEach((e) => normFiles(e).forEach((f) => touched.add(f.path)));
@@ -553,6 +591,9 @@ function spreadLeft(it) {
         ${url ? `<p class="lp-page-open">
           <a class="lp-dl" href="${esc(url)}" target="_blank" rel="noopener">${ICON_EXTERNAL}<span>この資料を開く</span></a>
           <span class="lp-dl-url">${esc(url)}</span>
+        </p>` : attach ? `<p class="lp-page-open">
+          <a class="lp-attach-link lp-attach-link-lg" href="${esc(attach.url)}">${ICON_CLIP}<span>${esc(attach.name)}</span></a>
+          <span class="lp-dl-url">${fmtBytes(attach.size)}</span>
         </p>` : '<p class="lp-page-open"><span class="lp-muted">URL 未設定</span></p>'}
 
         <dl class="lp-okuzuke">
@@ -670,6 +711,7 @@ function rowHtml(it) {
   const h = latest(it);
   const open = readingId === it.id;
   const url = safeUrl(it.downloadUrl);
+  const attach = (!url && h && h.attachment) ? h.attachment : null;
 
   return `
   <article class="lp-row${open ? ' is-open' : ''}" data-id="${esc(it.id)}">
@@ -692,6 +734,8 @@ function rowHtml(it) {
       <span class="lp-row-url">
         ${url ? `<a class="lp-url-link" href="${esc(url)}" target="_blank" rel="noopener"
                     aria-label="${esc(it.name)} を開く">${ICON_EXTERNAL}<span>開く</span></a>`
+              : attach ? `<a class="lp-attach-link" href="${esc(attach.url)}"
+                    aria-label="${esc(it.name)} をダウンロード">${ICON_CLIP}<span>DL</span></a>`
               : '<span class="lp-muted">—</span>'}
       </span>
       <span class="lp-chev" aria-hidden="true">${ICON_CHEVRON}</span>
@@ -860,33 +904,73 @@ function openUpdateModal(itemId, uid) {
   if (!DB_HAS_BUMP) { $('fBump').value = 'minor'; }
   $('fBumpNote').hidden = DB_HAS_BUMP;
 
+  // 添付ファイル：一覧から呼ばれた時点でどれもクリアしておく（file input は値を再設定できないため）
+  $('fAttachment').value = '';
+  $('fRemoveAttachment').checked = false;
+  $('fAttachmentLimit').textContent = fmtBytes((LP_CFG && LP_CFG.uploadMaxBytes) || 20 * 1024 * 1024);
+  const current = entry && entry.attachment;
+  $('fAttachmentCurrent').hidden = !current;
+  if (current) {
+    const link = $('fAttachmentCurrentLink');
+    link.href = current.url;
+    link.textContent = `${current.name}（${fmtBytes(current.size)}）`;
+  }
+  $('fAttachment').disabled = !DB_HAS_FILES;
+  $('fAttachmentNote').hidden = DB_HAS_FILES;
+
   showModal($('updateModal'));
   $('fSummary').focus();
 }
+
+const UPLOAD_ALLOWED_EXT = ['jpg', 'jpeg', 'png', 'gif', 'webp', 'pdf', 'zip'];
 
 async function submitUpdate(ev) {
   ev.preventDefault();
   const form = $('updateForm');
   const edit = form.dataset.mode === 'edit';
   const itemId = $('fItem').value;
-  const payload = {
-    itemId,
-    date: $('fDate').value,
-    time: $('fTime').value,
-    author: $('fAuthor').value.trim(),
-    kind: $('fKind').value,
-    bump: $('fBump').value,
-    summary: $('fSummary').value.trim(),
-    target: $('fTarget').value.trim(),
-    files: $('fFiles').value.split('\n').map((s) => s.trim()).filter(Boolean),
-    ticket: $('fTicket').value.trim(),
-    downloadUrl: $('fUrl').value.trim()
-  };
+  const file = $('fAttachment').files[0] || null;
 
-  if (edit) payload.uid = Number(form.dataset.uid);
+  // ネットワークに投げる前に分かる範囲だけ、その場で確認しておく
+  if (file) {
+    const ext = (file.name.split('.').pop() || '').toLowerCase();
+    if (!UPLOAD_ALLOWED_EXT.includes(ext)) {
+      formError('updateError', '画像（jpg / png / gif / webp）・PDF・ZIP のみアップロードできます。');
+      return;
+    }
+    const max = (LP_CFG && LP_CFG.uploadMaxBytes) || 20 * 1024 * 1024;
+    if (file.size > max) {
+      formError('updateError', `ファイルサイズが大きすぎます（上限 ${fmtBytes(max)}）。`);
+      return;
+    }
+  }
+
+  const fd = new FormData();
+  fd.append('itemId', itemId);
+  fd.append('date', $('fDate').value);
+  fd.append('time', $('fTime').value);
+  fd.append('author', $('fAuthor').value.trim());
+  fd.append('kind', $('fKind').value);
+  fd.append('bump', $('fBump').value);
+  fd.append('summary', $('fSummary').value.trim());
+  fd.append('target', $('fTarget').value.trim());
+  fd.append('ticket', $('fTicket').value.trim());
+  fd.append('downloadUrl', $('fUrl').value.trim());
+  fd.append('filesJson', JSON.stringify(
+    $('fFiles').value.split('\n').map((s) => s.trim()).filter(Boolean)
+  ));
+  if (file) {
+    fd.append('file', file);
+  } else if (edit && $('fRemoveAttachment').checked) {
+    fd.append('removeFile', '1');
+  }
+  if (edit) {
+    fd.append('_method', 'PUT');       // PHP は PUT の multipart を解釈しないため POST に載せる
+    fd.append('uid', form.dataset.uid);
+  }
 
   try {
-    await apiSend('updates.php', edit ? 'PUT' : 'POST', payload);
+    await apiSendMultipart('updates.php', fd);
     await loadItems();
     renderSeries();
     renderChips();

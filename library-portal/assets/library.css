@@ -1779,3 +1779,58 @@
 .lp-alert-title { font-weight: 700; font-size: .84rem; color: var(--lp-danger); margin: 0 0 4px; }
 .lp-alert-msg   { font-size: .79rem; color: #3b4741; margin: 0; }
 .lp-alert-act   { margin: 10px 0 0; }
+
+/* ============================================================
+   添付ファイル（画像・PDF・ZIP）
+   ============================================================ */
+/* 年表の一覧行にある小さなクリップ（この回にファイルが付いていることを示すだけ） */
+.lp-chr-clip {
+  display: inline-flex; color: var(--lp-ink-soft); flex-shrink: 0;
+}
+.lp-chr-item.is-latest .lp-chr-clip { color: rgba(255, 255, 255, .82); }
+
+/* 展開した詳細の中にある、実際にダウンロードできるボックス */
+.lp-attach-box {
+  display: flex; align-items: center; gap: 7px;
+  margin: 10px 0 0; padding: 8px 12px;
+  background: #f2f6f3; border: 1px solid var(--lp-line-strong); border-radius: 7px;
+  color: var(--lp-ink-soft);
+}
+.lp-attach-link {
+  font-weight: 700; font-size: .8rem; color: var(--lp-deep); text-decoration: none;
+  word-break: break-all;
+}
+.lp-attach-link:hover, .lp-attach-link:focus-visible { text-decoration: underline; }
+.lp-attach-size { font-size: .7rem; margin-left: auto; white-space: nowrap; }
+
+/* 左ページの「この資料を開く」欄が、URL の代わりに添付ファイルを指すとき */
+.lp-attach-link-lg {
+  display: inline-flex; align-items: center; gap: 6px;
+  font-weight: 700; font-size: .78rem; text-decoration: none;
+  color: #fff; background: var(--lp-green);
+  border-radius: 7px; padding: 7px 14px;
+  transition: background .16s var(--lp-ease), box-shadow .16s var(--lp-ease);
+}
+.lp-attach-link-lg:hover { background: var(--lp-green-bright); box-shadow: 0 4px 14px rgba(0, 227, 92, .35); }
+
+/* 一覧ビューの「開く」列に出す、添付ファイルへの簡易ダウンロードリンク */
+.lp-row-url .lp-attach-link {
+  display: inline-flex; align-items: center; gap: 5px;
+  padding: 5px 11px; border-radius: 999px;
+  background: var(--lp-green-soft); color: var(--lp-green);
+  font-size: .74rem; font-weight: 700; white-space: nowrap;
+  border: 1px solid var(--lp-green-line);
+}
+.lp-row-url .lp-attach-link:hover { background: var(--lp-green); color: #fff; text-decoration: none; }
+
+/* 登録・修正フォーム側 */
+.lp-attach-current {
+  display: flex; flex-wrap: wrap; align-items: center; gap: 10px 16px;
+  margin-top: 6px; padding: 8px 11px;
+  background: #f2f6f3; border: 1px solid var(--lp-line-strong); border-radius: 7px;
+  font-size: .78rem;
+}
+.lp-attach-current-info a { color: var(--lp-deep); font-weight: 700; word-break: break-all; }
+.lp-attach-remove { display: inline-flex; align-items: center; gap: 5px; color: var(--lp-danger); cursor: pointer; }
+input[type="file"].lp-input { padding: 6px 10px; }
+input[type="file"].lp-input:disabled { opacity: .55; cursor: not-allowed; }

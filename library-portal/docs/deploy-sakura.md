@@ -48,13 +48,14 @@ FTP ソフト（FileZilla、WinSCP など）または コントロールパネ�
 ```
 ~/www/library/            ← 例：https://ドメイン/library/ で公開する場合
   ├ index.php
-  ├ login.php  logout.php  settings.php  setup.php
+  ├ login.php  logout.php  settings.php  setup.php  download.php
   ├ manifest.webmanifest   service-worker.js   offline.html
   ├ .htaccess
   ├ api/        （items.php / updates.php / users.php / password.php）
   ├ assets/     （css / js / 画像・アイコン）
   ├ includes/   （config.php / db.php / auth.php / helpers.php + .htaccess）
   ├ sql/        （schema.sql / seed_sample.sql + .htaccess）
+  ├ uploads/    （添付ファイルの保存先。空の状態でアップロードする + .htaccess）
   └ docs/       （この手順書など + .htaccess）
 ```
 
@@ -179,10 +180,11 @@ https://ドメイン/library/install.php
 まだテーブルを作っていない場合や、テスト用に作り直して構わない場合は、この手順は不要です。
 新しい `sql/schema.sql` をそのままインポートすれば `created_by` 列で作成されます。
 
-### 「シリーズ」と「更新の大きさ」を追加する（`sql/upgrade.sql`）
+### 「シリーズ」「更新の大きさ」「添付ファイル」を追加する（`sql/upgrade.sql`）
 
-シリーズ（関連する資料をまとめる名前）と、版数の自動採番に使う「更新の大きさ」を
-あとから追加するための SQL です。**何度実行しても安全**で、足りない列だけを追加します。
+シリーズ（関連する資料をまとめる名前）、版数の自動採番に使う「更新の大きさ」、
+更新ごとに画像・PDF・ZIP を添付できる機能をあとから追加するための SQL です。
+**何度実行しても安全**で、足りない列だけを追加します。
 
 1. `sql/upgrade.sql` をテキストエディタで開き、ファイル中ほどの
 
@@ -193,22 +195,40 @@ https://ドメイン/library/install.php
    を、実際のデータベース名（`includes/config.php` の `db_name` の値）に書き換える
 
 2. phpMyAdmin の「SQL」タブに全文を貼り付けて実行する
-3. 最後に `lp_items.series` `lp_updates.bump_type` の 2 行がどちらも **「あり」** と
-   表示されれば完了です
-4. `Ctrl+Shift+R`（Windows）／`Cmd+Shift+R`（Mac）で強く再読み込みする
+3. 最後に `lp_items.series` `lp_updates.bump_type` `lp_updates.file_path` の
+   3 行がどちらも **「あり」** と表示されれば完了です
+4. `uploads` フォルダを、まだアップロードしていなければ転送する（中身は空で構いません。
+   `.htaccess` だけは必ず含めてください）
+5. `Ctrl+Shift+R`（Windows）／`Cmd+Shift+R`（Mac）で強く再読み込みする
 
 | エラー | 原因 |
 |---|---|
 | `#1049 Unknown database` | `USE` に書いた名前が違う。`config.php` の `db_name` を確認 |
 | `#1046 データベースが選択されていません` | `USE` 行を書き換え忘れているか、行頭に `--` が付いたまま |
 
-なお、**この SQL を流す前でも画面は動きます**。シリーズ欄・「更新の大きさ」欄は
-入力できないよう灰色になり、その場に「データベースの更新（sql/upgrade.sql）がまだのため、
-ここを選んでも反映されません」という注意書きが出ます（選べてしまうのに保存されない、
-という状態を防ぐためです）。更新はすべて「通常の更新」として数えられ、SQL を流せば
-その時点から入力・反映できるようになります。
+なお、**この SQL を流す前でも画面は動きます**。シリーズ欄・「更新の大きさ」欄・
+「添付ファイル」欄は入力できないよう灰色になり、その場に「データベースの更新
+（sql/upgrade.sql）がまだのため、ここを選んでも反映されません」という注意書きが出ます
+（選べてしまうのに保存されない、という状態を防ぐためです）。更新はすべて「通常の更新」
+として数えられ、SQL を流せばその時点から入力・反映できるようになります。
 逆に、画面に「ライブラリを読み込めませんでした」と赤い帯が出て、そこに
 `sql/upgrade.sql` を実行するよう書かれている場合は、この手順がまだ済んでいません。
+
+### 添付できるファイルのサイズを大きくしたい場合
+
+添付ファイルの上限は、アプリ側の設定（既定 20MB。`includes/config.php` の
+`upload_max_bytes`）と、さくらのサーバー側の PHP 設定の**どちらか小さい方**が効きます。
+さくらのレンタルサーバでは `php.ini` を直接編集できないため、公開フォルダの直下に
+`.user.ini` というファイルを作って、そこに書きます。
+
+```ini
+upload_max_filesize = 20M
+post_max_size = 24M
+```
+
+（`post_max_size` はフォーム全体の上限なので、`upload_max_filesize` より少し大きめに
+しておきます。）保存後、反映まで数分かかることがあります。既定値のままでも
+2〜8MB 程度までは多くの環境で送れますが、それより大きいファイルを扱う場合はご検討ください。
 
 ## 9. うまく動かないときは
 
@@ -220,3 +240,5 @@ https://ドメイン/library/install.php
 | ホーム画面に追加できない | https でアクセスしているか。`manifest.webmanifest` と `assets/icon-192.png` が転送されているか |
 | 日本語が「?」になる | データベースの文字コードが utf8mb4 か。FTP をバイナリモードで転送したか |
 | 「ライブラリを読み込めませんでした」と赤い帯が出る | 帯に書かれている SQL（`sql/upgrade.sql` または `sql/schema.sql`）を phpMyAdmin で実行する。<br>それ以外の文言のときは、コントロールパネル → エラーログに詳しい原因が出ています |
+| 添付ファイルの登録で「ファイルサイズが大きすぎます」と出る | まず `includes/config.php` の `upload_max_bytes` を確認。それでも出る場合はサーバー側の `upload_max_filesize` / `post_max_size` が小さい（上の「添付できるファイルのサイズを大きくしたい場合」を参照） |
+| 添付したファイルを開くと真っ白・エラーになる | `uploads/` フォルダの権限（書き込み可能か）と、`.htaccess` が正しく転送されているか確認 |

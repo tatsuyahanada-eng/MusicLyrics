@@ -79,6 +79,9 @@ function lp_missing_columns(): array
     $need = [
         'lp_items.series'      => ['lp_items', 'series'],
         'lp_updates.bump_type' => ['lp_updates', 'bump_type'],
+        // 添付ファイルの4列（file_path/file_name/file_size/file_mime）は
+        // 常にセットで足すので、代表して file_path だけを見ればよい
+        'lp_updates.file_path' => ['lp_updates', 'file_path'],
     ];
     $missing = [];
     foreach ($need as $label => [$table, $column]) {

@@ -21,8 +21,8 @@
 |---|---|
 | `lp_users` | 利用者。`role` が `admin`（フルコントロール）か `viewer`（閲覧のみ） |
 | `lp_items` | アプリ・プログラム・資料そのもの（1 行 = 1 アイテム） |
-| `lp_updates` | 更新履歴（1 行 = 1 回の更新。日付・時間・対応者・区分・対象機能） |
-| `lp_update_files` | その更新で修正したプログラム・ファイル（1 更新に複数行） |
+| `lp_updates` | 更新履歴（1 行 = 1 回の更新。日付・時間・対応者・区分・対象機能・添付ファイル） |
+| `lp_update_files` | その更新で修正したプログラム・ファイル（1 更新に複数行。メタ情報のみで実体は持たない） |
 | `lp_audit_log` | 操作ログ（ログイン・登録・利用者変更） |
 
 ```
@@ -86,12 +86,21 @@ lp_items 1 ──< lp_updates 1 ──< lp_update_files
         "summary": "CSV出力に「部署コード」列を追加し、経理システムへの取込を自動化",
         "target": "CSV出力機能 / 月次精算書出力",
         "files": ["src/export/csvExporter.js : buildRow() に deptCode を追加"],
-        "ticket": "WLS-1042"
+        "ticket": "WLS-1042",
+        "attachment": {
+          "name": "expense-tool_v2.3.1.zip",
+          "size": 1048576,
+          "mime": "application/zip",
+          "url": "download.php?uid=1"
+        }
       }
     ]
   }
 ]
 ```
+
+`attachment` は、その更新にファイル（画像・PDF・ZIP）が添付されているときだけ入り、
+無ければ `null` です。実体は返さず、`download.php` から取得するための情報だけを返します。
 
 `history` は更新日時の降順です。
 
@@ -114,6 +123,33 @@ lp_items 1 ──< lp_updates 1 ──< lp_update_files
 画面では 1 行に `ファイル名 : 修正内容` の形式で入力します。
 サーバー側で `ファイル名`（`file_path`）と `修正内容`（`change_note`）に分割して保存し、
 取得時に再び 1 行へ結合して返します。区切りは **半角スペース + コロン + 半角スペース** です。
+
+これは「どのプログラムをどう直したか」という**記録（テキスト）**であり、
+下記の添付ファイルの仕組みとは別物です。
+
+### 添付ファイル（画像・PDF・ZIP）
+
+`lp_updates` の `file_path` / `file_name` / `file_size` / `file_mime` の4列に、
+更新1件につき1つだけファイルを添付できます。実体は `uploads/<item_id>/<update_id>.<拡張子>`
+に保存し、`uploads/` はブラウザから直接アクセスできないよう `.htaccess` で塞いであります。
+ダウンロードは必ず `download.php?uid=<update_id>` を経由し、ログイン済みかどうかを
+その都度確認してから配信します。
+
+履歴の1件ごとにファイルが結びつくため、過去のバージョンで配布していたファイルも
+そのバージョンの詳細を開けばいつでも取り出せます（＝ファイルそのものの世代管理）。
+
+- 許可する種類：画像（jpg / png / gif / webp）・PDF・ZIP。拡張子だけでなく
+  実際の中身（MIME）も確認し、拡張子を偽装したファイルは拒否します
+  （`includes/helpers.php` の `lp_validate_upload()`）。
+- 上限サイズ：既定 20MB。`includes/config.php` の `upload_max_bytes` で変更できますが、
+  さくらのサーバー側の `upload_max_filesize` / `post_max_size` がそれより小さいと
+  そちらが先に効きます（`docs/deploy-sakura.md` 参照）。
+- 修正時にファイルを差し替えると、古い方は保存に成功した後に削除します。
+  「このファイルを削除する」を選ぶとファイルだけを外せます（履歴自体は残ります）。
+- 対象アイテムを変更した場合は、保存場所も新しいアイテムのフォルダへ移します
+  （ダウンロードは `update_id` で引くため、この移動自体は動作に影響しません）。
+- `sql/upgrade.sql` をまだ実行していないサーバーでは、この4列が無いため、
+  添付ファイル欄はフォーム側で触れないようにしてあります（他の項目の登録・修正は可能）。
 
 ## 5. よく使う SQL
 

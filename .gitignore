@@ -3,3 +3,8 @@ MusicLyrics/
 
 # サーバー固有の接続情報（各環境で作成する）
 library-portal/includes/config.php
+
+# アップロードされた添付ファイル（利用者が登録するデータなのでリポジトリには含めない）
+library-portal/uploads/*
+!library-portal/uploads/.htaccess
+!library-portal/uploads/.gitkeep

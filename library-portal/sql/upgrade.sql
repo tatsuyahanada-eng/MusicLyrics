@@ -26,6 +26,7 @@
 --  追加される項目：
 --    lp_items.series      … シリーズ（関連する資料をまとめる名前）
 --    lp_updates.bump_type … 更新の大きさ（通常の更新 / 微修正）。版数の自動採番に使います
+--    lp_updates.file_*    … 更新ごとに添付できるファイル（画像・PDF・ZIP）の情報
 --
 --  エラーが出る場合：
 --    #1049 Unknown database
@@ -73,7 +74,39 @@ PREPARE s FROM @add_bump; EXECUTE s; DEALLOCATE PREPARE s;
 
 
 -- ------------------------------------------------------------
--- 確認（2行とも「あり」と表示されれば完了です）
+-- 3. lp_updates.file_*（添付ファイル：画像・PDF・ZIP）
+-- ------------------------------------------------------------
+SET @add_file_path = IF(
+  (SELECT COUNT(*) FROM information_schema.COLUMNS
+     WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'lp_updates' AND COLUMN_NAME = 'file_path') = 0,
+  'ALTER TABLE lp_updates ADD COLUMN file_path VARCHAR(255) NULL COMMENT ''添付ファイルの保存パス（uploads/ からの相対パス）'' AFTER ticket_no',
+  'DO 0');
+PREPARE s FROM @add_file_path; EXECUTE s; DEALLOCATE PREPARE s;
+
+SET @add_file_name = IF(
+  (SELECT COUNT(*) FROM information_schema.COLUMNS
+     WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'lp_updates' AND COLUMN_NAME = 'file_name') = 0,
+  'ALTER TABLE lp_updates ADD COLUMN file_name VARCHAR(255) NULL COMMENT ''添付ファイルの元のファイル名'' AFTER file_path',
+  'DO 0');
+PREPARE s FROM @add_file_name; EXECUTE s; DEALLOCATE PREPARE s;
+
+SET @add_file_size = IF(
+  (SELECT COUNT(*) FROM information_schema.COLUMNS
+     WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'lp_updates' AND COLUMN_NAME = 'file_size') = 0,
+  'ALTER TABLE lp_updates ADD COLUMN file_size INT UNSIGNED NULL COMMENT ''添付ファイルのサイズ（バイト）'' AFTER file_name',
+  'DO 0');
+PREPARE s FROM @add_file_size; EXECUTE s; DEALLOCATE PREPARE s;
+
+SET @add_file_mime = IF(
+  (SELECT COUNT(*) FROM information_schema.COLUMNS
+     WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'lp_updates' AND COLUMN_NAME = 'file_mime') = 0,
+  'ALTER TABLE lp_updates ADD COLUMN file_mime VARCHAR(100) NULL COMMENT ''添付ファイルのMIMEタイプ'' AFTER file_size',
+  'DO 0');
+PREPARE s FROM @add_file_mime; EXECUTE s; DEALLOCATE PREPARE s;
+
+
+-- ------------------------------------------------------------
+-- 確認（3行とも「あり」と表示されれば完了です）
 -- ------------------------------------------------------------
 SELECT 'lp_items.series' AS 項目,
        IF(COUNT(*) > 0, 'あり', 'なし') AS 状態
@@ -83,4 +116,9 @@ UNION ALL
 SELECT 'lp_updates.bump_type',
        IF(COUNT(*) > 0, 'あり', 'なし')
   FROM information_schema.COLUMNS
- WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'lp_updates' AND COLUMN_NAME = 'bump_type';
+ WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'lp_updates' AND COLUMN_NAME = 'bump_type'
+UNION ALL
+SELECT 'lp_updates.file_path',
+       IF(COUNT(*) > 0, 'あり', 'なし')
+  FROM information_schema.COLUMNS
+ WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'lp_updates' AND COLUMN_NAME = 'file_path';
