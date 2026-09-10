@@ -2713,32 +2713,44 @@ function removeStoreChat(i){
    同じ業態・店舗で2回目以降に押したときは読み込み直さず、そのタブを前に出すだけにする。
    こうすると、一覧から店舗を探して開いた状態がそのまま残り、探し直さずに済む。
 
-   Google Chat側は別オリジンのため、いま開いているタブが本当に閉じられているかを
-   こちらのJSから正しく判定できない（`.closed` がクロスオリジンの保護でtrueを返すことがある）。
-   誤って「閉じている」と判定して開き直すと、せっかく開いていた部屋のページが
-   一覧（トップページ）に戻ってしまう。そのため、同じ店舗のあいだは closed の状態に
-   関わらず開き直さず、前面に出す（focus）だけにする。 */
+   Google Chat側は別オリジンで、しかもCOOP（Cross-Origin-Opener-Policy）を送るため、
+   一度でもそちらへ移動したポップアップへの参照（chatWin）はこちらのJSから
+   事実上使い物にならなくなる（`.closed` が常にtrueを返したり、`.focus()` が
+   例外も投げずに何も起きない「無反応」になったりする）。そのため、保存しておいた
+   JS参照を信用するのではなく、**毎回名前つきウィンドウ（'oes-store-chat'）を
+   window.open('', ...) で取りに行く**方式にする。この呼び方は「同じ名前の
+   ウィンドウがすでにあればURLを変えずにそれを返す（＝再読み込みされない）、
+   無ければ空白の新規ウィンドウを開く」という、こちらのJS参照の生死に左右されない
+   ブラウザ側の仕組みなので、COOPで参照が壊れていても確実に反応する。
+   すでに存在するウィンドウ（＝別オリジンに移動済み＝location.hrefを読むと例外になる）
+   ならそのまま前面に出すだけ、まだ何も読み込んでいない新規ウィンドウ（about:blank）
+   か店舗が変わった場合だけ、目的のURLへ移動させる。 */
 var chatWin = null;
 var chatWinKey = '';
 function openStoreChat(){
   var gyotai = dayCtx ? (dayCtx.gyotai || '') : '';
   var tenpo  = dayCtx ? (dayCtx.tenpo  || '') : '';
   var key = gyotai + '|' + tenpo;
+  var found = tenpo ? findStoreChat(gyotai, tenpo) : null;
+  var url = found ? found.url : 'https://chat.google.com/';
 
-  /* 同じ店舗ですでに一度開いていれば、開き直さず前面に出すだけ */
-  if(chatWin && chatWinKey === key){
-    try{ chatWin.focus(); }catch(e){}
+  var w = null;
+  try{ w = window.open('', 'oes-store-chat'); }catch(e){ w = null; }
+  if(!w){
+    /* ポップアップブロック等で取得自体に失敗した場合のみ、URL指定で新規に開く */
+    try{ w = window.open(url, '_blank', 'noopener'); }catch(e){ w = null; }
+    chatWin = w; chatWinKey = key;
     return;
   }
 
-  var found = tenpo ? findStoreChat(gyotai, tenpo) : null;
-  var url = found ? found.url : 'https://chat.google.com/';
-  var w = null;
-  try{ w = window.open(url, 'oes-store-chat'); }catch(e){ w = null; }
-  if(!w){ w = window.open(url, '_blank', 'noopener'); }
+  var isFresh = true;
+  try{ isFresh = (w.location.href === 'about:blank' || w.location.href === ''); }catch(e){ isFresh = false; }
+  if(isFresh || chatWinKey !== key){
+    try{ w.location.href = url; }catch(e){}
+  }
   chatWin = w;
   chatWinKey = key;
-  try{ if(w) w.focus(); }catch(e){}
+  try{ w.focus(); }catch(e){}
 }
 
 /* ---------- コピー ---------- */
