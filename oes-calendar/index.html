@@ -16,7 +16,7 @@
 <style>
 :root{
   --blue:#003DA5; --blue-d:#001B4D; --blue-l:#FFE1C2; --blue-l2:#FFF4EA;
-  --sky:#F2600D; --sky-d:#C94F00; --sky-l:#FFDCB8;
+  --sky:#E25908; --sky-d:#B8480A; --sky-l:#FFDCB8;
   --line:#FFC08A; --line-w:#FFE3C2; --bg:#F6F4F0;
   --ink:#0A1B3D; --muted:#56637D; --white:#fff;
   --red:#D64545; --green:#2E7D57; --amber:#B26A00;
@@ -209,9 +209,6 @@ input:focus,select:focus,textarea:focus{border-color:var(--blue);box-shadow:0 0 
 .ph-list{display:flex;flex-wrap:wrap;gap:6px;margin-top:6px;}
 .ph{font-family:'SFMono-Regular',Menlo,Consolas,monospace;font-size:11.5px;background:var(--blue-l);color:var(--blue-d);border:1px solid #F3C08A;border-radius:5px;padding:2px 6px;cursor:pointer;}
 .ph:hover{background:#FFE3C2;}
-.sc-row{border:1px dashed #F3C08A;border-radius:var(--r-s);padding:9px;background:#FFF9F2;display:flex;gap:6px;flex-wrap:wrap;align-items:center;}
-.sc-row + .sc-row{margin-top:8px;}
-.sc-row input{flex:1 1 160px;}
 .note{background:#FFF9EC;border:1px solid #F0DFB6;border-radius:var(--r-s);padding:10px 12px;font-size:12px;color:#7A5B14;line-height:1.65;}
 .note b{color:#5E4409;}
 
@@ -610,7 +607,7 @@ input:focus,select:focus,textarea:focus{border-color:var(--blue);box-shadow:0 0 
     <div class="card hidden" id="day-summary-card">
       <div class="card-head">
         <div class="card-title"><span class="step">2</span>今日の作業</div>
-        <button class="btn btn-sub btn-sm" onclick="openStoreChat()">Google Chat を開く</button>
+        <button class="btn btn-sub btn-sm" id="btn-open-chat" onclick="openStoreChat()">Google Chat を開く</button>
       </div>
       <div class="card-body"><div class="day-sum" id="day-sum"></div></div>
     </div>
@@ -622,7 +619,8 @@ input:focus,select:focus,textarea:focus{border-color:var(--blue);box-shadow:0 0 
       </div>
       <div class="card-body">
         <div class="hint" style="margin-bottom:12px;">
-          各欄の「コピー」を押してから、Google Chat に貼り付けて送信してください。文面はその場で書き換えられます。
+          各欄の「コピー」を押してから、上の「今日の作業」にある「Google Chat を開く」でGoogle Chatを開き、
+          貼り付けて送信してください。文面はその場で書き換えられます。
         </div>
 
         <div class="field msg-field" style="margin-bottom:20px;">
@@ -632,7 +630,6 @@ input:focus,select:focus,textarea:focus{border-color:var(--blue);box-shadow:0 0 
           <textarea id="msg-in" class="msg-ta" rows="6" oninput="onMsgInput('in',this.value)"></textarea>
           <div class="row-btns msg-btns">
             <button class="btn btn-primary btn-sm" id="cp-in" onclick="copyMsg('in')">コピー</button>
-            <button class="btn btn-sub btn-sm" onclick="openStoreChat()">Chat</button>
           </div>
         </div>
 
@@ -643,7 +640,6 @@ input:focus,select:focus,textarea:focus{border-color:var(--blue);box-shadow:0 0 
           <textarea id="msg-mid" class="msg-ta" rows="4" oninput="onMsgInput('mid',this.value)"></textarea>
           <div class="row-btns msg-btns">
             <button class="btn btn-primary btn-sm" id="cp-mid" onclick="copyMsg('mid')">コピー</button>
-            <button class="btn btn-sub btn-sm" onclick="openStoreChat()">Chat</button>
           </div>
         </div>
 
@@ -654,7 +650,6 @@ input:focus,select:focus,textarea:focus{border-color:var(--blue);box-shadow:0 0 
           <textarea id="msg-out" class="msg-ta" rows="9" oninput="onMsgInput('out',this.value)"></textarea>
           <div class="row-btns msg-btns">
             <button class="btn btn-primary btn-sm" id="cp-out" onclick="copyMsg('out')">コピー</button>
-            <button class="btn btn-sub btn-sm" onclick="openStoreChat()">Chat</button>
           </div>
           <div class="field" style="margin-top:9px;">
             <label for="msg-remark">特記事項（任意）</label>
@@ -849,18 +844,6 @@ input:focus,select:focus,textarea:focus{border-color:var(--blue);box-shadow:0 0 
               </div>
             </div>
 
-            <div class="hint" style="margin-bottom:6px;font-weight:700;color:#2C4770;">業態・店舗ごとのGoogle Chat URL</div>
-            <div class="hint" style="margin-bottom:9px;">
-              「作業当日」の「Chat」ボタンで、その業態・店舗のGoogle Chatを直接開けるようにします（下に登録しておくだけです）。
-              該当する登録が無い場合は、案内は出さずにそのままGoogle Chatの一覧画面を開きます。
-              <b>ルームのURLではなく、普段やり取りする個別のスレッド（メッセージ）のリンクを登録することをおすすめします。</b>
-              ルームのURLだと、Chat内で他のスレッドへ移動したあとにもう一度「Chat」を押したとき、
-              最初のURL（一覧やルームのトップ）へ戻ってしまいます。スレッドのリンクなら、いつ押しても
-              その会話へ戻れます（Chatのメッセージの「その他の操作」→「メッセージへのリンクをコピー」等で取得できます）。
-            </div>
-            <div id="store-chat-list" style="margin-bottom:9px;"></div>
-            <button class="btn btn-sub btn-sm" onclick="addStoreChat()">＋ 店舗のChat URLを追加</button>
-
             <div class="hint" style="margin:16px 0 6px;font-weight:700;color:#2C4770;">Googleカレンダー連携（現在は停止中）</div>
             <div class="hint" style="margin-bottom:9px;">
               <b>Googleカレンダーから予定を直接読み込む機能は、現在は使っていません。</b>
@@ -1011,7 +994,6 @@ function defaultSettings(){
     midNotes: DEFAULT_MID_NOTES.map(function(t){ return { id: uid('mn'), text: t }; }),
     calendarApiUrl: '',
     calendarQuery: '',
-    storeChats: [],
     gyotai: [
       { id:'g-olive', name:'オリーブの丘', titleTemplate:'', notes:[], slots:[
         { id:'s-olive-am', label:'午前 (AM)', start:'08:00', end:'09:00', body:TPL_STANDARD }
@@ -1204,7 +1186,6 @@ function normalizeSettings(o){
     phrases: [],
     entryNotes: [],
     midNotes: [],
-    storeChats: [],
     gyotai: []
   };
   if(s.timeRange.endHour < s.timeRange.startHour) s.timeRange.endHour = s.timeRange.startHour;
@@ -1232,13 +1213,6 @@ function normalizeSettings(o){
       if(txt) s.midNotes.push({ id: (mn && mn.id) ? mn.id : uid('mn'), text: txt });
     });
   }
-  (o.storeChats||[]).forEach(function(sc){
-    var gyotai = String((sc && sc.gyotai) || '').trim();
-    var tenpo = String((sc && sc.tenpo) || '').trim();
-    var url = String((sc && sc.url) || '').trim();
-    if(!tenpo || !url) return;
-    s.storeChats.push({ id: (sc && sc.id) ? sc.id : uid('sc'), gyotai: gyotai, tenpo: tenpo, url: url });
-  });
   (o.gyotai||[]).forEach(function(g){
     var ng = {
       id: g.id || uid('g'),
@@ -2695,105 +2669,39 @@ function rebuildDayMsgs(){
   toast('読み込んだ内容から作り直しました');
 }
 
-/* ---------- 店舗ごとのGoogle Chat（毎回チャット一覧から探さなくて済むように） ---------- */
-/* 業態＋店舗名の組み合わせで検索する（同じ店舗名でも業態が違えばルームが異なる場合があるため） */
-function storeChatKeyPart(v){
-  return String(v || '').trim();
-}
-function findStoreChat(gyotai, tenpo){
-  var gKey = storeChatKeyPart(gyotai), tKey = storeChatKeyPart(applySuffix(tenpo));
-  if(!tKey) return null;
-  for(var i = 0; i < settings.storeChats.length; i++){
-    var sc = settings.storeChats[i];
-    if(storeChatKeyPart(sc.gyotai) === gKey && storeChatKeyPart(applySuffix(sc.tenpo)) === tKey) return sc;
-  }
-  return null;
-}
-function renderStoreChatList(){
-  var host = $('store-chat-list');
-  if(!host) return;
-  if(!settings.storeChats.length){
-    host.innerHTML = '<div class="hint">まだ登録がありません。</div>';
-    return;
-  }
-  var html = '';
-  settings.storeChats.forEach(function(sc, i){
-    html += '<div class="sc-row">'
-      + '<input type="text" value="' + esc(sc.gyotai) + '" placeholder="業態（例: すき家）" oninput="setStoreChatField(' + i + ',\'gyotai\',this.value)">'
-      + '<input type="text" value="' + esc(sc.tenpo) + '" placeholder="店舗名（例: 渋谷店）" oninput="setStoreChatField(' + i + ',\'tenpo\',this.value)">'
-      + '<input type="text" value="' + esc(sc.url) + '" placeholder="https://mail.google.com/chat/…" oninput="setStoreChatField(' + i + ',\'url\',this.value)">'
-      + '<button class="btn btn-danger btn-sm" onclick="removeStoreChat(' + i + ')">削除</button>'
-      + '</div>';
-  });
-  host.innerHTML = html;
-}
-function addStoreChat(){
-  if(!requireAdmin()) return;
-  settings.storeChats.push({ id: uid('sc'), gyotai: '', tenpo: '', url: '' });
-  saveSettings();
-  renderStoreChatList();
-  var boxes = document.querySelectorAll('#store-chat-list input[type=text]');
-  if(boxes.length) boxes[boxes.length-3].focus();
-}
-function setStoreChatField(i, field, v){
-  if(!settings.storeChats[i]) return;
-  settings.storeChats[i][field] = v;
-  saveSettings();
-}
-function removeStoreChat(i){
-  if(!requireAdmin()) return;
-  if(!settings.storeChats[i]) return;
-  settings.storeChats.splice(i, 1);
-  saveSettings();
-  renderStoreChatList();
-}
-/* 該当の業態＋店舗の登録が無ければ、案内せずそのまま一般のGoogle Chatを開く */
-/* Chatは毎回新しいタブを開かず、同じ1枚のタブ（名前付きウィンドウ 'oes-store-chat'）を使い回す。
+/* ---------- 店舗のGoogle Chatを探しやすくする ----------
+   これまで業態・店舗ごとにGoogle ChatのURLを事前登録する方式だったが、
+   ①登録の手間がかかる ②登録したURLがルームや一覧のトップの場合、Chat内で
+   別のスレッドへ移動したあとにもう一度ボタンを押すと元のURLへ戻ってしまう、
+   という問題があり、利用者の指定で廃止した（`settings.storeChats`ごと削除済み。
+   復活させないこと）。
 
-   これまでに3つの方式を試して、いずれも実機で問題が確認されている。経緯を残す
-   （同じ轍を踏まないため。安易に「賢い」自動判定へ戻さないこと）。
-   ①「保存しておいたJS参照(chatWin)に対して .focus() だけ呼び、開き直さない」方式
-     → Google ChatはCOOP（Cross-Origin-Opener-Policy: same-origin）を送るため、
-       一度でも別オリジンへ移動したポップアップへの参照は、ブラウザ側で
-       「別のブラウジングコンテキストグループへ切り離された」扱いになり、
-       .closed は常にtrueを返すようになる。.focus() も例外を投げないが、
-       実際には効かない（無反応）ことが実機で確認されている。
-   ②「毎回 window.open('', name) で名前つきウィンドウを取りに行く」方式（空URLで取得のみ）
-     → 一部の環境（特にモバイル）でポップアップブロッカーに無反応にされる不具合が
-       実機で発生した（利用者から「まだ直っていない」と報告あり）。
-   ③「document.hasFocus() で.focus()の成否を判定し、失敗時だけ開き直す」方式
-     → 実際にポップアップへ正常に切り替わった場合でも document.hasFocus() が
-       trueのままになる環境があり、誤って開き直してしまう（本末転倒）ことを
-       自動テストで確認し、採用を見送った。
-
-   結論: ポップアップ側の状態をこちらのJSから正しく検知する方法は無い（COOPによる
-   ブラウジングコンテキストグループの分離は、ブラウザの仕様上そもそも検知させない
-   ための仕組みのため）。**無反応になる不具合の方が実害が大きい**ため、
-   毎回 window.open(url, 'oes-store-chat') に実際のURLを渡して呼ぶ、最も単純で
-   確実に反応する方式を採用する。同じ名前のウィンドウがすでにそのURLを開いていれば
-   ブラウザ側で再読み込みは起きないが、**利用者がポップアップ内で別のスレッドへ
-   手動移動したあとに押すと、登録したURLへ戻ってしまう**（実機で確認済みの制約）。
-   これを避けたい場合は、業態・店舗ごとのGoogle Chat URL（詳細設定）に、
-   ルームや一覧のURLではなく、普段やり取りする**スレッド個別のリンク**
-   （Chatのメッセージの「その他の操作」→「メッセージへのリンクをコピー」等で
-   取得できるURL）を登録すると、毎回そのスレッドへ正しく戻るようになる。 */
+   Chatを開き直すべきかどうかをこちらのJSから正しく判定する方法（`.closed`や
+   `document.hasFocus()`等）は無いことも確認済み（詳しくは過去のコミット履歴・
+   このファイルの変更履歴を参照）。そのため、ポップアップの状態には一切関与せず、
+   **常に一般のGoogle Chatを開きつつ、「業態 店舗名」をクリップボードへコピーする**
+   だけにする。利用者がChatの検索欄にそれを貼り付けて探す（Google Chatの検索欄は
+   URLと連動しないクライアント内完結の検索のため、URLでの事前入力はできないと
+   利用者に実機で確認済み。貼り付けだけで済むようにする）。 */
 var chatWin = null;
-var chatWinKey = '';
 function openStoreChat(){
   var gyotai = dayCtx ? (dayCtx.gyotai || '') : '';
   var tenpo  = dayCtx ? (dayCtx.tenpo  || '') : '';
-  var key = gyotai + '|' + tenpo;
-  var found = tenpo ? findStoreChat(gyotai, tenpo) : null;
-  var url = found ? found.url : 'https://chat.google.com/';
+  var query = (gyotai + ' ' + tenpo).replace(/^\s+|\s+$/g, '');
 
   var w = null;
-  try{ w = window.open(url, 'oes-store-chat'); }catch(e){ w = null; }
+  try{ w = window.open('https://chat.google.com/', 'oes-store-chat'); }catch(e){ w = null; }
   if(!w){
-    try{ w = window.open(url, '_blank', 'noopener'); }catch(e){ w = null; }
+    try{ w = window.open('https://chat.google.com/', '_blank', 'noopener'); }catch(e){ w = null; }
   }
   chatWin = w;
-  chatWinKey = key;
   try{ if(w) w.focus(); }catch(e){}
+
+  if(query){
+    copyText(query, function(okFlag){
+      toast(okFlag ? '「' + query + '」をコピーしました。Chatの検索欄に貼り付けてください' : 'Google Chatを開きました');
+    });
+  }
 }
 
 /* ---------- コピー ---------- */
@@ -2935,7 +2843,6 @@ function renderSettings(){
   renderPhraseList();
   renderEntryNoteList();
   renderMidNoteList();
-  renderStoreChatList();
 
   var host = $('gy-list'), html = '';
   settings.gyotai.forEach(function(g, gi){

@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>操作マニュアル｜OES入替作業APP</title>
 <style>
-:root{--blue:#003DA5;--blue-d:#001B4D;--blue-l:#FFE1C2;--blue-l2:#FFF4EA;--sky:#F2600D;--line:#FFC08A;--bg:#F6F4F0;--ink:#0A1B3D;--muted:#56637D;}
+:root{--blue:#003DA5;--blue-d:#001B4D;--blue-l:#FFE1C2;--blue-l2:#FFF4EA;--sky:#E25908;--line:#FFC08A;--bg:#F6F4F0;--ink:#0A1B3D;--muted:#56637D;}
 *{box-sizing:border-box;margin:0;padding:0;}
 body{font-family:'Hiragino Sans','Hiragino Kaku Gothic ProN','Noto Sans JP','Meiryo',sans-serif;background:var(--bg);color:var(--ink);line-height:1.85;padding:14px 12px 48px;-webkit-text-size-adjust:100%;}
 .sheet{max-width:820px;margin:0 auto;background:#fff;border:1px solid var(--line);border-radius:12px;padding:20px 16px 28px;}
@@ -69,10 +69,10 @@ code{font-family:'SFMono-Regular',Menlo,Consolas,monospace;background:var(--blue
     <li><b>「この内容で連絡文を作る」を押す</b><br>①入店連絡／②中間報告／③退店連絡の3つが自動で作られます。
       業態に「注意事項」が登録されていれば、該当する欄（①②③のいずれか）にそのまま表示されます
       （写真の撮り方など。複数登録されていれば全部表示されます）。</li>
-    <li><b>コピーしてGoogle Chatへ</b><br>各欄のすぐ下にある「コピー」でコピーし、隣の「Chat」でその店舗の
-      Google Chatを直接開きます（毎回チャット一覧から探し直す必要はありません。ただしChat内で別のスレッドへ
-      手動で移動したあとにもう一度押すと、登録したURLへ戻ります。設定で登録するURLをスレッド個別の
-      リンクにしておくと、いつ押してもその会話へ戻れます）。</li>
+    <li><b>コピーしてGoogle Chatへ</b><br>各欄のすぐ下にある「コピー」でコピーします。
+      上の「今日の作業」にある「Google Chat を開く」を押すと、Google Chatが開くと同時に
+      「業態 店舗名」がクリップボードにコピーされるので、Chatの検索欄に貼り付けると
+      すぐに見つけられます。</li>
   </ol>
   <div class="card">
     <h3>入店連絡・中間報告に一言足す</h3>
@@ -100,7 +100,6 @@ code{font-family:'SFMono-Regular',Menlo,Consolas,monospace;background:var(--blue
       （①②③のどこに表示するか選べる、複数登録できる）</td></tr>
     <tr><td>入店連絡・中間報告に足す文</td><td>作業当日タブのチェック欄に並ぶ文の追加・並び替え・削除</td></tr>
     <tr><td>よく使う文</td><td>作業当日タブ下部のコピー用チップに並ぶ短い文</td></tr>
-    <tr><td>業態・店舗ごとのGoogle Chat URL</td><td>「詳細設定」内。登録しておくと「Chat」ボタンで直接その部屋を開ける</td></tr>
     <tr><td>共有設定の保存</td><td>編集した内容を全員に反映させる（サーバーに自動保存、または settings.json をアップロード）</td></tr>
     <tr><td>サーバーの状態をチェック</td><td>設定が反映されない・インストールできないときの原因を自動で調べる</td></tr>
     <tr><td>アプリとしてインストール</td><td>画面最下部のリンクから、ホーム画面に追加できる</td></tr>
