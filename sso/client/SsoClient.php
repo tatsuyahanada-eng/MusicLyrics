@@ -18,7 +18,8 @@ final class SsoClient
     /**
      * @param array{
      *   idp_url:string, app_key:string, app_secret:string, callback_url:string,
-     *   recheck_interval?:int, session_key?:string, verify_ssl?:bool, timeout?:int
+     *   recheck_interval?:int, session_key?:string, session_name?:string,
+     *   verify_ssl?:bool, timeout?:int
      * } $config
      */
     public function __construct(array $config)
@@ -31,6 +32,11 @@ final class SsoClient
         $config['idp_url']          = rtrim((string) $config['idp_url'], '/');
         $config['recheck_interval'] = (int) ($config['recheck_interval'] ?? 60);
         $config['session_key']      = (string) ($config['session_key'] ?? '_welsys_sso');
+        // 複数アプリを同一ドメイン配下（サブディレクトリ）に同居させる構成では、
+        // PHPの既定セッションCookie名（PHPSESSID・パス "/"）がアプリ間で衝突しうる。
+        // app_key から一意なセッション名を作り、既定で衝突を避ける。
+        $config['session_name']     = (string) ($config['session_name']
+            ?? ('WSSO_' . preg_replace('/[^A-Za-z0-9]/', '', (string) $config['app_key'])));
         $config['verify_ssl']       = (bool) ($config['verify_ssl'] ?? true);
         $config['timeout']          = (int) ($config['timeout'] ?? 5);
         $this->config = $config;
@@ -142,6 +148,11 @@ final class SsoClient
     private function startSession(): void
     {
         if (session_status() === PHP_SESSION_NONE) {
+            // アプリごとに別名のセッションCookieにする（同一ドメイン配下の他アプリと
+            // Cookie名が衝突すると、互いのログイン状態を上書きしてしまうため）。
+            // すでに他のコードがセッションを開始済みの場合はここには来ないので、
+            // sso_guard.php はページの先頭・他の session_start() より前で読み込むこと。
+            session_name((string) $this->config['session_name']);
             session_start();
         }
     }

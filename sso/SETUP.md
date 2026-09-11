@@ -95,6 +95,64 @@ C を選ぶ場合、各アプリのヘッダーに次の1行を置くだけで�
 | 配置先 | `/var/www/welsys-sso` |
 | PHP の実行ユーザー | `www-data`（Apache/nginx の標準） |
 
+### 2-1. さくらのレンタルサーバーなど、共有ホスティングで既存アプリと同じサブディレクトリに置く場合
+
+さくらのレンタルサーバーのような共有ホスティングでは、**ドメイン（サブドメイン含む）単位でしかドキュメントルートを変更できません。** 既存10アプリと同じドメインのサブディレクトリ（例：`https://example.com/sso/`）に置く場合、`public/` だけを公開するという構成をそのままでは使えないため、**`.htaccess` で `public/` 以外への直接アクセスを拒否する**方式に切り替えます。
+
+```
+~/www/                                 ← 契約ドメインの公開領域（既存10アプリの置き場所そのもの）
+├── app1/ app2/ … app10/               ← 既存アプリ。一切変更しない
+└── sso/                               ← リポジトリの sso/ をそのまま、まるごとここに置く
+    ├── .htaccess                      ← config.php 等への直アクセスを拒否（新規追加）
+    ├── config.php
+    ├── schema.sql
+    ├── lib/
+    │   └── .htaccess                  ← Require all denied（新規追加）
+    ├── bin/
+    │   └── .htaccess                  ← Require all denied（新規追加）
+    ├── client/
+    │   └── .htaccess                  ← Require all denied（新規追加）
+    └── public/                        ← ★実際にブラウザからアクセスされる場所
+        ├── login.php authorize.php validate.php manifest.php sw.js ...
+        └── admin/
+```
+
+コードやディレクトリ構成そのものは変更しません。**`.htaccess` を3〜4枚追加するだけ**です。
+
+`~/www/sso/.htaccess`（`config.php`・`schema.sql` など直下のファイルだけを狙って拒否。`public/` には影響しません）：
+
+```apache
+<FilesMatch "^(config\.php|config\.sample\.php|schema\.sql)$">
+    Require all denied
+</FilesMatch>
+Options -Indexes
+```
+
+`~/www/sso/lib/.htaccess`、`~/www/sso/bin/.htaccess`、`~/www/sso/client/.htaccess`（3つとも同じ内容）：
+
+```apache
+Require all denied
+```
+
+> 古い Apache（2.2系）の場合は `Require all denied` の代わりに `Order deny,allow` / `Deny from all` を使ってください。さくらの現行プランは 2.4 系のはずですが、念のため設置後に `https://example.com/sso/lib/bootstrap.php` などへ直接アクセスして、**403 か 404 になること**を必ず確認してください。
+
+この構成では URL が `https://example.com/sso/public/login.php` のように **`/public/` を含んだ形**になります。`config.php` の `base_url` もそれに合わせます。
+
+```php
+'base_url' => 'https://example.com/sso/public',
+```
+
+`Config::baseUrl()` はパスをそのまま付け足すだけの単純な仕組みなので、この変更だけで管理画面・ログイン画面・`manifest.php`・`sw.js` のURLはすべて自動的に正しく組み立てられます。コードの追加修正は不要です。
+
+**この構成ならではの注意点：**
+
+- **フォルダ名の紛らわしさ**：認証サーバー自身を `sso/` という名前で置くと、各既存アプリの中に置く「クライアント用の `sso/` フォルダ」（`example.com/appA/sso/` など）と名前が重複して紛らわしくなります。URL上は衝突しません（`/sso/` と `/appA/sso/` は別の場所です）が、運用で混乱しないよう、認証サーバー側のフォルダ名は `sso-auth/` や `idp/` など、あえて別の名前にすることをおすすめします（`public/` の中身やコードは一切変わらないので、フォルダ名を変えるだけで対応できます）。
+- **セッションCookieの衝突**：同一ドメインに複数のPHPアプリが同居すると、各アプリが既定の `PHPSESSID`（パス `/`）のままだと**互いのログイン状態を上書きしてしまう**ことがあります。これに対応するため、`client/SsoClient.php` は既定で `app_key` から一意なセッションCookie名（例：`WSSO_lyrics`）を自動生成するようにしてあります。**`sso_guard.php` は必ずページの一番先頭、他の `session_start()` より前で読み込んでください。**　また、既存10アプリ同士がもともと同じCookie名を使っていないか、この機会に一度確認しておくと安心です。
+- **他アプリのService Workerのscope**：既存アプリのいずれかが Service Worker をドメインルート（`scope: "/"`）で登録していると、`/sso/` 配下へのリクエストまで横取りしてしまう可能性があります。各アプリの `navigator.serviceWorker.register(...)` の呼び出しを確認し、scope がそのアプリ自身のディレクトリ配下に収まっていることを確認してください。
+- **さくらのデータベース名・接続ホスト名**：さくらのレンタルサーバーでは、コントロールパネルで作成したデータベース名に自動でプレフィックスが付くなど、任意の名前（`welsys_sso`）でそのまま作成できない場合があります。`config.php` の `dsn` には、コントロールパネルに表示される**実際のデータベース名・接続ホスト名**（`mysqXXX.db.sakura.ne.jp` のような専用ホスト名になるのが一般的です）をそのまま使ってください。
+- **PHPのバージョン**：コントロールパネルで、そのドメイン（サブディレクトリ）に使うPHPのバージョンを **8.1以上**に設定してください。プランによっては `.htaccess` に `AddHandler` 等の1行が必要な場合があります。
+- **cron（`bin/gc.php`）**：さくらのコントロールパネルの「スケジュールタスク」機能から、SSH実行と同じ要領で `php /home/アカウント名/www/sso/bin/gc.php` を1日1回程度登録してください。
+
 ---
 
 ## 3. 認証サーバーの構築
@@ -217,7 +275,13 @@ sudo -u www-data php bin/install.php --username=admin --name='システム管理
 **DocumentRoot は必ず `public/` にしてください。** 一段上を公開すると
 `config.php`（DBパスワード）が読めてしまいます。
 
-Apache:
+> さくらのレンタルサーバーなど、ドキュメントルートを自分で設定できない共有ホスティングで、
+> 既存アプリと同じドメインのサブディレクトリに置く場合は、この手順6は使いません。
+> 代わりに [2-1. さくらのレンタルサーバーなど、共有ホスティングで既存アプリと同じ
+> サブディレクトリに置く場合](#2-1-さくらのレンタルサーバーなど共有ホスティングで既存アプリと同じサブディレクトリに置く場合)
+> の `.htaccess` による方式に従ってください。それ以外の手順（手順1〜5、7〜8）はそのまま使えます。
+
+Apache（VPS・専用サーバーなど、DocumentRoot を自分で設定できる場合）:
 
 ```apache
 <VirtualHost *:443>

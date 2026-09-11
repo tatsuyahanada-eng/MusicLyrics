@@ -15,4 +15,9 @@ return [
 
     // 開発環境で自己署名証明書を使う場合のみ false
     'verify_ssl' => true,
+
+    // セッションCookieの名前。既定では app_key から自動生成される（例: WSSO_lyrics）。
+    // 通常は指定不要。同一ドメイン配下に複数アプリを置く構成では、
+    // 各アプリのセッションCookieが衝突しないよう、必ずアプリごとに別名になる。
+    // 'session_name' => 'WSSO_lyrics',
 ];

@@ -12,6 +12,11 @@
  *   $SSO_USER['email']             メールアドレス
  *   $SSO_USER['department']        所属
  *   $SSO_USER['external_user_id']  このアプリが元々持っているユーザーID（対応付けした場合）
+ *
+ * 必ずページの一番先頭、他の session_start() より前で読み込むこと。
+ * 同一ドメイン配下に複数アプリを置く場合、セッションCookie名が
+ * アプリごとに自動で分かれる（SsoClient.php 参照）ため、
+ * 他のアプリより後にセッションを開始する必要がある。
  */
 declare(strict_types=1);
 
