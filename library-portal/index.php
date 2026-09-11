@@ -48,6 +48,7 @@ $dbMissing = $isAdmin ? lp_missing_columns() : [];
             <span class="lp-role lp-role-<?= $isAdmin ? 'admin' : 'viewer' ?>"><?= $isAdmin ? '管理者' : '閲覧のみ' ?></span>
           </button>
           <div id="userMenu" class="lp-user-menu" hidden>
+            <a class="lp-user-menu-item" href="settings.php">⚙ 設定</a>
             <a class="lp-user-menu-item" id="lnkInstall" href="install.php">⤓ アプリをインストール</a>
             <a class="lp-user-menu-item lp-user-menu-danger" href="logout.php">↩ ログアウト</a>
           </div>
