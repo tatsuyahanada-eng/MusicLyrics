@@ -1,7 +1,8 @@
 <?php
 /**
- * POST api/updates.php … 更新履歴を1件登録（管理者のみ）
- * PUT  api/updates.php … 登録済みの更新履歴を1件修正（管理者のみ）
+ * POST   api/updates.php … 更新履歴を1件登録（管理者のみ）
+ * PUT    api/updates.php … 登録済みの更新履歴を1件修正（管理者のみ）
+ * DELETE api/updates.php … 登録済みの更新履歴を1件削除（管理者のみ）
  *
  * 添付ファイル（画像・PDF・ZIP）を送る場合は multipart/form-data、
  * 送らない場合は今まで通り JSON のどちらでも受け付ける。
@@ -10,13 +11,51 @@ declare(strict_types=1);
 require_once __DIR__ . '/../includes/auth.php';
 
 $method = $_SERVER['REQUEST_METHOD'] ?? 'GET';
-if ($method !== 'POST' && $method !== 'PUT') {
+if (!in_array($method, ['POST', 'PUT', 'DELETE'], true)) {
     json_error('許可されていないメソッドです。', 405);
 }
-$isEdit = ($method === 'PUT');
 
 $user = api_require_admin();
 api_verify_csrf();
+
+if ($method === 'DELETE') {
+    $b = json_body();
+    $uid = isset($b['uid']) ? (int)$b['uid'] : 0;
+    if ($uid <= 0) json_error('削除する更新履歴が指定されていません。');
+
+    $pdo = db();
+    $hasFileCols = lp_has_column('lp_updates', 'file_path');
+    $st = $pdo->prepare($hasFileCols
+        ? 'SELECT item_id, file_path FROM lp_updates WHERE update_id = ?'
+        : 'SELECT item_id, NULL AS file_path FROM lp_updates WHERE update_id = ?');
+    $st->execute([$uid]);
+    $row = $st->fetch();
+    if ($row === false) json_error('対象の更新履歴が見つかりません。', 404);
+
+    try {
+        $pdo->beginTransaction();
+        $pdo->prepare('DELETE FROM lp_update_files WHERE update_id = ?')->execute([$uid]);
+        $pdo->prepare('DELETE FROM lp_updates WHERE update_id = ?')->execute([$uid]);
+        $pdo->commit();
+    } catch (Throwable $e) {
+        if ($pdo->inTransaction()) $pdo->rollBack();
+        error_log('[library-portal] update delete failed: ' . $e->getMessage());
+        json_error('削除に失敗しました。時間をおいて再度お試しください。', 500);
+    }
+
+    // 添付ファイルは行の削除が確定してから消す（先に消すと失敗時に孤立ファイルが残らない）
+    if (!empty($row['file_path'])) {
+        $full = __DIR__ . '/../' . $row['file_path'];
+        if (is_file($full) && !@unlink($full)) {
+            error_log('[library-portal] failed to remove attachment on delete: ' . $row['file_path']);
+        }
+    }
+
+    audit('update.delete', $row['item_id'], 'update_id=' . $uid);
+    json_out(['ok' => true]);
+}
+
+$isEdit = ($method === 'PUT');
 
 // ブラウザからは PUT で multipart/form-data を直接送れないため、
 // 修正は POST + _method=PUT のフォーム送信も受け付ける（apiSendForm 側の実装に合わせる）

@@ -1695,6 +1695,14 @@
 }
 .lp-chr-edit:hover { color: var(--lp-gold-dark); border-color: var(--lp-gold); }
 .lp-chr-head .lp-chr-tag + .lp-chr-edit { margin-left: 0; }
+.lp-chr-delete {
+  font: inherit; font-size: .64rem; font-weight: 700; cursor: pointer;
+  color: var(--lp-ink-soft); background: #fff;
+  border: 1px solid var(--paper-line); border-radius: 999px;
+  padding: 1px 9px;
+  transition: color .16s var(--lp-ease), border-color .16s var(--lp-ease);
+}
+.lp-chr-delete:hover { color: #b3261e; border-color: #e2a29c; }
 .lp-page-actions { display: flex; flex-wrap: wrap; gap: 8px; }
 
 /* 絞り込み・並び替え・表示切替が増えたので、狭い画面では折り返して収める */

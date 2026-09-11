@@ -562,6 +562,10 @@ function chronicle(it) {
               ${CAN_EDIT && e.uid ? `<button class="lp-chr-edit" type="button"
                   data-edit-update="${esc(e.uid)}" data-item="${esc(it.id)}"
                   title="この更新内容を修正">✎ 修正</button>` : ''}
+              ${CAN_EDIT && e.uid ? `<button class="lp-chr-delete" type="button"
+                  data-delete-update="${esc(e.uid)}" data-item="${esc(it.id)}"
+                  data-summary="${esc(e.summary)}"
+                  title="この更新履歴を削除">🗑 削除</button>` : ''}
             </div>
             <div class="lp-chr-meta">
               <span><b>対象機能</b>${esc(e.target)}</span>
@@ -1086,6 +1090,26 @@ async function submitUpdate(ev) {
   }
 }
 
+/** 間違って登録した更新履歴を1件削除する（管理者のみ・元に戻せないので確認してから） */
+async function deleteUpdate(itemId, uid, summary) {
+  if (!CAN_EDIT || !uid) return;
+  const ok = confirm(`この更新履歴を削除します。よろしいですか？\n\n${summary || ''}\n\n※この操作は元に戻せません。`);
+  if (!ok) return;
+
+  try {
+    await apiSend('updates.php', 'DELETE', { uid: Number(uid) });
+    await loadItems();
+    renderSeries();
+    renderChips();
+    render();
+    readingId = null;
+    openBook(itemId);
+    toast('更新履歴を削除しました');
+  } catch (e) {
+    toast(e.message || '削除に失敗しました。', 4000);
+  }
+}
+
 /* ---------- アイテム登録 ---------- */
 /** シリーズ名の入力候補を、登録済みのものから作る */
 function fillSeriesList() {
@@ -1395,7 +1419,7 @@ async function init() {
   $('spread').addEventListener('click', (e) => {
     // 見開きは一覧の中に差し込まれているため、ここで処理したクリックは
     // 上位（#list）へ伝えない。伝わると同じ操作が二重に走ってしまう
-    if (e.target.closest('[data-close-spread], [data-series], [data-edit-item], [data-edit-update], [data-book], [data-add], [data-open-entry], [data-all-entries], [data-chr-order]')) {
+    if (e.target.closest('[data-close-spread], [data-series], [data-edit-item], [data-edit-update], [data-delete-update], [data-book], [data-add], [data-open-entry], [data-all-entries], [data-chr-order]')) {
       e.stopPropagation();
     }
     if (e.target.closest('[data-close-spread]')) { closeBook(); return; }
@@ -1417,6 +1441,8 @@ async function init() {
     if (editItem) { openItemModal(editItem.dataset.editItem); return; }
     const editUp = e.target.closest('[data-edit-update]');
     if (editUp) { openUpdateModal(editUp.dataset.item, editUp.dataset.editUpdate); return; }
+    const delUp = e.target.closest('[data-delete-update]');
+    if (delUp) { deleteUpdate(delUp.dataset.item, delUp.dataset.deleteUpdate, delUp.dataset.summary); return; }
     const mate = e.target.closest('[data-book]');
     if (mate) { openBook(mate.dataset.book); return; }
     const add = e.target.closest('[data-add]');

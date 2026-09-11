@@ -26,7 +26,7 @@ $dbMissing = $isAdmin ? lp_missing_columns() : [];
   <link rel="apple-touch-icon" href="assets/icon-192.png?v=6">
   <link rel="manifest" href="manifest.webmanifest">
   <meta name="theme-color" content="#007a33">
-  <link rel="stylesheet" href="assets/library.css?v=28">
+  <link rel="stylesheet" href="assets/library.css?v=29">
 </head>
 <body class="lp-body">
 
@@ -292,7 +292,7 @@ $dbMissing = $isAdmin ? lp_missing_columns() : [];
       uploadMaxBytes: <?= (int)lp_upload_max_bytes() ?>
     };
   </script>
-  <script src="assets/library.js?v=27"></script>
+  <script src="assets/library.js?v=28"></script>
   <script src="assets/pwa.js?v=2"></script>
   <script>
     // インストール導線：すぐに実行できる端末ではその場で、それ以外は案内ページへ
