@@ -609,7 +609,10 @@ input:focus,select:focus,textarea:focus{border-color:var(--blue);box-shadow:0 0 
         <div class="card-title"><span class="step">2</span>今日の作業</div>
         <button class="btn btn-sub btn-sm" id="btn-open-chat" onclick="openStoreChat()">Google Chat を開く</button>
       </div>
-      <div class="card-body"><div class="day-sum" id="day-sum"></div></div>
+      <div class="card-body">
+        <div class="hint" style="margin:-4px 0 9px;text-align:right;">「業態 店舗名」をコピーします。Chatの検索欄に貼り付けてください</div>
+        <div class="day-sum" id="day-sum"></div>
+      </div>
     </div>
 
     <div class="card hidden" id="day-msg-card">
