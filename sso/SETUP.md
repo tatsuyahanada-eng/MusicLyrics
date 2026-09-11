@@ -535,6 +535,25 @@ ALTER TABLE app_permissions
 
 ---
 
+## 5-5. 【既に運用中の環境向け】管理コンソールに入れる人を絞り込む場合
+
+データベースの変更は不要です。`config.php` に1行足すだけです。
+
+```php
+'admin_usernames' => ['welsysadmin'],
+```
+
+反映するファイルは3つです。
+
+- `lib/Auth.php`
+- `lib/View.php`
+- `public/admin/user_edit.php`（無くても動きますが、注意書きが表示されなくなります）
+
+設定後、`welsysadmin` 以外のアカウント（`is_admin` にチェックが入っていても）で
+`https://（ドメイン）/usersso/public/admin/users.php` を開き、**403になることを確認してください。**
+
+---
+
 ## 6. 日々の運用
 
 | やりたいこと | 場所 |

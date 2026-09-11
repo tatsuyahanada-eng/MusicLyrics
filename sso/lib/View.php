@@ -57,7 +57,7 @@ final class View
       <nav class="nav">
         <a class="nav__item<?= $active === 'portal' ? ' is-active' : '' ?>"
            href="<?= h(Config::baseUrl('index.php')) ?>">ポータル</a>
-        <?php if (!empty($user['is_admin'])): ?>
+        <?php if (Auth::isConsoleAdmin($user)): ?>
           <a class="nav__item<?= $active === 'users' ? ' is-active' : '' ?>"
              href="<?= h(Config::baseUrl('admin/users.php')) ?>">ユーザー</a>
           <a class="nav__item<?= $active === 'apps' ? ' is-active' : '' ?>"

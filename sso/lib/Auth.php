@@ -246,11 +246,35 @@ final class Auth
         return $user;
     }
 
+    /**
+     * この管理コンソール（ユーザー・アプリ・権限マトリクス等）に、
+     * 実際に入れる相手かどうか。
+     *
+     * `is_admin` フラグだけでなく、config.php の `admin_usernames` に
+     * ログインIDが載っているかも必ず確認する。
+     * `admin_usernames` を設定していない場合は、従来どおり `is_admin` のみで判定する。
+     *
+     * こうしておくことで、管理画面から誤って（あるいは何らかの操作で）他の
+     * ユーザーに `is_admin` が付いてしまっても、config.php で明示的に許可した
+     * ログインID以外は管理コンソールに入れない、という二重のロックになる。
+     */
+    public static function isConsoleAdmin(array $user): bool
+    {
+        if (empty($user['is_admin'])) {
+            return false;
+        }
+        $allowlist = Config::get('admin_usernames');
+        if ($allowlist === null || $allowlist === []) {
+            return true;   // 未設定なら従来どおり is_admin のみで判定
+        }
+        return in_array((string) $user['username'], (array) $allowlist, true);
+    }
+
     /** 管理コンソール用。管理者以外は 403。 */
     public static function requireAdmin(): array
     {
         $user = self::requireUser();
-        if (empty($user['is_admin'])) {
+        if (!self::isConsoleAdmin($user)) {
             http_response_code(403);
             View::head('User Management', $user);
             echo '<main class="container"><div class="card"><h1>権限がありません</h1>'

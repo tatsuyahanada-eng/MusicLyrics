@@ -166,6 +166,13 @@ View::head($isNew ? 'ユーザーの追加' : 'ユーザーの編集', $admin, '
         <label for="is_admin">この画面（User Management）を利用できる管理者にする</label>
       </div>
       <?php if (isset($errors['is_admin'])): ?><div class="field__error"><?= h($errors['is_admin']) ?></div><?php endif; ?>
+      <?php if ((array) Config::get('admin_usernames', []) !== []): ?>
+        <div class="field__hint">
+          このサーバーでは、実際に管理コンソールへ入れるログインIDが
+          <code>config.php</code> の <code>admin_usernames</code> でさらに絞り込まれています。
+          ここにチェックを入れても、そこに載っていないログインIDは入れません。
+        </div>
+      <?php endif; ?>
 
       <div class="checkbox">
         <input id="must_change_password" name="must_change_password" type="checkbox"
