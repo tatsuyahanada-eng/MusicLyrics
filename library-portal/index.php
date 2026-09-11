@@ -26,7 +26,7 @@ $dbMissing = $isAdmin ? lp_missing_columns() : [];
   <link rel="apple-touch-icon" href="assets/icon-192.png?v=6">
   <link rel="manifest" href="manifest.webmanifest">
   <meta name="theme-color" content="#007a33">
-  <link rel="stylesheet" href="assets/library.css?v=26">
+  <link rel="stylesheet" href="assets/library.css?v=27">
 </head>
 <body class="lp-body">
 
@@ -192,12 +192,13 @@ $dbMissing = $isAdmin ? lp_missing_columns() : [];
     </div>
     <form id="itemForm" class="lp-form" data-mode="create" data-id="">
       <div class="lp-field-row">
-        <label class="lp-field"><span class="lp-field-label">管理ID <em>必須</em></span>
-          <input id="iId" class="lp-input" type="text" placeholder="APP-004" required></label>
         <label class="lp-field"><span class="lp-field-label">種別 <em>必須</em></span>
           <select id="iCategory" class="lp-select">
             <option>アプリ</option><option>プログラム</option><option>資料</option><option>マニュアル</option>
           </select></label>
+        <label class="lp-field"><span class="lp-field-label">管理ID <em>必須</em></span>
+          <input id="iId" class="lp-input" type="text" placeholder="APP-004" required>
+          <span class="lp-field-hint">種別を選ぶと、続きの番号を自動で入れます。変更もできます。</span></label>
         <label class="lp-field"><span class="lp-field-label">作成日 <em>必須</em></span>
           <input id="iCreated" class="lp-input" type="date" required></label>
       </div>
@@ -220,6 +221,16 @@ $dbMissing = $isAdmin ? lp_missing_columns() : [];
       </label>
       <label class="lp-field"><span class="lp-field-label">説明</span>
         <textarea id="iDesc" class="lp-input lp-textarea" rows="3"></textarea></label>
+      <label class="lp-field" id="iAttachmentField">
+        <span class="lp-field-label">添付ファイル（画像・PDF・ZIP）</span>
+        <input id="iAttachment" class="lp-input" type="file"
+               accept=".jpg,.jpeg,.png,.gif,.webp,.pdf,.zip,image/jpeg,image/png,image/gif,image/webp,application/pdf,application/zip">
+        <span class="lp-field-hint">初版として配布するファイルをここから登録できます（上限 <span id="iAttachmentLimit">20MB</span>）。
+          あとから「この資料の更新を登録」でも追加できます。</span>
+        <span class="lp-field-hint lp-field-hint-warn" id="iAttachmentNote" hidden>
+          データベースの更新（sql/upgrade.sql）がまだのため、ここにファイルを付けても保存されません。
+        </span>
+      </label>
       <label class="lp-field"><span class="lp-field-label">URL（アプリの入口）</span>
         <input id="iUrl" class="lp-input" type="url" placeholder="https://share.example.co.jp/..."></label>
       <p class="lp-form-error" id="itemError" hidden></p>
@@ -269,7 +280,7 @@ $dbMissing = $isAdmin ? lp_missing_columns() : [];
       uploadMaxBytes: <?= (int)lp_upload_max_bytes() ?>
     };
   </script>
-  <script src="assets/library.js?v=25"></script>
+  <script src="assets/library.js?v=26"></script>
   <script src="assets/pwa.js?v=2"></script>
   <script>
     // インストール導線：すぐに実行できる端末ではその場で、それ以外は案内ページへ

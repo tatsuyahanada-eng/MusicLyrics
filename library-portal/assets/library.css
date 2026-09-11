@@ -527,6 +527,13 @@
   animation: lp-ink-in .3s var(--lp-ease) both;
   animation-delay: .36s;
 }
+/* 更新の年表の並び替えなど、本を開き直したわけではない更新では
+   この「浮かび上がる」演出を掛けない（新しい要素として一瞬透明になるのを防ぐ） */
+.lp-spread.lp-reorder .lp-page-l .lp-page-inner > *,
+.lp-spread.lp-reorder .lp-chr-year,
+.lp-spread.lp-reorder .lp-page-h {
+  animation: none;
+}
 
 /* ---- 表示の切り替え（本棚 / 一覧） ---- */
 .lp-viewswitch {
@@ -1834,3 +1841,12 @@
 .lp-attach-remove { display: inline-flex; align-items: center; gap: 5px; color: var(--lp-danger); cursor: pointer; }
 input[type="file"].lp-input { padding: 6px 10px; }
 input[type="file"].lp-input:disabled { opacity: .55; cursor: not-allowed; }
+
+/* 更新の年表の並び順（新しい順・古い順）。見出し内の他のボタンに合わせて小さめにする */
+.lp-chr-orderswitch {
+  align-self: center;
+}
+.lp-chr-orderswitch.lp-viewswitch { padding: 1px; }
+.lp-chr-orderswitch .lp-viewbtn {
+  font-size: .68rem; padding: 3px 11px;
+}

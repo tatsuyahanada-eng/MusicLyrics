@@ -36,6 +36,24 @@ const KIND_CLASS = {
   '初版公開': 'initial'
 };
 const CAT_CLASS = { 'アプリ': 'app', 'プログラム': 'prg', '資料': 'doc', 'マニュアル': 'man' };
+/* 管理IDの接頭辞（種別を選ぶと、この接頭辞の続き番号を自動で入れる） */
+const CAT_PREFIX = { 'アプリ': 'APP', 'プログラム': 'PRG', '資料': 'DOC', 'マニュアル': 'MAN' };
+
+/** その種別で次に使う管理ID（接頭辞＋連番）を、登録済みのIDから組み立てる */
+function nextItemId(category) {
+  const prefix = CAT_PREFIX[category];
+  if (!prefix) return '';
+  let maxNum = 0;
+  let width = 3;                          // 既存が APP-001 のように3桁なら、それに合わせる
+  items.forEach((it) => {
+    const m = /^([A-Za-z]+)-(\d+)$/.exec(it.id || '');
+    if (m && m[1] === prefix) {
+      maxNum = Math.max(maxNum, parseInt(m[2], 10));
+      width = Math.max(width, m[2].length);
+    }
+  });
+  return `${prefix}-${String(maxNum + 1).padStart(width, '0')}`;
+}
 
 /* 絵文字ではなく線画のアイコンを使用（サイズ・太さを他要素と揃えるため） */
 const ICON_CHEVRON = `<svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor"
@@ -66,6 +84,7 @@ const CAT_ICON = {
 let items = [];
 const state = { q: '', category: '', series: '', sort: 'updated_desc', view: 'shelf' };
 let readingId = null;                          // いま開いている本（本棚ビュー）
+let chronicleOrder = 'desc';                   // 更新の年表の並び順（desc=新しい順 / asc=古い順）
 
 /* ---------- ユーティリティ ---------- */
 const $ = (id) => document.getElementById(id);
@@ -424,9 +443,13 @@ function chronicle(it) {
   const { rounds, total } = fileRounds(it);
   const n = it.history.length;
 
-  // history は新しい順。年が変わるところで区切る
+  // history は常に新しい順で持っているので、版数の遷移などはこの並びを基準に計算する。
+  // 表示だけ、選ばれた並び順（新しい順・古い順）に沿って年ごとにまとめる
+  const seq = it.history.map((e, i) => ({ e, i }));
+  if (chronicleOrder === 'asc') seq.reverse();
+
   const years = [];
-  it.history.forEach((e, i) => {
+  seq.forEach(({ e, i }) => {
     const y = String(e.date).slice(0, 4);
     if (!years.length || years[years.length - 1].year !== y) years.push({ year: y, list: [] });
     years[years.length - 1].list.push({ e, i });
@@ -528,6 +551,21 @@ function toggleAllEntries(btn) {
   btn.classList.toggle('is-on', open);
 }
 
+/** 更新の年表の並び順を切り替える（新しい順・古い順） */
+function setChronicleOrder(order) {
+  if (order !== 'asc' && order !== 'desc') return;
+  if (order === chronicleOrder || !readingId) return;
+  chronicleOrder = order;
+  const it = items.find((x) => x.id === readingId);
+  if (!it) return;
+  const spread = $('spread');
+  // 中身を作り直すと「開いたときに浮かび上がる」演出が新しい要素にもう一度掛かってしまう
+  // （一瞬すべて透明になって見える）ため、並び替えのときは演出を止めておく。
+  // 次に本を開き直したとき（openBook）に外れ、そのときは通常どおり演出が入る
+  spread.classList.add('lp-reorder');
+  spread.innerHTML = spreadHtml(it);
+}
+
 /** 同じシリーズの資料（アプリとそのマニュアル・資料など）を並べる */
 function siblingsBlock(it) {
   if (!it.series) return '';
@@ -623,7 +661,12 @@ function spreadHtml(it) {
       <section class="lp-page lp-page-r">
         <div class="lp-page-inner">
           <h3 class="lp-page-h">更新の年表
-            <span>新しい順 ／ ${it.history.length} 件</span>
+            <span>${it.history.length} 件</span>
+            ${it.history.length > 1 ? `
+              <div class="lp-viewswitch lp-chr-orderswitch" role="group" aria-label="更新の年表の並び順">
+                <button class="lp-viewbtn${chronicleOrder === 'desc' ? ' is-on' : ''}" type="button" data-chr-order="desc">新しい順</button>
+                <button class="lp-viewbtn${chronicleOrder === 'asc' ? ' is-on' : ''}" type="button" data-chr-order="asc">古い順</button>
+              </div>` : ''}
             ${it.history.length ? '<button class="lp-allbtn" type="button" data-all-entries>全ての更新履歴</button>' : ''}
           </h3>
           ${chronicle(it)}
@@ -669,7 +712,7 @@ function openBook(id) {
   if (target) (target.closest('.lp-row') || target).insertAdjacentElement('afterend', spread);
 
   // いったん閉じてから開き直すと、ページがめくれる動きが必ず再生される
-  spread.classList.remove('is-open');
+  spread.classList.remove('is-open', 'lp-reorder');
   spread.hidden = false;
   spread.innerHTML = spreadHtml(it);
   void spread.offsetWidth;                       // ここで一度レイアウトを確定させる
@@ -997,6 +1040,13 @@ function fillSeriesList() {
 }
 
 /** アイテムの登録・修正フォームを開く（id を渡すと修正になる） */
+/** 種別に合わせて管理IDを自動で入れる（利用者が自分で書き換えたあとは上書きしない） */
+function updateSuggestedItemId() {
+  const form = $('itemForm');
+  if (form.dataset.mode !== 'create' || form.dataset.idAuto === '0') return;
+  $('iId').value = nextItemId($('iCategory').value);
+}
+
 function openItemModal(id) {
   if (!CAN_EDIT) return;
   const form = $('itemForm');
@@ -1005,6 +1055,7 @@ function openItemModal(id) {
 
   form.dataset.mode = it ? 'edit' : 'create';
   form.dataset.id = it ? it.id : '';
+  form.dataset.idAuto = '1';           // 新規登録では、種別を選ぶたびにIDを自動で入れ直す
   $('itemModalTitle').textContent = it ? 'アイテムの修正' : 'アイテムの新規登録';
   $('btnItemSubmit').textContent = it ? '修正を保存' : '登録する';
   // 管理IDは他の記録とのつながりを保つため、修正では変更させない
@@ -1024,14 +1075,22 @@ function openItemModal(id) {
     const now = new Date();
     const pad = (n) => String(n).padStart(2, '0');
     $('iCreated').value = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`;
+    updateSuggestedItemId();
   }
 
   $('iSeries').disabled = !DB_HAS_SERIES;
   if (!DB_HAS_SERIES) { $('iSeries').value = ''; }
   $('iSeriesNote').hidden = DB_HAS_SERIES;
 
+  // 添付ファイルは新規登録のときだけ（＝初版として保存される）。修正では出さない
+  $('iAttachmentField').hidden = !!it;
+  $('iAttachment').value = '';
+  $('iAttachmentLimit').textContent = fmtBytes((LP_CFG && LP_CFG.uploadMaxBytes) || 20 * 1024 * 1024);
+  $('iAttachment').disabled = !DB_HAS_FILES;
+  $('iAttachmentNote').hidden = DB_HAS_FILES;
+
   showModal($('itemModal'));
-  (it ? $('iName') : $('iId')).focus();
+  (it ? $('iName') : $('iCategory')).focus();
 }
 
 async function submitItem(ev) {
@@ -1048,17 +1107,63 @@ async function submitItem(ev) {
     description: $('iDesc').value.trim(),
     downloadUrl: $('iUrl').value.trim()
   };
+
+  // 新規登録のときだけ、添付ファイルを初版として一緒に登録できる
+  const file = (!edit && $('iAttachment')) ? ($('iAttachment').files[0] || null) : null;
+  if (file) {
+    const ext = (file.name.split('.').pop() || '').toLowerCase();
+    if (!UPLOAD_ALLOWED_EXT.includes(ext)) {
+      formError('itemError', '画像（jpg / png / gif / webp）・PDF・ZIP のみアップロードできます。');
+      return;
+    }
+    const max = (LP_CFG && LP_CFG.uploadMaxBytes) || 20 * 1024 * 1024;
+    if (file.size > max) {
+      formError('itemError', `ファイルサイズが大きすぎます（上限 ${fmtBytes(max)}）。`);
+      return;
+    }
+  }
+
   try {
     await apiSend('items.php', edit ? 'PUT' : 'POST', payload);
+
+    let fileWarning = '';
+    if (file) {
+      // 初版の更新履歴として登録する（版数は最初の登録なので必ず 1.00 になる）
+      const now = new Date();
+      const pad = (n) => String(n).padStart(2, '0');
+      const fd = new FormData();
+      fd.append('itemId', payload.id);
+      fd.append('date', payload.createdAt);
+      fd.append('time', `${pad(now.getHours())}:${pad(now.getMinutes())}`);
+      fd.append('author', (LP_CFG && LP_CFG.user && LP_CFG.user.name) || payload.creator);
+      fd.append('kind', '初版公開');
+      fd.append('bump', 'minor');
+      fd.append('summary', `${payload.name}の初版を登録`);
+      fd.append('target', '初版');
+      fd.append('ticket', '');
+      fd.append('downloadUrl', '');
+      fd.append('filesJson', '[]');
+      fd.append('file', file);
+      try {
+        await apiSendMultipart('updates.php', fd);
+      } catch (e2) {
+        fileWarning = e2.message || '添付ファイルの保存に失敗しました。';
+      }
+    }
+
     await loadItems();
     renderSeries();
     renderChips();
     render();
-    // 修正した内容がすぐ見えるよう、開いていたものは開き直す
+    // 登録・修正した内容がすぐ見えるよう、開いていたものは開き直す
     if (edit && readingId === payload.id) { readingId = null; openBook(payload.id); }
     hideModals();
     form.reset();
-    toast(edit ? 'アイテムを修正しました' : 'アイテムを登録しました');
+    if (fileWarning) {
+      toast(`アイテムを登録しましたが、添付ファイルの保存に失敗しました：${fileWarning}`, 6000);
+    } else {
+      toast(edit ? 'アイテムを修正しました' : (file ? 'アイテムと初版のファイルを登録しました' : 'アイテムを登録しました'));
+    }
   } catch (e) {
     formError('itemError', e.message || (edit ? '修正' : '登録') + 'に失敗しました。');
   }
@@ -1112,12 +1217,12 @@ function showLoadError(msg) {
 }
 
 let toastTimer = null;
-function toast(msg) {
+function toast(msg, ms = 2800) {
   const el = $('toast');
   el.textContent = msg;
   el.hidden = false;
   clearTimeout(toastTimer);
-  toastTimer = setTimeout(() => { el.hidden = true; }, 2800);
+  toastTimer = setTimeout(() => { el.hidden = true; }, ms);
 }
 
 /* ---------- 初期化 ---------- */
@@ -1193,7 +1298,7 @@ async function init() {
   $('spread').addEventListener('click', (e) => {
     // 見開きは一覧の中に差し込まれているため、ここで処理したクリックは
     // 上位（#list）へ伝えない。伝わると同じ操作が二重に走ってしまう
-    if (e.target.closest('[data-close-spread], [data-series], [data-edit-item], [data-edit-update], [data-book], [data-add], [data-open-entry], [data-all-entries]')) {
+    if (e.target.closest('[data-close-spread], [data-series], [data-edit-item], [data-edit-update], [data-book], [data-add], [data-open-entry], [data-all-entries], [data-chr-order]')) {
       e.stopPropagation();
     }
     if (e.target.closest('[data-close-spread]')) { closeBook(); return; }
@@ -1205,6 +1310,8 @@ async function init() {
       render();
       return;
     }
+    const orderBtn = e.target.closest('[data-chr-order]');
+    if (orderBtn) { setChronicleOrder(orderBtn.dataset.chrOrder); return; }
     const allBtn = e.target.closest('[data-all-entries]');
     if (allBtn) { toggleAllEntries(allBtn); return; }
     const entry = e.target.closest('[data-open-entry]');
@@ -1242,6 +1349,9 @@ async function init() {
   bind('modalOverlay', 'click', hideModals);
   bind('updateForm', 'submit', submitUpdate);
   bind('itemForm', 'submit', submitItem);
+  bind('iCategory', 'change', updateSuggestedItemId);
+  // 管理IDを自分で書き換えたら、以後は種別を変えても上書きしない
+  bind('iId', 'input', () => { $('itemForm').dataset.idAuto = '0'; });
   bind('pwForm', 'submit', submitPassword);
   bind('btnChangePw', 'click', () => { closeUserMenu(); showModal($('pwModal')); $('pwCurrent').focus(); });
 
