@@ -52,19 +52,28 @@ function db(): PDO
  * ファイルだけ新しくしてデータベースの更新（sql/upgrade.sql）をまだ流していない、
  * という状態でも画面が真っ白にならないように、後から足した列は
  * 「あれば使う」扱いにしています。1リクエストにつき1回だけ調べます。
+ *
+ * さくらのレンタルサーバの契約によっては、DBユーザーに information_schema への
+ * 参照権限が無い場合がある（#1044 が出る）。SHOW COLUMNS はそのテーブル自体への
+ * 権限（このアプリが普段から使っているもの）だけで実行できるため、こちらを使う。
  */
 function lp_has_column(string $table, string $column): bool
 {
     static $cache = [];
     $key = $table . '.' . $column;
     if (!array_key_exists($key, $cache)) {
+        // $table・$column はこの関数の呼び出し元（自分のコード）が渡す固定値のみで、
+        // 利用者の入力が入ることはない。ただし native prepare では
+        // 「SHOW COLUMNS ... LIKE ?」にプレースホルダを使えないため、
+        // 識別子として安全な形であることを確認したうえで直接埋め込む
+        $safe = '/^[A-Za-z_][A-Za-z0-9_]*$/';
+        if (!preg_match($safe, $table) || !preg_match($safe, $column)) {
+            $cache[$key] = false;
+            return false;
+        }
         try {
-            $st = db()->prepare(
-                'SELECT COUNT(*) FROM information_schema.COLUMNS
-                  WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ? AND COLUMN_NAME = ?'
-            );
-            $st->execute([$table, $column]);
-            $cache[$key] = (int)$st->fetchColumn() > 0;
+            $st = db()->query("SHOW COLUMNS FROM `{$table}` LIKE '{$column}'");
+            $cache[$key] = $st->fetch() !== false;
         } catch (PDOException $e) {
             error_log('[library-portal] column check failed: ' . $e->getMessage());
             $cache[$key] = false;

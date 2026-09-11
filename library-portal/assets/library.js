@@ -69,6 +69,74 @@ const ICON_ARROW = `<svg viewBox="0 0 24 24" width="12" height="12" fill="none" 
 const ICON_CLIP = `<svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor"
   stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
   <path d="M21.44 11.05l-9.19 9.19a5.5 5.5 0 0 1-7.78-7.78l9.19-9.19a3.5 3.5 0 0 1 4.95 4.95l-9.2 9.19a1.5 1.5 0 0 1-2.12-2.12l8.49-8.48"/></svg>`;
+/* 添付ファイルの種類を示すアイコン（画像はサムネイル自体が示すので使わない） */
+const ICON_PDF = `<svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor"
+  stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+  <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/></svg>`;
+const ICON_ZIP = `<svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor"
+  stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+  <rect x="3" y="7" width="18" height="14" rx="2"/><path d="M3 7l3-4h6l3 4"/><path d="M12 12v5"/></svg>`;
+
+/** 添付ファイルが画像かどうか（画像はサムネイルで見せる） */
+const isImageMime = (mime) => /^image\//.test(mime || '');
+
+/** 画像以外の添付ファイルにつけるアイコン */
+function attachmentTypeIcon(mime) {
+  if (mime === 'application/pdf') return ICON_PDF;
+  return ICON_ZIP;
+}
+
+/** 添付ファイルの表示（画像はサムネイル、それ以外はアイコン＋ファイル名）を組み立てる */
+function attachmentBoxHtml(a, big) {
+  if (!a) return '';
+  if (isImageMime(a.mime)) {
+    return `
+      <p class="lp-attach-box lp-attach-box-img${big ? ' lp-attach-box-lg' : ''}">
+        <a class="lp-attach-thumb-link" href="${esc(a.url)}" target="_blank" rel="noopener" title="画像を大きく見る">
+          <img class="lp-attach-thumb" src="${esc(a.url)}" alt="${esc(a.name)}" loading="lazy">
+        </a>
+        <span class="lp-attach-current-info">
+          <a class="lp-attach-link" href="${esc(a.url)}">${esc(a.name)}</a>
+          <span class="lp-attach-size">${fmtBytes(a.size)}</span>
+        </span>
+      </p>`;
+  }
+  return `
+    <p class="lp-attach-box">
+      <span class="lp-attach-type-icon" aria-hidden="true">${attachmentTypeIcon(a.mime)}</span>
+      <a class="lp-attach-link" href="${esc(a.url)}">${esc(a.name)}</a>
+      <span class="lp-attach-size">${fmtBytes(a.size)}</span>
+    </p>`;
+}
+
+/**
+ * 登録・修正フォームの「現在のファイル」欄を埋める（画像ならサムネイル、それ以外はアイコン）。
+ * prefix は 'f'（更新フォーム）または 'i'（アイテムフォーム）。
+ */
+function fillAttachmentCurrent(prefix, attachment) {
+  const box = $(`${prefix}AttachmentCurrent`);
+  if (!box) return;
+  const thumb = $(`${prefix}AttachmentThumb`);
+  const icon = $(`${prefix}AttachmentCurrentIcon`);
+  const link = $(`${prefix}AttachmentCurrentLink`);
+  const removeChk = $(`${prefix}RemoveAttachment`);
+  if (removeChk) removeChk.checked = false;
+
+  box.hidden = !attachment;
+  if (!attachment) return;
+
+  if (isImageMime(attachment.mime)) {
+    thumb.src = attachment.url;
+    thumb.hidden = false;
+    icon.innerHTML = '';
+  } else {
+    thumb.hidden = true;
+    thumb.removeAttribute('src');
+    icon.innerHTML = attachmentTypeIcon(attachment.mime);
+  }
+  link.href = attachment.url;
+  link.textContent = `${attachment.name}（${fmtBytes(attachment.size)}）`;
+}
 
 /* 種別ごとのアイコン（一覧で種類をひと目で見分けられるように） */
 const SVG = (paths) => `<svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor"
@@ -500,11 +568,7 @@ function chronicle(it) {
               <span><b>対応者</b>${esc(e.author)}</span>
               ${e.ticket ? `<span><b>管理番号</b>${esc(e.ticket)}</span>` : ''}
             </div>
-            ${e.attachment ? `<p class="lp-attach-box">
-              ${ICON_CLIP}
-              <a class="lp-attach-link" href="${esc(e.attachment.url)}">${esc(e.attachment.name)}</a>
-              <span class="lp-attach-size">${fmtBytes(e.attachment.size)}</span>
-            </p>` : ''}
+            ${attachmentBoxHtml(e.attachment, true)}
             <div class="lp-chr-files">
               <span class="lp-hist-files-cap">実際に直したプログラム・ファイル（${files.length} 件）</span>
               ${fileTable(files, oldIdx, rounds, total)}
@@ -949,15 +1013,8 @@ function openUpdateModal(itemId, uid) {
 
   // 添付ファイル：一覧から呼ばれた時点でどれもクリアしておく（file input は値を再設定できないため）
   $('fAttachment').value = '';
-  $('fRemoveAttachment').checked = false;
   $('fAttachmentLimit').textContent = fmtBytes((LP_CFG && LP_CFG.uploadMaxBytes) || 20 * 1024 * 1024);
-  const current = entry && entry.attachment;
-  $('fAttachmentCurrent').hidden = !current;
-  if (current) {
-    const link = $('fAttachmentCurrentLink');
-    link.href = current.url;
-    link.textContent = `${current.name}（${fmtBytes(current.size)}）`;
-  }
+  fillAttachmentCurrent('f', entry && entry.attachment);
   $('fAttachment').disabled = !DB_HAS_FILES;
   $('fAttachmentNote').hidden = DB_HAS_FILES;
 
@@ -1082,10 +1139,16 @@ function openItemModal(id) {
   if (!DB_HAS_SERIES) { $('iSeries').value = ''; }
   $('iSeriesNote').hidden = DB_HAS_SERIES;
 
-  // 添付ファイルは新規登録のときだけ（＝初版として保存される）。修正では出さない
-  $('iAttachmentField').hidden = !!it;
+  // 添付ファイル：新規登録では初版として、修正では「最新の更新」のファイルとして扱う
+  const latestEntry = it ? latest(it) : null;
+  const maxBytes = (LP_CFG && LP_CFG.uploadMaxBytes) || 20 * 1024 * 1024;
   $('iAttachment').value = '';
-  $('iAttachmentLimit').textContent = fmtBytes((LP_CFG && LP_CFG.uploadMaxBytes) || 20 * 1024 * 1024);
+  fillAttachmentCurrent('i', latestEntry && latestEntry.attachment);
+  $('iAttachmentHint').textContent = !it
+    ? `初版として配布するファイルをここから登録できます（上限 ${fmtBytes(maxBytes)}）。あとから「この資料の更新を登録」でも追加できます。`
+    : latestEntry
+      ? `最新の更新（${latestEntry.summary}）に添付されているファイルです。差し替えたり、削除したりできます。`
+      : 'まだ更新履歴がありません。ここでファイルを登録すると、初版として保存されます。';
   $('iAttachment').disabled = !DB_HAS_FILES;
   $('iAttachmentNote').hidden = DB_HAS_FILES;
 
@@ -1093,10 +1156,31 @@ function openItemModal(id) {
   (it ? $('iName') : $('iCategory')).focus();
 }
 
+/** 更新履歴1件ぶんの、添付ファイル以外の項目をそのまま引き継いだ FormData を作る */
+function buildUpdateFormFrom(entry, itemId) {
+  const fd = new FormData();
+  fd.append('itemId', itemId);
+  fd.append('date', entry.date);
+  fd.append('time', entry.time);
+  fd.append('author', entry.author);
+  fd.append('kind', entry.kind);
+  fd.append('bump', entry.bump === 'revision' ? 'revision' : 'minor');
+  fd.append('summary', entry.summary);
+  fd.append('target', entry.target);
+  fd.append('ticket', entry.ticket || '');
+  fd.append('downloadUrl', '');   // アイテムのURLはここでは触らない
+  fd.append('filesJson', JSON.stringify(
+    normFiles(entry).map((f) => (f.note ? `${f.path} : ${f.note}` : f.path))
+  ));
+  return fd;
+}
+
 async function submitItem(ev) {
   ev.preventDefault();
   const form = $('itemForm');
   const edit = form.dataset.mode === 'edit';
+  const existing = edit ? items.find((x) => x.id === form.dataset.id) : null;
+  const latestEntry = existing ? latest(existing) : null;
   const payload = {
     id: edit ? form.dataset.id : $('iId').value.trim(),
     name: $('iName').value.trim(),
@@ -1108,8 +1192,9 @@ async function submitItem(ev) {
     downloadUrl: $('iUrl').value.trim()
   };
 
-  // 新規登録のときだけ、添付ファイルを初版として一緒に登録できる
-  const file = (!edit && $('iAttachment')) ? ($('iAttachment').files[0] || null) : null;
+  // 添付ファイル：新規登録なら初版として、修正なら最新の更新のファイルとして扱う
+  const file = $('iAttachment') ? ($('iAttachment').files[0] || null) : null;
+  const removeFile = edit && !file && $('iRemoveAttachment') && $('iRemoveAttachment').checked;
   if (file) {
     const ext = (file.name.split('.').pop() || '').toLowerCase();
     if (!UPLOAD_ALLOWED_EXT.includes(ext)) {
@@ -1127,25 +1212,33 @@ async function submitItem(ev) {
     await apiSend('items.php', edit ? 'PUT' : 'POST', payload);
 
     let fileWarning = '';
-    if (file) {
-      // 初版の更新履歴として登録する（版数は最初の登録なので必ず 1.00 になる）
-      const now = new Date();
-      const pad = (n) => String(n).padStart(2, '0');
-      const fd = new FormData();
-      fd.append('itemId', payload.id);
-      fd.append('date', payload.createdAt);
-      fd.append('time', `${pad(now.getHours())}:${pad(now.getMinutes())}`);
-      fd.append('author', (LP_CFG && LP_CFG.user && LP_CFG.user.name) || payload.creator);
-      fd.append('kind', '初版公開');
-      fd.append('bump', 'minor');
-      fd.append('summary', `${payload.name}の初版を登録`);
-      fd.append('target', '初版');
-      fd.append('ticket', '');
-      fd.append('downloadUrl', '');
-      fd.append('filesJson', '[]');
-      fd.append('file', file);
+    if (file || removeFile) {
       try {
-        await apiSendMultipart('updates.php', fd);
+        if (latestEntry) {
+          // 既にある「最新の更新」のファイルだけを差し替える／外す
+          const fd = buildUpdateFormFrom(latestEntry, payload.id);
+          fd.append('_method', 'PUT');
+          fd.append('uid', latestEntry.uid);
+          if (file) { fd.append('file', file); } else { fd.append('removeFile', '1'); }
+          await apiSendMultipart('updates.php', fd);
+        } else if (file) {
+          // 更新履歴がまだ無い場合は、初版として新しく登録する（版数は必ず 1.00 になる）
+          const now = new Date();
+          const pad = (n) => String(n).padStart(2, '0');
+          const fd = buildUpdateFormFrom({
+            date: payload.createdAt,
+            time: `${pad(now.getHours())}:${pad(now.getMinutes())}`,
+            author: (LP_CFG && LP_CFG.user && LP_CFG.user.name) || payload.creator,
+            kind: '初版公開',
+            bump: 'minor',
+            summary: `${payload.name}の初版を登録`,
+            target: '初版',
+            ticket: '',
+            files: [],
+          }, payload.id);
+          fd.append('file', file);
+          await apiSendMultipart('updates.php', fd);
+        }
       } catch (e2) {
         fileWarning = e2.message || '添付ファイルの保存に失敗しました。';
       }
@@ -1160,9 +1253,13 @@ async function submitItem(ev) {
     hideModals();
     form.reset();
     if (fileWarning) {
-      toast(`アイテムを登録しましたが、添付ファイルの保存に失敗しました：${fileWarning}`, 6000);
+      toast(`アイテムは保存しましたが、添付ファイルの処理に失敗しました：${fileWarning}`, 6000);
+    } else if (file || removeFile) {
+      toast(edit
+        ? (file ? 'アイテムと添付ファイルを修正しました' : 'アイテムを修正し、添付ファイルを削除しました')
+        : 'アイテムと初版のファイルを登録しました');
     } else {
-      toast(edit ? 'アイテムを修正しました' : (file ? 'アイテムと初版のファイルを登録しました' : 'アイテムを登録しました'));
+      toast(edit ? 'アイテムを修正しました' : 'アイテムを登録しました');
     }
   } catch (e) {
     formError('itemError', e.message || (edit ? '修正' : '登録') + 'に失敗しました。');

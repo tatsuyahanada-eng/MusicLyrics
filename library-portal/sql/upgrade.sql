@@ -19,20 +19,31 @@
 --         どちらから実行しても通ります。
 --  ============================================================
 --
---  このファイルは「何度実行しても安全」に作ってあります。
+--  このファイルは「何度実行しても安全」に作ってあります（IF NOT EXISTS）。
 --  すでに追加済みの項目は自動的に読み飛ばすので、
---  add_series.sql を実行済みかどうか分からない場合も、これを流せば大丈夫です。
+--  以前に一部だけ実行していても、これを流せば大丈夫です。
 --
 --  追加される項目：
 --    lp_items.series      … シリーズ（関連する資料をまとめる名前）
 --    lp_updates.bump_type … 更新の大きさ（通常の更新 / 微修正）。版数の自動採番に使います
 --    lp_updates.file_*    … 更新ごとに添付できるファイル（画像・PDF・ZIP）の情報
 --
+--  ※ さくらのレンタルサーバの契約によっては、通常のデータベースユーザーに
+--     information_schema を直接見る権限が無く、
+--       #1044 ユーザー '...' によるデータベース 'information_schema' への
+--             アクセスは拒否されました。
+--     というエラーになることがあります。このファイルはその権限を必要とせず、
+--     MySQL 8.0 / MariaDB 10.x の「同じ列がすでにあれば何もしない」機能
+--     （IF NOT EXISTS）だけで安全に作り直してあります。
+--
 --  エラーが出る場合：
 --    #1049 Unknown database
 --        → USE に書いた名前が違います。config.php の db_name を確認してください
 --    #1046 データベースが選択されていません
 --        → 下の USE 行を書き換え忘れているか、行頭に -- が付いたままです
+--    "IF" 付近の構文エラー
+--        → データベースのバージョンが古く、IF NOT EXISTS に対応していません。
+--          その場合はサーバー会社にご相談のうえ、こちらまでご連絡ください
 -- ============================================================
 
 SET NAMES utf8mb4;
@@ -43,82 +54,46 @@ USE `«ここにデータベース名»`;
 
 
 -- ------------------------------------------------------------
--- 1. lp_items.series（シリーズ）
+-- 1. lp_items.series（シリーズ：関連する資料をまとめる名前）
 -- ------------------------------------------------------------
-SET @add_series = IF(
-  (SELECT COUNT(*) FROM information_schema.COLUMNS
-     WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'lp_items' AND COLUMN_NAME = 'series') = 0,
-  'ALTER TABLE lp_items ADD COLUMN series VARCHAR(60) NULL COMMENT ''シリーズ（関連する資料をまとめる名前）'' AFTER category',
-  'DO 0');
-PREPARE s FROM @add_series; EXECUTE s; DEALLOCATE PREPARE s;
-
-SET @add_series_idx = IF(
-  (SELECT COUNT(*) FROM information_schema.STATISTICS
-     WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'lp_items' AND INDEX_NAME = 'idx_items_series') = 0,
-  'ALTER TABLE lp_items ADD INDEX idx_items_series (series)',
-  'DO 0');
-PREPARE s FROM @add_series_idx; EXECUTE s; DEALLOCATE PREPARE s;
+ALTER TABLE lp_items
+  ADD COLUMN IF NOT EXISTS series VARCHAR(60) NULL
+  COMMENT 'シリーズ（関連する資料をまとめる名前）' AFTER category;
+ALTER TABLE lp_items
+  ADD INDEX IF NOT EXISTS idx_items_series (series);
 
 
 -- ------------------------------------------------------------
 -- 2. lp_updates.bump_type（更新の大きさ）
---    'minor'    … 通常の更新（1.1 → 1.2）
---    'revision' … 微修正（1.1 → 1.11）
+--    minor    … 通常の更新（1.1 → 1.2）
+--    revision … 微修正（1.1 → 1.11）
 -- ------------------------------------------------------------
-SET @add_bump = IF(
-  (SELECT COUNT(*) FROM information_schema.COLUMNS
-     WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'lp_updates' AND COLUMN_NAME = 'bump_type') = 0,
-  'ALTER TABLE lp_updates ADD COLUMN bump_type VARCHAR(10) NOT NULL DEFAULT ''minor'' COMMENT ''minor=通常の更新 / revision=微修正'' AFTER update_kind',
-  'DO 0');
-PREPARE s FROM @add_bump; EXECUTE s; DEALLOCATE PREPARE s;
+ALTER TABLE lp_updates
+  ADD COLUMN IF NOT EXISTS bump_type VARCHAR(10) NOT NULL DEFAULT 'minor'
+  COMMENT 'minor=通常の更新 / revision=微修正' AFTER update_kind;
 
 
 -- ------------------------------------------------------------
 -- 3. lp_updates.file_*（添付ファイル：画像・PDF・ZIP）
 -- ------------------------------------------------------------
-SET @add_file_path = IF(
-  (SELECT COUNT(*) FROM information_schema.COLUMNS
-     WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'lp_updates' AND COLUMN_NAME = 'file_path') = 0,
-  'ALTER TABLE lp_updates ADD COLUMN file_path VARCHAR(255) NULL COMMENT ''添付ファイルの保存パス（uploads/ からの相対パス）'' AFTER ticket_no',
-  'DO 0');
-PREPARE s FROM @add_file_path; EXECUTE s; DEALLOCATE PREPARE s;
-
-SET @add_file_name = IF(
-  (SELECT COUNT(*) FROM information_schema.COLUMNS
-     WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'lp_updates' AND COLUMN_NAME = 'file_name') = 0,
-  'ALTER TABLE lp_updates ADD COLUMN file_name VARCHAR(255) NULL COMMENT ''添付ファイルの元のファイル名'' AFTER file_path',
-  'DO 0');
-PREPARE s FROM @add_file_name; EXECUTE s; DEALLOCATE PREPARE s;
-
-SET @add_file_size = IF(
-  (SELECT COUNT(*) FROM information_schema.COLUMNS
-     WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'lp_updates' AND COLUMN_NAME = 'file_size') = 0,
-  'ALTER TABLE lp_updates ADD COLUMN file_size INT UNSIGNED NULL COMMENT ''添付ファイルのサイズ（バイト）'' AFTER file_name',
-  'DO 0');
-PREPARE s FROM @add_file_size; EXECUTE s; DEALLOCATE PREPARE s;
-
-SET @add_file_mime = IF(
-  (SELECT COUNT(*) FROM information_schema.COLUMNS
-     WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'lp_updates' AND COLUMN_NAME = 'file_mime') = 0,
-  'ALTER TABLE lp_updates ADD COLUMN file_mime VARCHAR(100) NULL COMMENT ''添付ファイルのMIMEタイプ'' AFTER file_size',
-  'DO 0');
-PREPARE s FROM @add_file_mime; EXECUTE s; DEALLOCATE PREPARE s;
+ALTER TABLE lp_updates
+  ADD COLUMN IF NOT EXISTS file_path VARCHAR(255) NULL
+  COMMENT '添付ファイルの保存パス（uploads/ からの相対パス）' AFTER ticket_no;
+ALTER TABLE lp_updates
+  ADD COLUMN IF NOT EXISTS file_name VARCHAR(255) NULL
+  COMMENT '添付ファイルの元のファイル名' AFTER file_path;
+ALTER TABLE lp_updates
+  ADD COLUMN IF NOT EXISTS file_size INT UNSIGNED NULL
+  COMMENT '添付ファイルのサイズ（バイト）' AFTER file_name;
+ALTER TABLE lp_updates
+  ADD COLUMN IF NOT EXISTS file_mime VARCHAR(100) NULL
+  COMMENT '添付ファイルのMIMEタイプ' AFTER file_size;
 
 
 -- ------------------------------------------------------------
--- 確認（3行とも「あり」と表示されれば完了です）
+-- 確認（information_schema を使わない方法。3つとも1行ずつ表示されれば完了です。
+--       空欄（0 Rows）になっている項目があれば、そこだけ追加できていません）
 -- ------------------------------------------------------------
-SELECT 'lp_items.series' AS 項目,
-       IF(COUNT(*) > 0, 'あり', 'なし') AS 状態
-  FROM information_schema.COLUMNS
- WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'lp_items' AND COLUMN_NAME = 'series'
-UNION ALL
-SELECT 'lp_updates.bump_type',
-       IF(COUNT(*) > 0, 'あり', 'なし')
-  FROM information_schema.COLUMNS
- WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'lp_updates' AND COLUMN_NAME = 'bump_type'
-UNION ALL
-SELECT 'lp_updates.file_path',
-       IF(COUNT(*) > 0, 'あり', 'なし')
-  FROM information_schema.COLUMNS
- WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'lp_updates' AND COLUMN_NAME = 'file_path';
+SHOW COLUMNS FROM lp_items   LIKE 'series';
+SHOW COLUMNS FROM lp_updates LIKE 'bump_type';
+SHOW COLUMNS FROM lp_updates LIKE 'file_path';

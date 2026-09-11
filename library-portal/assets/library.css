@@ -1803,12 +1803,29 @@
   background: #f2f6f3; border: 1px solid var(--lp-line-strong); border-radius: 7px;
   color: var(--lp-ink-soft);
 }
+.lp-attach-type-icon { display: inline-flex; flex: none; color: var(--lp-ink-soft); }
 .lp-attach-link {
   font-weight: 700; font-size: .8rem; color: var(--lp-deep); text-decoration: none;
   word-break: break-all;
 }
 .lp-attach-link:hover, .lp-attach-link:focus-visible { text-decoration: underline; }
 .lp-attach-size { font-size: .7rem; margin-left: auto; white-space: nowrap; }
+
+/* 添付が画像のときは、リンクだけでなく中身が一目でわかるようサムネイルを出す */
+.lp-attach-box-img {
+  flex-direction: column; align-items: stretch; gap: 8px;
+  padding: 10px;
+}
+.lp-attach-box-img .lp-attach-current-info { display: flex; align-items: center; gap: 8px; }
+.lp-attach-thumb-link { display: block; line-height: 0; border-radius: 6px; overflow: hidden; }
+.lp-attach-thumb {
+  display: block; max-width: 100%; width: auto; height: auto;
+  background: #fff; border: 1px solid var(--lp-line-strong); border-radius: 6px;
+  object-fit: contain;
+}
+.lp-attach-box-img .lp-attach-thumb { max-height: 130px; }
+.lp-attach-box-lg .lp-attach-thumb { max-height: 260px; margin: 0 auto; }
+.lp-attach-box-img .lp-attach-thumb-link:hover .lp-attach-thumb { border-color: var(--lp-gold); }
 
 /* 左ページの「この資料を開く」欄が、URL の代わりに添付ファイルを指すとき */
 .lp-attach-link-lg {
@@ -1837,7 +1854,11 @@
   background: #f2f6f3; border: 1px solid var(--lp-line-strong); border-radius: 7px;
   font-size: .78rem;
 }
+.lp-attach-current-info { display: flex; align-items: center; gap: 7px; min-width: 0; }
 .lp-attach-current-info a { color: var(--lp-deep); font-weight: 700; word-break: break-all; }
+.lp-attach-current .lp-attach-thumb {
+  max-width: 64px; max-height: 64px; flex: none;
+}
 .lp-attach-remove { display: inline-flex; align-items: center; gap: 5px; color: var(--lp-danger); cursor: pointer; }
 input[type="file"].lp-input { padding: 6px 10px; }
 input[type="file"].lp-input:disabled { opacity: .55; cursor: not-allowed; }
