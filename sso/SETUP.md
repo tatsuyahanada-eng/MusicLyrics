@@ -375,6 +375,25 @@ sudo -u www-data php bin/register_app.php \
 
 ### 手順10. アプリ側にファイルを置く
 
+**方法A：`bin/scaffold_client.php` で一括生成する（おすすめ）**
+
+登録済みのアプリ識別子と、置き先のディレクトリを指定するだけで、
+クライアント4ファイル・`sso_config.php`（app_secret反映済み）・
+`.htaccess`（秘密情報の保護）をまとめて生成します。
+手でコピー＆貼り付けする必要がなく、`app_secret` の転記ミスも起きません。
+
+```bash
+cd /var/www/welsys-sso
+php bin/scaffold_client.php --key=lyrics --dest=/var/www/lyrics/sso
+```
+
+何度実行しても安全です（既存のファイルは上書きされます。`app_secret` を
+再生成したあとの更新にも使えます）。
+
+**方法B：手動でコピーする**
+
+スクリプトを使わない場合は、次のように1つずつ用意します。
+
 ```bash
 sudo mkdir -p /var/www/lyrics/sso
 sudo cp /var/www/welsys-sso/client/SsoClient.php \
@@ -402,9 +421,13 @@ return [
 ];
 ```
 
+**どちらの方法でも共通の注意点：**
+
 > 4ファイルは**すべて同じ `sso/` に置きます**。パスの書き換えは不要です。
 > `app_secret` はサーバー間通信にだけ使う鍵で、ブラウザには一切送られません。
-> Git にコミットしないでください。
+> Git にコミットしないでください。共有ホスティングでドキュメントルートを
+> 変更できない場合は、`sso_config.php` への直接アクセスを `.htaccess`
+> （方法Aなら自動生成されます）で拒否してください。
 
 ### 手順11. 既存ページを保護する
 

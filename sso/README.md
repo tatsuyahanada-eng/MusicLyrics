@@ -236,6 +236,18 @@ php bin/register_app.php --key=lyrics --name='Music Lyrics' --url=https://lyrics
 
 ### ステップ2：アプリ側にファイルを置く
 
+**`bin/scaffold_client.php` を使うと、この手順が1コマンドで終わります。**
+
+```bash
+php bin/scaffold_client.php --key=lyrics --dest=/var/www/lyrics/sso
+```
+
+クライアント4ファイル・`app_secret` 入りの `sso_config.php`・保護用の
+`.htaccess` が、指定した場所にまとめて生成されます。手でのコピー＆貼り付けは不要です。
+
+<details>
+<summary>スクリプトを使わず、手で置く場合</summary>
+
 `sso/client/` の中身をアプリのサーバーにコピーします。
 
 ```
@@ -247,6 +259,7 @@ php bin/register_app.php --key=lyrics --name='Music Lyrics' --url=https://lyrics
     ├── sso_logout.php     ← client/sso_logout.php
     └── sso_config.php     ← 管理画面が表示した内容を貼り付け（公開厳禁）
 ```
+</details>
 
 4ファイルはすべて同じ `sso/` に入れます。パスの書き換えは要りません。
 ログアウトのリンク先は `/sso/sso_logout.php` です。
@@ -432,9 +445,10 @@ sso/
 │   ├── sso_config.sample.php
 │   └── example/            組み込みサンプル
 └── bin/
-    ├── install.php         初期セットアップ
-    ├── register_app.php    アプリ登録
-    └── gc.php              期限切れデータの掃除（cron 用）
+    ├── install.php           初期セットアップ
+    ├── register_app.php      アプリ登録
+    ├── scaffold_client.php   登録済みアプリの sso/ 一式を指定先に自動生成
+    └── gc.php                期限切れデータの掃除（cron 用）
 ```
 
 ---
