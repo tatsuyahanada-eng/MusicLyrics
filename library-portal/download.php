@@ -7,6 +7,7 @@
  * ダウンロードは必ずこの画面を経由させ、ログイン済みかどうかをここで確認する。
  */
 declare(strict_types=1);
+require __DIR__ . '/sso/sso_guard.php';
 require_once __DIR__ . '/includes/auth.php';
 
 require_login(); // 閲覧できる利用者なら誰でもダウンロード可（編集権限は問わない）

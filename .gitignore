@@ -4,6 +4,10 @@ MusicLyrics/
 # サーバー固有の接続情報（各環境で作成する）
 library-portal/includes/config.php
 
+# SSO（シングルサインオン）連携の秘密鍵。認証サーバーに登録した
+# このアプリ専用の app_secret が入っているため、config.php と同様に扱う
+library-portal/sso/sso_config.php
+
 # アップロードされた添付ファイル（利用者が登録するデータなのでリポジトリには含めない）
 library-portal/uploads/*
 !library-portal/uploads/.htaccess

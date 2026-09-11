@@ -1,0 +1,3 @@
+<FilesMatch "^(sso_config\.php|SsoClient\.php|sso_guard\.php)$">
+    Require all denied
+</FilesMatch>

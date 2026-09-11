@@ -1,42 +1,49 @@
 <?php
-/** 認証・権限・CSRF */
+/**
+ * 認証・権限・CSRF
+ *
+ * 本人確認（誰か）は sso/sso_guard.php が行い、結果を $SSO_USER に入れる。
+ * このアプリには「管理者／閲覧のみ」の区別を設けていないため、
+ * SSOでログインできた人は全員、登録・修正・削除ができる利用者として扱う。
+ *
+ * このファイルを読み込む前に、ページの一番先頭で
+ *   require __DIR__ . '/sso/sso_guard.php';
+ * を読み込んでおくこと（$SSO_USER が入っていない場合は未ログイン扱いになる）。
+ */
 declare(strict_types=1);
 
 require_once __DIR__ . '/db.php';
 require_once __DIR__ . '/helpers.php';
-require_once __DIR__ . '/auth_provider.php';
 
-/** セッション開始（クッキー設定込み） */
+/**
+ * セッションが開始済みであることの確認（保険）。
+ *
+ * 通常は sso/sso_guard.php が先にセッションを開始しているので、ここで
+ * 新たに session_start() が呼ばれることはない。呼ばれる場合でも、
+ * SSO側のセッション名を変えてしまわないよう session_name() は指定しない。
+ */
 function lp_session_start(): void
 {
-    if (session_status() === PHP_SESSION_ACTIVE) {
-        return;
+    if (session_status() === PHP_SESSION_NONE) {
+        session_start();
     }
-    $c = lp_config();
-    date_default_timezone_set($c['timezone'] ?? 'Asia/Tokyo');
-
-    session_name('LPSESSID');
-    session_set_cookie_params([
-        'lifetime' => 0,
-        'path'     => '/',
-        'secure'   => (bool)($c['secure_cookie'] ?? true),
-        'httponly' => true,
-        'samesite' => 'Lax',
-    ]);
-    session_start();
-
-    // 無操作タイムアウト
-    $limit = (int)($c['session_minutes'] ?? 480) * 60;
-    if (isset($_SESSION['last_seen']) && (time() - (int)$_SESSION['last_seen']) > $limit) {
-        lp_logout();
-    }
-    $_SESSION['last_seen'] = time();
 }
 
 /** ログイン中の利用者（未ログインなら null） */
 function current_user(): ?array
 {
-    return $_SESSION['user'] ?? null;
+    global $SSO_USER;
+    if (empty($SSO_USER) || empty($SSO_USER['username'])) {
+        return null;
+    }
+    return [
+        // このアプリ独自の利用者IDは持たない（共通ログインのため）。
+        // author_user_id など DB 上の該当列は NULL 可にしてある
+        'user_id'      => null,
+        'login_id'     => (string)$SSO_USER['username'],
+        'display_name' => (string)($SSO_USER['display_name'] ?? $SSO_USER['username']),
+        'role'         => 'admin',
+    ];
 }
 
 function is_logged_in(): bool
@@ -44,18 +51,19 @@ function is_logged_in(): bool
     return current_user() !== null;
 }
 
+/** このアプリの利用者は全員管理者（権限の区別が無いため） */
 function is_admin(): bool
 {
-    $u = current_user();
-    return $u !== null && ($u['role'] ?? '') === 'admin';
+    return is_logged_in();
 }
 
-/** 未ログインならログイン画面へ */
+/** 未ログインならログイン画面（SSO）へ */
 function require_login(): array
 {
-    lp_session_start();
     $u = current_user();
     if ($u === null) {
+        // sso/sso_guard.php をまだ読み込んでいないページから呼ばれた場合の保険。
+        // login.php が改めて SSO へ送る
         $to = $_SERVER['REQUEST_URI'] ?? '';
         header('Location: login.php' . ($to !== '' ? '?to=' . urlencode($to) : ''));
         exit;
@@ -63,15 +71,10 @@ function require_login(): array
     return $u;
 }
 
-/** 管理者でなければ 403 */
+/** このアプリに管理者／閲覧のみの区別は無いため、ログインしていれば常に許可 */
 function require_admin(): array
 {
-    $u = require_login();
-    if (($u['role'] ?? '') !== 'admin') {
-        http_response_code(403);
-        exit('この画面を表示する権限がありません。');
-    }
-    return $u;
+    return require_login();
 }
 
 /**
@@ -110,7 +113,6 @@ function api_install_error_handler(): void
 function api_require_login(): array
 {
     api_install_error_handler();
-    lp_session_start();
     $u = current_user();
     if ($u === null) {
         json_error('ログインが必要です。', 401);
@@ -120,96 +122,7 @@ function api_require_login(): array
 
 function api_require_admin(): array
 {
-    $u = api_require_login();
-    if (($u['role'] ?? '') !== 'admin') {
-        json_error('この操作には管理者権限が必要です。', 403);
-    }
-    return $u;
-}
-
-/** ログイン処理。成功なら true、失敗なら理由メッセージを返す */
-function lp_login(string $loginId, string $password)
-{
-    $c = lp_config();
-    // 認証情報の取得（ローカル or 共通ユーザーDB）
-    $user = provider_find_user($loginId);
-
-    // 利用者が存在しない場合も同じ処理時間になるようダミー検証を行う
-    if (!$user) {
-        password_verify($password, '$2y$10$usesomesillystringfore7hnbRJHxXVLeakoG8K30M1TDx1v.3fu');
-        return 'ログインIDまたはパスワードが正しくありません。';
-    }
-    if ((int)$user['is_active'] !== 1) {
-        return 'このアカウントは停止されています。管理者にお問い合わせください。';
-    }
-    if ($user['locked_until'] !== null && strtotime((string)$user['locked_until']) > time()) {
-        return 'ログイン失敗が続いたため一時的にロックされています。しばらくしてからお試しください。';
-    }
-    if (!password_verify($password, (string)$user['password_hash'])) {
-        $failed = (int)$user['failed_count'] + 1;
-        $lockUntil = null;
-        if ($failed >= (int)($c['max_failed'] ?? 5)) {
-            $lockUntil = date('Y-m-d H:i:s', time() + (int)($c['lock_minutes'] ?? 10) * 60);
-            $failed = 0;
-        }
-        provider_record_failure((int)$user['user_id'], $failed, $lockUntil);
-        return 'ログインIDまたはパスワードが正しくありません。';
-    }
-
-    // 認可：このアプリでの権限を求める（共通ユーザーDBでも app_key 単位で判定）
-    $role = resolve_role((int)$user['user_id']);
-    if ($role === null) {
-        return 'このアプリケーションの利用権限が付与されていません。管理者にお問い合わせください。';
-    }
-
-    session_regenerate_id(true);
-    $_SESSION['user'] = [
-        'user_id'        => (int)$user['user_id'],
-        'login_id'       => $user['login_id'],
-        'display_name'   => $user['display_name'],
-        'role'           => $role,
-        'must_change_pw' => (int)($user['must_change_pw'] ?? 0) === 1,
-    ];
-    $_SESSION['last_seen'] = time();
-
-    provider_record_success((int)$user['user_id']);
-    audit('login', $user['login_id'], 'mode=' . lp_auth_mode() . ' role=' . $role);
-    return true;
-}
-
-function lp_logout(): void
-{
-    $_SESSION = [];
-    if (ini_get('session.use_cookies')) {
-        $p = session_get_cookie_params();
-        setcookie(session_name(), '', time() - 42000, $p['path'], $p['domain'], $p['secure'], $p['httponly']);
-    }
-    session_destroy();
-}
-
-/**
- * セッション上の権限情報を最新の状態へ更新する。
- * 画面を開くたびに呼ばれるため、共通ユーザーDB側で権限が変更・停止された場合は
- * 次の画面遷移で即座に反映されます。
- */
-function refresh_current_user(): void
-{
-    $u = current_user();
-    if ($u === null) {
-        return;
-    }
-    $row = provider_get_user((int)$u['user_id']);
-    if (!$row || (int)$row['is_active'] !== 1) {
-        lp_logout();
-        return;
-    }
-    $role = resolve_role((int)$u['user_id']);
-    if ($role === null) {          // このアプリの利用権限が取り消された
-        lp_logout();
-        return;
-    }
-    $_SESSION['user']['role'] = $role;
-    $_SESSION['user']['display_name'] = $row['display_name'];
+    return api_require_login();
 }
 
 /** CSRF トークン */
@@ -234,16 +147,4 @@ function api_verify_csrf(): void
     if (!verify_csrf($token)) {
         json_error('セッションの有効期限が切れています。画面を再読み込みしてください。', 419);
     }
-}
-
-/** パスワードの強度チェック。問題なければ null、あればメッセージ */
-function password_problem(string $pw): ?string
-{
-    if (mb_strlen($pw) < 8) {
-        return 'パスワードは8文字以上で設定してください。';
-    }
-    if (!preg_match('/[A-Za-z]/', $pw) || !preg_match('/[0-9]/', $pw)) {
-        return 'パスワードは英字と数字を両方含めてください。';
-    }
-    return null;
 }
