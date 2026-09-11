@@ -1,5 +1,6 @@
 <?php
 declare(strict_types=1);
+require __DIR__ . '/sso/sso_guard.php';
 require_once __DIR__ . '/includes/auth.php';
 
 $user = require_login();
