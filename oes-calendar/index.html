@@ -124,23 +124,21 @@ input:focus,select:focus,textarea:focus{border-color:var(--blue);box-shadow:0 0 
 .ampm label.on{background:linear-gradient(135deg,var(--blue) 0%,var(--blue) 62%,var(--sky) 62%,var(--sky) 100%);color:#fff;border-color:var(--blue);}
 .ampm input{position:absolute;width:1px;height:1px;opacity:0;pointer-events:none;}
 
-/* ---------- ②日付と時間帯 / ③店舗名と住所の入力行 ---------- */
-.dt-row,.st-row{border:1px solid var(--line);border-radius:var(--r-s);padding:9px 10px;background:var(--blue-l2);}
-.dt-row + .dt-row,.st-row + .st-row{margin-top:8px;}
+/* ---------- ②日付・時刻・店舗名・住所の入力行（1件ずつまとめて入力） ---------- */
+.item-row{border:1px solid var(--line);border-radius:var(--r-s);padding:9px 10px;background:var(--blue-l2);}
+.item-row + .item-row{margin-top:8px;}
 .st-no{
   display:inline-flex;align-items:center;justify-content:center;min-width:22px;height:22px;padding:0 6px;
   border-radius:6px;background:var(--sky);color:#fff;font-size:11.5px;font-weight:700;flex-shrink:0;
 }
-.dt-row .st-no{margin-bottom:6px;}
-.dt-row .dt-f{display:grid;grid-template-columns:1fr;gap:6px;}
-.st-head{display:flex;align-items:center;gap:8px;margin-bottom:6px;flex-wrap:wrap;}
-.st-when{font-size:12.5px;font-weight:700;color:var(--blue-d);}
-.st-when.empty-when{font-weight:400;color:var(--muted);}
-.st-row .st-f{display:grid;grid-template-columns:1fr;gap:6px;}
+.item-row > .st-no{display:block;width:fit-content;margin-bottom:6px;}
+.item-row .dt-f{display:grid;grid-template-columns:1fr;gap:6px;}
+.item-row .st-f{display:grid;grid-template-columns:1fr;gap:6px;margin-top:8px;}
 .modal-sum{font-size:12.5px;color:var(--muted);line-height:1.7;margin-bottom:10px;}
 .modal-sum b{color:var(--blue-d);font-size:14px;}
 @media (min-width:600px){
-  .dt-row .dt-f,.st-row .st-f{grid-template-columns:1fr 1fr;gap:8px;}
+  .item-row .dt-f{grid-template-columns:1fr 1fr 1fr;gap:8px;}
+  .item-row .st-f{grid-template-columns:1fr 1fr;gap:8px;}
 }
 
 /* ---------- 作業当日：貼り付けの案内 ---------- */
@@ -484,42 +482,28 @@ input:focus,select:focus,textarea:focus{border-color:var(--blue);box-shadow:0 0 
         </div>
         <div class="step-next" id="next1">
           <span class="sn-msg"></span>
-          <button class="btn btn-primary btn-sm" onclick="goStep(2)">次へ：日付と時刻を選ぶ ↓</button>
+          <button class="btn btn-primary btn-sm" onclick="goStep(2)">次へ：日付・店舗名を入力する ↓</button>
         </div>
       </div>
     </div>
 
     <div class="card step-card" id="step2">
       <div class="card-head">
-        <div class="card-title"><span class="step">2</span>日付と時刻を選ぶ<span class="step-badge" id="badge2"></span></div>
+        <div class="card-title"><span class="step">2</span>日付・店舗名を入力<span class="step-badge" id="badge2"></span></div>
       </div>
       <div class="card-body">
-        <div class="hint" style="margin-bottom:9px;">件数ぶんの日付と時刻を1件ずつ選びます。同じ日に何件でも、別々の日でもかまいません。</div>
-        <div id="date-rows"></div>
-        <div class="step-next" id="next2">
-          <span class="sn-msg"></span>
-          <button class="btn btn-primary btn-sm" onclick="goStep(3)">次へ：店舗名を入力する ↓</button>
-        </div>
-      </div>
-    </div>
-
-    <div class="card step-card" id="step3">
-      <div class="card-head">
-        <div class="card-title"><span class="step">3</span>店舗名と住所を入力<span class="step-badge" id="badge3"></span></div>
-      </div>
-      <div class="card-body">
-        <div class="hint" style="margin-bottom:9px;">②で選んだ日付・時間帯が各件の見出しに表示されます。住所は空欄でもかまいません。</div>
-        <div id="store-rows"></div>
-        <div class="step-next" id="next3"><span class="sn-msg"></span></div>
+        <div class="hint" style="margin-bottom:9px;">1件ずつ、日付・時刻・店舗名をまとめて入力します。同じ日に何件でも、別々の日でもかまいません。住所は空欄でもかまいません。</div>
+        <div id="item-rows"></div>
+        <div class="step-next" id="next2"><span class="sn-msg"></span></div>
         <button class="btn btn-primary btn-block" style="margin-top:11px;" onclick="submitStoreRows()">
           <span id="btn-submit-rows-label">この1件を登録リストへ</span>
         </button>
       </div>
     </div>
 
-    <div class="card step-card" id="step4">
+    <div class="card step-card" id="step3">
       <div class="card-head">
-        <div class="card-title"><span class="step">4</span>一覧で確認してGoogleカレンダーへ登録<span class="step-badge" id="badge4"></span></div>
+        <div class="card-title"><span class="step">3</span>一覧で確認してGoogleカレンダーへ登録<span class="step-badge" id="badge3"></span></div>
       </div>
       <div class="list-toolbar">
         <button class="btn btn-primary btn-sm" onclick="startQueue()">
@@ -1059,17 +1043,15 @@ function collectDraft(){
   };
   var wg = $('w-gyotai'), wc = $('w-count');
   var rows = [];
-  Array.prototype.forEach.call(document.querySelectorAll('#date-rows .dt-row'), function(row){
-    var i = row.getAttribute('data-idx');
-    var sRow = document.querySelector('#store-rows .st-row[data-idx="' + i + '"]');
+  Array.prototype.forEach.call(document.querySelectorAll('#item-rows .item-row'), function(row){
     var dtEl = row.querySelector('.dr-date');
     var sEl = row.querySelector('.dr-start'), eEl = row.querySelector('.dr-end');
     rows.push({
       date: dtEl ? dtEl.value : '',
       start: sEl ? sEl.value : '',
       end: eEl ? eEl.value : '',
-      tenpo: sRow ? sRow.querySelector('.sr-tenpo').value : '',
-      address: sRow ? sRow.querySelector('.sr-addr').value : ''
+      tenpo: row.querySelector('.sr-tenpo').value,
+      address: row.querySelector('.sr-addr').value
     });
   });
   d.cal = { gyotaiId: wg ? wg.value : '', count: wc ? wc.value : '', rows: rows };
@@ -1135,17 +1117,15 @@ function restoreDraft(){
     renderStoreRows();
   }
   (cal.rows || []).forEach(function(r, i){
-    var dRow = document.querySelector('#date-rows .dt-row[data-idx="' + i + '"]');
-    var sRow = document.querySelector('#store-rows .st-row[data-idx="' + i + '"]');
-    if(!dRow) return;
-    var dtEl = dRow.querySelector('.dr-date');
+    var row = document.querySelector('#item-rows .item-row[data-idx="' + i + '"]');
+    if(!row) return;
+    var dtEl = row.querySelector('.dr-date');
     if(dtEl && r.date){ dtEl.value = r.date; restored = true; }
-    if(sRow && r.tenpo){ sRow.querySelector('.sr-tenpo').value = r.tenpo; restored = true; }
-    if(sRow && r.address){ sRow.querySelector('.sr-addr').value = r.address; restored = true; }
-    var sEl = dRow.querySelector('.dr-start'), eEl = dRow.querySelector('.dr-end');
+    if(r.tenpo){ row.querySelector('.sr-tenpo').value = r.tenpo; restored = true; }
+    if(r.address){ row.querySelector('.sr-addr').value = r.address; restored = true; }
+    var sEl = row.querySelector('.dr-start'), eEl = row.querySelector('.dr-end');
     if(sEl && r.start){ sEl.innerHTML = timeOptionsHtml(r.start); sEl.value = r.start; }
     if(eEl && r.end){   eEl.innerHTML = timeOptionsHtml(r.end);   eEl.value = r.end; }
-    if(r.date) updateRowWhen(i);
   });
   updateWizardHints();
   updateWizardNav();
@@ -1439,12 +1419,11 @@ function onWizGyotaiChange(){
 /* 業態を変えたら、②の各行の開始・終了時刻をその業態の時刻に入れ替える */
 function applyGyotaiTimesToRows(){
   var d = wizDefaultTimes();
-  Array.prototype.forEach.call(document.querySelectorAll('#date-rows .dt-row'), function(row){
+  Array.prototype.forEach.call(document.querySelectorAll('#item-rows .item-row'), function(row){
     var sEl = row.querySelector('.dr-start'), eEl = row.querySelector('.dr-end');
     if(sEl){ sEl.innerHTML = timeOptionsHtml(d.start); sEl.value = d.start; }
     if(eEl){ eEl.innerHTML = timeOptionsHtml(d.end);   eEl.value = d.end; }
   });
-  updateAllRowWhen();
 }
 function onWCountChange(){
   renderStoreRows();
@@ -1452,7 +1431,7 @@ function onWCountChange(){
   saveDraftSoon();
 }
 /* =========================================================================
-   ①→②→③→④の進行案内
+   ①→②→③の進行案内
    いま何をすればよいかを各カードのバッジで示し、その項目が終わったら
    次のカードへ進むボタンを出す。
    ========================================================================= */
@@ -1460,39 +1439,34 @@ function wizStepState(){
   var cnt = parseInt(($('w-count') ? $('w-count').value : '1'), 10) || 1;
   var dated = 0, named = 0;
   for(var i = 0; i < cnt; i++){
-    var dRow = dateRow(i);
-    var sRow = document.querySelector('#store-rows .st-row[data-idx="' + i + '"]');
-    if(dRow && dRow.querySelector('.dr-date').value) dated++;
-    if(sRow && sRow.querySelector('.sr-tenpo').value.trim()) named++;
+    var row = dateRow(i);
+    if(!row) continue;
+    if(row.querySelector('.dr-date').value) dated++;
+    if(row.querySelector('.sr-tenpo').value.trim()) named++;
   }
   return { count: cnt, dated: dated, named: named, entries: entries.length };
 }
 function updateWizardNav(){
-  if(!$('date-rows')) return;
+  if(!$('item-rows')) return;
   var st = wizStepState();
   var step1ok = !!($('w-gyotai') && $('w-gyotai').value);
-  var step2ok = st.dated > 0;
-  var step3ok = step2ok && st.named > 0;
+  var step2ok = st.dated > 0 && st.named > 0;
 
   /* いま取り組むステップ（未完のいちばん手前） */
-  var now = !step1ok ? 1 : (!step2ok ? 2 : (!step3ok ? 3 : (st.entries ? 4 : 3)));
+  var now = !step1ok ? 1 : (!step2ok ? 2 : (st.entries ? 3 : 2));
 
   setBadge(1, step1ok ? 'ok' : 'now', step1ok ? (st.count + '件') : '選んでください');
-  setBadge(2, step2ok ? (st.dated === st.count ? 'ok' : 'now') : (now === 2 ? 'now' : ''),
-    st.dated + ' / ' + st.count + '件');
-  setBadge(3, step3ok ? (st.named === st.dated ? 'ok' : 'now') : (now === 3 ? 'now' : ''),
+  setBadge(2, step2ok ? (st.named === st.count ? 'ok' : 'now') : (now === 2 ? 'now' : ''),
     st.named + ' / ' + st.count + '件');
-  setBadge(4, st.entries ? 'ok' : '', st.entries + '件');
+  setBadge(3, st.entries ? 'ok' : '', st.entries + '件');
 
   Array.prototype.forEach.call(document.querySelectorAll('#pane-cal .step-card'), function(card, i){
     card.classList.toggle('now', (i + 1) === now);
   });
 
   setNext(1, step1ok && !step2ok,
-    '① ができました。次は <b>②で日付と時刻</b>を選びます。');
-  setNext(2, step2ok && !step3ok,
-    st.dated + '件の日付が決まりました。次は <b>③で店舗名</b>を入力します。');
-  setNext(3, step3ok,
+    '① ができました。次は <b>②で日付・店舗名</b>を入力します。');
+  setNext(2, step2ok,
     '入力できたら、下の「この' + st.count + '件を登録リストへ」を押してください。');
 }
 function setBadge(n, cls, text){
@@ -1514,8 +1488,7 @@ function goStep(n){
   if(!card) return;
   if(card.scrollIntoView) card.scrollIntoView({ behavior:'smooth', block:'start' });
   setTimeout(function(){
-    var el = (n === 2) ? document.querySelector('#date-rows .dr-date')
-           : (n === 3) ? document.querySelector('#store-rows .sr-tenpo') : null;
+    var el = (n === 2) ? document.querySelector('#item-rows .dr-date') : null;
     if(el && el.focus) el.focus();
   }, 350);
 }
@@ -1566,7 +1539,6 @@ function fixRowTimes(i, changed){
 }
 function onRowTimeChange(i, which){
   fixRowTimes(i, which);
-  updateRowWhen(i);
   if(i === 0) applyFirstRowTimeToOthers();
   updateWizardNav();
   saveDraftSoon();
@@ -1584,7 +1556,6 @@ function applyFirstRowTimeToOthers(){
     var sEl = row.querySelector('.dr-start'), eEl = row.querySelector('.dr-end');
     if(sEl){ sEl.innerHTML = timeOptionsHtml(sVal); sEl.value = sVal; }
     if(eEl){ eEl.innerHTML = timeOptionsHtml(eVal); eEl.value = eVal; }
-    updateRowWhen(i);
   }
 }
 function rowTimes(i){
@@ -1601,16 +1572,14 @@ function updateWizardHints(){
   th.textContent = 'この業態の時間帯: '
     + g.slots.map(function(sl){ return sl.label + ' ' + sl.start + '〜' + sl.end; }).join(' ／ ')
     + '（②では1件ずつ自由な時刻に変えられます）';
-  updateAllRowWhen();
 }
 
-/* ---------- ②日付と時間帯を選ぶ / ③店舗名と住所を入力 ----------
-   ②と③は同じ件数ぶんの行を持ち、行番号（data-idx）で1対1に対応する。
-   ②で選んだ日付・時間帯は、③の各行の見出しにそのまま表示する。            */
-function dateRowHtml(i){
+/* ---------- ②日付・時刻・店舗名・住所をまとめて入力 ----------
+   件数ぶんの行を持ち、行番号（data-idx）ごとに1件分の内容をすべて入力する。 */
+function itemRowHtml(i){
   var d = (i > 0) ? firstRowTimesOrDefault() : wizDefaultTimes();
   return ''
-   + '<div class="dt-row" data-idx="' + i + '">'
+   + '<div class="item-row" data-idx="' + i + '">'
    +   '<span class="st-no">' + (i+1) + '件目</span>'
    +   '<div class="dt-f">'
    +     '<div class="field"><label>日付</label>'
@@ -1620,84 +1589,47 @@ function dateRowHtml(i){
    +     '<div class="field"><label>終了</label>'
    +       '<select class="dr-end" onchange="onRowTimeChange(' + i + ',\'end\')">' + timeOptionsHtml(d.end) + '</select></div>'
    +   '</div>'
-   + '</div>';
-}
-function storeRowHtml(i){
-  return ''
-   + '<div class="st-row" data-idx="' + i + '">'
-   +   '<div class="st-head">'
-   +     '<span class="st-no">' + (i+1) + '件目</span>'
-   +     '<span class="st-when" id="st-when-' + i + '">日付を選んでください</span>'
-   +   '</div>'
    +   '<div class="st-f">'
    +     '<div class="field"><label>店舗名</label><input type="text" class="sr-tenpo" placeholder="例: 渋谷" autocomplete="off" oninput="updateWizardNav(); saveDraftSoon();"></div>'
    +     '<div class="field"><label>住所（任意）</label><input type="text" class="sr-addr" placeholder="例: 東京都渋谷区…" autocomplete="off" oninput="saveDraftSoon()"></div>'
    +   '</div>'
    + '</div>';
 }
-function onRowDateChange(i){ updateRowWhen(i); updateWizardNav(); saveDraftSoon(); }
-function dateRow(i){ return document.querySelector('#date-rows .dt-row[data-idx="' + i + '"]'); }
-/* ②の内容を③の見出し（何月何日の何時からか）に反映する */
-function updateRowWhen(i){
-  var el = $('st-when-' + i);
-  if(!el) return;
-  var row = dateRow(i);
-  var ds = row ? row.querySelector('.dr-date').value : '';
-  if(!ds){ el.textContent = '日付を選んでください'; el.classList.add('empty-when'); return; }
-  var t = rowTimes(i);
-  el.classList.remove('empty-when');
-  el.textContent = fmtDateShort(ds) + '　' + t.start + '〜' + t.end;
-}
-function updateAllRowWhen(){
-  var cnt = parseInt($('w-count').value, 10) || 1;
-  for(var i = 0; i < cnt; i++) updateRowWhen(i);
-}
-/* 稼働件数に合わせて②と③の行を過不足なく増減する（入力済みの行はそのまま残す） */
+function onRowDateChange(i){ updateWizardNav(); saveDraftSoon(); }
+function dateRow(i){ return document.querySelector('#item-rows .item-row[data-idx="' + i + '"]'); }
+/* 稼働件数に合わせて②の行を過不足なく増減する（入力済みの行はそのまま残す） */
 function renderStoreRows(){
-  var dHost = $('date-rows'), sHost = $('store-rows');
-  if(!dHost || !sHost) return;
+  var host = $('item-rows');
+  if(!host) return;
   var cnt = parseInt($('w-count').value, 10) || 1;
 
-  var dRows = dHost.querySelectorAll('.dt-row');
-  if(cnt > dRows.length){
-    var dFrag = '';
-    for(var i = dRows.length; i < cnt; i++) dFrag += dateRowHtml(i);
-    dHost.insertAdjacentHTML('beforeend', dFrag);
-  }else if(cnt < dRows.length){
-    for(var j = dRows.length - 1; j >= cnt; j--) dRows[j].remove();
-  }
-
-  var sRows = sHost.querySelectorAll('.st-row');
-  if(cnt > sRows.length){
-    var sFrag = '';
-    for(var k = sRows.length; k < cnt; k++) sFrag += storeRowHtml(k);
-    sHost.insertAdjacentHTML('beforeend', sFrag);
-  }else if(cnt < sRows.length){
-    for(var m = sRows.length - 1; m >= cnt; m--) sRows[m].remove();
+  var rows = host.querySelectorAll('.item-row');
+  if(cnt > rows.length){
+    var frag = '';
+    for(var i = rows.length; i < cnt; i++) frag += itemRowHtml(i);
+    host.insertAdjacentHTML('beforeend', frag);
+  }else if(cnt < rows.length){
+    for(var j = rows.length - 1; j >= cnt; j--) rows[j].remove();
   }
 
   var lbl = $('btn-submit-rows-label');
   if(lbl) lbl.textContent = 'この' + cnt + '件を登録リストへ';
-  updateAllRowWhen();
 }
 function resetStoreRows(){
   var d = wizDefaultTimes();
-  Array.prototype.forEach.call(document.querySelectorAll('#date-rows .dt-row'), function(row){
+  Array.prototype.forEach.call(document.querySelectorAll('#item-rows .item-row'), function(row){
     row.querySelector('.dr-date').value = '';
     var sEl = row.querySelector('.dr-start'), eEl = row.querySelector('.dr-end');
     if(sEl){ sEl.innerHTML = timeOptionsHtml(d.start); sEl.value = d.start; }
     if(eEl){ eEl.innerHTML = timeOptionsHtml(d.end);   eEl.value = d.end; }
-  });
-  document.querySelectorAll('#store-rows .st-row').forEach(function(row){
     row.querySelector('.sr-tenpo').value = '';
     row.querySelector('.sr-addr').value = '';
   });
-  updateAllRowWhen();
   updateWizardNav();
   saveDraftSoon();
 }
-/* ①②③の入力と④の登録リストを、すべて最初の状態に戻す（利用者の指定：
-   「最初からやり直す」なので、まだGoogleカレンダーへ登録していない④の一覧も一緒に消す） */
+/* ①②の入力と③の登録リストを、すべて最初の状態に戻す（利用者の指定：
+   「最初からやり直す」なので、まだGoogleカレンダーへ登録していない③の一覧も一緒に消す） */
 function clearWizardAll(){
   if(entries.length && !confirm('入力中の内容と、登録リストの' + entries.length + '件をすべてクリアします。よろしいですか？')) return;
   var gySel = $('w-gyotai'), cntSel = $('w-count');
@@ -1717,16 +1649,15 @@ function submitStoreRows(){
   var cnt = parseInt($('w-count').value, 10) || 1;
   var added = 0, skipped = 0;
   for(var i = 0; i < cnt; i++){
-    var dRow = dateRow(i);
-    var sRow = document.querySelector('#store-rows .st-row[data-idx="' + i + '"]');
-    if(!dRow || !sRow) continue;
-    var ds = dRow.querySelector('.dr-date').value;
+    var row = dateRow(i);
+    if(!row) continue;
+    var ds = row.querySelector('.dr-date').value;
     if(!ds){ skipped++; continue; }
     var t = rowTimes(i);
     var sl = slotNearestTime(g, t.start);   /* どの定型文を使うかは開始時刻から決める */
     if(!sl) continue;
-    var tenpo = sRow.querySelector('.sr-tenpo').value.trim();
-    var addr  = sRow.querySelector('.sr-addr').value.trim();
+    var tenpo = row.querySelector('.sr-tenpo').value.trim();
+    var addr  = row.querySelector('.sr-addr').value.trim();
     var en = {
       id: uid('e'), date: ds,
       gyotaiId: g.id, gyotaiName: g.name,
