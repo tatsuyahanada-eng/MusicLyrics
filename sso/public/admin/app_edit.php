@@ -34,6 +34,23 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         redirect(url_with(Config::baseUrl('admin/app_edit.php'), ['id' => $id]));
     }
 
+    if ($action === 'bulk_allow_all' && !$isNew) {
+        $userIds = array_map(
+            static fn (array $u): int => (int) $u['id'],
+            array_filter(Users::allActive(), static fn (array $u): bool => $u['status'] === 'active')
+        );
+        $count = Permissions::bulkSet($userIds, $id, Permissions::ALLOW, (int) $admin['id']);
+        flash('success', "現在登録されている有効なユーザー {$count} 人全員に、このアプリの閲覧を許可しました。");
+        redirect(url_with(Config::baseUrl('admin/app_edit.php'), ['id' => $id]));
+    }
+
+    if ($action === 'bulk_reset_all' && !$isNew) {
+        $userIds = array_map(static fn (array $u): int => (int) $u['id'], Users::allActive());
+        $count = Permissions::bulkSet($userIds, $id, Permissions::DEFAULT, (int) $admin['id']);
+        flash('success', "全ユーザー（{$count}人）の個別設定を解除し、既定ポリシーに戻しました。");
+        redirect(url_with(Config::baseUrl('admin/app_edit.php'), ['id' => $id]));
+    }
+
     $form = [
         'app_key'        => post('app_key'),
         'name'           => post('name'),
@@ -153,6 +170,39 @@ View::head($isNew ? 'アプリの登録' : 'アプリの編集', $admin, 'apps')
         <input type="hidden" name="action" value="rotate">
         <button class="btn btn--danger btn--sm" type="submit">共有秘密鍵を再生成</button>
       </form>
+    </div>
+
+    <?php
+      $totalUserCount = (int) Db::value("SELECT COUNT(*) FROM users WHERE status = 'active'");
+      $allowedCount    = (int) (Permissions::allowCountsByApp()[$id] ?? 0);
+    ?>
+    <div class="card">
+      <h2 class="card__title">ユーザーへの一括許可</h2>
+      <p class="card__note">
+        新しく登録したアプリを、ユーザー1人ずつ許可して回るのは手間なので、
+        まとめて設定できます。現在、有効なユーザー <?= $totalUserCount ?> 人中
+        <strong><?= $allowedCount ?> 人</strong>がこのアプリを閲覧できます。
+      </p>
+
+      <form method="post" style="display:inline-block;margin-right:8px"
+            onsubmit="return confirm('現在登録されている有効なユーザー全員（<?= $totalUserCount ?>人）に、このアプリの閲覧を許可します。よろしいですか？');">
+        <?= Csrf::field() ?>
+        <input type="hidden" name="action" value="bulk_allow_all">
+        <button class="btn" type="submit">全員に一括で許可を出す</button>
+      </form>
+
+      <form method="post" style="display:inline-block"
+            onsubmit="return confirm('全ユーザーの個別設定（許可／拒否）を解除し、既定ポリシー（<?= $form['default_policy'] === 'allow' ? '全員に許可' : '許可した人のみ' ?>）に戻します。よろしいですか？');">
+        <?= Csrf::field() ?>
+        <input type="hidden" name="action" value="bulk_reset_all">
+        <button class="btn btn--ghost" type="submit">全員の個別設定を解除（既定に戻す）</button>
+      </form>
+
+      <p class="muted" style="margin-top:12px">
+        今後追加する新しいユーザーにも常に見せたい場合は、上の基本情報にある
+        「既定ポリシー」を「全員に許可」にしておくと、この操作自体が不要になります。
+        個別に拒否したい人だけをあとから止めれば済みます。
+      </p>
     </div>
 
     <?php
