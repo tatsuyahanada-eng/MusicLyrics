@@ -517,6 +517,24 @@ $me = findLocalUser($localUserId);      // 以降は今までのコードのま�
 
 ---
 
+## 5-4. 【既に運用中の環境向け】役割（role）機能を追加する場合
+
+`app_permissions` テーブルに `role` 列が無いバージョンから引き続き使う場合は、
+SSHで次の1行を実行してください（新規に `bin/install.php` で構築した環境には
+最初から入っているので不要です）。
+
+```bash
+mysql -h <DBホスト名> -u <DBユーザー名> -p <DB名> -e "
+ALTER TABLE app_permissions
+  ADD COLUMN role VARCHAR(60) NOT NULL DEFAULT '' AFTER effect;"
+```
+
+既存の許可／拒否の設定には影響しません。実行後、`sso/` 一式（`lib/Permissions.php`・
+`public/validate.php`・`public/admin/user_edit.php`）を最新の内容に差し替えれば、
+ユーザー編集画面に「役割」欄が表示されるようになります。
+
+---
+
 ## 6. 日々の運用
 
 | やりたいこと | 場所 |

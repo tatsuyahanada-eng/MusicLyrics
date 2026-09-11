@@ -59,12 +59,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         if ($errors === []) {
             if ($isNew) {
                 $newId = Users::create($input, (int) $admin['id']);
-                // 追加と同時に閲覧許可も設定できるようにする
-                $effects = [];
+                // 追加と同時に閲覧許可・役割も設定できるようにする
+                $entries = [];
                 foreach ($apps as $app) {
-                    $effects[(int) $app['id']] = (string) ($_POST['perm'][(int) $app['id']] ?? '');
+                    $appId = (int) $app['id'];
+                    $entries[$appId] = [
+                        'effect' => (string) ($_POST['perm'][$appId] ?? ''),
+                        'role'   => (string) ($_POST['role'][$appId] ?? ''),
+                    ];
                 }
-                Permissions::replaceForUser($newId, $effects, (int) $admin['id']);
+                Permissions::replacePermissionsForUser($newId, $entries, (int) $admin['id']);
                 flash('success', 'ユーザー「' . $input['username'] . '」を追加しました。');
                 redirect(url_with(Config::baseUrl('admin/user_edit.php'), ['id' => $newId]));
             }
@@ -74,16 +78,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
     }
 
-    // ── 閲覧許可の保存 ─────────────────────────────────────
+    // ── 閲覧許可・役割の保存 ───────────────────────────────
     if ($action === 'permissions' && !$isNew) {
-        $effects = [];
+        $entries = [];
         foreach ($apps as $app) {
             $appId = (int) $app['id'];
-            $effects[$appId] = (string) ($_POST['perm'][$appId] ?? '');
+            $entries[$appId] = [
+                'effect' => (string) ($_POST['perm'][$appId] ?? ''),
+                'role'   => (string) ($_POST['role'][$appId] ?? ''),
+            ];
             Apps::linkExternalUser($appId, $id, trim((string) ($_POST['ext'][$appId] ?? '')), (int) $admin['id']);
         }
-        Permissions::replaceForUser($id, $effects, (int) $admin['id']);
-        flash('success', '閲覧許可を更新しました。');
+        Permissions::replacePermissionsForUser($id, $entries, (int) $admin['id']);
+        flash('success', '閲覧許可・役割を更新しました。');
         redirect(url_with(Config::baseUrl('admin/user_edit.php'), ['id' => $id]));
     }
 
@@ -104,6 +111,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 }
 
 $permMap = $isNew ? [] : Permissions::explicitMapForUser($id);
+$roleMap = $isNew ? [] : Permissions::roleMapForUser($id);
 $extMap  = $isNew ? [] : Apps::externalIdsFor($id);
 
 View::head($isNew ? 'ユーザーの追加' : 'ユーザーの編集', $admin, 'users');
@@ -188,25 +196,32 @@ View::head($isNew ? 'ユーザーの追加' : 'ユーザーの編集', $admin, '
 
       <div class="card">
         <h2 class="card__title">アプリの閲覧許可</h2>
-        <p class="card__note">追加と同時に設定できます。あとから変更もできます。</p>
+        <p class="card__note">
+          追加と同時に設定できます。あとから変更もできます。<br>
+          「役割」は自由入力です（例：<code>viewer</code> / <code>editor</code> / <code>admin</code>）。
+          アプリ側がその文字列を見て、編集ボタンの表示・非表示などを判断します。
+          役割を設定するには、閲覧を「許可」か「拒否」にしてください（「既定」のままだと役割は保存されません）。
+        </p>
         <div class="table-wrap">
           <table class="data">
-            <thead><tr><th>アプリケーション</th><th>閲覧</th></tr></thead>
+            <thead><tr><th>アプリケーション</th><th>閲覧</th><th class="wrap">役割（任意・自由入力）</th></tr></thead>
             <tbody>
             <?php foreach ($apps as $app): ?>
+              <?php $appId = (int) $app['id']; ?>
               <tr>
                 <td class="wrap"><?= h($app['name']) ?> <span class="muted"><?= h($app['app_key']) ?></span></td>
                 <td>
-                  <select name="perm[<?= (int) $app['id'] ?>]">
+                  <select name="perm[<?= $appId ?>]">
                     <option value="">既定（<?= $app['default_policy'] === 'allow' ? '許可' : '拒否' ?>）</option>
                     <option value="allow">許可</option>
                     <option value="deny">拒否</option>
                   </select>
                 </td>
+                <td><input type="text" name="role[<?= $appId ?>]" placeholder="例: editor"></td>
               </tr>
             <?php endforeach; ?>
             <?php if ($apps === []): ?>
-              <tr><td colspan="2" class="muted">アプリがまだ登録されていません。</td></tr>
+              <tr><td colspan="3" class="muted">アプリがまだ登録されていません。</td></tr>
             <?php endif; ?>
             </tbody>
           </table>
@@ -228,18 +243,25 @@ View::head($isNew ? 'ユーザーの追加' : 'ユーザーの編集', $admin, '
         <h2 class="card__title">アプリの閲覧許可</h2>
         <p class="card__note">
           「既定」は各アプリの既定ポリシーに従います。「拒否」は既定が許可でも個別に閉じます。<br>
+          「役割」は自由入力です（例：<code>viewer</code> / <code>editor</code> / <code>admin</code>）。
+          アプリ側がその文字列を受け取って、編集可否などの判断に使います。SSOは中身の意味を解釈しません。
+          閲覧が「既定」のままだと役割は保存されません。<br>
           「アプリ内のユーザーID」は、既存アプリが自前で持っているIDとの対応付けです（移行用・任意）。
         </p>
         <div class="table-wrap">
           <table class="data">
             <thead>
-              <tr><th>アプリケーション</th><th>閲覧</th><th>現在の判定</th><th class="wrap">アプリ内のユーザーID</th></tr>
+              <tr>
+                <th>アプリケーション</th><th>閲覧</th><th>現在の判定</th>
+                <th class="wrap">役割（任意）</th><th class="wrap">アプリ内のユーザーID</th>
+              </tr>
             </thead>
             <tbody>
             <?php foreach ($apps as $app): ?>
               <?php
                 $appId    = (int) $app['id'];
                 $explicit = $permMap[$appId] ?? '';
+                $role     = $roleMap[$appId] ?? '';
                 $effective = Permissions::effectiveEffect($user, $app);
               ?>
               <tr>
@@ -258,12 +280,13 @@ View::head($isNew ? 'ユーザーの追加' : 'ユーザーの編集', $admin, '
                   </select>
                 </td>
                 <td><?= View::effectBadge($effective) ?></td>
+                <td><input type="text" name="role[<?= $appId ?>]" value="<?= h($role) ?>" placeholder="例: editor"></td>
                 <td><input type="text" name="ext[<?= $appId ?>]" value="<?= h($extMap[$appId] ?? '') ?>"
                            placeholder="（任意）"></td>
               </tr>
             <?php endforeach; ?>
             <?php if ($apps === []): ?>
-              <tr><td colspan="4" class="muted">アプリがまだ登録されていません。</td></tr>
+              <tr><td colspan="5" class="muted">アプリがまだ登録されていません。</td></tr>
             <?php endif; ?>
             </tbody>
           </table>

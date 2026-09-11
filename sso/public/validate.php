@@ -48,6 +48,8 @@ function user_payload(array $session, array $app): array
         'email'        => $user['email'],
         'department'   => $user['department'],
         'is_admin'     => (bool) $user['is_admin'],
+        // アプリごとの役割。自由記述の文字列で、意味の解釈はアプリ側が行う
+        'role'         => Permissions::roleFor((int) $user['id'], (int) $app['id']),
         // 既存アプリが自前のユーザーIDを使い続けられるようにするための対応表
         'external_user_id' => Apps::externalId((int) $app['id'], (int) $user['id']),
     ];

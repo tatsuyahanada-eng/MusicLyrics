@@ -65,6 +65,8 @@ CREATE TABLE IF NOT EXISTS app_permissions (
   user_id    INT UNSIGNED NOT NULL,
   app_id     INT UNSIGNED NOT NULL,
   effect     ENUM('allow','deny') NOT NULL DEFAULT 'allow',
+  role       VARCHAR(60) NOT NULL DEFAULT ''
+             COMMENT 'アプリ内での役割。自由記述（例: viewer/editor/admin）。SSOは中身の意味を解釈しない',
   granted_by INT UNSIGNED DEFAULT NULL,
   note       VARCHAR(255) NOT NULL DEFAULT '',
   created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
