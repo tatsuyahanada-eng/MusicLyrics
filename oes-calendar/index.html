@@ -183,6 +183,10 @@ input:focus,select:focus,textarea:focus{border-color:var(--blue);box-shadow:0 0 
 .entry-foot{display:none;gap:8px;flex-wrap:wrap;padding:0 12px 12px;}
 .entry.open .entry-foot{display:flex;}
 .desc-head{display:flex;align-items:center;justify-content:space-between;gap:8px;}
+/* ①②③連絡文カード: 見出し直下ではなく、各テキスト欄のすぐ下にコピー/Chatボタンを置く
+   （隣の欄のボタンと近すぎて誤タップしていた、という利用者からの指摘の対応） */
+.msg-field > label{font-size:13.5px;font-weight:700;color:var(--blue-d);}
+.msg-btns{margin-top:9px;}
 .tag-auto{font-size:10.5px;font-weight:700;padding:2px 7px;border-radius:999px;background:#E6F5EC;color:var(--green);border:1px solid #B7E0C7;}
 .tag-manual{font-size:10.5px;font-weight:700;padding:2px 7px;border-radius:999px;background:#FFF4E2;color:var(--amber);border:1px solid #F0D3A2;}
 
@@ -621,37 +625,37 @@ input:focus,select:focus,textarea:focus{border-color:var(--blue);box-shadow:0 0 
           各欄の「コピー」を押してから、Google Chat に貼り付けて送信してください。文面はその場で書き換えられます。
         </div>
 
-        <div class="field" style="margin-bottom:16px;">
-          <div class="desc-head"><label for="msg-in">① 入店連絡</label>
-            <span class="row-btns">
-              <button class="btn btn-primary btn-sm" id="cp-in" onclick="copyMsg('in')">コピー</button>
-              <button class="btn btn-sub btn-sm" onclick="openStoreChat()">Chat</button>
-            </span></div>
+        <div class="field msg-field" style="margin-bottom:20px;">
+          <label for="msg-in">① 入店連絡</label>
           <div class="day-notes" id="day-gyotai-notes-in" hidden><span class="dn-label">📌 注意事項</span><span id="day-gyotai-notes-in-body"></span></div>
           <div class="note-row" id="entry-note-row"></div>
           <textarea id="msg-in" class="msg-ta" rows="6" oninput="onMsgInput('in',this.value)"></textarea>
+          <div class="row-btns msg-btns">
+            <button class="btn btn-primary btn-sm" id="cp-in" onclick="copyMsg('in')">コピー</button>
+            <button class="btn btn-sub btn-sm" onclick="openStoreChat()">Chat</button>
+          </div>
         </div>
 
-        <div class="field" style="margin-bottom:16px;">
-          <div class="desc-head"><label for="msg-mid">② 中間報告</label>
-            <span class="row-btns">
-              <button class="btn btn-primary btn-sm" id="cp-mid" onclick="copyMsg('mid')">コピー</button>
-              <button class="btn btn-sub btn-sm" onclick="openStoreChat()">Chat</button>
-            </span></div>
+        <div class="field msg-field" style="margin-bottom:20px;">
+          <label for="msg-mid">② 中間報告</label>
           <div class="day-notes" id="day-gyotai-notes-mid" hidden><span class="dn-label">📌 注意事項</span><span id="day-gyotai-notes-mid-body"></span></div>
           <div class="note-row" id="mid-note-row"></div>
           <textarea id="msg-mid" class="msg-ta" rows="4" oninput="onMsgInput('mid',this.value)"></textarea>
+          <div class="row-btns msg-btns">
+            <button class="btn btn-primary btn-sm" id="cp-mid" onclick="copyMsg('mid')">コピー</button>
+            <button class="btn btn-sub btn-sm" onclick="openStoreChat()">Chat</button>
+          </div>
         </div>
 
-        <div class="field">
-          <div class="desc-head"><label for="msg-out">③ 退店連絡</label>
-            <span class="row-btns">
-              <button class="btn btn-primary btn-sm" id="cp-out" onclick="copyMsg('out')">コピー</button>
-              <button class="btn btn-sub btn-sm" onclick="openStoreChat()">Chat</button>
-            </span></div>
+        <div class="field msg-field">
+          <label for="msg-out">③ 退店連絡</label>
           <div class="day-notes" id="day-gyotai-notes-out" hidden><span class="dn-label">📌 注意事項</span><span id="day-gyotai-notes-out-body"></span></div>
           <div class="equip-row" id="equip-row"></div>
           <textarea id="msg-out" class="msg-ta" rows="9" oninput="onMsgInput('out',this.value)"></textarea>
+          <div class="row-btns msg-btns">
+            <button class="btn btn-primary btn-sm" id="cp-out" onclick="copyMsg('out')">コピー</button>
+            <button class="btn btn-sub btn-sm" onclick="openStoreChat()">Chat</button>
+          </div>
           <div class="field" style="margin-top:9px;">
             <label for="msg-remark">特記事項（任意）</label>
             <textarea id="msg-remark" rows="2" placeholder="入力すると、退店連絡の一番下に追加されます（空欄なら何も入りません）"
@@ -849,6 +853,10 @@ input:focus,select:focus,textarea:focus{border-color:var(--blue);box-shadow:0 0 
             <div class="hint" style="margin-bottom:9px;">
               「作業当日」の「Chat」ボタンで、その業態・店舗のGoogle Chatを直接開けるようにします（下に登録しておくだけです）。
               該当する登録が無い場合は、案内は出さずにそのままGoogle Chatの一覧画面を開きます。
+              <b>ルームのURLではなく、普段やり取りする個別のスレッド（メッセージ）のリンクを登録することをおすすめします。</b>
+              ルームのURLだと、Chat内で他のスレッドへ移動したあとにもう一度「Chat」を押したとき、
+              最初のURL（一覧やルームのトップ）へ戻ってしまいます。スレッドのリンクなら、いつ押しても
+              その会話へ戻れます（Chatのメッセージの「その他の操作」→「メッセージへのリンクをコピー」等で取得できます）。
             </div>
             <div id="store-chat-list" style="margin-bottom:9px;"></div>
             <button class="btn btn-sub btn-sm" onclick="addStoreChat()">＋ 店舗のChat URLを追加</button>
@@ -2742,22 +2750,33 @@ function removeStoreChat(i){
 /* 該当の業態＋店舗の登録が無ければ、案内せずそのまま一般のGoogle Chatを開く */
 /* Chatは毎回新しいタブを開かず、同じ1枚のタブ（名前付きウィンドウ 'oes-store-chat'）を使い回す。
 
-   過去に2回、別の方式を試して失敗している。経緯を残す（同じ轍を踏まないため）。
-   ①「保存しておいたJS参照(chatWin)に対して .focus() だけ呼ぶ」方式
-     → Google ChatはCOOP（Cross-Origin-Opener-Policy）を送るため、一度でも別オリジンへ
-       移動したポップアップへの参照は、例外も投げずに .focus() が無反応になることがあり、
-       ボタンを押しても何も起きなくなる不具合が実際に発生した。
+   これまでに3つの方式を試して、いずれも実機で問題が確認されている。経緯を残す
+   （同じ轍を踏まないため。安易に「賢い」自動判定へ戻さないこと）。
+   ①「保存しておいたJS参照(chatWin)に対して .focus() だけ呼び、開き直さない」方式
+     → Google ChatはCOOP（Cross-Origin-Opener-Policy: same-origin）を送るため、
+       一度でも別オリジンへ移動したポップアップへの参照は、ブラウザ側で
+       「別のブラウジングコンテキストグループへ切り離された」扱いになり、
+       .closed は常にtrueを返すようになる。.focus() も例外を投げないが、
+       実際には効かない（無反応）ことが実機で確認されている。
    ②「毎回 window.open('', name) で名前つきウィンドウを取りに行く」方式（空URLで取得のみ）
-     → 一部の環境（特にモバイル）でポップアップブロッカーが「空URLで開いて後からlocationを
-       書き換える」動きを不審な挙動とみなしてブロックすることがあり、これもボタンが無反応に
-       なる不具合が実際に発生した。
+     → 一部の環境（特にモバイル）でポップアップブロッカーに無反応にされる不具合が
+       実機で発生した（利用者から「まだ直っていない」と報告あり）。
+   ③「document.hasFocus() で.focus()の成否を判定し、失敗時だけ開き直す」方式
+     → 実際にポップアップへ正常に切り替わった場合でも document.hasFocus() が
+       trueのままになる環境があり、誤って開き直してしまう（本末転倒）ことを
+       自動テストで確認し、採用を見送った。
 
-   そのため、**毎回 window.open(url, 'oes-store-chat') に実際のURLを渡して呼ぶ**、
-   最初に採用していた最も素直な方式に戻す。この呼び方はポップアップブロッカーに
-   引っかかりにくく、確実に反応する。同じ名前のウィンドウがすでに存在し、かつ
-   すでにそのURLを開いている場合はブラウザ側で再読み込みは起きない（実機で確認済み）。
-   利用者がポップアップ内で別のURLへ手動移動したあとに再度押した場合だけ、
-   登録したURLへ戻る（「そのお店のChatを開く」ボタンとしては正しい挙動）。 */
+   結論: ポップアップ側の状態をこちらのJSから正しく検知する方法は無い（COOPによる
+   ブラウジングコンテキストグループの分離は、ブラウザの仕様上そもそも検知させない
+   ための仕組みのため）。**無反応になる不具合の方が実害が大きい**ため、
+   毎回 window.open(url, 'oes-store-chat') に実際のURLを渡して呼ぶ、最も単純で
+   確実に反応する方式を採用する。同じ名前のウィンドウがすでにそのURLを開いていれば
+   ブラウザ側で再読み込みは起きないが、**利用者がポップアップ内で別のスレッドへ
+   手動移動したあとに押すと、登録したURLへ戻ってしまう**（実機で確認済みの制約）。
+   これを避けたい場合は、業態・店舗ごとのGoogle Chat URL（詳細設定）に、
+   ルームや一覧のURLではなく、普段やり取りする**スレッド個別のリンク**
+   （Chatのメッセージの「その他の操作」→「メッセージへのリンクをコピー」等で
+   取得できるURL）を登録すると、毎回そのスレッドへ正しく戻るようになる。 */
 var chatWin = null;
 var chatWinKey = '';
 function openStoreChat(){
