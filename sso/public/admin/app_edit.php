@@ -155,6 +155,32 @@ View::head($isNew ? 'アプリの登録' : 'アプリの編集', $admin, 'apps')
       </form>
     </div>
 
+    <?php
+      $parentDir  = dirname(SSO_ROOT);
+      $selfFolder = basename(SSO_ROOT);
+      $urlPath    = trim((string) (parse_url((string) $app['base_url'], PHP_URL_PATH) ?: ''), '/');
+      $destGuess  = $urlPath !== ''
+          ? $parentDir . '/' . $urlPath . '/sso'
+          : $parentDir . '/（このアプリの設置フォルダ名）/sso';
+      $scaffoldCmd = "cd {$parentDir}/{$selfFolder}\n"
+          . "php bin/scaffold_client.php --key={$app['app_key']} --dest={$destGuess}";
+    ?>
+    <div class="card">
+      <h2 class="card__title">SSHでまとめて設置する</h2>
+      <p class="card__note">
+        下のコマンドをコピーして、SSHでそのままご実行ください。
+        クライアント4ファイル・<code>app_secret</code> 反映済みの <code>sso_config.php</code>・
+        保護用の <code>.htaccess</code> が、指定した場所にまとめて生成されます。
+        手での貼り付けは不要です。
+      </p>
+      <textarea readonly rows="2"><?= h($scaffoldCmd) ?></textarea>
+      <p class="muted" style="margin-top:10px">
+        <code>--dest</code> は、このアプリのURL（<code><?= h($app['base_url']) ?></code>）から推測した値です。
+        実際の設置フォルダ名と違う場合は、そこだけ書き換えてから実行してください。
+        何度実行しても安全です（既存ファイルは上書きされます）。
+      </p>
+    </div>
+
     <div class="card">
       <h2 class="card__title">アプリへの組み込み</h2>
       <p class="card__note">既存アプリの各ページの先頭に、次の1行を足すだけです。</p>
