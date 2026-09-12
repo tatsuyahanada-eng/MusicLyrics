@@ -29,6 +29,7 @@
 --    lp_items.series      … シリーズ（関連する資料をまとめる名前）
 --    lp_updates.bump_type … 更新の大きさ（通常の更新 / 微修正）。版数の自動採番に使います
 --    lp_updates.file_*    … 更新ごとに添付できるファイル（画像・PDF・ZIP）の情報
+--    lp_categories        … カテゴリ（種別）の管理テーブル。設定画面から追加・削除できます
 --
 --  ※ さくらのレンタルサーバの契約・バージョンによっては、
 --       #1044 ...への アクセスは拒否されました（information_schema 関連）
@@ -112,3 +113,36 @@ DROP PROCEDURE lp_upgrade_20260911;
 SHOW COLUMNS FROM lp_items   LIKE 'series';
 SHOW COLUMNS FROM lp_updates LIKE 'bump_type';
 SHOW COLUMNS FROM lp_updates LIKE 'file_path';
+
+
+-- ============================================================
+--  追記（2回目）：カテゴリ（種別）の管理テーブル
+--
+--  設定画面から「アプリ」などの種別を自由に追加・削除できるようにするため、
+--  今まで固定だった種別（アプリ／プログラム／資料／マニュアル）を
+--  テーブルに持つようにします。CREATE TABLE IF NOT EXISTS と
+--  ON DUPLICATE KEY UPDATE を使っているので、これも何度実行しても安全です。
+-- ============================================================
+CREATE TABLE IF NOT EXISTS lp_categories (
+  category_id  INT          NOT NULL AUTO_INCREMENT,
+  code         VARCHAR(10)  NOT NULL COMMENT '管理IDの接頭辞（例：APP）。作成後は変更しません',
+  label        VARCHAR(40)  NOT NULL COMMENT '表示名（例：アプリ）',
+  color        VARCHAR(20)  NOT NULL DEFAULT 'graphite' COMMENT '配色キー（assets/library.js の PALETTE）',
+  icon         VARCHAR(20)  NOT NULL DEFAULT 'folder' COMMENT 'アイコンキー（assets/library.js の ICONS）',
+  sort_no      INT          NOT NULL DEFAULT 0 COMMENT '一覧・チップでの並び順',
+  created_at   DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (category_id),
+  UNIQUE KEY uk_categories_code (code),
+  UNIQUE KEY uk_categories_label (label)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='資料の種別（カテゴリ）';
+
+INSERT INTO lp_categories (code, label, color, icon, sort_no) VALUES
+  ('APP', 'アプリ',     'navy',     'app',    1),
+  ('PRG', 'プログラム', 'graphite', 'code',   2),
+  ('DOC', '資料',       'tan',      'doc',    3),
+  ('MAN', 'マニュアル', 'maroon',   'book',   4)
+ON DUPLICATE KEY UPDATE label = VALUES(label);
+
+-- 確認（1行表示されれば完了です）
+SHOW TABLES LIKE 'lp_categories';
+SELECT code, label, color, icon, sort_no FROM lp_categories ORDER BY sort_no;

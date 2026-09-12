@@ -39,6 +39,49 @@ function s(array $src, string $key, int $max = 500): string
     return mb_substr($v, 0, $max);
 }
 
+/* ============================================================
+   カテゴリ（種別）
+   ============================================================ */
+
+/** 選べる配色キー（assets/library.js の PALETTE と対応） */
+function lp_category_colors(): array
+{
+    return ['navy', 'graphite', 'tan', 'maroon', 'forest', 'plum', 'rust', 'denim', 'charcoal'];
+}
+
+/** 選べるアイコンキー（assets/library.js の ICONS と対応） */
+function lp_category_icons(): array
+{
+    return ['app', 'code', 'doc', 'book', 'folder', 'tag', 'star', 'flag'];
+}
+
+/**
+ * カテゴリ一覧を並び順で返す。
+ * sql/upgrade.sql をまだ実行していない（lp_categories が無い）サーバーでは、
+ * これまで固定だった4種類をそのまま返すので、画面が真っ白になったり
+ * 種別が選べなくなったりしない。
+ */
+function lp_categories_list(): array
+{
+    if (!lp_has_table('lp_categories')) {
+        return [
+            ['code' => 'APP', 'label' => 'アプリ',     'color' => 'navy',     'icon' => 'app'],
+            ['code' => 'PRG', 'label' => 'プログラム', 'color' => 'graphite', 'icon' => 'code'],
+            ['code' => 'DOC', 'label' => '資料',       'color' => 'tan',      'icon' => 'doc'],
+            ['code' => 'MAN', 'label' => 'マニュアル', 'color' => 'maroon',   'icon' => 'book'],
+        ];
+    }
+    return db()->query(
+        'SELECT code, label, color, icon FROM lp_categories ORDER BY sort_no, category_id'
+    )->fetchAll();
+}
+
+/** 登録済みカテゴリの表示名（label）だけの一覧。lp_items.category の検証に使う */
+function lp_category_labels(): array
+{
+    return array_column(lp_categories_list(), 'label');
+}
+
 /** 日付（Y-m-d）として妥当か */
 function valid_date(string $v): bool
 {

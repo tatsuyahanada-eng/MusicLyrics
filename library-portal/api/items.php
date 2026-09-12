@@ -29,7 +29,7 @@ if ($method === 'GET') {
     )->fetchAll();
 
     if (!$items) {
-        json_out([]);
+        json_out(['items' => [], 'categories' => lp_categories_list()]);
     }
 
     $updates = db()->query(
@@ -102,7 +102,7 @@ if ($method === 'GET') {
             'version'     => $historyByItem[$i['item_id']][0]['version'] ?? lp_version_label(1, 0, 0),
         ];
     }
-    json_out($out);
+    json_out(['items' => $out, 'categories' => lp_categories_list()]);
 }
 
 if ($method === 'POST') {
@@ -119,7 +119,7 @@ if ($method === 'POST') {
     $url     = s($b, 'downloadUrl', 500);
     $date    = s($b, 'createdAt', 10);
 
-    $allowedCat = ['アプリ', 'プログラム', '資料', 'マニュアル'];
+    $allowedCat = lp_category_labels();
     if ($id === '' || !preg_match('/^[A-Za-z0-9_-]{1,20}$/', $id)) {
         json_error('管理IDは半角英数字・ハイフンで入力してください。');
     }
@@ -174,7 +174,7 @@ if ($method === 'PUT') {
     $url     = s($b, 'downloadUrl', 500);
     $date    = s($b, 'createdAt', 10);
 
-    $allowedCat = ['アプリ', 'プログラム', '資料', 'マニュアル'];
+    $allowedCat = lp_category_labels();
     if ($id === '' || !preg_match('/^[A-Za-z0-9_-]{1,20}$/', $id)) {
         json_error('管理IDが不正です。');
     }

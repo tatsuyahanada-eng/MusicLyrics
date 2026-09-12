@@ -57,43 +57,56 @@ $defRole  = lp_default_role();
         <?php if ($canAcct): ?>
           <button id="btnNewUser" class="lp-btn lp-btn-primary" type="button">＋ 利用者を追加</button>
         <?php endif; ?>
+        <button id="btnNewCategory" class="lp-btn lp-btn-primary" type="button" hidden>＋ カテゴリを追加</button>
       </div>
     </div>
   </header>
 
   <main class="lp-main">
     <nav class="lp-tabs" aria-label="設定メニュー">
-      <span class="lp-tab is-active">利用者</span>
+      <button class="lp-tab is-active" type="button" data-tab="users">利用者</button>
+      <button class="lp-tab" type="button" data-tab="categories">カテゴリ</button>
     </nav>
 
-    <p class="lp-help">
-      <strong>管理者</strong>はアイテム・更新履歴の登録と利用者管理を含むすべての操作が行えます。
-      <strong>編集者</strong>は閲覧・登録・更新・削除ができますが、利用者の追加・削除・権限変更（この画面）はできません。
-      <strong>閲覧のみ</strong>は一覧と更新履歴の閲覧、URLへのアクセスのみが行えます。
-      権限は行の中のスイッチでいつでも切り替えられます。
-    </p>
-
-    <?php if ($central): ?>
-      <p class="lp-help lp-help-central">
-        <strong>共通ユーザーデータベース運用中</strong>（アプリ識別子：<code><?= h(lp_app_key()) ?></code>）。
-        アカウントの作成・停止・削除・パスワード再設定は<strong>共通の利用者管理</strong>で行います。
-        この画面では<strong>このアプリでの権限</strong>だけを変更します。権限は共通DBにアプリ単位で保存されるため、
-        他のアプリの権限には影響しません。
-        <?php if ($defRole === null): ?>
-          権限を付与していない利用者は、このアプリにログインできません。
-        <?php else: ?>
-          権限を付与していない利用者は「<?= h($defRole === 'admin' ? '管理者' : '閲覧のみ') ?>」として扱われます。
-        <?php endif; ?>
+    <div id="panelUsers" class="lp-panel-tab">
+      <p class="lp-help">
+        <strong>管理者</strong>はアイテム・更新履歴の登録と利用者管理を含むすべての操作が行えます。
+        <strong>編集者</strong>は閲覧・登録・更新・削除ができますが、利用者の追加・削除・権限変更（この画面）はできません。
+        <strong>閲覧のみ</strong>は一覧と更新履歴の閲覧、URLへのアクセスのみが行えます。
+        権限は行の中のスイッチでいつでも切り替えられます。
       </p>
-    <?php endif; ?>
 
-    <div class="lp-listhead lp-listhead-users" aria-hidden="true">
-      <span>利用者</span><span>ログインID</span><span>所属</span>
-      <span>権限</span><span>状態</span><span>最終ログイン</span><span></span>
+      <?php if ($central): ?>
+        <p class="lp-help lp-help-central">
+          <strong>共通ユーザーデータベース運用中</strong>（アプリ識別子：<code><?= h(lp_app_key()) ?></code>）。
+          アカウントの作成・停止・削除・パスワード再設定は<strong>共通の利用者管理</strong>で行います。
+          この画面では<strong>このアプリでの権限</strong>だけを変更します。権限は共通DBにアプリ単位で保存されるため、
+          他のアプリの権限には影響しません。
+          <?php if ($defRole === null): ?>
+            権限を付与していない利用者は、このアプリにログインできません。
+          <?php else: ?>
+            権限を付与していない利用者は「<?= h($defRole === 'admin' ? '管理者' : '閲覧のみ') ?>」として扱われます。
+          <?php endif; ?>
+        </p>
+      <?php endif; ?>
+
+      <div class="lp-listhead lp-listhead-users" aria-hidden="true">
+        <span>利用者</span><span>ログインID</span><span>所属</span>
+        <span>権限</span><span>状態</span><span>最終ログイン</span><span></span>
+      </div>
+
+      <div id="userList" class="lp-list"></div>
+      <p id="userEmpty" class="lp-empty" hidden>利用者が登録されていません。</p>
     </div>
 
-    <div id="userList" class="lp-list"></div>
-    <p id="userEmpty" class="lp-empty" hidden>利用者が登録されていません。</p>
+    <div id="panelCategories" class="lp-panel-tab" hidden>
+      <p class="lp-help">
+        「種別」を自由に追加・削除できます。使用中（アイテムが登録されている）のカテゴリは削除できません。
+        先にそのアイテムの種別を変更するか、削除してからお試しください。
+      </p>
+      <div id="categoryList" class="lp-catlist"></div>
+      <p id="categoryEmpty" class="lp-empty" hidden>カテゴリが登録されていません。</p>
+    </div>
   </main>
 
   <footer class="lp-footer">
@@ -177,6 +190,45 @@ $defRole  = lp_default_role();
     </form>
   </div>
 
+  <!-- カテゴリ 追加・編集 -->
+  <div id="categoryModal" class="lp-modal" role="dialog" aria-modal="true" aria-labelledby="categoryModalTitle" hidden>
+    <div class="lp-modal-head">
+      <h2 class="lp-modal-title" id="categoryModalTitle">カテゴリの追加</h2>
+      <button id="btnCloseCategoryModal" class="lp-icon-btn" type="button" aria-label="閉じる">✕</button>
+    </div>
+    <form id="categoryForm" class="lp-form">
+      <input type="hidden" id="cCode" value="">
+      <div class="lp-field-row">
+        <label class="lp-field">
+          <span class="lp-field-label">表示名 <em>必須</em></span>
+          <input id="cLabel" class="lp-input" type="text" required placeholder="外部連携">
+        </label>
+        <label class="lp-field" id="cCodeField">
+          <span class="lp-field-label">管理IDの接頭辞 <em>必須</em></span>
+          <input id="cCodeInput" class="lp-input" type="text" required placeholder="EXT"
+                 pattern="[A-Za-z][A-Za-z0-9]{1,9}" autocapitalize="none">
+          <span class="lp-field-hint">半角英字で始まる英数字2〜10文字。あとから変更できません（例：EXT-001）。</span>
+        </label>
+      </div>
+
+      <fieldset class="lp-field">
+        <legend class="lp-field-label">配色 <em>必須</em></legend>
+        <div class="lp-swatchrow" id="cColorRow" role="radiogroup" aria-label="配色"></div>
+      </fieldset>
+
+      <fieldset class="lp-field">
+        <legend class="lp-field-label">アイコン <em>必須</em></legend>
+        <div class="lp-iconrow" id="cIconRow" role="radiogroup" aria-label="アイコン"></div>
+      </fieldset>
+
+      <p class="lp-form-error" id="categoryError" hidden></p>
+      <div class="lp-form-actions">
+        <button type="button" id="btnCategoryCancel" class="lp-btn lp-btn-ghost">キャンセル</button>
+        <button type="submit" class="lp-btn lp-btn-primary">保存する</button>
+      </div>
+    </form>
+  </div>
+
   <div id="toast" class="lp-toast" hidden></div>
 
   <script>
@@ -188,7 +240,7 @@ $defRole  = lp_default_role();
       canManageAccounts: <?= $canAcct ? 'true' : 'false' ?>
     };
   </script>
-  <script src="assets/settings.js?v=2"></script>
+  <script src="assets/settings.js?v=3"></script>
   <script src="assets/pwa.js?v=2"></script>
 </body>
 </html>

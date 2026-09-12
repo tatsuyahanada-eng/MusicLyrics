@@ -35,13 +35,64 @@ const KIND_CLASS = {
   '資料改訂': 'doc',
   '初版公開': 'initial'
 };
-const CAT_CLASS = { 'アプリ': 'app', 'プログラム': 'prg', '資料': 'doc', 'マニュアル': 'man' };
-/* 管理IDの接頭辞（種別を選ぶと、この接頭辞の続き番号を自動で入れる） */
-const CAT_PREFIX = { 'アプリ': 'APP', 'プログラム': 'PRG', '資料': 'DOC', 'マニュアル': 'MAN' };
+/*
+ * カテゴリ（種別）は設定画面から自由に追加・削除できるため、色・アイコンは
+ * 固定のクラスではなく「配色キー／アイコンキー」から都度組み立てる。
+ * キーの一覧は includes/helpers.php の lp_category_colors()/lp_category_icons()
+ * と対応させてあるので、増やすときは両方に追記すること。
+ */
+const SVG = (paths) => `<svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor"
+  stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round">${paths}</svg>`;
+const PALETTE = {
+  navy:     { book: '#1c364a', bg: '#e6eef4', border: '#c3d4e2', fg: '#1c364a' },
+  graphite: { book: '#33363c', bg: '#eef1ef', border: '#d9e0db', fg: '#33363c' },
+  tan:      { book: '#947a57', bg: '#f7efdf', border: '#e3d1a8', fg: '#6b5326' },
+  maroon:   { book: '#7a5b5f', bg: '#e4f1f4', border: '#bcdbe1', fg: '#0b4a56' },
+  forest:   { book: '#2f4a3a', bg: '#e7f0ea', border: '#bcd6c6', fg: '#234534' },
+  plum:     { book: '#5c4a6e', bg: '#efe9f3', border: '#d3c2de', fg: '#4a3a5c' },
+  rust:     { book: '#8a4a3a', bg: '#f7e9e5', border: '#e3bfb2', fg: '#6b3324' },
+  denim:    { book: '#3d5a73', bg: '#e8eef2', border: '#bcd0dd', fg: '#2c4356' },
+  charcoal: { book: '#4a4a4a', bg: '#eeeeee', border: '#d4d4d4', fg: '#3a3a3a' }
+};
+const DEFAULT_PALETTE_KEY = 'graphite';
+
+const ICONS = {
+  app:    SVG('<rect x="3" y="3" width="18" height="18" rx="3"/><path d="M3 9h18M9 21V9"/>'),
+  code:   SVG('<path d="m9 17-5-5 5-5"/><path d="m15 7 5 5-5 5"/>'),
+  doc:    SVG('<path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5"/>'),
+  book:   SVG('<path d="M4 5.5A2.5 2.5 0 0 1 6.5 3H19v15H6.5A2.5 2.5 0 0 0 4 20.5z"/><path d="M4 20.5A2.5 2.5 0 0 1 6.5 18H19v3H6.5"/>'),
+  folder: SVG('<path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>'),
+  tag:    SVG('<path d="M12 2H4a2 2 0 0 0-2 2v8l10 10 10-10L12 2z"/><circle cx="7.5" cy="7.5" r="1.5"/>'),
+  star:   SVG('<path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01z"/>'),
+  flag:   SVG('<path d="M4 22V4"/><path d="M4 4h14l-2 4 2 4H4"/>')
+};
+const DEFAULT_ICON_KEY = 'folder';
+
+/* ---------- カテゴリ（種別）一覧。api/items.php から読み込む ---------- */
+let categories = [];
+
+/** ラベル（表示名）からカテゴリ定義を探す。見つからなければ既定の見た目にする */
+function categoryByLabel(label) {
+  return categories.find((c) => c.label === label) || null;
+}
+function categoryPalette(label) {
+  const c = categoryByLabel(label);
+  return PALETTE[c && c.color] || PALETTE[DEFAULT_PALETTE_KEY];
+}
+function categoryIcon(label) {
+  const c = categoryByLabel(label);
+  return ICONS[c && c.icon] || ICONS[DEFAULT_ICON_KEY];
+}
+/** 白地の上に置く種別バッジ（.lp-cat）の配色を、そのカテゴリの淡色バリエーションで作る */
+function categoryBadgeStyle(label) {
+  const p = categoryPalette(label);
+  return `background:${p.bg};border-color:${p.border};color:${p.fg}`;
+}
 
 /** その種別で次に使う管理ID（接頭辞＋連番）を、登録済みのIDから組み立てる */
 function nextItemId(category) {
-  const prefix = CAT_PREFIX[category];
+  const c = categoryByLabel(category);
+  const prefix = c && c.code;
   if (!prefix) return '';
   let maxNum = 0;
   let width = 3;                          // 既存が APP-001 のように3桁なら、それに合わせる
@@ -137,16 +188,6 @@ function fillAttachmentCurrent(prefix, attachment) {
   link.href = attachment.url;
   link.textContent = `${attachment.name}（${fmtBytes(attachment.size)}）`;
 }
-
-/* 種別ごとのアイコン（一覧で種類をひと目で見分けられるように） */
-const SVG = (paths) => `<svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor"
-  stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round">${paths}</svg>`;
-const CAT_ICON = {
-  'アプリ':     SVG('<rect x="3" y="3" width="18" height="18" rx="3"/><path d="M3 9h18M9 21V9"/>'),
-  'プログラム': SVG('<path d="m9 17-5-5 5-5"/><path d="m15 7 5 5-5 5"/>'),
-  '資料':       SVG('<path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5"/>'),
-  'マニュアル': SVG('<path d="M4 5.5A2.5 2.5 0 0 1 6.5 3H19v15H6.5A2.5 2.5 0 0 0 4 20.5z"/><path d="M4 20.5A2.5 2.5 0 0 1 6.5 18H19v3H6.5"/>')
-};
 
 /* ---------- 状態 ---------- */
 let items = [];
@@ -265,11 +306,21 @@ async function apiSendMultipart(path, formData) {
   return data;
 }
 
+const DEFAULT_CATEGORIES = [
+  { code: 'APP', label: 'アプリ',     color: 'navy',     icon: 'app' },
+  { code: 'PRG', label: 'プログラム', color: 'graphite', icon: 'code' },
+  { code: 'DOC', label: '資料',       color: 'tan',      icon: 'doc' },
+  { code: 'MAN', label: 'マニュアル', color: 'maroon',   icon: 'book' }
+];
+
 async function loadItems() {
   if (!LP_CFG) {                       // プレビュー（静的）
     items = JSON.parse(JSON.stringify(window.LP_SAMPLE || []));
+    categories = window.LP_SAMPLE_CATEGORIES || DEFAULT_CATEGORIES;
   } else {
-    items = await apiGet('items.php');
+    const data = await apiGet('items.php');
+    items = data.items || [];
+    categories = data.categories || DEFAULT_CATEGORIES;
   }
   items.forEach(sortHistory);
   // 本番は API が版数を付けて返す。プレビューは付いてこないのでここで数える
@@ -499,12 +550,12 @@ function slabHtml(it) {
     : `${it.name}／更新はまだありません`;
 
   return `
-    <button class="lp-slab lp-slab-${CAT_CLASS[it.category] || 'prg'}${reading ? ' is-reading' : ''}"
+    <button class="lp-slab${reading ? ' is-reading' : ''}"
             type="button" data-book="${esc(it.id)}" title="${esc(tip)}"
-            aria-expanded="${reading}" style="--thick:${thick}px">
+            aria-expanded="${reading}" style="--thick:${thick}px;--book:${categoryPalette(it.category).book}">
       <span class="lp-slab-edge" aria-hidden="true"></span>
       <span class="lp-slab-face">
-        <span class="lp-slab-cat">${CAT_ICON[it.category] || ''}${esc(it.category)}</span>
+        <span class="lp-slab-cat">${categoryIcon(it.category)}${esc(it.category)}</span>
         <span class="lp-slab-main">
           <span class="lp-slab-name">${esc(it.name)}</span>
           <span class="lp-slab-by">${esc(it.id)} ／ ${esc(it.creator)}</span>
@@ -678,7 +729,7 @@ function siblingsBlock(it) {
       return `
         <li>
           <button class="lp-mate" type="button" data-book="${esc(x.id)}">
-            <span class="lp-cat lp-cat-${CAT_CLASS[x.category] || 'prg'}">${CAT_ICON[x.category] || ''}${esc(x.category)}</span>
+            <span class="lp-cat" style="${categoryBadgeStyle(x.category)}">${categoryIcon(x.category)}${esc(x.category)}</span>
             <span class="lp-mate-name">${esc(x.name)}</span>
             <span class="lp-mate-ver">${esc(x.version || (h && h.version) || '1.00')}</span>
           </button>
@@ -717,7 +768,7 @@ function spreadLeft(it) {
     <section class="lp-page lp-page-l">
       <div class="lp-page-inner">
         <p class="lp-page-eyebrow">
-          <span class="lp-cat lp-cat-${CAT_CLASS[it.category] || 'prg'}">${CAT_ICON[it.category] || ''}${esc(it.category)}</span>
+          <span class="lp-cat" style="${categoryBadgeStyle(it.category)}">${categoryIcon(it.category)}${esc(it.category)}</span>
           <span class="lp-page-id">${esc(it.id)}</span>
           ${it.series ? `<button class="lp-seriestag lp-seriestag-btn" type="button"
               data-series="${esc(it.series)}" title="このシリーズだけを表示">${esc(it.series)}</button>` : ''}
@@ -872,7 +923,7 @@ function rowHtml(it) {
   <article class="lp-row${open ? ' is-open' : ''}" data-id="${esc(it.id)}">
     <div class="lp-row-head" role="button" tabindex="0" data-book="${esc(it.id)}"
          aria-expanded="${open}" aria-controls="spread">
-      <span><span class="lp-cat lp-cat-${CAT_CLASS[it.category] || 'prg'}">${CAT_ICON[it.category] || ''}${esc(it.category)}</span></span>
+      <span><span class="lp-cat" style="${categoryBadgeStyle(it.category)}">${categoryIcon(it.category)}${esc(it.category)}</span></span>
       <span>
         <span class="lp-row-name">${esc(it.name)}</span>
         <span class="lp-row-id">${esc(it.id)} ／ ${esc(it.creator)}</span>
@@ -985,13 +1036,24 @@ function renderSortOptions() {
   sel.value = state.sort;
 }
 
+/**
+ * 種別の絞り込みチップ。実際に使われている種別だけを、設定画面での並び順
+ * （カテゴリ管理の並び）で出す。種別が増えても縦に伸びないよう横スクロールにし、
+ * 「すべて」だけは常に見えるよう固定している。
+ */
 function renderChips() {
-  const cats = [...new Set(items.map((i) => i.category))].sort((a, b) => a.localeCompare(b, 'ja'));
+  const inUse = new Set(items.map((i) => i.category));
+  const cats = categories.filter((c) => inUse.has(c.label));
+  const chip = (label, v, icon) => `
+    <button class="lp-chip${state.category === v ? ' is-on' : ''}" type="button" data-cat="${esc(v)}">
+      ${icon || ''}<span>${esc(label)}</span>
+    </button>`;
   $('chipRow').innerHTML =
-    [['', 'すべて'], ...cats.map((c) => [c, c])]
-      .map(([v, label]) =>
-        `<button class="lp-chip${state.category === v ? ' is-on' : ''}" type="button" data-cat="${esc(v)}">${esc(label)}</button>`)
-      .join('');
+    chip('すべて', '', '') +
+    cats.map((c) => chip(
+      c.label, c.label,
+      `<span class="lp-chip-icon" style="color:${categoryPalette(c.label).book}">${categoryIcon(c.label)}</span>`
+    )).join('');
 }
 
 function renderItemOptions() {
@@ -1231,6 +1293,13 @@ function fillSeriesList() {
   list.innerHTML = names.map((n) => `<option value="${esc(n)}"></option>`).join('');
 }
 
+/** アイテム登録・修正フォームの「種別」を、設定画面で登録されているカテゴリから作る */
+function fillCategoryOptions() {
+  const sel = $('iCategory');
+  if (!sel) return;
+  sel.innerHTML = categories.map((c) => `<option value="${esc(c.label)}">${esc(c.label)}</option>`).join('');
+}
+
 /** アイテムの登録・修正フォームを開く（id を渡すと修正になる） */
 /** 種別に合わせて管理IDを自動で入れる（利用者が自分で書き換えたあとは上書きしない） */
 function updateSuggestedItemId() {
@@ -1244,6 +1313,7 @@ function openItemModal(id) {
   const form = $('itemForm');
   const it = id ? items.find((x) => x.id === id) : null;
   fillSeriesList();
+  fillCategoryOptions();
 
   form.dataset.mode = it ? 'edit' : 'create';
   form.dataset.id = it ? it.id : '';

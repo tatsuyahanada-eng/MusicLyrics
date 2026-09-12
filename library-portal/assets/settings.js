@@ -8,6 +8,7 @@ const API = window.LP.apiBase;
 const ME = window.LP.user.id;
 
 let users = [];
+let categories = [];
 let meta = { authMode: 'local', canManageAccounts: true, defaultRole: 'viewer', appKey: 'library' };
 const canAcct = () => meta.canManageAccounts;
 
@@ -16,6 +17,31 @@ function esc(str) {
   return String(str ?? '').replace(/[&<>"']/g, (c) =>
     ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 }
+
+/* 本棚（assets/library.js）と同じキー・同じ色を使う。増やすときは両方に足すこと */
+const PALETTE = {
+  navy:     { book: '#1c364a', bg: '#e6eef4', border: '#c3d4e2', fg: '#1c364a' },
+  graphite: { book: '#33363c', bg: '#eef1ef', border: '#d9e0db', fg: '#33363c' },
+  tan:      { book: '#947a57', bg: '#f7efdf', border: '#e3d1a8', fg: '#6b5326' },
+  maroon:   { book: '#7a5b5f', bg: '#e4f1f4', border: '#bcdbe1', fg: '#0b4a56' },
+  forest:   { book: '#2f4a3a', bg: '#e7f0ea', border: '#bcd6c6', fg: '#234534' },
+  plum:     { book: '#5c4a6e', bg: '#efe9f3', border: '#d3c2de', fg: '#4a3a5c' },
+  rust:     { book: '#8a4a3a', bg: '#f7e9e5', border: '#e3bfb2', fg: '#6b3324' },
+  denim:    { book: '#3d5a73', bg: '#e8eef2', border: '#bcd0dd', fg: '#2c4356' },
+  charcoal: { book: '#4a4a4a', bg: '#eeeeee', border: '#d4d4d4', fg: '#3a3a3a' }
+};
+const SVG = (paths) => `<svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor"
+  stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round">${paths}</svg>`;
+const ICONS = {
+  app:    SVG('<rect x="3" y="3" width="18" height="18" rx="3"/><path d="M3 9h18M9 21V9"/>'),
+  code:   SVG('<path d="m9 17-5-5 5-5"/><path d="m15 7 5 5-5 5"/>'),
+  doc:    SVG('<path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5"/>'),
+  book:   SVG('<path d="M4 5.5A2.5 2.5 0 0 1 6.5 3H19v15H6.5A2.5 2.5 0 0 0 4 20.5z"/><path d="M4 20.5A2.5 2.5 0 0 1 6.5 18H19v3H6.5"/>'),
+  folder: SVG('<path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>'),
+  tag:    SVG('<path d="M12 2H4a2 2 0 0 0-2 2v8l10 10 10-10L12 2z"/><circle cx="7.5" cy="7.5" r="1.5"/>'),
+  star:   SVG('<path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01z"/>'),
+  flag:   SVG('<path d="M4 22V4"/><path d="M4 4h14l-2 4 2 4H4"/>')
+};
 
 function fmtDateTime(v) {
   if (!v) return '—';
@@ -53,6 +79,10 @@ async function loadUsers() {
     defaultRole: data.defaultRole || null,
     appKey: data.appKey || 'library'
   };
+}
+
+async function loadCategories() {
+  categories = await api('categories.php');
 }
 
 /* ---------- 描画 ---------- */
@@ -104,6 +134,48 @@ function userRow(u) {
 function render() {
   $('userList').innerHTML = users.map(userRow).join('');
   $('userEmpty').hidden = users.length > 0;
+  renderCategories();
+}
+
+/* ---------- カテゴリ（種別） ---------- */
+function categoryRow(c) {
+  const p = PALETTE[c.color] || PALETTE.graphite;
+  const inUse = (c.itemCount || 0) > 0;
+  return `
+  <article class="lp-catrow" data-code="${esc(c.code)}">
+    <span class="lp-catrow-swatch" style="background:${p.book}">${ICONS[c.icon] || ICONS.folder}</span>
+    <span class="lp-catrow-body">
+      <span class="lp-catrow-label">${esc(c.label)}</span>
+      <span class="lp-catrow-code">接頭辞：${esc(c.code)}　／　${c.itemCount || 0} 件で使用中</span>
+    </span>
+    <span class="lp-catrow-actions">
+      <button class="lp-btn lp-btn-ghost lp-btn-sm" type="button" data-edit-cat="${esc(c.code)}">編集</button>
+      <button class="lp-btn lp-btn-danger lp-btn-sm" type="button" data-del-cat="${esc(c.code)}"
+              ${inUse ? 'disabled title="使用中のため削除できません"' : ''}>削除</button>
+    </span>
+  </article>`;
+}
+
+function renderCategories() {
+  const list = $('categoryList');
+  if (!list) return;
+  list.innerHTML = categories.map(categoryRow).join('');
+  $('categoryEmpty').hidden = categories.length > 0;
+}
+
+function renderColorRow(selected) {
+  const row = $('cColorRow');
+  row.innerHTML = Object.keys(PALETTE).map((key) => `
+    <button type="button" class="lp-swatch${key === selected ? ' is-on' : ''}"
+            data-color="${key}" style="background:${PALETTE[key].book}"
+            title="${key}" aria-label="${key}"></button>`).join('');
+}
+
+function renderIconRow(selected) {
+  const row = $('cIconRow');
+  row.innerHTML = Object.keys(ICONS).map((key) => `
+    <button type="button" class="lp-iconbtn${key === selected ? ' is-on' : ''}"
+            data-icon="${key}" title="${key}" aria-label="${key}">${ICONS[key]}</button>`).join('');
 }
 
 /* ---------- モーダル ---------- */
@@ -137,11 +209,77 @@ function closeModal() {
   $('modalOverlay').hidden = true;
   $('userModal').hidden = true;
   $('userForm').reset();
+  const catModal = $('categoryModal');
+  if (catModal) { catModal.hidden = true; $('categoryForm').reset(); }
 }
 
 function showError(msg) {
   $('userError').textContent = msg;
   $('userError').hidden = false;
+}
+
+/* ---------- カテゴリのモーダル ---------- */
+function openCategoryModal(cat) {
+  $('cCode').value = cat ? cat.code : '';
+  $('cLabel').value = cat ? cat.label : '';
+  $('cCodeInput').value = cat ? cat.code : '';
+  $('cCodeInput').disabled = !!cat;           // 接頭辞はあとから変更しない
+  $('cCodeField').hidden = !!cat;
+  renderColorRow(cat ? cat.color : 'graphite');
+  renderIconRow(cat ? cat.icon : 'folder');
+
+  $('categoryModalTitle').textContent = cat ? 'カテゴリの編集' : 'カテゴリの追加';
+  $('categoryError').hidden = true;
+
+  $('modalOverlay').hidden = false;
+  $('categoryModal').hidden = false;
+  (cat ? $('cLabel') : $('cLabel')).focus();
+}
+
+function showCategoryError(msg) {
+  $('categoryError').textContent = msg;
+  $('categoryError').hidden = false;
+}
+
+async function submitCategory(ev) {
+  ev.preventDefault();
+  const code = $('cCode').value;
+  const color = $('cColorRow').querySelector('.lp-swatch.is-on');
+  const icon = $('cIconRow').querySelector('.lp-iconbtn.is-on');
+  const payload = {
+    label: $('cLabel').value.trim(),
+    color: color ? color.dataset.color : 'graphite',
+    icon: icon ? icon.dataset.icon : 'folder'
+  };
+  if (!code) payload.code = $('cCodeInput').value.trim().toUpperCase();
+
+  try {
+    if (code) {
+      await api(`categories.php?code=${encodeURIComponent(code)}`, 'PUT', payload);
+    } else {
+      await api('categories.php', 'POST', payload);
+    }
+    await loadCategories();
+    render();
+    closeModal();
+    toast(code ? 'カテゴリを更新しました' : 'カテゴリを登録しました');
+  } catch (e) {
+    showCategoryError(e.message || '保存に失敗しました。');
+  }
+}
+
+async function removeCategory(code) {
+  const cat = categories.find((c) => c.code === code);
+  if (!cat) return;
+  if (!confirm(`「${cat.label}」を削除します。よろしいですか？`)) return;
+  try {
+    await api(`categories.php?code=${encodeURIComponent(code)}`, 'DELETE');
+    await loadCategories();
+    render();
+    toast('カテゴリを削除しました');
+  } catch (e) {
+    toast(e.message || '削除に失敗しました');
+  }
 }
 
 async function submitUser(ev) {
@@ -234,12 +372,27 @@ function toast(msg) {
   toastTimer = setTimeout(() => { el.hidden = true; }, 3000);
 }
 
+/* ---------- タブ切り替え ---------- */
+function switchTab(name) {
+  document.querySelectorAll('.lp-tab').forEach((t) => t.classList.toggle('is-active', t.dataset.tab === name));
+  $('panelUsers').hidden = name !== 'users';
+  $('panelCategories').hidden = name !== 'categories';
+  const btnNewUser = $('btnNewUser');
+  if (btnNewUser) btnNewUser.hidden = name !== 'users';
+  $('btnNewCategory').hidden = name !== 'categories';
+}
+
 /* ---------- 初期化 ---------- */
 async function init() {
   try {
     await loadUsers();
   } catch (e) {
     if (String(e.message) !== 'unauthorized') toast('利用者一覧の取得に失敗しました');
+  }
+  try {
+    await loadCategories();
+  } catch (e) {
+    if (String(e.message) !== 'unauthorized') toast('カテゴリ一覧の取得に失敗しました');
   }
   render();
 
@@ -261,8 +414,34 @@ async function init() {
     if (del) removeUser(del.dataset.del);
   });
 
+  document.querySelectorAll('.lp-tabs .lp-tab').forEach((btn) => {
+    btn.addEventListener('click', () => switchTab(btn.dataset.tab));
+  });
+
+  $('btnNewCategory').addEventListener('click', () => openCategoryModal(null));
+  $('btnCloseCategoryModal').addEventListener('click', closeModal);
+  $('btnCategoryCancel').addEventListener('click', closeModal);
+  $('categoryForm').addEventListener('submit', submitCategory);
+  $('cColorRow').addEventListener('click', (e) => {
+    const btn = e.target.closest('.lp-swatch');
+    if (!btn) return;
+    $('cColorRow').querySelectorAll('.lp-swatch').forEach((b) => b.classList.toggle('is-on', b === btn));
+  });
+  $('cIconRow').addEventListener('click', (e) => {
+    const btn = e.target.closest('.lp-iconbtn');
+    if (!btn) return;
+    $('cIconRow').querySelectorAll('.lp-iconbtn').forEach((b) => b.classList.toggle('is-on', b === btn));
+  });
+  $('categoryList').addEventListener('click', (e) => {
+    const edit = e.target.closest('[data-edit-cat]');
+    if (edit) { openCategoryModal(categories.find((c) => c.code === edit.dataset.editCat)); return; }
+    const del = e.target.closest('[data-del-cat]');
+    if (del && !del.disabled) removeCategory(del.dataset.delCat);
+  });
+
   document.addEventListener('keydown', (e) => {
-    if (e.key === 'Escape' && !$('userModal').hidden) closeModal();
+    if (e.key !== 'Escape') return;
+    if (!$('userModal').hidden || !$('categoryModal').hidden) closeModal();
   });
 }
 

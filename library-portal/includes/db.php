@@ -100,3 +100,27 @@ function lp_missing_columns(): array
     }
     return $missing;
 }
+
+/**
+ * そのテーブルがデータベースにあるかどうか（lp_has_column と同じ考え方）。
+ * sql/upgrade.sql をまだ実行していないサーバーでも、カテゴリ管理テーブル
+ * （lp_categories）が無いというだけで画面が真っ白にならないようにするため。
+ */
+function lp_has_table(string $table): bool
+{
+    static $cache = [];
+    if (!array_key_exists($table, $cache)) {
+        if (!preg_match('/^[A-Za-z_][A-Za-z0-9_]*$/', $table)) {
+            $cache[$table] = false;
+            return false;
+        }
+        try {
+            $st = db()->query("SHOW TABLES LIKE '{$table}'");
+            $cache[$table] = $st->fetch() !== false;
+        } catch (PDOException $e) {
+            error_log('[library-portal] table check failed: ' . $e->getMessage());
+            $cache[$table] = false;
+        }
+    }
+    return $cache[$table];
+}

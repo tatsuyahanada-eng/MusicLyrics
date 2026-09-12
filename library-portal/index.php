@@ -29,7 +29,7 @@ $dbMissing = $canEdit ? lp_missing_columns() : [];
   <link rel="apple-touch-icon" href="assets/icon-192.png?v=6">
   <link rel="manifest" href="manifest.webmanifest">
   <meta name="theme-color" content="#007a33">
-  <link rel="stylesheet" href="assets/library.css?v=32">
+  <link rel="stylesheet" href="assets/library.css?v=33">
 </head>
 <body class="lp-body">
 
@@ -201,9 +201,7 @@ $dbMissing = $canEdit ? lp_missing_columns() : [];
     <form id="itemForm" class="lp-form" data-mode="create" data-id="">
       <div class="lp-field-row">
         <label class="lp-field"><span class="lp-field-label">種別 <em>必須</em></span>
-          <select id="iCategory" class="lp-select">
-            <option>アプリ</option><option>プログラム</option><option>資料</option><option>マニュアル</option>
-          </select></label>
+          <select id="iCategory" class="lp-select"></select></label>
         <label class="lp-field"><span class="lp-field-label">管理ID <em>必須</em></span>
           <input id="iId" class="lp-input" type="text" placeholder="APP-004" required>
           <span class="lp-field-hint">種別を選ぶと、続きの番号を自動で入れます。変更もできます。</span></label>
@@ -296,7 +294,7 @@ $dbMissing = $canEdit ? lp_missing_columns() : [];
       uploadMaxBytes: <?= (int)lp_upload_max_bytes() ?>
     };
   </script>
-  <script src="assets/library.js?v=35"></script>
+  <script src="assets/library.js?v=36"></script>
   <script src="assets/pwa.js?v=2"></script>
   <script>
     // インストール導線：すぐに実行できる端末ではその場で、それ以外は案内ページへ

@@ -42,7 +42,31 @@ CREATE TABLE IF NOT EXISTS lp_users (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='利用者';
 
 -- ============================================================
--- 2. ライブラリ本体（アプリ・プログラム・資料・マニュアル）
+-- 2. カテゴリ（種別）。アプリ・プログラム・資料・マニュアルは初期データとして
+--    登録するだけで、設定画面から自由に追加・削除できます。
+-- ============================================================
+CREATE TABLE IF NOT EXISTS lp_categories (
+  category_id  INT          NOT NULL AUTO_INCREMENT,
+  code         VARCHAR(10)  NOT NULL COMMENT '管理IDの接頭辞（例：APP）。作成後は変更しません',
+  label        VARCHAR(40)  NOT NULL COMMENT '表示名（例：アプリ）',
+  color        VARCHAR(20)  NOT NULL DEFAULT 'graphite' COMMENT '配色キー（assets/library.js の PALETTE）',
+  icon         VARCHAR(20)  NOT NULL DEFAULT 'folder' COMMENT 'アイコンキー（assets/library.js の ICONS）',
+  sort_no      INT          NOT NULL DEFAULT 0 COMMENT '一覧・チップでの並び順',
+  created_at   DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (category_id),
+  UNIQUE KEY uk_categories_code (code),
+  UNIQUE KEY uk_categories_label (label)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='資料の種別（カテゴリ）';
+
+INSERT INTO lp_categories (code, label, color, icon, sort_no) VALUES
+  ('APP', 'アプリ',     'navy',     'app',    1),
+  ('PRG', 'プログラム', 'graphite', 'code',   2),
+  ('DOC', '資料',       'tan',      'doc',    3),
+  ('MAN', 'マニュアル', 'maroon',   'book',   4)
+ON DUPLICATE KEY UPDATE label = VALUES(label);
+
+-- ============================================================
+-- 3. ライブラリ本体（アプリ・プログラム・資料・マニュアル）
 -- ============================================================
 CREATE TABLE IF NOT EXISTS lp_items (
   item_id        VARCHAR(20)  NOT NULL COMMENT '管理ID（例：APP-001）',
@@ -63,7 +87,7 @@ CREATE TABLE IF NOT EXISTS lp_items (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='共有ライブラリのアイテム';
 
 -- ============================================================
--- 3. 更新履歴
+-- 4. 更新履歴
 -- ============================================================
 CREATE TABLE IF NOT EXISTS lp_updates (
   update_id       BIGINT       NOT NULL AUTO_INCREMENT,
@@ -92,7 +116,7 @@ CREATE TABLE IF NOT EXISTS lp_updates (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='更新履歴';
 
 -- ============================================================
--- 4. その更新で修正したプログラム・ファイル
+-- 5. その更新で修正したプログラム・ファイル
 --    「更新内容」と「実際に直したプログラム」を紐づけるテーブル
 -- ============================================================
 CREATE TABLE IF NOT EXISTS lp_update_files (
@@ -108,7 +132,7 @@ CREATE TABLE IF NOT EXISTS lp_update_files (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='更新に紐づく修正プログラム';
 
 -- ============================================================
--- 5. 操作ログ（誰がいつ何を登録・変更したか）
+-- 6. 操作ログ（誰がいつ何を登録・変更したか）
 -- ============================================================
 CREATE TABLE IF NOT EXISTS lp_audit_log (
   log_id     BIGINT      NOT NULL AUTO_INCREMENT,
