@@ -3192,8 +3192,23 @@ function uploadGyManual(gid, file){
   fd.append('file', file);
   fetch(MANUAL_UPLOAD_ENDPOINT, { method:'POST', body: fd })
     .then(function(r){
-      if(r.status === 404) throw new Error('サーバーに ' + MANUAL_UPLOAD_ENDPOINT + ' がありません（管理者にご確認ください）');
-      return r.json().catch(function(){ throw new Error('サーバーの応答を読み取れませんでした'); });
+      if(r.status === 404){
+        throw new Error(MANUAL_UPLOAD_ENDPOINT + ' が見つかりません（404）。'
+          + 'deploy/' + MANUAL_UPLOAD_ENDPOINT + ' を index.html と同じ場所（deploy フォルダの外）に、'
+          + MANUAL_UPLOAD_ENDPOINT + ' という名前で置いてあるかご確認ください。');
+      }
+      return r.text().then(function(t){
+        var o;
+        try{ o = JSON.parse(t); }
+        catch(e){
+          if(/^\s*<\?php/i.test(t)){
+            throw new Error('PHPが実行されず、' + MANUAL_UPLOAD_ENDPOINT + ' の中身がそのまま返ってきました。'
+              + 'サーバーがPHPに対応しているかご確認ください。');
+          }
+          throw new Error('サーバーの応答を読み取れませんでした（HTTP ' + r.status + '）');
+        }
+        return o;
+      });
     })
     .then(function(o){
       if(!o || o.ok !== true) throw new Error((o && o.error) || 'アップロードできませんでした');
