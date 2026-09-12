@@ -499,6 +499,14 @@ Googleカレンダーの説明文の貼り付け（`#day-paste` → `loadDayFrom
   `manual-upload.php` は保存先の `manuals/` フォルダを初回アクセス時に自動作成し、
   中に実行不可化用の `.htaccess` も自動生成する（アップロードされたファイルの中でスクリプトが
   実行されないようにする多層防御）。保存ファイル名は元のファイル名を使わずランダムな名前にする。
+- **`post_max_size` 超過時の特別な扱い**: サーバーの `post_max_size`（PHP設定）を超えるサイズの
+  リクエストを送ると、PHPはエラーを出さずに `$_POST` と `$_FILES` を丸ごと空にする。
+  これを見分けずにいると、パスワードが正しくても「パスワードが違います」という紛らわしい
+  エラーになってしまう（実際に発生した不具合）。そのため `manual-upload.php` は、
+  パスワード照合より**先に** `$_SERVER['CONTENT_LENGTH']` と `ini_get('post_max_size')` を比較し、
+  超過が疑われる場合は上限値を含む具体的なメッセージを返す。`upload_max_filesize` 超過
+  （`UPLOAD_ERR_INI_SIZE`）も同様に専用メッセージにする。`deploy/.user.ini.sample` を
+  `.user.ini` として置くと、PHP-FPM環境ではこのフォルダだけ上限を引き上げられる。
 
 ### 5.3 よく使う文（定型フレーズ）
 

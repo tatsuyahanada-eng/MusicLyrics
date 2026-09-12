@@ -47,6 +47,7 @@ GoogleカレンダーへOES入替作業の予定を登録するための、単�
 | `deploy/settings-save.php` | 共有設定をサーバーに保存するための任意のエンドポイント（PHPが動く場合のみ。`settings-save.php` という名前で index.html と同じ場所に置く） |
 | `deploy/manual-upload.php` | 業態ごとの手順書・資料（画像・PDF）のアップロード用エンドポイント（PHPが動く場合のみ。`manual-upload.php` として置く。保存先の `manuals/` フォルダは初回アクセス時に自動作成される） |
 | `deploy/manual-delete.php` | 業態ごとの手順書・資料の実ファイルを削除するエンドポイント（PHPが動く場合のみ。`manual-delete.php` として置く） |
+| `deploy/.user.ini.sample` | PHP-FPM環境で `post_max_size` / `upload_max_filesize` を引き上げるサンプル（`.user.ini` として置く。任意） |
 | `deploy/config.php` | 管理者パスワードの置き場所（PHP。ここが唯一の平文。`config.php` として置く） |
 | `deploy/admin-auth.php` | `config.php` を使ってサーバー側でパスワードを照合するエンドポイント |
 | `deploy/config.json.sample` | PHPが使えない場合のパスワード設定（SHA-256ハッシュ）。`config.json` として置く |
@@ -312,6 +313,18 @@ GoogleカレンダーへOES入替作業の予定を登録するための、単�
     `manual-upload.php`が無い/使えない場合は、アップロード時にトーストで
     「サーバーに manual-upload.php がありません（管理者にご確認ください）」等、原因が分かるメッセージを出す
     （`uploadGyManual()`のエラーハンドリング）。
+  - **実際に発生した不具合と対策**: 共用サーバー（特にPHP-FPM）では`post_max_size`が
+    アップロードしたいファイルより小さいことがある。この上限を超えると、**PHPはエラーにせず
+    `$_POST`と`$_FILES`を丸ごと空にする**ため、パスワードが正しくても`manual-upload.php`側では
+    「パスワードが違います」という**見当違いのエラー**になってしまう（実際に利用者から報告された不具合）。
+    これを防ぐため、`manual-upload.php`はパスワード照合より**先に**
+    `$_SERVER['CONTENT_LENGTH']`と`ini_get('post_max_size')`を比較し、超過が疑われる場合は
+    「ファイルが大きすぎてサーバーの上限（post_max_size = …）を超えています」という具体的なメッセージを返す。
+    同様に`upload_max_filesize`超過（`$_FILES['file']['error'] === UPLOAD_ERR_INI_SIZE`）も
+    専用のメッセージにする。**この2つの上限チェックをパスワード照合より後ろに動かさないこと**
+    （後ろにすると、上限超過時は`$_POST`が空＝パスワードも空になっているため、絶対に先にたどり着けない）。
+    あわせて `deploy/.user.ini.sample`（`.user.ini`にリネームしてindex.htmlと同じ場所に置くと、
+    PHP-FPM環境でこのフォルダだけ`post_max_size`/`upload_max_filesize`を引き上げられる）を用意した。
 - **設定タブは常時表示を最小限にする。** 使用頻度の低い項目（共通設定・作業当日の目印・カレンダー連携）は
   「詳細設定」1枚に折りたたむ（既定は閉）。新しい設定項目を追加する場合も、まず「詳細設定」に入れることを検討する
   （毎回必ず調整するような項目だけを常時表示に置く）。

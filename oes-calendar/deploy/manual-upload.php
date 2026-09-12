@@ -36,8 +36,33 @@ function fail(string $msg, int $code = 400): void {
     exit;
 }
 
+// "10M" のようなini値をバイト数に変換する
+function iniToBytes(string $val): int {
+    $val = trim($val);
+    if ($val === '') return 0;
+    $unit = strtolower(substr($val, -1));
+    $num  = (int)$val;
+    switch ($unit) {
+        case 'g': return $num * 1024 * 1024 * 1024;
+        case 'm': return $num * 1024 * 1024;
+        case 'k': return $num * 1024;
+        default:  return (int)$val;
+    }
+}
+
 if (($_SERVER['REQUEST_METHOD'] ?? '') !== 'POST') {
     fail('POSTで送信してください', 405);
+}
+
+// サーバーのpost_max_sizeを超えるリクエストを送ると、PHPは$_POSTと$_FILESを丸ごと空にする
+// （エラーにもならない）。これを先に見分けておかないと「パスワードが違います」という
+// 誤解を招くメッセージになってしまうため、最初にチェックする。
+$postMaxBytes = iniToBytes((string)ini_get('post_max_size'));
+$contentLength = (int)($_SERVER['CONTENT_LENGTH'] ?? 0);
+if (empty($_POST) && empty($_FILES) && $contentLength > 0
+    && $postMaxBytes > 0 && $contentLength > $postMaxBytes) {
+    fail('ファイルが大きすぎてサーバーの上限（post_max_size = ' . ini_get('post_max_size') . '）を超えています。'
+        . 'ファイルを小さくするか、サーバー側の post_max_size / upload_max_filesize を大きくしてください。', 413);
 }
 
 $configFile = __DIR__ . '/config.php';
@@ -59,8 +84,12 @@ if (!isset($_FILES['file']) || !is_array($_FILES['file'])) {
     fail('ファイルが送られていません');
 }
 $file = $_FILES['file'];
-if ((int)($file['error'] ?? UPLOAD_ERR_NO_FILE) !== UPLOAD_ERR_OK) {
-    fail('ファイルのアップロードに失敗しました（エラーコード ' . (int)$file['error'] . '）');
+$uploadErr = (int)($file['error'] ?? UPLOAD_ERR_NO_FILE);
+if ($uploadErr !== UPLOAD_ERR_OK) {
+    if ($uploadErr === UPLOAD_ERR_INI_SIZE) {
+        fail('ファイルが大きすぎてサーバーの上限（upload_max_filesize = ' . ini_get('upload_max_filesize') . '）を超えています。');
+    }
+    fail('ファイルのアップロードに失敗しました（エラーコード ' . $uploadErr . '）');
 }
 if ((int)($file['size'] ?? 0) <= 0 || (int)$file['size'] > MAX_BYTES) {
     fail('ファイルが大きすぎます（15MBまで）');
