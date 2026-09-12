@@ -458,3 +458,22 @@ Service Workerが登録されることを確認する（`http://` の簡易サ�
 
 サーバーのドキュメントルート配下に `index.html` / `manual.html` / `assets/` を同じ階層で置く。
 Basic認証を使う場合は `deploy/.htaccess.sample` を参考にする（`AuthUserFile` は配置先の絶対パスに書き換える）。
+
+## 変更を届けるとき（重要）
+
+**利用者はZIPを展開し、新しいファイルだけ上書きする運用をしている。** そのため、
+指示の有無にかかわらず、コード変更を行ったら毎回、配置に必要なファイル一式をZIPにまとめて渡すこと
+（「ZIPファイル用意して」と言われたときだけ作る、という扱いにしない）。
+- 対象: `index.html` `manifest.json` `manual.html` `sw.js` `icon-192.png` `icon-512.png`
+  `icon-512-maskable.png` `assets/` `deploy/`（サーバー配置に関係する一式。`CLAUDE.md` `SPEC.md`
+  `README.md` `legacy/` `apps-script/` は開発用ドキュメントなので含めない）。
+- ZIPの中身は**サーバーのドキュメントルート直下に展開したときの相対パスと同じ階層**にする
+  （`oes-app/index.html` のような余計な1段フォルダを作らない。`zip -r ../oes-app.zip index.html
+  manifest.json manual.html sw.js icon-*.png assets deploy` のように、対象ディレクトリ内から
+  直接zip化する）。
+- 変更していないファイルの更新日時を上書きしない（`cp` で一旦コピーしてからzip化すると
+  更新日時が「今」になってしまい、「新しいものだけ上書き」の判定が壊れるため、**リポジトリの
+  ファイルを直接zip化する**。コピーが必要な場合は `cp -p` や `rsync -a` などタイムスタンプを
+  保持する方法を使うこと）。
+- 渡す前に、zipを展開してローカルサーバーで簡単な動作確認（起動する・JSエラーが無い・
+  `manifest.json` のアイコンが全て取得できる等）をしてから渡す。
