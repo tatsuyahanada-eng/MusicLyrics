@@ -1592,9 +1592,9 @@
    ・並ぶ項目には緑を使わない（緑は画面まわりのブランド色として残す）
    ・製本布のような、彩度を落とした色だけを使う
    ============================================================ */
-.lp-slab-app { --book: #355e7a; }   /* アプリ：はっきりした青（スレートブルー） */
+.lp-slab-app { --book: #1c364a; }   /* アプリ：濃いネイビー */
 .lp-slab-prg { --book: #33363c; }   /* プログラム：彩度を抜いた黒（グラファイト） */
-.lp-slab-doc { --book: #7d6749; }   /* 資料：くすんだ茶（クラフト紙） */
+.lp-slab-doc { --book: #947a57; }   /* 資料：くすんだ茶（クラフト紙）をやや薄く */
 .lp-slab-man { --book: #7a5b5f; }   /* マニュアル：くすんだ小豆 */
 
 /* 更新の目盛り：地の色に対して見分けがつく範囲で、彩度は抑える */
@@ -1621,8 +1621,8 @@
 /* マウスオーバーで、紙の小口に光が当たったように明るくする */
 .lp-slab:hover .lp-slab-edge,
 .lp-slab:focus-visible .lp-slab-edge {
-  background: repeating-linear-gradient(90deg, #fffbe8 0 2px, #f0e9cc 2px 3px);
-  box-shadow: inset -2px 0 3px rgba(0, 0, 0, .12), 0 0 14px 2px rgba(255, 244, 198, .9);
+  background: repeating-linear-gradient(90deg, #fffef9 0 2px, #fbf3d2 2px 3px);
+  box-shadow: inset -2px 0 3px rgba(0, 0, 0, .1), 0 0 22px 5px rgba(255, 247, 200, 1);
 }
 .lp-slab::before, .lp-slab::after {
   content: ""; position: absolute; left: 13px; right: 0; height: 1px;
