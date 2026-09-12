@@ -484,7 +484,7 @@ Googleカレンダーの説明文の貼り付け（`#day-paste` → `loadDayFrom
 - 各業態の中にある「＋ ファイルを追加（画像・PDF）」（`addGyManualClick(gid)`）を押すとファイル選択が開き、
   選ぶと `uploadGyManual(gid, file)` が管理者パスワード付きで `manual-upload.php` へアップロードする。
   成功すると一覧（サムネイル・ファイル名・サイズ・削除ボタン）に追加され、`settings.json` へ自動保存される。
-- 対応形式は画像（jpg/png/gif/webp）とPDF、**1件15MBまで**。クライアント側でも簡易チェックするが、
+- 対応形式は画像（jpg/png/gif/webp）とPDF、**1件30MBまで**。クライアント側でも簡易チェックするが、
   実際の検証はサーバー側（`manual-upload.php` が `finfo` でファイルの中身を見て判定）で行う。
 - 削除（`removeGyManual(gid, mid)`）は確認ダイアログの後、一覧と `settings.json` から即座に取り除く。
   サーバー上の実ファイルの削除は `manual-delete.php` へ依頼するが、失敗しても一覧には影響しない
@@ -494,8 +494,10 @@ Googleカレンダーの説明文の貼り付け（`#day-paste` → `loadDayFrom
 - **`manual-upload.php` が置かれていない・PHPが使えないサーバーでは利用できない**
   （`settings-save.php` と違い、ダウンロード＋FTPアップロードのような代替経路は無い）。
   その場合はアップロード時にエラーメッセージで案内する。
-- `deploy/manual-upload.php` / `deploy/manual-delete.php` はPHPが動くサーバー向けのサンプル。
-  パスワードは `settings-save.php` と同じ `config.php` から読み込んで照合する。
+- `manual-upload.php` / `manual-delete.php` はリポジトリの直下（index.htmlと同じ階層）に置いてあり、
+  手動でのコピー・リネームは不要（配布ZIPを展開すればそのまま使える）。
+  パスワードは `settings-save.php` と同じ `config.php`（秘密情報のため`deploy/`に置き、手動で設置する）
+  から読み込んで照合する。
   `manual-upload.php` は保存先の `manuals/` フォルダを初回アクセス時に自動作成し、
   中に実行不可化用の `.htaccess` も自動生成する（アップロードされたファイルの中でスクリプトが
   実行されないようにする多層防御）。保存ファイル名は元のファイル名を使わずランダムな名前にする。
@@ -555,8 +557,10 @@ Googleカレンダーの説明文の貼り付け（`#day-paste` → `loadDayFrom
      **index.html と同じ場所へFTPでアップロードすれば同じ結果になる。**
 - 「ファイルから読み込む」（`importSettings()`）と「初期設定に戻す」（`resetSettings()`）も管理者のみ。
   読み込み時は `normalizeSettings()` で検証・補完し、壊れたファイルは読み込まない。
-- `deploy/settings-save.php` はPHPが動くサーバー向けのサンプル。パスワードは `config.php` から読み込んで照合し、
-  一時ファイル経由で `settings.json` を書き換える。PHPが使えない場合は置かなくてよい（上記2の手順で運用する）。
+- `settings-save.php` はリポジトリの直下（index.htmlと同じ階層）に置いてあり、手動でのコピー・リネームは
+  不要（配布ZIPを展開すればそのまま使える）。パスワードは `config.php`（秘密情報のため`deploy/`に置き、
+  手動で設置する）から読み込んで照合し、一時ファイル経由で `settings.json` を書き換える。
+  PHPが使えない場合はこのファイルが存在しても機能せず、上記2の手順（ダウンロード＋FTP）で運用する。
 
 ### 5.5.1 未共有の変更の検知と自動保存
 
@@ -725,13 +729,19 @@ sessionStorage['oes-calendar-admin-unlocked'] = '1'
 
 ## 10. 認証・配置
 
-- 配置: ドキュメントルート配下に `index.html` / `manual.html` / `assets/` を同じ階層で置く。
+- 配置: ドキュメントルート配下に `index.html` / `manual.html` / `assets/` / `settings-save.php` /
+  `admin-auth.php` / `manual-upload.php` / `manual-delete.php` を同じ階層で置く（配布ZIPを展開すれば
+  この4つのPHPファイルは最初からこの階層に入っているので、手動でコピー・リネームする必要はない）。
   共有設定を使う場合は同じ場所に `settings.json`（アプリが書き出したもの）を置く。
-  PHPが動くサーバーなら `deploy/settings-save.php` を `settings-save.php` として同じ場所に置くと、
-  アプリの「共有設定を保存」からサーバーへ直接保存できる（`settings.json` を書き込むためフォルダに書き込み権限が必要）。
-  業態ごとの手順書・資料（画像・PDF）を使う場合は、同様に `deploy/manual-upload.php` / `deploy/manual-delete.php`
-  を `manual-upload.php` / `manual-delete.php` として同じ場所に置く（アップロードしたファイルを保存する
-  `manuals/` フォルダをこのスクリプトが自動で作成するため、設置場所に書き込み権限が必要）。
+  PHPが動くサーバーであれば `settings-save.php` によりアプリの「共有設定を保存」からサーバーへ
+  直接保存でき（`settings.json` を書き込むためフォルダに書き込み権限が必要）、
+  業態ごとの手順書・資料（画像・PDF）機能も `manual-upload.php` / `manual-delete.php` により使える
+  （アップロードしたファイルを保存する `manuals/` フォルダをこのスクリプトが自動で作成するため、
+  設置場所に書き込み権限が必要）。
+  ただし、いずれもパスワード照合には**秘密情報を含む** `config.php`（または`config.json`）が必要で、
+  これらは自動配布の対象にせず `deploy/` フォルダのサンプルを元に**手動で1回だけ**用意する
+  （`deploy/config.php` → `config.php`、または `deploy/config.json.sample` → `config.json`。
+  一度設置すれば、以降のZIP更新で上書きされることはない）。
 - Basic認証を使う場合は `deploy/.htaccess.sample` を参照（`AuthUserFile` は配置先の絶対パスに書き換える）。
 - 認証情報はリポジトリに含めない。
 

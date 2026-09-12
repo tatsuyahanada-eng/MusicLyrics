@@ -40,7 +40,7 @@ GoogleカレンダーへOES入替作業の予定をまとめて登録するた�
 
 | 優先 | 置くもの | パスワードの見え方 |
 |---|---|---|
-| ① | `config.php` ＋ `admin-auth.php`（[サンプル](deploy/config.php)・[サンプル](deploy/admin-auth.php)） | PHPが実行されるのでブラウザからは**一切見えない**（推奨） |
+| ① | `config.php`（[サンプル](deploy/config.php)。秘密情報のため手動で1回だけ設置） ＋ `admin-auth.php`（リポジトリ直下に既にあり、そのまま使える） | PHPが実行されるのでブラウザからは**一切見えない**（推奨） |
 | ② | `config.json`（[サンプル](deploy/config.json.sample)） | SHA-256ハッシュのみ。平文は読めない |
 | ③ | 何も置かない | `index.html` 内の既定ハッシュ（初期パスワード）で動く |
 
@@ -53,8 +53,8 @@ GoogleカレンダーへOES入替作業の予定をまとめて登録するた�
 設定は index.html と同じ場所に置く `settings.json` から全員が読み込みます。
 管理者が設定タブでパスワードを入れて内容を変更し、「共有設定を保存」を押すと、
 
-- `settings-save.php`（[サンプル](deploy/settings-save.php)）を設置していれば、その場でサーバーに保存されます
-- 設置していない場合は `settings.json` がダウンロードされるので、index.html と同じ場所へFTPでアップロードしてください
+- `settings-save.php`（リポジトリ直下に既にあり、そのまま使える）が動く環境なら、その場でサーバーに保存されます
+- PHPが使えないなど動かない場合は `settings.json` がダウンロードされるので、index.html と同じ場所へFTPでアップロードしてください
 
 どちらの場合も、次に各自がアプリを開いたときから全員に反映されます。
 
@@ -63,14 +63,13 @@ GoogleカレンダーへOES入替作業の予定をまとめて登録するた�
 
 ### 業態ごとの手順書・資料（画像・PDF）について
 
-設定タブの各業態の中で、手順書や注意事項の画像・PDFを登録できます（管理者のみ・1件15MBまで）。
+設定タブの各業態の中で、手順書や注意事項の画像・PDFを登録できます（管理者のみ・1件30MBまで）。
 登録すると、作業当日タブでその業態を選んだ時点で店舗名の下に表示され、探すことなく開けます。
 
-この機能を使うには `manual-upload.php` / `manual-delete.php`（[サンプル](deploy/manual-upload.php) /
-[サンプル](deploy/manual-delete.php)）を、**`deploy/` フォルダの外に出して**、`index.html` と
-同じ場所に置く必要があります（`config.php` `settings-save.php` と同じ場所です。`deploy/` フォルダの
-中に置いたままでは動きません）。設置すると、アップロードしたファイルを保存するための `manuals/`
-フォルダが自動で作られます（設置先フォルダへの書き込み権限が必要です。**PHPが動くサーバーが必須**。
+`manual-upload.php` / `manual-delete.php` はリポジトリ直下（`settings-save.php`と同じ場所）に既に
+置いてあるので、手動でコピー・移動する必要はありません（配布ZIPを展開すればそのまま使えます）。
+最初にアップロードしたときに、ファイルを保存するための `manuals/` フォルダが自動で作られます
+（設置先フォルダへの書き込み権限が必要です。**PHPが動くサーバーが必須**。
 `settings-save.php` と異なり、PHPが使えない場合の代替手段はありません）。
 
 アップロードしようとしたファイルが大きいと、共用サーバー（特にPHP-FPM）では
@@ -109,7 +108,8 @@ GoogleカレンダーへOES入替作業の予定をまとめて登録するた�
 
 ## サーバーへの配置
 
-同じ階層に次を配置します。
+同じ階層に次を配置します。配布ZIPを展開すれば、`config.php` / `config.json` を除く全てが
+最初からこの配置で入っています（手動でコピー・移動する必要はありません）。
 
 ```
 index.html
@@ -120,12 +120,14 @@ icon-192.png           ← PWAアイコン（index.html と同じ階層に置く
 icon-512.png
 icon-512-maskable.png
 settings.json          ← 共有設定（アプリの「共有設定を保存」で作成。無くても初期設定で動きます）
-config.php             ← 任意。管理者パスワード（PHPが使えるサーバー向け・推奨）
-admin-auth.php         ← 任意。config.php とセットで使うパスワード照合用
+admin-auth.php         ← 任意。config.php とセットで使うパスワード照合用（PHPが使える場合のみ機能する）
 settings-save.php      ← 任意。PHPが使えるサーバーなら共有設定をその場で保存できる
 manual-upload.php      ← 任意。業態ごとの手順書・資料（画像・PDF）をアップロードできる（PHP必須）
 manual-delete.php      ← 任意。上記の資料をサーバーから削除する（PHP必須）
-config.json            ← 任意。PHPが使えない場合のパスワード設定（ハッシュ）
+config.php             ← 【手動で設置】管理者パスワード（PHPが使えるサーバー向け・推奨）。
+                          秘密情報のため配布ZIPには含まれない。deploy/config.php を元に1回だけ用意する
+config.json            ← 【手動で設置・任意】PHPが使えない場合のパスワード設定（ハッシュ）。
+                          deploy/config.json.sample を元に用意する
 assets/welsys-logo.jpg
 assets/device-printer.jpg
 assets/device-kitchen.jpg
@@ -161,7 +163,8 @@ Basic認証をかける場合は [`deploy/.htaccess.sample`](deploy/.htaccess.sa
 | `assets/` | ロゴ画像・機器画像・PWAアイコン |
 | `apps-script/` | Googleカレンダー連携用のApps Scriptコード（現在は停止中の機能。参考用） |
 | `manifest.json` `sw.js` `icon-*.png` | PWA（アプリとしてインストール）用 |
-| `deploy/` | サーバー配置用サンプル（Basic認証・管理者パスワード・共有設定/手順書資料の保存エンドポイント・ハッシュ作成ページ） |
+| `settings-save.php` `admin-auth.php` `manual-upload.php` `manual-delete.php` | サーバー側の任意エンドポイント（秘密情報を含まないため配布ZIPにそのまま含まれる。PHPが動く場合のみ機能する） |
+| `deploy/` | 秘密情報・サーバー固有設定など、手動での設置が前提のサンプル（管理者パスワード・Basic認証・アップロード上限のPHP設定・ハッシュ作成ページ） |
 | `legacy/` | Claude Chatで作成した旧版（参照用・非稼働） |
 
 ---

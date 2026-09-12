@@ -2,8 +2,8 @@
 /**
  * OES入替作業APP / 業態ごとの手順書・資料（画像・PDF）のアップロード用エンドポイント（任意・PHPが動くサーバー向け）
  *
- * 置き場所: index.html と同じ場所に "manual-upload.php" という名前で置く。
- *           （このファイルは deploy/ にあるサンプルです。名前を manual-upload.php にしてコピーしてください）
+ * 置き場所: index.html と同じ場所（このファイル自身がある場所）に置いたままでよい。
+ *           手動でコピー・移動する必要はない（配布ZIPを展開すればそのまま使える）。
  *
  * 動き:     設定タブの「＋ ファイルを追加」から画像・PDFを受け取り、
  *           このファイルと同じ場所の "manuals/" フォルダに保存する。
@@ -16,7 +16,7 @@
 declare(strict_types=1);
 
 const MANUAL_DIR  = __DIR__ . '/manuals';
-const MAX_BYTES    = 15 * 1024 * 1024; // 15MB（index.html 側の上限と合わせる）
+const MAX_BYTES    = 30 * 1024 * 1024; // 30MB（index.html 側の上限と合わせる）
 
 // クライアントが名乗るMIMEやファイル名は信用せず、実体を見て判定する
 const ALLOWED_MIME = [
@@ -92,7 +92,7 @@ if ($uploadErr !== UPLOAD_ERR_OK) {
     fail('ファイルのアップロードに失敗しました（エラーコード ' . $uploadErr . '）');
 }
 if ((int)($file['size'] ?? 0) <= 0 || (int)$file['size'] > MAX_BYTES) {
-    fail('ファイルが大きすぎます（15MBまで）');
+    fail('ファイルが大きすぎます（30MBまで）');
 }
 $tmpPath = (string)($file['tmp_name'] ?? '');
 if ($tmpPath === '' || !is_uploaded_file($tmpPath)) {

@@ -2889,7 +2889,7 @@ function renderSettings(){
 
     html += '<div class="hint" style="margin-bottom:7px;">手順書・資料（任意）: 業態別の作業手順書や注意事項の'
       + '画像・PDFを登録できます。作業当日タブでこの業態を選ぶと、探すことなくそのまま開けます'
-      + '（画像・PDF、1件15MBまで）。</div>';
+      + '（画像・PDF、1件30MBまで）。</div>';
     html += '<div class="gyman-list" id="gyman-list-' + g.id + '">';
     (g.manuals || []).forEach(function(m){
       html += '<div class="gyman-item">'
@@ -3144,7 +3144,7 @@ function setGyNoteText(gid, nid, v){
 /* ---------- 業態ごとの手順書・資料（画像・PDF） ---------- */
 var MANUAL_UPLOAD_ENDPOINT = 'manual-upload.php';
 var MANUAL_DELETE_ENDPOINT = 'manual-delete.php';
-var MANUAL_MAX_BYTES = 15 * 1024 * 1024; /* サーバー側 manual-upload.php の上限と合わせる */
+var MANUAL_MAX_BYTES = 30 * 1024 * 1024; /* サーバー側 manual-upload.php の上限と合わせる */
 var MANUAL_ACCEPT_TYPES = { 'image/jpeg':'image', 'image/png':'image', 'image/gif':'image', 'image/webp':'image', 'application/pdf':'pdf' };
 function findGyManual(g, mid){
   if(!g) return null;
@@ -3171,7 +3171,7 @@ function onGyManualFileChange(gid, inputEl){
     return;
   }
   if(file.size > MANUAL_MAX_BYTES){
-    toast('ファイルが大きすぎます（15MBまで）');
+    toast('ファイルが大きすぎます（30MBまで）');
     return;
   }
   uploadGyManual(gid, file);

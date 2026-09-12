@@ -43,14 +43,14 @@ GoogleカレンダーへOES入替作業の予定を登録するための、単�
 | `assets/device-printer.jpg` `assets/device-kitchen.jpg` | 対象機器の画像（マルチプリンター／マルチステーション）。manual.html が参照。index.html は縮小版をbase64で内包 |
 | `icon-*.png` | PWAアイコン（192/512/180/512-maskable）。**`manifest.json` から実URLで参照する**（Androidでアイコンを取得するために必須）。180はapple-touch-iconとしてindex.htmlにdata URIで内包 |
 | `apps-script/Code.gs` | Googleカレンダー連携用のApps Scriptコード（現在は停止中の機能。参考用に保持） |
-| `deploy/.htaccess.sample` | Basic認証用サンプル |
-| `deploy/settings-save.php` | 共有設定をサーバーに保存するための任意のエンドポイント（PHPが動く場合のみ。`settings-save.php` という名前で index.html と同じ場所に置く） |
-| `deploy/manual-upload.php` | 業態ごとの手順書・資料（画像・PDF）のアップロード用エンドポイント（PHPが動く場合のみ。`manual-upload.php` として置く。保存先の `manuals/` フォルダは初回アクセス時に自動作成される） |
-| `deploy/manual-delete.php` | 業態ごとの手順書・資料の実ファイルを削除するエンドポイント（PHPが動く場合のみ。`manual-delete.php` として置く） |
-| `deploy/.user.ini.sample` | PHP-FPM環境で `post_max_size` / `upload_max_filesize` を引き上げるサンプル（`.user.ini` として置く。任意） |
-| `deploy/config.php` | 管理者パスワードの置き場所（PHP。ここが唯一の平文。`config.php` として置く） |
-| `deploy/admin-auth.php` | `config.php` を使ってサーバー側でパスワードを照合するエンドポイント |
-| `deploy/config.json.sample` | PHPが使えない場合のパスワード設定（SHA-256ハッシュ）。`config.json` として置く |
+| `settings-save.php` | 共有設定をサーバーに保存する任意のエンドポイント（PHPが動く場合のみ使われる。**index.htmlと同じ階層にそのまま置く＝リポジトリのこの場所が既に本番の置き場所**。手動でコピー・リネームする必要はない） |
+| `admin-auth.php` | `config.php` を使ってサーバー側でパスワードを照合するエンドポイント（同上、そのまま置く） |
+| `manual-upload.php` | 業態ごとの手順書・資料（画像・PDF）のアップロード用エンドポイント（同上、そのまま置く。保存先の `manuals/` フォルダは初回アクセス時に自動作成される） |
+| `manual-delete.php` | 業態ごとの手順書・資料の実ファイルを削除するエンドポイント（同上、そのまま置く） |
+| `deploy/.htaccess.sample` | Basic認証用サンプル（内容がサーバーごとに違うため手動設置。`.htaccess`として置く） |
+| `deploy/config.php` | 管理者パスワードの置き場所（PHP。ここが唯一の平文。**秘密情報のため自動配布の対象にせず、手動で`config.php`として置く**。一度置けば以降のZIP更新で上書きされない） |
+| `deploy/config.json.sample` | PHPが使えない場合のパスワード設定（SHA-256ハッシュ）。手動で`config.json`として置く |
+| `deploy/.user.ini.sample` | PHP-FPM環境で `post_max_size` / `upload_max_filesize` を引き上げるサンプル（サーバーごとに要否が違うため手動設置。`.user.ini`として置く。任意） |
 | `deploy/make-hash.html` | `config.json` 用のハッシュを作る手元用ページ（**サーバーには置かない**） |
 | `legacy/` | Claude Chat時代の旧版（参照用・非稼働） |
 
@@ -293,7 +293,7 @@ GoogleカレンダーへOES入替作業の予定を登録するための、単�
   - 削除は`removeGyManual()`。`confirm()`で確認後、`g.manuals`から即座に取り除いて共有設定を保存しつつ、
     サーバー上の実ファイルの削除は`manual-delete.php`へ**うまくいかなくても気にしない形（fire-and-forget）**
     で依頼する（一覧から消えることが利用者にとっての「削除完了」であり、孤立ファイルが1つ残る程度は実害がないため）。
-  - 対応形式は画像（jpg/png/gif/webp）とPDF、**1件15MBまで**（`MANUAL_MAX_BYTES`。サーバー側`manual-upload.php`の
+  - 対応形式は画像（jpg/png/gif/webp）とPDF、**1件30MBまで**（`MANUAL_MAX_BYTES`。サーバー側`manual-upload.php`の
     上限と必ず合わせること）。クライアント側の`accept`属性やMIMEチェックは利便性のためのものに過ぎず、
     **本当の検証はサーバー側（`finfo`による実体判定）で行う**（クライアントが偽装したMIMEやファイル名は信用しない）。
   - `manual-upload.php`は保存先の`manuals/`フォルダを初回アクセス時に自動作成し、その中に
@@ -478,12 +478,20 @@ Basic認証を使う場合は `deploy/.htaccess.sample` を参考にする（`Au
 指示の有無にかかわらず、コード変更を行ったら毎回、配置に必要なファイル一式をZIPにまとめて渡すこと
 （「ZIPファイル用意して」と言われたときだけ作る、という扱いにしない）。
 - 対象: `index.html` `manifest.json` `manual.html` `sw.js` `icon-192.png` `icon-512.png`
-  `icon-512-maskable.png` `assets/` `deploy/`（サーバー配置に関係する一式。`CLAUDE.md` `SPEC.md`
+  `icon-512-maskable.png` `assets/` `settings-save.php` `admin-auth.php` `manual-upload.php`
+  `manual-delete.php` `deploy/`（サーバー配置に関係する一式。`CLAUDE.md` `SPEC.md`
   `README.md` `legacy/` `apps-script/` は開発用ドキュメントなので含めない）。
 - ZIPの中身は**サーバーのドキュメントルート直下に展開したときの相対パスと同じ階層**にする
   （`oes-app/index.html` のような余計な1段フォルダを作らない。`zip -r ../oes-app.zip index.html
-  manifest.json manual.html sw.js icon-*.png assets deploy` のように、対象ディレクトリ内から
-  直接zip化する）。
+  manifest.json manual.html sw.js icon-*.png assets settings-save.php admin-auth.php
+  manual-upload.php manual-delete.php deploy` のように、対象ディレクトリ内から直接zip化する）。
+- **`settings-save.php` `admin-auth.php` `manual-upload.php` `manual-delete.php` はリポジトリの
+  直下（index.htmlと同じ階層）に置くこと。`deploy/`の中には戻さない。** これらは秘密情報を
+  含まないため、利用者が手動でコピー・リネームしなくてもZIP展開だけでそのまま動く設計にしている
+  （以前は`deploy/`のサンプルを手動でコピーする方式だったが、置き忘れによる不具合報告を受けて
+  この形に変更した）。一方 `config.php`（管理者パスワードという秘密情報そのもの）と
+  `config.json.sample`（そのハッシュ版）は**今後も`deploy/`に置いたまま、自動配布の対象にしないこと**
+  （ZIPで自動上書きすると、利用者が独自に設定したパスワードを気づかないうちに消してしまう恐れがあるため）。
 - 変更していないファイルの更新日時を上書きしない（`cp` で一旦コピーしてからzip化すると
   更新日時が「今」になってしまい、「新しいものだけ上書き」の判定が壊れるため、**リポジトリの
   ファイルを直接zip化する**。コピーが必要な場合は `cp -p` や `rsync -a` などタイムスタンプを

@@ -17,5 +17,5 @@
 ;           古い方式のサーバーなど）もあります。その場合はレンタルサーバーの管理画面や
 ;           サポートに「post_max_size と upload_max_filesize を大きくしてほしい」とご相談ください。
 
-post_max_size = 20M
-upload_max_filesize = 20M
+post_max_size = 40M
+upload_max_filesize = 35M
