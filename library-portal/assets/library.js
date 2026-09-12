@@ -265,7 +265,8 @@ async function loadItems() {
   items.forEach((it) => { if (!it.version) numberVersions(it); });
 }
 
-/* 版数の決まり：最初の登録が 1.00、通常の更新で 1.1・1.2…、微修正で 1.11・1.12…。
+/* 版数の決まり：アイテムの登録時点を 1.00 とし、最初の更新から毎回バージョンアップ
+   として数える（通常の更新で 1.1・1.2…、微修正で 1.01・1.02…）。
    桁があふれたら繰り上げる（1.9 の次は 2.00）ので、同じ表記は二度出ない。
    本番では api/items.php が同じ規則で数えている（includes/helpers.php）。 */
 function numberVersions(it) {
@@ -274,10 +275,8 @@ function numberVersions(it) {
     ? `${major}.00`
     : (rev === 0 ? `${major}.${minor}` : `${major}.${minor}${rev}`);
 
-  [...it.history].reverse().forEach((e, i) => {         // 古い順に数える
-    if (i === 0) {
-      // 最初の登録は 1.00
-    } else if (e.bump === 'revision') {
+  [...it.history].reverse().forEach((e) => {         // 古い順に数える
+    if (e.bump === 'revision') {
       rev++;
       if (rev > 9) { rev = 0; minor++; }
       if (minor > 9) { minor = 0; major++; }
@@ -1093,7 +1092,9 @@ function previewNextVersion(itemId, uid, date, time, bump) {
   const it = items.find((x) => x.id === itemId);
   if (!it) return null;
   const hist = it.history.map((h) => ({ ...h }));
-  const marker = uid ? Number(uid) : -1;
+  // 新規登録はまだ id を持たないが、これから一番大きな（＝一番新しい）id が
+  // 振られることになるので、日時が同じ既存の更新より必ず新しい扱いにする
+  const marker = uid ? Number(uid) : Infinity;
   if (uid) {
     const target = hist.find((h) => h.uid === marker);
     if (!target) return null;
@@ -1103,9 +1104,13 @@ function previewNextVersion(itemId, uid, date, time, bump) {
   } else {
     hist.push({ uid: marker, date, time, bump });
   }
-  const clone = { history: hist };
-  sortHistory(clone);
-  numberVersions(clone);
+  // 保存後の並び（updated_on/updated_time DESC, update_id DESC）に合わせて並べる。
+  // 日時が同じ場合は id が大きい（＝あとから登録された）ほうを新しいとして扱う
+  hist.sort((a, b) => {
+    const cmp = `${b.date} ${b.time}`.localeCompare(`${a.date} ${a.time}`);
+    return cmp !== 0 ? cmp : b.uid - a.uid;
+  });
+  numberVersions({ history: hist });
   const entry = hist.find((h) => h.uid === marker);
   return entry ? entry.version : null;
 }

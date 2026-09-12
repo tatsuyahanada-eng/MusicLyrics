@@ -183,7 +183,7 @@ $dbMissing = $canEdit ? lp_missing_columns() : [];
       </label>
       <label class="lp-field"><span class="lp-field-label">URL（変更がある場合のみ）</span>
         <input id="fUrl" class="lp-input" type="url" placeholder="https://share.example.co.jp/..."></label>
-      <p class="lp-field-hint">版数は登録順から自動で決まります（最初の登録が 1.00、以降 1.1・1.2…、微修正は 1.11・1.12…）。</p>
+      <p class="lp-field-hint">版数は登録順から自動で決まります（アイテム登録時点が Ver1.00、最初の更新から 1.1・1.2…、微修正は 1.01・1.02…）。</p>
       <p class="lp-form-error" id="updateError" hidden></p>
       <div class="lp-form-actions">
         <button type="button" id="btnCancel" class="lp-btn lp-btn-ghost">キャンセル</button>
@@ -296,7 +296,7 @@ $dbMissing = $canEdit ? lp_missing_columns() : [];
       uploadMaxBytes: <?= (int)lp_upload_max_bytes() ?>
     };
   </script>
-  <script src="assets/library.js?v=33"></script>
+  <script src="assets/library.js?v=34"></script>
   <script src="assets/pwa.js?v=2"></script>
   <script>
     // インストール導線：すぐに実行できる端末ではその場で、それ以外は案内ページへ

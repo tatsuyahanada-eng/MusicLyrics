@@ -101,6 +101,9 @@ function lp_version_label(int $major, int $minor, int $rev): string
 /**
  * 更新履歴（古い順）から、各更新時点の版数を順に求める。
  *
+ * アイテムの登録時点を Ver1.00 とし、そこから最初の更新も含めて毎回
+ * バージョンアップとして数える（1回目の更新で 1.1、微修正なら 1.01）。
+ *
  * @param array $bumps 各更新の 'minor'（通常）または 'revision'（微修正）
  * @return string[]    古い順の版数
  */
@@ -111,10 +114,8 @@ function lp_version_series(array $bumps): array
     $rev   = 0;
     $out   = [];
 
-    foreach ($bumps as $i => $bump) {
-        if ($i === 0) {
-            // 最初の登録は必ず 1.00
-        } elseif ($bump === 'revision') {
+    foreach ($bumps as $bump) {
+        if ($bump === 'revision') {
             $rev++;
             if ($rev > 9) { $rev = 0; $minor++; }        // 1.19 の次は 1.2
             if ($minor > 9) { $minor = 0; $major++; }
