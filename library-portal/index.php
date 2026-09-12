@@ -26,7 +26,7 @@ $dbMissing = $isAdmin ? lp_missing_columns() : [];
   <link rel="apple-touch-icon" href="assets/icon-192.png?v=6">
   <link rel="manifest" href="manifest.webmanifest">
   <meta name="theme-color" content="#007a33">
-  <link rel="stylesheet" href="assets/library.css?v=29">
+  <link rel="stylesheet" href="assets/library.css?v=30">
 </head>
 <body class="lp-body">
 
@@ -176,6 +176,7 @@ $dbMissing = $isAdmin ? lp_missing_columns() : [];
         <span class="lp-field-hint lp-field-hint-warn" id="fAttachmentNote" hidden>
           データベースの更新（sql/upgrade.sql）がまだのため、ここにファイルを付けても保存されません。
         </span>
+        <p class="lp-field-hint lp-field-hint-info" id="fLatestFileHint" hidden></p>
       </label>
       <label class="lp-field"><span class="lp-field-label">URL（変更がある場合のみ）</span>
         <input id="fUrl" class="lp-input" type="url" placeholder="https://share.example.co.jp/..."></label>
@@ -292,7 +293,7 @@ $dbMissing = $isAdmin ? lp_missing_columns() : [];
       uploadMaxBytes: <?= (int)lp_upload_max_bytes() ?>
     };
   </script>
-  <script src="assets/library.js?v=31"></script>
+  <script src="assets/library.js?v=32"></script>
   <script src="assets/pwa.js?v=2"></script>
   <script>
     // インストール導線：すぐに実行できる端末ではその場で、それ以外は案内ページへ

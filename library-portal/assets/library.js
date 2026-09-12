@@ -661,12 +661,23 @@ function siblingsBlock(it) {
     </div>`;
 }
 
+/**
+ * 履歴の中で、いちばん新しく添付ファイルが付いた更新を返す。
+ * 直近の更新にファイルが付いていなくても（文言だけの修正など）、資料そのものの
+ * 最新ファイルは以前の更新に添付されたままのことが多いため、最新の1件だけでなく
+ * 履歴全体（新しい順）から探す。
+ */
+function latestAttachedEntry(it) {
+  return it.history.find((e) => e.attachment) || null;
+}
+
 /** 左ページ：この資料の最新Verがどうなっているか */
 function spreadLeft(it) {
   const h = latest(it);
   const url = safeUrl(it.downloadUrl);
-  // URL が未設定でも、最新の更新にファイルが添付されていればそれを「開く」先にする
-  const attach = (!url && h && h.attachment) ? h.attachment : null;
+  // URL が未設定なら、履歴の中でいちばん新しいファイルを常に「開く」先にする
+  const attachedEntry = url ? null : latestAttachedEntry(it);
+  const attach = attachedEntry ? attachedEntry.attachment : null;
   const fileCount = it.history.reduce((sum, e) => sum + normFiles(e).length, 0);
   const touched = new Set();
   it.history.forEach((e) => normFiles(e).forEach((f) => touched.add(f.path)));
@@ -699,7 +710,9 @@ function spreadLeft(it) {
           <span class="lp-dl-url">${esc(url)}</span>
         </p>` : attach ? `<p class="lp-page-open">
           <a class="lp-attach-link lp-attach-link-lg" href="${esc(attach.url)}">${ICON_CLIP}<span>${esc(attach.name)}</span></a>
-          <span class="lp-dl-url">${fmtBytes(attach.size)}</span>
+          <span class="lp-dl-url">${fmtBytes(attach.size)}${attachedEntry && attachedEntry !== h
+            ? `　／　${esc(attachedEntry.version || '')} （${fmtDate(attachedEntry.date)}）で登録されたファイル`
+            : ''}</span>
         </p>` : '<p class="lp-page-open"><span class="lp-muted">URL 未設定</span></p>'}
 
         <dl class="lp-okuzuke">
@@ -975,6 +988,24 @@ function formError(id, message) {
 }
 
 /* ---------- 更新登録 ---------- */
+/**
+ * 新規登録フォームに「今すでにある最新ファイル」を表示する（itemId が空、または
+ * 修正モードのときは非表示）。間違って古いファイルのつもりで登録してしまわないように。
+ */
+function refreshLatestFileHint(itemId) {
+  const latestHint = $('fLatestFileHint');
+  if (!latestHint) return;
+  const it = itemId ? items.find((x) => x.id === itemId) : null;
+  const currentEntry = it ? latestAttachedEntry(it) : null;
+  const a = currentEntry && currentEntry.attachment;
+  latestHint.hidden = !a;
+  if (a) {
+    latestHint.innerHTML = `現在の最新ファイル：<a href="${esc(a.url)}" target="_blank" rel="noopener">${esc(a.name)}</a>`
+      + `（${esc(currentEntry.version || '')} ・ ${fmtDate(currentEntry.date)} 登録）。`
+      + '新しいファイルを添付すると、この版の最新ファイルとして置き換わります。';
+  }
+}
+
 /** 更新履歴の登録・修正フォームを開く（uid を渡すとその1件の修正になる） */
 function openUpdateModal(itemId, uid) {
   if (!CAN_EDIT) return;
@@ -1021,6 +1052,10 @@ function openUpdateModal(itemId, uid) {
   fillAttachmentCurrent('f', entry && entry.attachment);
   $('fAttachment').disabled = !DB_HAS_FILES;
   $('fAttachmentNote').hidden = DB_HAS_FILES;
+
+  // 新規登録のときは「今すでにある最新ファイル」を見比べられるようにしておく
+  // （間違って古いファイルのつもりで登録してしまわないように）
+  refreshLatestFileHint(entry ? '' : itemId);
 
   showModal($('updateModal'));
   $('fSummary').focus();
@@ -1501,6 +1536,10 @@ async function init() {
   // 以下は index.php（ログイン後の画面）にのみ存在する要素
   const bind = (id, ev, fn) => { const el = $(id); if (el) el.addEventListener(ev, fn); };
   bind('btnNewUpdate', 'click', () => openUpdateModal());
+  // 資料を選ばずにモーダルを開いた場合、あとから選んだ資料に合わせて最新ファイルの表示を更新する
+  bind('fItem', 'change', () => {
+    if ($('updateForm').dataset.mode !== 'edit') refreshLatestFileHint($('fItem').value);
+  });
   bind('btnNewItem', 'click', () => openItemModal());
   bind('btnCloseModal', 'click', hideModals);
   bind('btnCancel', 'click', hideModals);
