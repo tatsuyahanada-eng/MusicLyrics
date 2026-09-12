@@ -4,7 +4,8 @@
  * POST api/items.php        … アイテムを新規登録（管理者のみ）
  */
 declare(strict_types=1);
-require __DIR__ . '/../sso/sso_guard.php';
+// SSO（シングルサインオン）を再度有効化する場合は次の行のコメントを外す
+// require __DIR__ . '/../sso/sso_guard.php';
 require_once __DIR__ . '/../includes/auth.php';
 
 $method = $_SERVER['REQUEST_METHOD'] ?? 'GET';

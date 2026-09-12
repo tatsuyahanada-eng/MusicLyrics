@@ -964,7 +964,7 @@ function showModal(el) {
 }
 function hideModals() {
   $('modalOverlay').hidden = true;
-  ['updateModal', 'itemModal'].forEach((id) => { const el = $(id); if (el) el.hidden = true; });
+  ['updateModal', 'itemModal', 'pwModal'].forEach((id) => { const el = $(id); if (el) el.hidden = true; });
   ['updateError', 'itemError', 'pwError'].forEach((id) => { const el = $(id); if (el) el.hidden = true; });
 }
 function formError(id, message) {
@@ -1290,6 +1290,26 @@ async function submitItem(ev) {
   }
 }
 
+/* ---------- パスワード変更 ---------- */
+async function submitPassword(ev) {
+  ev.preventDefault();
+  const next = $('pwNext').value;
+  if (next !== $('pwConfirm').value) {
+    formError('pwError', '新しいパスワードが一致しません。');
+    return;
+  }
+  try {
+    await apiSend('password.php', 'POST', { current: $('pwCurrent').value, next });
+    hideModals();
+    $('pwForm').reset();
+    toast('パスワードを変更しました');
+    const notice = document.querySelector('.lp-notice');
+    if (notice) notice.remove();
+  } catch (e) {
+    formError('pwError', e.message || '変更に失敗しました。');
+  }
+}
+
 /* ---------- トースト ---------- */
 /**
  * 一覧を取得できなかったときは、消えるトーストではなく画面に残る帯で理由を出す。
@@ -1447,12 +1467,16 @@ async function init() {
   bind('btnCancel', 'click', hideModals);
   bind('btnCloseItemModal', 'click', hideModals);
   bind('btnItemCancel', 'click', hideModals);
+  bind('btnClosePwModal', 'click', hideModals);
+  bind('btnPwCancel', 'click', hideModals);
   bind('modalOverlay', 'click', hideModals);
   bind('updateForm', 'submit', submitUpdate);
   bind('itemForm', 'submit', submitItem);
   bind('iCategory', 'change', updateSuggestedItemId);
   // 管理IDを自分で書き換えたら、以後は種別を変えても上書きしない
   bind('iId', 'input', () => { $('itemForm').dataset.idAuto = '0'; });
+  bind('pwForm', 'submit', submitPassword);
+  bind('btnChangePw', 'click', () => { closeUserMenu(); showModal($('pwModal')); $('pwCurrent').focus(); });
 
   const menuBtn = $('btnUserMenu');
   if (menuBtn) {

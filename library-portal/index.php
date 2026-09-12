@@ -1,9 +1,14 @@
 <?php
 declare(strict_types=1);
-require __DIR__ . '/sso/sso_guard.php';
 require_once __DIR__ . '/includes/auth.php';
 
 $user = require_login();
+refresh_current_user();
+$user = current_user();
+if ($user === null) {
+    header('Location: login.php');
+    exit;
+}
 $isAdmin = ($user['role'] ?? '') === 'admin';
 $csrf    = csrf_token();
 // sql/upgrade.sql をまだ実行していないと使えない項目を、画面側にも伝えておく
@@ -48,7 +53,10 @@ $dbMissing = $isAdmin ? lp_missing_columns() : [];
             <span class="lp-role lp-role-<?= $isAdmin ? 'admin' : 'viewer' ?>"><?= $isAdmin ? '管理者' : '閲覧のみ' ?></span>
           </button>
           <div id="userMenu" class="lp-user-menu" hidden>
-            <a class="lp-user-menu-item" href="settings.php">⚙ 設定</a>
+            <?php if ($isAdmin): ?>
+              <a class="lp-user-menu-item" href="settings.php">⚙ 設定（利用者管理）</a>
+            <?php endif; ?>
+            <button class="lp-user-menu-item" type="button" id="btnChangePw">🔑 パスワード変更</button>
             <a class="lp-user-menu-item" id="lnkInstall" href="install.php">⤓ アプリをインストール</a>
             <a class="lp-user-menu-item lp-user-menu-danger" href="logout.php">↩ ログアウト</a>
           </div>
@@ -58,6 +66,10 @@ $dbMissing = $isAdmin ? lp_missing_columns() : [];
   </header>
 
   <main class="lp-main">
+    <?php if (!empty($user['must_change_pw'])): ?>
+      <p class="lp-notice">初期パスワードのままです。メニューから<strong>パスワード変更</strong>を行ってください。</p>
+    <?php endif; ?>
+
     <div class="lp-toolbar">
       <div class="lp-search">
         <span class="lp-search-icon" aria-hidden="true"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg></span>
@@ -241,6 +253,28 @@ $dbMissing = $isAdmin ? lp_missing_columns() : [];
     </form>
   </div>
 
+  <!-- パスワード変更 -->
+  <div id="pwModal" class="lp-modal" role="dialog" aria-modal="true" aria-labelledby="pwModalTitle" hidden>
+    <div class="lp-modal-head">
+      <h2 class="lp-modal-title" id="pwModalTitle">パスワードの変更</h2>
+      <button id="btnClosePwModal" class="lp-icon-btn" type="button" aria-label="閉じる">✕</button>
+    </div>
+    <form id="pwForm" class="lp-form">
+      <label class="lp-field"><span class="lp-field-label">現在のパスワード <em>必須</em></span>
+        <input id="pwCurrent" class="lp-input" type="password" required autocomplete="current-password"></label>
+      <label class="lp-field"><span class="lp-field-label">新しいパスワード <em>必須</em></span>
+        <input id="pwNext" class="lp-input" type="password" required autocomplete="new-password"
+               placeholder="8文字以上・英字と数字を含む"></label>
+      <label class="lp-field"><span class="lp-field-label">新しいパスワード（確認） <em>必須</em></span>
+        <input id="pwConfirm" class="lp-input" type="password" required autocomplete="new-password"></label>
+      <p class="lp-form-error" id="pwError" hidden></p>
+      <div class="lp-form-actions">
+        <button type="button" id="btnPwCancel" class="lp-btn lp-btn-ghost">キャンセル</button>
+        <button type="submit" class="lp-btn lp-btn-primary">変更する</button>
+      </div>
+    </form>
+  </div>
+
   <div id="toast" class="lp-toast" hidden></div>
 
   <script>
@@ -248,7 +282,7 @@ $dbMissing = $isAdmin ? lp_missing_columns() : [];
       apiBase: 'api',
       csrf: <?= json_encode($csrf) ?>,
       user: {
-        id: <?= json_encode($user['user_id']) ?>,
+        id: <?= (int)$user['user_id'] ?>,
         loginId: <?= json_encode($user['login_id']) ?>,
         name: <?= json_encode($user['display_name']) ?>,
         role: <?= json_encode($user['role']) ?>
@@ -258,7 +292,7 @@ $dbMissing = $isAdmin ? lp_missing_columns() : [];
       uploadMaxBytes: <?= (int)lp_upload_max_bytes() ?>
     };
   </script>
-  <script src="assets/library.js?v=29"></script>
+  <script src="assets/library.js?v=30"></script>
   <script src="assets/pwa.js?v=2"></script>
   <script>
     // インストール導線：すぐに実行できる端末ではその場で、それ以外は案内ページへ
