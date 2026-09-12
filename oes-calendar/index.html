@@ -209,6 +209,14 @@ input:focus,select:focus,textarea:focus{border-color:var(--blue);box-shadow:0 0 
 .ph:hover{background:#F1D6D3;}
 .note{background:#FFF9EC;border:1px solid #F0DFB6;border-radius:var(--r-s);padding:10px 12px;font-size:12px;color:#7A5B14;line-height:1.65;}
 .note b{color:#5E4409;}
+/* 業態ごとの手順書・資料（設定画面の一覧） */
+.gyman-list{display:flex;flex-direction:column;gap:6px;}
+.gyman-item{display:flex;align-items:center;gap:8px;border:1px solid var(--line-w);border-radius:var(--r-s);padding:6px 8px;background:var(--white);}
+.gyman-ic{flex-shrink:0;width:30px;height:30px;border-radius:5px;object-fit:cover;}
+.gyman-ic-pdf{display:flex;align-items:center;justify-content:center;background:var(--sky);color:#fff;font-size:9px;font-weight:700;}
+.gyman-name{flex:1;min-width:0;font-size:12.5px;color:var(--blue-d);text-decoration:none;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.gyman-name:hover{text-decoration:underline;}
+.gyman-size{flex-shrink:0;font-size:11px;color:var(--muted);}
 
 /* ---------- 作業当日 ---------- */
 .day-sum{padding:4px 2px;}
@@ -234,6 +242,18 @@ input:focus,select:focus,textarea:focus{border-color:var(--blue);box-shadow:0 0 
   color:var(--ink); white-space:pre-wrap; word-break:break-word; margin:9px 0;
 }
 .day-notes .dn-label{display:block; font-weight:700; color:var(--blue-d); margin-bottom:3px;}
+/* 業態ごとの手順書・資料（作業当日タブ。業態を選ぶとすぐ参照できる） */
+.day-manuals{
+  background:var(--blue-l2); border:1px solid var(--line); border-left:4px solid var(--blue);
+  border-radius:var(--r-s); padding:9px 11px; margin:9px 0;
+}
+.day-manuals .dn-label{display:block; font-weight:700; color:var(--blue-d); font-size:12.5px; margin-bottom:6px;}
+.dm-list{display:flex;flex-wrap:wrap;gap:7px;}
+.dm-item{display:flex;align-items:center;gap:6px;border:1px solid var(--line);border-radius:var(--r-s);
+  background:var(--white);padding:5px 9px 5px 5px;text-decoration:none;max-width:100%;}
+.dm-ic{flex-shrink:0;width:26px;height:26px;border-radius:4px;object-fit:cover;}
+.dm-ic-pdf{display:flex;align-items:center;justify-content:center;background:var(--sky);color:#fff;font-size:8px;font-weight:700;}
+.dm-name{font-size:12.5px;color:var(--blue-d);font-weight:700;max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
 /* 入店連絡に足す文（チェックしたものだけが本文に入る） */
 .note-row{display:flex;flex-direction:column;gap:5px;margin-bottom:7px;}
 .note-row label{
@@ -546,6 +566,10 @@ input:focus,select:focus,textarea:focus{border-color:var(--blue);box-shadow:0 0 
                    oninput="saveDraftSoon()"
                    onkeydown="if(event.key==='Enter')buildDayFromGyotai()">
           </div>
+        </div>
+        <div class="day-manuals" id="day-gyotai-manuals" hidden>
+          <span class="dn-label">📎 手順書・資料</span>
+          <div class="dm-list" id="day-gyotai-manuals-list"></div>
         </div>
         <div class="grid2" style="margin-top:9px;">
           <div class="field">
@@ -982,17 +1006,17 @@ function defaultSettings(){
     calendarApiUrl: '',
     calendarQuery: '',
     gyotai: [
-      { id:'g-olive', name:'オリーブの丘', titleTemplate:'', notes:[], slots:[
+      { id:'g-olive', name:'オリーブの丘', titleTemplate:'', notes:[], manuals:[], slots:[
         { id:'s-olive-am', label:'午前 (AM)', start:'08:00', end:'09:00', body:TPL_STANDARD }
       ]},
-      { id:'g-sukiya', name:'すき家', titleTemplate:'', notes:[], slots:[
+      { id:'g-sukiya', name:'すき家', titleTemplate:'', notes:[], manuals:[], slots:[
         { id:'s-sukiya-am', label:'午前 (AM)', start:'08:30', end:'09:30', body:TPL_SUKIYA },
         { id:'s-sukiya-pm', label:'午後 (PM)', start:'14:30', end:'15:30', body:TPL_SUKIYA }
       ]},
-      { id:'g-hanaya', name:'華屋与兵衛', titleTemplate:'', notes:[], slots:[
+      { id:'g-hanaya', name:'華屋与兵衛', titleTemplate:'', notes:[], manuals:[], slots:[
         { id:'s-hanaya-am', label:'午前 (AM)', start:'08:00', end:'09:00', body:TPL_STANDARD }
       ]},
-      { id:'g-hama', name:'はま寿司', titleTemplate:'', notes:[], slots:[
+      { id:'g-hama', name:'はま寿司', titleTemplate:'', notes:[], manuals:[], slots:[
         { id:'s-hama-am', label:'午前 (AM)', start:'08:00', end:'09:00', body:TPL_STANDARD },
         { id:'s-hama-pm', label:'午後 (PM)', start:'14:30', end:'15:30', body:TPL_STANDARD }
       ]}
@@ -1202,6 +1226,7 @@ function normalizeSettings(o){
       name: String(g.name || '（名称未設定）'),
       titleTemplate: typeof g.titleTemplate === 'string' ? g.titleTemplate : '',
       notes: normalizeGyotaiNotes(g.notes),
+      manuals: normalizeGyotaiManuals(g.manuals),
       slots: []
     };
     (g.slots||[]).forEach(function(sl){
@@ -1255,6 +1280,25 @@ function normalizeGyotaiNotes(raw){
 /* 各行の先頭・末尾の余分な空白を取り除く（textareaの入力ぶれで見た目がずれるのを防ぐ） */
 function trimLines(s){
   return String(s || '').split('\n').map(function(l){ return l.replace(/^[ \t]+|[ \t]+$/g, ''); }).join('\n').trim();
+}
+/* 業態の「手順書・資料」（画像・PDF）を配列 [{id, name, type, url, size}] に正規化する。
+   実体のファイルはサーバー上（manual-upload.php が保存する manuals/ フォルダ）にあり、
+   ここには参照（url）とファイル名・種類・サイズだけを持つ（settings.json を大きくしないため）。 */
+function normalizeGyotaiManuals(raw){
+  if(!Array.isArray(raw)) return [];
+  var out = [];
+  raw.forEach(function(m){
+    var url = (m && typeof m.url === 'string') ? m.url : '';
+    if(!url) return;
+    out.push({
+      id: (m && m.id) ? m.id : uid('gm'),
+      name: (m && typeof m.name === 'string' && m.name) ? m.name : url,
+      type: (m && m.type === 'pdf') ? 'pdf' : 'image',
+      url: url,
+      size: (m && typeof m.size === 'number') ? m.size : 0
+    });
+  });
+  return out;
 }
 
 /* ---------- 小物 ---------- */
@@ -2074,9 +2118,28 @@ function renderDayGyotaiForm(keepValue){
   if(prev && findGyotai(prev)) sel.value = prev;
   applyGyotaiTimesToDay();
   updateDayGyotaiNotes();
+  updateDayGyotaiManuals();
 }
 function dayGyotai(){ var sel = $('day-gyotai'); return sel ? findGyotai(sel.value) : null; }
-function onDayGyotaiChange(){ applyGyotaiTimesToDay(); updateDayGyotaiNotes(); }
+function onDayGyotaiChange(){ applyGyotaiTimesToDay(); updateDayGyotaiNotes(); updateDayGyotaiManuals(); }
+/* 選んだ業態の手順書・資料（画像・PDF）を一覧表示する。無ければ非表示 */
+function updateDayGyotaiManuals(){
+  var g = dayGyotai();
+  var box = $('day-gyotai-manuals'), list = $('day-gyotai-manuals-list');
+  if(!box || !list) return;
+  var manuals = g ? g.manuals : [];
+  if(!manuals || !manuals.length){ box.hidden = true; list.innerHTML = ''; return; }
+  var html = '';
+  manuals.forEach(function(m){
+    html += '<a class="dm-item" href="' + esc(m.url) + '" target="_blank" rel="noopener">'
+      + (m.type === 'pdf'
+          ? '<span class="dm-ic dm-ic-pdf">PDF</span>'
+          : '<img class="dm-ic dm-ic-img" src="' + esc(m.url) + '" alt="">')
+      + '<span class="dm-name">' + esc(m.name) + '</span></a>';
+  });
+  list.innerHTML = html;
+  box.hidden = false;
+}
 /* 選んだ業態の注意事項を、①入店連絡／②中間報告／③退店連絡それぞれの欄に表示する
    （同じ欄に複数あれば、空行を挟んで並べる。該当が無い欄は非表示） */
 function updateDayGyotaiNotes(){
@@ -2824,6 +2887,28 @@ function renderSettings(){
       +   '<button class="btn btn-sub btn-sm" onclick="addGyNote(\'' + g.id + '\')">＋ 注意事項を追加</button>'
       + '</div>';
 
+    html += '<div class="hint" style="margin-bottom:7px;">手順書・資料（任意）: 業態別の作業手順書や注意事項の'
+      + '画像・PDFを登録できます。作業当日タブでこの業態を選ぶと、探すことなくそのまま開けます'
+      + '（画像・PDF、1件15MBまで）。</div>';
+    html += '<div class="gyman-list" id="gyman-list-' + g.id + '">';
+    (g.manuals || []).forEach(function(m){
+      html += '<div class="gyman-item">'
+        + (m.type === 'pdf'
+            ? '<span class="gyman-ic gyman-ic-pdf">PDF</span>'
+            : '<img class="gyman-ic gyman-ic-img" src="' + esc(m.url) + '" alt="">')
+        + '<a class="gyman-name" href="' + esc(m.url) + '" target="_blank" rel="noopener">' + esc(m.name) + '</a>'
+        + '<span class="gyman-size">' + fmtFileSize(m.size) + '</span>'
+        + '<button class="btn btn-danger btn-sm" onclick="removeGyManual(\'' + g.id + '\',\'' + m.id + '\')">削除</button>'
+        + '</div>';
+    });
+    html += '</div>';
+    html += '<div class="row-btns" style="margin:10px 0 14px;align-items:center;">'
+      +   '<button class="btn btn-sub btn-sm" onclick="addGyManualClick(\'' + g.id + '\')">＋ ファイルを追加（画像・PDF）</button>'
+      +   '<span class="hint" id="gyman-status-' + g.id + '"></span>'
+      +   '<input type="file" id="gyfile-' + g.id + '" accept="image/jpeg,image/png,image/gif,image/webp,application/pdf" '
+      +   'style="display:none" onchange="onGyManualFileChange(\'' + g.id + '\', this)">'
+      + '</div>';
+
     g.slots.forEach(function(sl, si){
       html += '<div class="slot-edit">'
         + '<div class="slot-edit-head"><span class="t">時間帯 ' + (si+1) + '</span>'
@@ -3054,6 +3139,98 @@ function setGyNoteText(gid, nid, v){
   n.text = v;
   updateDayGyotaiNotes();
   afterSettingsChange(false);
+}
+
+/* ---------- 業態ごとの手順書・資料（画像・PDF） ---------- */
+var MANUAL_UPLOAD_ENDPOINT = 'manual-upload.php';
+var MANUAL_DELETE_ENDPOINT = 'manual-delete.php';
+var MANUAL_MAX_BYTES = 15 * 1024 * 1024; /* サーバー側 manual-upload.php の上限と合わせる */
+var MANUAL_ACCEPT_TYPES = { 'image/jpeg':'image', 'image/png':'image', 'image/gif':'image', 'image/webp':'image', 'application/pdf':'pdf' };
+function findGyManual(g, mid){
+  if(!g) return null;
+  for(var i = 0; i < g.manuals.length; i++){ if(g.manuals[i].id === mid) return g.manuals[i]; }
+  return null;
+}
+function fmtFileSize(n){
+  n = Number(n) || 0;
+  if(n >= 1024*1024) return (n/1024/1024).toFixed(1) + 'MB';
+  if(n >= 1024) return Math.round(n/1024) + 'KB';
+  return n + 'B';
+}
+function addGyManualClick(gid){
+  if(!requireAdmin()) return;
+  var input = $('gyfile-' + gid);
+  if(input) input.click();
+}
+function onGyManualFileChange(gid, inputEl){
+  var file = inputEl.files && inputEl.files[0];
+  inputEl.value = '';   /* 同じファイルを続けて選べるようにする */
+  if(!file) return;
+  if(!MANUAL_ACCEPT_TYPES[file.type]){
+    toast('画像（jpg/png/gif/webp）かPDFのファイルを選んでください');
+    return;
+  }
+  if(file.size > MANUAL_MAX_BYTES){
+    toast('ファイルが大きすぎます（15MBまで）');
+    return;
+  }
+  uploadGyManual(gid, file);
+}
+function uploadGyManual(gid, file){
+  var g = findGyotai(gid); if(!g) return;
+  if(typeof fetch !== 'function' || location.protocol === 'file:'){
+    toast('この画面ではアップロードできません（サーバーに置いて開いてください）');
+    return;
+  }
+  var pw = currentAdminPw();
+  if(!pw) return;
+  var st = $('gyman-status-' + gid);
+  if(st) st.textContent = 'アップロード中…';
+  var fd = new FormData();
+  fd.append('password', pw);
+  fd.append('gyotaiId', gid);
+  fd.append('file', file);
+  fetch(MANUAL_UPLOAD_ENDPOINT, { method:'POST', body: fd })
+    .then(function(r){
+      if(r.status === 404) throw new Error('サーバーに ' + MANUAL_UPLOAD_ENDPOINT + ' がありません（管理者にご確認ください）');
+      return r.json().catch(function(){ throw new Error('サーバーの応答を読み取れませんでした'); });
+    })
+    .then(function(o){
+      if(!o || o.ok !== true) throw new Error((o && o.error) || 'アップロードできませんでした');
+      g.manuals.push({
+        id: uid('gm'), name: o.name || file.name,
+        type: (o.type === 'pdf') ? 'pdf' : 'image',
+        url: o.url, size: o.size || file.size
+      });
+      if(st) st.textContent = '';
+      afterSettingsChange(true);
+      toast('ファイルを追加しました');
+    })
+    .catch(function(err){
+      if(st) st.textContent = '';
+      toast('アップロードに失敗しました: ' + err.message);
+    });
+}
+function removeGyManual(gid, mid){
+  if(!requireAdmin()) return;
+  var g = findGyotai(gid); if(!g) return;
+  var m = findGyManual(g, mid); if(!m) return;
+  if(!confirm('「' + m.name + '」を削除します。よろしいですか？')) return;
+  for(var i = 0; i < g.manuals.length; i++){
+    if(g.manuals[i].id === mid){ g.manuals.splice(i, 1); break; }
+  }
+  updateDayGyotaiManuals();
+  afterSettingsChange(true);
+  deleteGyManualFile(m.url);  /* サーバー上のファイル自体の削除。失敗しても一覧からは既に消えているので気にしない */
+}
+function deleteGyManualFile(url){
+  if(typeof fetch !== 'function' || location.protocol === 'file:') return;
+  var pw = adminPw; if(!pw) return;
+  fetch(MANUAL_DELETE_ENDPOINT, {
+    method:'POST',
+    headers: { 'Content-Type':'application/json' },
+    body: JSON.stringify({ password: pw, url: url })
+  }).catch(function(){});
 }
 function setSlot(gid, sid, field, v){
   var g = findGyotai(gid); var sl = findSlot(g, sid);

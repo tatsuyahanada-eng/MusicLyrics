@@ -61,6 +61,16 @@ GoogleカレンダーへOES入替作業の予定をまとめて登録するた�
 `settings-save.php` が使えるサーバーでは、**設定を変えると自動でサーバーに保存されます**（押し忘れ防止）。
 使えないサーバーでは、変更のたびに設定タブの先頭に「まだ他の人には反映されていません」という警告が出ます。
 
+### 業態ごとの手順書・資料（画像・PDF）について
+
+設定タブの各業態の中で、手順書や注意事項の画像・PDFを登録できます（管理者のみ・1件15MBまで）。
+登録すると、作業当日タブでその業態を選んだ時点で店舗名の下に表示され、探すことなく開けます。
+
+この機能を使うには `manual-upload.php` / `manual-delete.php`（[サンプル](deploy/manual-upload.php) /
+[サンプル](deploy/manual-delete.php)）をサーバーに設置する必要があります（**PHPが動くサーバーが必須**。
+`settings-save.php` と異なり、PHPが使えない場合の代替手段はありません）。設置すると、アップロードした
+ファイルを保存するための `manuals/` フォルダが自動で作られます（設置先フォルダへの書き込み権限が必要です）。
+
 ### うまく共有されない・インストールできないとき
 
 設定タブの「🩺 **サーバーの状態をチェック**」を開いて「チェックする」を押すと、
@@ -103,6 +113,8 @@ settings.json          ← 共有設定（アプリの「共有設定を保存�
 config.php             ← 任意。管理者パスワード（PHPが使えるサーバー向け・推奨）
 admin-auth.php         ← 任意。config.php とセットで使うパスワード照合用
 settings-save.php      ← 任意。PHPが使えるサーバーなら共有設定をその場で保存できる
+manual-upload.php      ← 任意。業態ごとの手順書・資料（画像・PDF）をアップロードできる（PHP必須）
+manual-delete.php      ← 任意。上記の資料をサーバーから削除する（PHP必須）
 config.json            ← 任意。PHPが使えない場合のパスワード設定（ハッシュ）
 assets/welsys-logo.jpg
 assets/device-printer.jpg
@@ -139,7 +151,7 @@ Basic認証をかける場合は [`deploy/.htaccess.sample`](deploy/.htaccess.sa
 | `assets/` | ロゴ画像・機器画像・PWAアイコン |
 | `apps-script/` | Googleカレンダー連携用のApps Scriptコード（現在は停止中の機能。参考用） |
 | `manifest.json` `sw.js` `icon-*.png` | PWA（アプリとしてインストール）用 |
-| `deploy/` | サーバー配置用サンプル（Basic認証・管理者パスワード・共有設定の保存エンドポイント・ハッシュ作成ページ） |
+| `deploy/` | サーバー配置用サンプル（Basic認証・管理者パスワード・共有設定/手順書資料の保存エンドポイント・ハッシュ作成ページ） |
 | `legacy/` | Claude Chatで作成した旧版（参照用・非稼働） |
 
 ---

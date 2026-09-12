@@ -260,6 +260,11 @@ Googleカレンダーの説明文の貼り付け（`#day-paste` → `loadDayFrom
   想定した自由記述で、同じ欄に複数あれば空行区切りで並べる。**該当する注意事項が無い欄には表示しない**
   （要素ごと`hidden`にする）。業態を切り替えるたびに内容を更新する。各行の前後の空白は表示前に取り除く
   （`trimLines()`）。
+- **業態ごとに「手順書・資料」（画像・PDF）を複数登録でき、業態を選んだ時点で店舗名の下に一覧表示する**
+  （`g.manuals[]` = `{id, name, type, url, size}`の配列 / `#day-gyotai-manuals` / `updateDayGyotaiManuals()`）。
+  画像はサムネイル、PDFは「PDF」の小さなバッジで表示し、タップ（クリック）すると新しいタブでそのまま開く。
+  連絡文をまだ作っていなくても見える（業態を選んだだけで表示される）。該当する資料が無い業態では非表示。
+  詳しい保存の仕組み（アップロード先のサーバー、権限、対応形式）は 5.2 を参照。
 - 店舗名は `applySuffix()` で語尾（既定は「店」）を補ってから使う。生成した内容は `setDayCtx()` に渡すため、
   「今日の作業」の表示・Chatボタンの業態＋店舗照合・よく使う文の差し込み文字も従来どおり働く。
 - ③退店連絡の機器台数（MPR/MST/HT/BC/BP、1〜10のプルダウン）は従来どおりで、選んだ機器だけが追記される。
@@ -471,6 +476,30 @@ Googleカレンダーの説明文の貼り付け（`#day-paste` → `loadDayFrom
   作業当日タブで業態を選んだときに、選んだ`place`と同じ欄にそのまま表示され（4.1.1節）、
   空欄なら作業当日タブには何も表示されない。
 
+### 5.2 業態ごとの手順書・資料（画像・PDF）
+
+- `g.manuals[]` = `{id, name, type, url, size}` の配列。実体のファイルは `settings.json` には含めず、
+  サーバー上の `manuals/` フォルダに保存し、`settings.json` には参照（ファイル名・種類・サイズ・URL）だけを持つ。
+- **アップロード・削除ができるのは管理者だけ**（`requireAdmin()`で二重にガード）。
+- 各業態の中にある「＋ ファイルを追加（画像・PDF）」（`addGyManualClick(gid)`）を押すとファイル選択が開き、
+  選ぶと `uploadGyManual(gid, file)` が管理者パスワード付きで `manual-upload.php` へアップロードする。
+  成功すると一覧（サムネイル・ファイル名・サイズ・削除ボタン）に追加され、`settings.json` へ自動保存される。
+- 対応形式は画像（jpg/png/gif/webp）とPDF、**1件15MBまで**。クライアント側でも簡易チェックするが、
+  実際の検証はサーバー側（`manual-upload.php` が `finfo` でファイルの中身を見て判定）で行う。
+- 削除（`removeGyManual(gid, mid)`）は確認ダイアログの後、一覧と `settings.json` から即座に取り除く。
+  サーバー上の実ファイルの削除は `manual-delete.php` へ依頼するが、失敗しても一覧には影響しない
+  （孤立したファイルが1つ残るだけで実害がないため）。
+- 作業当日タブでは、業態を選んだ時点（連絡文を作る前でも）で `#day-gyotai-manuals` に一覧表示され、
+  タップ（クリック）すると新しいタブでそのまま開く（4.1節参照）。
+- **`manual-upload.php` が置かれていない・PHPが使えないサーバーでは利用できない**
+  （`settings-save.php` と違い、ダウンロード＋FTPアップロードのような代替経路は無い）。
+  その場合はアップロード時にエラーメッセージで案内する。
+- `deploy/manual-upload.php` / `deploy/manual-delete.php` はPHPが動くサーバー向けのサンプル。
+  パスワードは `settings-save.php` と同じ `config.php` から読み込んで照合する。
+  `manual-upload.php` は保存先の `manuals/` フォルダを初回アクセス時に自動作成し、
+  中に実行不可化用の `.htaccess` も自動生成する（アップロードされたファイルの中でスクリプトが
+  実行されないようにする多層防御）。保存ファイル名は元のファイル名を使わずランダムな名前にする。
+
 ### 5.3 よく使う文（定型フレーズ）
 
 `settings.phrases`（`[{id, text}]`）を編集する。並び順がそのまま作業当日タブの並び順になる。
@@ -657,6 +686,8 @@ BP    個
   "gyotai": [
     {
       "id": "g-sukiya", "name": "すき家", "titleTemplate": "",
+      "notes": [ { "id": "gn-…", "place": "out", "text": "…注意事項…" } ],
+      "manuals": [ { "id": "gm-…", "name": "退店作業手順.pdf", "type": "pdf", "url": "manuals/xxxxxxxx.pdf", "size": 123456 } ],
       "slots": [
         { "id": "s-…", "label": "午前 (AM)", "start": "08:30", "end": "09:30", "body": "…定型文…" }
       ]
@@ -690,6 +721,9 @@ sessionStorage['oes-calendar-admin-unlocked'] = '1'
   共有設定を使う場合は同じ場所に `settings.json`（アプリが書き出したもの）を置く。
   PHPが動くサーバーなら `deploy/settings-save.php` を `settings-save.php` として同じ場所に置くと、
   アプリの「共有設定を保存」からサーバーへ直接保存できる（`settings.json` を書き込むためフォルダに書き込み権限が必要）。
+  業態ごとの手順書・資料（画像・PDF）を使う場合は、同様に `deploy/manual-upload.php` / `deploy/manual-delete.php`
+  を `manual-upload.php` / `manual-delete.php` として同じ場所に置く（アップロードしたファイルを保存する
+  `manuals/` フォルダをこのスクリプトが自動で作成するため、設置場所に書き込み権限が必要）。
 - Basic認証を使う場合は `deploy/.htaccess.sample` を参照（`AuthUserFile` は配置先の絶対パスに書き換える）。
 - 認証情報はリポジトリに含めない。
 
@@ -714,3 +748,6 @@ sessionStorage['oes-calendar-admin-unlocked'] = '1'
   でのみ表示される。iOS Safari等では表示されず、手動手順（メニューからのインストール）の案内のみになる。
 - コピー機能は `https://` 配信が確実。非セキュアな環境では `execCommand` によるフォールバックで動作する。
 - ICSインポートは確認なしで一括登録されるため、取込前の確認が必要。
+- 業態ごとの手順書・資料（画像・PDF）のアップロード・削除は `manual-upload.php` / `manual-delete.php` が
+  置かれたPHPサーバーでのみ使える。`settings-save.php` と異なり、ダウンロード＋FTPアップロードのような
+  代替経路は無いため、PHPが使えないサーバーではこの機能自体を利用できない。

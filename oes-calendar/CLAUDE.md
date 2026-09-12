@@ -45,6 +45,8 @@ GoogleカレンダーへOES入替作業の予定を登録するための、単�
 | `apps-script/Code.gs` | Googleカレンダー連携用のApps Scriptコード（現在は停止中の機能。参考用に保持） |
 | `deploy/.htaccess.sample` | Basic認証用サンプル |
 | `deploy/settings-save.php` | 共有設定をサーバーに保存するための任意のエンドポイント（PHPが動く場合のみ。`settings-save.php` という名前で index.html と同じ場所に置く） |
+| `deploy/manual-upload.php` | 業態ごとの手順書・資料（画像・PDF）のアップロード用エンドポイント（PHPが動く場合のみ。`manual-upload.php` として置く。保存先の `manuals/` フォルダは初回アクセス時に自動作成される） |
+| `deploy/manual-delete.php` | 業態ごとの手順書・資料の実ファイルを削除するエンドポイント（PHPが動く場合のみ。`manual-delete.php` として置く） |
 | `deploy/config.php` | 管理者パスワードの置き場所（PHP。ここが唯一の平文。`config.php` として置く） |
 | `deploy/admin-auth.php` | `config.php` を使ってサーバー側でパスワードを照合するエンドポイント |
 | `deploy/config.json.sample` | PHPが使えない場合のパスワード設定（SHA-256ハッシュ）。`config.json` として置く |
@@ -277,6 +279,39 @@ GoogleカレンダーへOES入替作業の予定を登録するための、単�
   `<span class="dn-label">`と本文の`<span>`の間に改行やインデント用の空白を入れると、
   その空白がそのまま描画されて1行目だけ字下げされたように見える不具合になる
   （実際に発生した不具合。タグの間には空白を入れず詰めて書くこと）。
+- **業態ごとに「手順書・資料」（画像・PDF）を複数登録できる（`g.manuals`、`[{id, name, type, url, size}]`の配列）。**
+  作業当日タブで業態を選んだ瞬間に、探すことなくそのまま開ける参照資料（手順書・注意事項の写真など）を想定した機能。
+  **アップロード・削除ができるのは管理者だけ**（`requireAdmin()`で二重にガードする）。
+  - 実体のファイルはブラウザ内やsettings.jsonには置かず、**サーバー上の`manuals/`フォルダ**に保存する
+    （`manual-upload.php`が保存し、`settings.json`には`{id, name, type, url, size}`という参照だけを持つ。
+    settings.jsonを肥大化させないため。画像を`data:`URIやbase64で`settings.json`に入れる方式にしないこと）。
+  - 設定画面の各業態の中に「＋ ファイルを追加（画像・PDF）」（`addGyManualClick()`→隠しファイル入力
+    `#gyfile-<業態id>`→`onGyManualFileChange()`）があり、選ぶと`uploadGyManual()`が管理者パスワード付きで
+    `manual-upload.php`へ`FormData`でPOSTする。返ってきた`url`等を`g.manuals`に追加し、通常の設定変更と
+    同様に`afterSettingsChange(true)`で共有設定へ反映（自動保存）する。
+  - 削除は`removeGyManual()`。`confirm()`で確認後、`g.manuals`から即座に取り除いて共有設定を保存しつつ、
+    サーバー上の実ファイルの削除は`manual-delete.php`へ**うまくいかなくても気にしない形（fire-and-forget）**
+    で依頼する（一覧から消えることが利用者にとっての「削除完了」であり、孤立ファイルが1つ残る程度は実害がないため）。
+  - 対応形式は画像（jpg/png/gif/webp）とPDF、**1件15MBまで**（`MANUAL_MAX_BYTES`。サーバー側`manual-upload.php`の
+    上限と必ず合わせること）。クライアント側の`accept`属性やMIMEチェックは利便性のためのものに過ぎず、
+    **本当の検証はサーバー側（`finfo`による実体判定）で行う**（クライアントが偽装したMIMEやファイル名は信用しない）。
+  - `manual-upload.php`は保存先の`manuals/`フォルダを初回アクセス時に自動作成し、その中に
+    実行不可化のための`.htaccess`（`php_flag engine off`など）も自動で書き込む
+    （多層防御。アップロードされたファイルの中で万一スクリプトが実行されないようにするため）。
+    保存ファイル名は元のファイル名を使わず`bin2hex(random_bytes(10))`のランダム名にする
+    （パス操作・上書き事故防止。元のファイル名は表示用の`name`としてのみ`settings.json`に残す）。
+  - `manual-delete.php`は`url`をそのまま信用せず`basename()`でファイル名部分だけを取り出してから
+    `manuals/`フォルダ内のパスを組み立てる（`../`等でのパス操作を防ぐため）。
+  - 作業当日タブでは、業態プルダウンの直下（店舗名の下・開始時刻の上）に一覧を表示する
+    （`#day-gyotai-manuals`／`updateDayGyotaiManuals()`）。画像はサムネイル、PDFは「PDF」バッジで、
+    タップ（クリック）すると新しいタブでそのまま開く。**「この内容で連絡文を作る」を押す前から見える**
+    ようにする（店舗名の入力や連絡文の作成を待たず、業態を選んだ時点で参照できることが目的のため）。
+    該当する資料が無い業態を選んだときは`hidden`属性で非表示にする。
+  - **PHPが使えないサーバーでは利用できない**（`settings-save.php`と異なり、ファイルの保存には
+    サーバー側の処理が必須で、ダウンロード＋FTPアップロードのような代替経路は用意していない）。
+    `manual-upload.php`が無い/使えない場合は、アップロード時にトーストで
+    「サーバーに manual-upload.php がありません（管理者にご確認ください）」等、原因が分かるメッセージを出す
+    （`uploadGyManual()`のエラーハンドリング）。
 - **設定タブは常時表示を最小限にする。** 使用頻度の低い項目（共通設定・作業当日の目印・カレンダー連携）は
   「詳細設定」1枚に折りたたむ（既定は閉）。新しい設定項目を追加する場合も、まず「詳細設定」に入れることを検討する
   （毎回必ず調整するような項目だけを常時表示に置く）。
@@ -308,11 +343,14 @@ GoogleカレンダーへOES入替作業の予定を登録するための、単�
 2. **🛠️ 作業当日** — **主動線は「業態をプルダウンで選び、店舗名を入れるだけ」**（`#day-gyotai` /
    `#day-tenpo` →「この内容で連絡文を作る」＝`buildDayFromGyotai()`）。その業態・時間帯の定型文から
    入店/中間報告/退店を作る。時間帯（`#day-slot-field`）は**その業態の時間帯が2つ以上あるときだけ**出す。
+   **業態を選んだ時点で、その業態の「手順書・資料」（`g.manuals`）を店舗名の下に表示する**
+   （`#day-gyotai-manuals`。連絡文を作る前から見える。詳細は「重要なルール」の該当項目を参照）。
    Googleカレンダーの説明文の貼り付けは、同じカード内の折りたたみ（`#gy-paste`）に入れた**補助動線**。
    各欄のコピー → 隣の「Chat」ボタンでその業態・店舗のGoogle Chatを開いて貼り付ける。
    画面下に「よく使う文」の小さなコピーチップを置く（**控えめな見た目を維持する**。カード化しない）
-3. **⚙️ 設定** — 管理者ロック＋共有設定の状態表示、業態・時間帯・定型文（並び替え可）、よく使う文、
-   業態・店舗ごとのGoogle Chat URL、作業当日の目印、Googleカレンダー連携（停止中・項目のみ）、
+3. **⚙️ 設定** — 管理者ロック＋共有設定の状態表示、業態・時間帯・定型文（並び替え可）、
+   業態ごとの注意事項・手順書資料（画像・PDF）、よく使う文、
+   作業当日の目印、Googleカレンダー連携（停止中・項目のみ）、
    共通設定、共有設定の保存、アプリとしてインストール
 
 ### 作業当日タブの方針
@@ -342,6 +380,10 @@ GoogleカレンダーへOES入替作業の予定を登録するための、単�
 | `updateDayGyotaiNotes()` | 業態ごとの「注意事項」（`g.notes[]`）を、`place`ごとに`#day-gyotai-notes-in/-mid/-out`へ振り分けて表示。該当なしは非表示 |
 | `addGyNote(gid)` / `removeGyNote(gid,nid)` / `setGyNotePlace(gid,nid,place)` / `setGyNoteText(gid,nid,v)` | 設定画面での注意事項の追加・削除・配置変更・編集 |
 | `normalizeGyotaiNotes(raw)` / `trimLines(s)` | 注意事項の正規化（旧・文字列形式からの移行を含む）／各行の前後空白除去 |
+| `addGyManualClick(gid)` / `onGyManualFileChange(gid,inputEl)` / `uploadGyManual(gid,file)` | 設定画面での手順書・資料の追加（隠しファイル入力を開く→検証→`manual-upload.php`へアップロード） |
+| `removeGyManual(gid,mid)` / `deleteGyManualFile(url)` | 手順書・資料の削除（一覧から即除去＋共有設定を保存／サーバー上の実ファイル削除は失敗しても無視） |
+| `normalizeGyotaiManuals(raw)` / `findGyManual(g,mid)` / `fmtFileSize(n)` | 手順書・資料の正規化／検索／サイズ表示（「1.2MB」等）用の整形 |
+| `updateDayGyotaiManuals()` | 作業当日タブで選んだ業態の手順書・資料を`#day-gyotai-manuals`へ一覧表示。該当なしは非表示 |
 | `renderEntryNoteRow()` / `onEntryNoteToggle()` / `rebuildEntryNoteBlock()` / `stripEntryNoteLines()` | ①入店連絡に足す文（選択式） |
 | `renderEntryNoteList()` ほか | 設定画面での「入店連絡に足す文」の追加・編集・並び替え・削除 |
 | `renderMidNoteRow()` / `onMidNoteToggle()` / `rebuildMidNoteBlock()` / `stripMidNoteLines()` | ②中間報告に足す文（選択式。entryNotesと同じ仕組みをmidNotesに複製したもの） |
@@ -399,6 +441,11 @@ GoogleカレンダーへOES入替作業の予定を登録するための、単�
 ICSの中身、作業当日の貼り付けからの振り分け・コピー・「Google Chat を開く」ボタン（押すたびに
 Chatを開き直しつつ「業態 店舗名」をクリップボードへコピーすること）、機器台数プルダウン、
 PWAインストールボタンの表示切り替え、横スクロールが出ないこと、JSエラーが出ないこと。
+業態ごとの手順書・資料（画像・PDF）は `php -S` 等でPHPを動かした上で、
+管理者ロック中はアップロード・削除ができないこと、画像・PDFのアップロードが一覧とサーバー上の
+`manuals/` フォルダの両方に反映されること、削除で一覧とサーバー上のファイルの両方から消えること、
+作業当日タブで業態を選んだときだけ資料が表示され別の業態では非表示になること、
+`settings.json` に保存されて再読み込み後も残ることを確認する。
 入力途中の内容が画面の更新で消えないこと（当日タブの業態・店舗名・連絡文・機器台数、カレンダータブの
 ②の入力）、24時間経った下書きは復元されないこと。
 管理者パスワードは、①設定ファイル無し（組み込みハッシュ）②`config.json` を置いた場合
