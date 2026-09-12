@@ -162,6 +162,17 @@ function esc(str) {
     ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 }
 const safeUrl = (url) => (/^https?:\/\//i.test(String(url || '')) ? url : '');
+/*
+ * zip などブラウザがその場で表示できないファイルへの直リンクを新しいタブ（target=_blank）
+ * で開くと、ダウンロードだけが始まって中身は真っ白なタブが残り、閉じるまで戻れなくなる。
+ * PDF・画像・Webページ等はタブ内に表示されるので今まで通り新しいタブで開いてよいが、
+ * ダウンロードだけになる拡張子は同じタブで開いて（＝ダウンロードだけ起きて元の画面に残る）回避する。
+ */
+const DOWNLOAD_ONLY_EXT = ['zip', 'rar', '7z', 'tar', 'gz', 'exe', 'dmg', 'msi', 'apk'];
+function isDownloadOnlyUrl(url) {
+  const m = String(url || '').split(/[?#]/)[0].match(/\.([a-z0-9]+)$/i);
+  return !!m && DOWNLOAD_ONLY_EXT.includes(m[1].toLowerCase());
+}
 const latest = (item) => (item.history && item.history.length ? item.history[0] : null);
 const sortHistory = (item) =>
   item.history.sort((a, b) => `${b.date} ${b.time}`.localeCompare(`${a.date} ${a.time}`));
@@ -726,7 +737,7 @@ function spreadLeft(it) {
         ${it.description ? `<p class="lp-page-desc">${esc(it.description)}</p>` : ''}
 
         ${url ? `<p class="lp-page-open">
-          <a class="lp-dl" href="${esc(url)}" target="_blank" rel="noopener">${ICON_EXTERNAL}<span>この資料を開く</span></a>
+          <a class="lp-dl" href="${esc(url)}"${isDownloadOnlyUrl(url) ? '' : ' target="_blank"'} rel="noopener">${ICON_EXTERNAL}<span>この資料を開く</span></a>
           <span class="lp-dl-url">${esc(url)}</span>
         </p>` : attach ? `<p class="lp-page-open">
           <a class="lp-attach-link lp-attach-link-lg" href="${esc(attach.url)}">${ICON_CLIP}<span>${esc(attach.name)}</span></a>
@@ -876,7 +887,7 @@ function rowHtml(it) {
       </span>
       <span class="lp-row-author">${esc(it.creator)}</span>
       <span class="lp-row-url">
-        ${url ? `<a class="lp-url-link" href="${esc(url)}" target="_blank" rel="noopener"
+        ${url ? `<a class="lp-url-link" href="${esc(url)}"${isDownloadOnlyUrl(url) ? '' : ' target="_blank"'} rel="noopener"
                     aria-label="${esc(it.name)} を開く">${ICON_EXTERNAL}<span>開く</span></a>`
               : attach ? `<a class="lp-attach-link" href="${esc(attach.url)}"
                     aria-label="${esc(it.name)} をダウンロード">${ICON_CLIP}<span>DL</span></a>`
@@ -1020,7 +1031,7 @@ function refreshLatestFileHint(itemId) {
   const a = currentEntry && currentEntry.attachment;
   latestHint.hidden = !a;
   if (a) {
-    latestHint.innerHTML = `現在の最新ファイル：<a href="${esc(a.url)}" target="_blank" rel="noopener">${esc(a.name)}</a>`
+    latestHint.innerHTML = `現在の最新ファイル：<a href="${esc(a.url)}">${esc(a.name)}</a>`
       + `（${esc(currentEntry.version || '')} ・ ${fmtDate(currentEntry.date)} 登録）。`
       + '新しいファイルを添付すると、この版の最新ファイルとして置き換わります。';
   }

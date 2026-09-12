@@ -49,10 +49,17 @@ $name = (string)($row['file_name'] ?: basename($full));
 // 日本語ファイル名でも文字化けしないよう、ASCII の代替名と RFC 5987 形式の両方を送る
 $asciiName = preg_replace('/[^\x20-\x7e]/', '_', $name);
 $encoded   = rawurlencode($name);
+$mime      = (string)($row['file_mime'] ?: 'application/octet-stream');
 
-header('Content-Type: ' . ((string)($row['file_mime'] ?: 'application/octet-stream')));
+// 画像・PDF はブラウザがそのまま表示できるので inline（新しいタブでそのまま見られる）。
+// ZIP など表示できない種類だけ attachment にする（inline のまま new tab で開くと、
+// ダウンロードだけ起きて中身の無い真っ白なタブが残ってしまうため）。
+$viewable    = str_starts_with($mime, 'image/') || $mime === 'application/pdf';
+$disposition = $viewable ? 'inline' : 'attachment';
+
+header('Content-Type: ' . $mime);
 header('Content-Length: ' . (string)($row['file_size'] ?: filesize($full)));
-header('Content-Disposition: attachment; filename="' . $asciiName . '"; filename*=UTF-8\'\'' . $encoded);
+header('Content-Disposition: ' . $disposition . '; filename="' . $asciiName . '"; filename*=UTF-8\'\'' . $encoded);
 header('X-Content-Type-Options: nosniff');
 header('Cache-Control: private, must-revalidate');
 
