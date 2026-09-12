@@ -13,7 +13,7 @@ if (($user['role'] ?? '') !== 'admin') {
     <!DOCTYPE html><html lang="ja"><head><meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>設定 ｜ ライブラリポータル</title>
-    <link rel="stylesheet" href="assets/library.css?v=33"></head>
+    <link rel="stylesheet" href="assets/library.css?v=34"></head>
     <body class="lp-body"><main class="lp-main">
       <p class="lp-empty">この画面は管理者のみ利用できます。<br><a href="index.php">ライブラリ一覧へ戻る</a></p>
     </main></body></html>
@@ -37,7 +37,7 @@ $defRole  = lp_default_role();
   <link rel="apple-touch-icon" href="assets/icon-192.png?v=6">
   <link rel="manifest" href="manifest.webmanifest">
   <meta name="theme-color" content="#007a33">
-  <link rel="stylesheet" href="assets/library.css?v=33">
+  <link rel="stylesheet" href="assets/library.css?v=34">
 </head>
 <body class="lp-body">
 
@@ -213,7 +213,13 @@ $defRole  = lp_default_role();
 
       <fieldset class="lp-field">
         <legend class="lp-field-label">配色 <em>必須</em></legend>
-        <div class="lp-swatchrow" id="cColorRow" role="radiogroup" aria-label="配色"></div>
+        <div class="lp-swatchrow" id="cColorRow" role="radiogroup" aria-label="よく使う配色"></div>
+        <div class="lp-huepicker">
+          <span class="lp-huepreview" id="cHuePreview" aria-hidden="true"></span>
+          <input id="cHue" class="lp-hueslider" type="range" min="0" max="359" value="200"
+                 aria-label="好みの色合いを色相バーで選ぶ">
+        </div>
+        <span class="lp-field-hint">上のプリセットにない色合いは、バーをドラッグして好みの色を選べます。</span>
       </fieldset>
 
       <fieldset class="lp-field">
@@ -240,7 +246,7 @@ $defRole  = lp_default_role();
       canManageAccounts: <?= $canAcct ? 'true' : 'false' ?>
     };
   </script>
-  <script src="assets/settings.js?v=3"></script>
+  <script src="assets/settings.js?v=4"></script>
   <script src="assets/pwa.js?v=2"></script>
 </body>
 </html>

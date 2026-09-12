@@ -29,7 +29,7 @@ $dbMissing = $canEdit ? lp_missing_columns() : [];
   <link rel="apple-touch-icon" href="assets/icon-192.png?v=6">
   <link rel="manifest" href="manifest.webmanifest">
   <meta name="theme-color" content="#007a33">
-  <link rel="stylesheet" href="assets/library.css?v=33">
+  <link rel="stylesheet" href="assets/library.css?v=34">
 </head>
 <body class="lp-body">
 
@@ -73,19 +73,33 @@ $dbMissing = $canEdit ? lp_missing_columns() : [];
       <p class="lp-notice">初期パスワードのままです。メニューから<strong>パスワード変更</strong>を行ってください。</p>
     <?php endif; ?>
 
-    <div class="lp-toolbar">
-      <div class="lp-search">
-        <span class="lp-search-icon" aria-hidden="true"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg></span>
-        <input id="searchInput" class="lp-input lp-search-input" type="search"
-               placeholder="名称・説明・更新内容・対象機能・対応者で検索" autocomplete="off">
+    <div class="lp-toolbar-card">
+      <div class="lp-toolbar lp-toolbar-main">
+        <div class="lp-search">
+          <span class="lp-search-icon" aria-hidden="true"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg></span>
+          <input id="searchInput" class="lp-input lp-search-input" type="search"
+                 placeholder="名称・説明・更新内容・対象機能・対応者で検索" autocomplete="off">
+        </div>
+        <div class="lp-chips" id="chipRow" role="group" aria-label="種別で絞り込み"></div>
       </div>
-      <div class="lp-chips" id="chipRow" role="group" aria-label="種別で絞り込み"></div>
-      <div class="lp-toolbar-right">
-        <select id="seriesSelect" class="lp-select" aria-label="シリーズで絞り込み" hidden></select>
-        <select id="sortSelect" class="lp-select" aria-label="並び替え"></select>
+      <div class="lp-toolbar lp-toolbar-sub">
+        <label class="lp-selectwrap" id="seriesSelectWrap" hidden>
+          <span class="lp-select-icon" aria-hidden="true"><svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2H4a2 2 0 0 0-2 2v8l10 10 10-10L12 2z"/><circle cx="7.5" cy="7.5" r="1.5"/></svg></span>
+          <select id="seriesSelect" class="lp-select" aria-label="シリーズで絞り込み"></select>
+        </label>
+        <label class="lp-selectwrap">
+          <span class="lp-select-icon" aria-hidden="true"><svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"><path d="M11 5v14M11 5 6 10M11 5l5 5"/><path d="M18 19V9"/></svg></span>
+          <select id="sortSelect" class="lp-select" aria-label="並び替え"></select>
+        </label>
         <div class="lp-viewswitch" role="group" aria-label="表示の切り替え">
-          <button class="lp-viewbtn" type="button" data-view="shelf">本棚</button>
-          <button class="lp-viewbtn" type="button" data-view="list">一覧</button>
+          <button class="lp-viewbtn" type="button" data-view="shelf">
+            <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="6" rx="1"/><rect x="3" y="14" width="18" height="6" rx="1"/></svg>
+            <span>本棚</span>
+          </button>
+          <button class="lp-viewbtn" type="button" data-view="list">
+            <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 6h13M8 12h13M8 18h13"/><path d="M3 6h.01M3 12h.01M3 18h.01"/></svg>
+            <span>一覧</span>
+          </button>
         </div>
       </div>
     </div>
@@ -294,7 +308,7 @@ $dbMissing = $canEdit ? lp_missing_columns() : [];
       uploadMaxBytes: <?= (int)lp_upload_max_bytes() ?>
     };
   </script>
-  <script src="assets/library.js?v=36"></script>
+  <script src="assets/library.js?v=37"></script>
   <script src="assets/pwa.js?v=2"></script>
   <script>
     // インストール導線：すぐに実行できる端末ではその場で、それ以外は案内ページへ

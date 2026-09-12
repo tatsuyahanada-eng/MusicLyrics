@@ -30,6 +30,44 @@ const PALETTE = {
   denim:    { book: '#3d5a73', bg: '#e8eef2', border: '#bcd0dd', fg: '#2c4356' },
   charcoal: { book: '#4a4a4a', bg: '#eeeeee', border: '#d4d4d4', fg: '#3a3a3a' }
 };
+
+/* カラーバーで選んだ色相から配色一式を作る（assets/library.js の同名関数と揃えてある） */
+function hexToHue(hex) {
+  const m = /^#?([0-9a-f]{2})([0-9a-f]{2})([0-9a-f]{2})$/i.exec(String(hex || ''));
+  if (!m) return 0;
+  const r = parseInt(m[1], 16) / 255, g = parseInt(m[2], 16) / 255, b = parseInt(m[3], 16) / 255;
+  const max = Math.max(r, g, b), min = Math.min(r, g, b), d = max - min;
+  if (d === 0) return 0;
+  let h;
+  if (max === r) h = ((g - b) / d) % 6;
+  else if (max === g) h = (b - r) / d + 2;
+  else h = (r - g) / d + 4;
+  h *= 60;
+  return h < 0 ? h + 360 : h;
+}
+function hslToHex(h, s, l) {
+  s /= 100; l /= 100;
+  const k = (n) => (n + h / 30) % 12;
+  const a = s * Math.min(l, 1 - l);
+  const f = (n) => l - a * Math.max(-1, Math.min(k(n) - 3, Math.min(9 - k(n), 1)));
+  const toHex = (n) => Math.round(f(n) * 255).toString(16).padStart(2, '0');
+  return `#${toHex(0)}${toHex(8)}${toHex(4)}`;
+}
+function paletteFromHue(hue) {
+  return {
+    book: hslToHex(hue, 38, 30),
+    bg: hslToHex(hue, 45, 93),
+    border: hslToHex(hue, 32, 80),
+    fg: hslToHex(hue, 55, 26)
+  };
+}
+const isHexColor = (v) => /^#[0-9a-f]{6}$/i.test(String(v || ''));
+function resolvePalette(colorValue) {
+  if (PALETTE[colorValue]) return PALETTE[colorValue];
+  if (isHexColor(colorValue)) return paletteFromHue(hexToHue(colorValue));
+  return PALETTE.graphite;
+}
+
 const SVG = (paths) => `<svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor"
   stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round">${paths}</svg>`;
 const ICONS = {
@@ -139,7 +177,7 @@ function render() {
 
 /* ---------- カテゴリ（種別） ---------- */
 function categoryRow(c) {
-  const p = PALETTE[c.color] || PALETTE.graphite;
+  const p = resolvePalette(c.color);
   const inUse = (c.itemCount || 0) > 0;
   return `
   <article class="lp-catrow" data-code="${esc(c.code)}">
@@ -165,10 +203,27 @@ function renderCategories() {
 
 function renderColorRow(selected) {
   const row = $('cColorRow');
+  const isPreset = !!PALETTE[selected];
   row.innerHTML = Object.keys(PALETTE).map((key) => `
     <button type="button" class="lp-swatch${key === selected ? ' is-on' : ''}"
             data-color="${key}" style="background:${PALETTE[key].book}"
             title="${key}" aria-label="${key}"></button>`).join('');
+
+  // プリセットに一致すればその色相を、カスタム色ならその色の色相をバーの初期位置にする
+  const hue = Math.round(hexToHue(isPreset ? PALETTE[selected].book : (isHexColor(selected) ? selected : PALETTE.graphite.book)));
+  $('cHue').value = hue;
+  updateHuePreview(hue);
+}
+
+function updateHuePreview(hue) {
+  $('cHuePreview').style.background = paletteFromHue(hue).book;
+}
+
+/** 選ばれている配色（プリセットのキー、または色相バーで選んだ #rrggbb）を返す */
+function selectedCategoryColor() {
+  const onSwatch = $('cColorRow').querySelector('.lp-swatch.is-on');
+  if (onSwatch) return onSwatch.dataset.color;
+  return paletteFromHue(Number($('cHue').value)).book;
 }
 
 function renderIconRow(selected) {
@@ -244,11 +299,10 @@ function showCategoryError(msg) {
 async function submitCategory(ev) {
   ev.preventDefault();
   const code = $('cCode').value;
-  const color = $('cColorRow').querySelector('.lp-swatch.is-on');
   const icon = $('cIconRow').querySelector('.lp-iconbtn.is-on');
   const payload = {
     label: $('cLabel').value.trim(),
-    color: color ? color.dataset.color : 'graphite',
+    color: selectedCategoryColor(),
     icon: icon ? icon.dataset.icon : 'folder'
   };
   if (!code) payload.code = $('cCodeInput').value.trim().toUpperCase();
@@ -426,6 +480,14 @@ async function init() {
     const btn = e.target.closest('.lp-swatch');
     if (!btn) return;
     $('cColorRow').querySelectorAll('.lp-swatch').forEach((b) => b.classList.toggle('is-on', b === btn));
+    const hue = Math.round(hexToHue(PALETTE[btn.dataset.color].book));
+    $('cHue').value = hue;
+    updateHuePreview(hue);
+  });
+  // 色相バーを動かしたら、プリセットの選択は解除してカスタム色を使う
+  $('cHue').addEventListener('input', () => {
+    $('cColorRow').querySelectorAll('.lp-swatch').forEach((b) => b.classList.remove('is-on'));
+    updateHuePreview(Number($('cHue').value));
   });
   $('cIconRow').addEventListener('click', (e) => {
     const btn = e.target.closest('.lp-iconbtn');

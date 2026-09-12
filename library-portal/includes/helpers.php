@@ -43,7 +43,7 @@ function s(array $src, string $key, int $max = 500): string
    カテゴリ（種別）
    ============================================================ */
 
-/** 選べる配色キー（assets/library.js の PALETTE と対応） */
+/** プリセットの配色キー一覧（PALETTE と対応）。この他に #rrggbb のカスタム色も許可する */
 function lp_category_colors(): array
 {
     return ['navy', 'graphite', 'tan', 'maroon', 'forest', 'plum', 'rust', 'denim', 'charcoal'];

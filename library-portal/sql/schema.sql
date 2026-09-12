@@ -49,7 +49,7 @@ CREATE TABLE IF NOT EXISTS lp_categories (
   category_id  INT          NOT NULL AUTO_INCREMENT,
   code         VARCHAR(10)  NOT NULL COMMENT '管理IDの接頭辞（例：APP）。作成後は変更しません',
   label        VARCHAR(40)  NOT NULL COMMENT '表示名（例：アプリ）',
-  color        VARCHAR(20)  NOT NULL DEFAULT 'graphite' COMMENT '配色キー（assets/library.js の PALETTE）',
+  color        VARCHAR(20)  NOT NULL DEFAULT 'graphite' COMMENT '配色キー（PALETTEのキー、または #rrggbb のカスタム色）',
   icon         VARCHAR(20)  NOT NULL DEFAULT 'folder' COMMENT 'アイコンキー（assets/library.js の ICONS）',
   sort_no      INT          NOT NULL DEFAULT 0 COMMENT '一覧・チップでの並び順',
   created_at   DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,

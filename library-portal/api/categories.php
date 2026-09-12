@@ -50,9 +50,11 @@ function validate_category_fields(array $b, bool $isNew): array
     if ($label === '') {
         json_error('表示名は必須です。');
     }
-    if (!in_array($color, lp_category_colors(), true)) {
+    // プリセットのキー（例：navy）か、色相バーで選んだ #rrggbb のどちらかを許可する
+    if (!in_array($color, lp_category_colors(), true) && !preg_match('/^#[0-9a-f]{6}$/i', $color)) {
         json_error('配色の指定が不正です。');
     }
+    $color = strtolower($color);
     if (!in_array($icon, lp_category_icons(), true)) {
         json_error('アイコンの指定が不正です。');
     }

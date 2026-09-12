@@ -56,6 +56,49 @@ const PALETTE = {
 };
 const DEFAULT_PALETTE_KEY = 'graphite';
 
+/*
+ * プリセットの配色（PALETTE）に加えて、設定画面の「色相バー」で好みの色合いを
+ * 選べるようにするための変換。カラーバーでは色相（hue）だけを選んでもらい、
+ * 彩度・明度はこのアプリの本棚らしい落ち着いた見た目になる値に固定する。
+ */
+function hexToHue(hex) {
+  const m = /^#?([0-9a-f]{2})([0-9a-f]{2})([0-9a-f]{2})$/i.exec(String(hex || ''));
+  if (!m) return 0;
+  const r = parseInt(m[1], 16) / 255, g = parseInt(m[2], 16) / 255, b = parseInt(m[3], 16) / 255;
+  const max = Math.max(r, g, b), min = Math.min(r, g, b), d = max - min;
+  if (d === 0) return 0;
+  let h;
+  if (max === r) h = ((g - b) / d) % 6;
+  else if (max === g) h = (b - r) / d + 2;
+  else h = (r - g) / d + 4;
+  h *= 60;
+  return h < 0 ? h + 360 : h;
+}
+function hslToHex(h, s, l) {
+  s /= 100; l /= 100;
+  const k = (n) => (n + h / 30) % 12;
+  const a = s * Math.min(l, 1 - l);
+  const f = (n) => l - a * Math.max(-1, Math.min(k(n) - 3, Math.min(9 - k(n), 1)));
+  const toHex = (n) => Math.round(f(n) * 255).toString(16).padStart(2, '0');
+  return `#${toHex(0)}${toHex(8)}${toHex(4)}`;
+}
+/** 色相（0〜359）から、本棚らしい彩度を抑えた配色一式を作る */
+function paletteFromHue(hue) {
+  return {
+    book: hslToHex(hue, 38, 30),
+    bg: hslToHex(hue, 45, 93),
+    border: hslToHex(hue, 32, 80),
+    fg: hslToHex(hue, 55, 26)
+  };
+}
+const isHexColor = (v) => /^#[0-9a-f]{6}$/i.test(String(v || ''));
+/** カテゴリの color 値（プリセットのキー、またはカラーバーで選んだ #rrggbb）から配色一式を作る */
+function resolvePalette(colorValue) {
+  if (PALETTE[colorValue]) return PALETTE[colorValue];
+  if (isHexColor(colorValue)) return paletteFromHue(hexToHue(colorValue));
+  return PALETTE[DEFAULT_PALETTE_KEY];
+}
+
 const ICONS = {
   app:    SVG('<rect x="3" y="3" width="18" height="18" rx="3"/><path d="M3 9h18M9 21V9"/>'),
   code:   SVG('<path d="m9 17-5-5 5-5"/><path d="m15 7 5 5-5 5"/>'),
@@ -77,7 +120,7 @@ function categoryByLabel(label) {
 }
 function categoryPalette(label) {
   const c = categoryByLabel(label);
-  return PALETTE[c && c.color] || PALETTE[DEFAULT_PALETTE_KEY];
+  return resolvePalette(c && c.color);
 }
 function categoryIcon(label) {
   const c = categoryByLabel(label);
@@ -1014,7 +1057,8 @@ function renderSeries() {
   const names = [...new Set(items.map((i) => i.series).filter(Boolean))]
     .sort((a, b) => a.localeCompare(b, 'ja'));
   if (!names.includes(state.series)) state.series = '';
-  sel.hidden = names.length === 0;
+  const wrap = $('seriesSelectWrap');
+  if (wrap) wrap.hidden = names.length === 0;
   sel.innerHTML = ['<option value="">すべてのシリーズ</option>']
     .concat(names.map((n) =>
       `<option value="${esc(n)}"${state.series === n ? ' selected' : ''}>${esc(n)}</option>`))

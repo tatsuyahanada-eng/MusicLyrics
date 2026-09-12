@@ -133,8 +133,17 @@
 /* ---------- Main ---------- */
 .lp-main { flex: 1; width: 100%; max-width: 1240px; margin: 0 auto; padding: 20px 22px 44px; }
 
-/* ---------- Toolbar ---------- */
-.lp-toolbar { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; margin-bottom: 16px; }
+/* ---------- Toolbar ----------
+   本棚は色を賑やかに使うぶん、操作まわり（検索・絞り込み・並び替え・表示切替）は
+   1枚の落ち着いたカードにまとめて、シンプルに・見やすくしてある */
+.lp-toolbar-card {
+  background: #fbfbf9; border: 1px solid var(--lp-line);
+  border-radius: 12px; padding: 14px 16px;
+  margin-bottom: 18px;
+  display: flex; flex-direction: column; gap: 12px;
+}
+.lp-toolbar { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
+.lp-toolbar-sub { padding-top: 12px; border-top: 1px solid var(--lp-line); }
 .lp-input, .lp-select {
   font: inherit; color: var(--lp-ink); background: #fff;
   border: 1px solid var(--lp-line-strong); border-radius: 7px;
@@ -150,7 +159,15 @@
 .lp-search { position: relative; flex: 1 1 300px; min-width: 220px; }
 .lp-search-icon { position: absolute; left: 11px; top: 50%; transform: translateY(-50%); font-size: .82rem; color: var(--lp-ink-soft); pointer-events: none; }
 .lp-search-input { width: 100%; padding-left: 32px; }
-.lp-toolbar-right { display: flex; gap: 8px; align-items: center; margin-left: auto; flex-wrap: wrap; }
+
+/* シリーズ・並び替えの select にも、検索欄と同じ考え方でアイコンを添える */
+.lp-selectwrap { position: relative; display: inline-flex; }
+.lp-select-icon {
+  position: absolute; left: 11px; top: 50%; transform: translateY(-50%);
+  color: var(--lp-ink-soft); pointer-events: none; display: flex;
+}
+.lp-selectwrap .lp-select { padding-left: 30px; }
+.lp-toolbar-sub .lp-viewswitch { margin-left: auto; }
 
 /* Chips：種別が増えても縦に伸びないよう、折り返さず横スクロールにする。
    「すべて」は position: sticky で常に見える位置に固定する */
@@ -558,6 +575,7 @@
   border: 1px solid var(--lp-line-strong); border-radius: 999px; padding: 2px;
 }
 .lp-viewbtn {
+  display: inline-flex; align-items: center; gap: 5px;
   font: inherit; font-size: .76rem; font-weight: 700;
   color: var(--lp-ink-soft); background: none; border: none;
   border-radius: 999px; padding: 5px 15px; cursor: pointer;
@@ -1314,7 +1332,6 @@
   .lp-row-name {
     display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
   }
-  .lp-toolbar-right { margin-left: 0; }
 }
 @media (max-width: 640px) {
   .lp-header-inner { padding: 11px 14px; gap: 10px; }
@@ -1533,6 +1550,32 @@
 }
 .lp-swatch:hover { transform: scale(1.08); }
 .lp-swatch.is-on { border-color: var(--lp-deep); box-shadow: 0 0 0 2px #fff, 0 0 0 4px var(--lp-deep); }
+
+/* 好みの色合いを選ぶ色相バー（プリセットに無い色を使いたいとき用） */
+.lp-huepicker { display: flex; align-items: center; gap: 10px; margin-top: 11px; }
+.lp-huepreview {
+  flex: none; width: 30px; height: 30px; border-radius: 50%;
+  box-shadow: inset 0 0 0 1px rgba(0, 0, 0, .15), 0 0 0 1px #fff, 0 0 0 2px var(--lp-line-strong);
+}
+.lp-hueslider {
+  flex: 1; -webkit-appearance: none; appearance: none;
+  height: 14px; border-radius: 999px; cursor: pointer;
+  background: linear-gradient(to right,
+    #e04a4a 0%, #e0c14a 17%, #7fd15a 33%, #4ad1c0 50%,
+    #4a7fe0 67%, #a94ae0 83%, #e04a4a 100%);
+  box-shadow: inset 0 0 0 1px rgba(0, 0, 0, .12);
+}
+.lp-hueslider::-webkit-slider-thumb {
+  -webkit-appearance: none; appearance: none;
+  width: 22px; height: 22px; border-radius: 50%;
+  background: #fff; border: 2px solid var(--lp-deep);
+  box-shadow: 0 1px 4px rgba(0, 0, 0, .35); cursor: pointer;
+}
+.lp-hueslider::-moz-range-thumb {
+  width: 22px; height: 22px; border-radius: 50%;
+  background: #fff; border: 2px solid var(--lp-deep);
+  box-shadow: 0 1px 4px rgba(0, 0, 0, .35); cursor: pointer;
+}
 
 .lp-iconrow { display: flex; flex-wrap: wrap; gap: 8px; }
 .lp-iconbtn {
@@ -1786,9 +1829,8 @@
 
 /* 絞り込み・並び替え・表示切替が増えたので、狭い画面では折り返して収める */
 @media (max-width: 720px) {
-  .lp-toolbar-right { margin-left: 0; width: 100%; }
-  .lp-toolbar-right .lp-select { flex: 1 1 150px; min-width: 0; }
-  .lp-viewswitch { margin-left: auto; }
+  .lp-toolbar-sub .lp-selectwrap { flex: 1 1 150px; min-width: 0; }
+  .lp-toolbar-sub .lp-select { width: 100%; }
 }
 
 /* ============================================================
