@@ -60,16 +60,17 @@ function userRow(u) {
   const isSelf = u.userId === ME;
   const admin = u.role === 'admin';
   const none = !u.role;                       // このアプリでの権限なし（共通DB運用時のみ発生）
+  const current = none ? 'none' : (u.role || 'viewer');
   const central = meta.authMode === 'central';
 
   // 権限スイッチ：共通DB運用では「権限なし」も選べる
   const roleBtn = (value, label) => `
-    <button type="button" class="lp-roleswitch-btn${(value === 'admin' ? admin : value === 'viewer' ? (!admin && !none) : none) ? ' is-on' : ''}"
+    <button type="button" class="lp-roleswitch-btn${value === current ? ' is-on' : ''}"
             data-role="${value}" data-id="${u.userId}" ${isSelf ? 'disabled' : ''}>${label}</button>`;
 
   const roleSwitch = `
-    <span class="lp-roleswitch${admin ? ' is-admin' : ''}${none ? ' is-none' : ''}" role="group" aria-label="権限の切り替え">
-      ${roleBtn('admin', '管理者')}${roleBtn('viewer', '閲覧のみ')}${central ? roleBtn('none', '権限なし') : ''}
+    <span class="lp-roleswitch${admin ? ' is-admin' : ''}${current === 'editor' ? ' is-editor' : ''}${none ? ' is-none' : ''}" role="group" aria-label="権限の切り替え">
+      ${roleBtn('admin', '管理者')}${roleBtn('editor', '編集者')}${roleBtn('viewer', '閲覧のみ')}${central ? roleBtn('none', '権限なし') : ''}
     </span>`;
 
   const actions = canAcct()
@@ -181,7 +182,7 @@ async function changeRole(id, role) {
   const nextRole = role === 'none' ? '' : role;
   if ((user.role || '') === nextRole) return;
 
-  const label = { admin: '管理者', viewer: '閲覧のみ', none: '権限なし' }[role];
+  const label = { admin: '管理者', editor: '編集者', viewer: '閲覧のみ', none: '権限なし' }[role];
   if (role === 'none' && !confirm(`${user.name} さんからこのアプリの利用権限を外します。よろしいですか？`)) return;
 
   try {

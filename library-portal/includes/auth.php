@@ -50,6 +50,16 @@ function is_admin(): bool
     return $u !== null && ($u['role'] ?? '') === 'admin';
 }
 
+/**
+ * 資料・更新履歴の登録／修正／削除ができるか（管理者・編集者）。
+ * 利用者の追加・削除・権限変更（設定画面）はここには含まれず、管理者のみ。
+ */
+function can_edit(): bool
+{
+    $u = current_user();
+    return $u !== null && in_array($u['role'] ?? '', ['admin', 'editor'], true);
+}
+
 /** 未ログインならログイン画面へ */
 function require_login(): array
 {
@@ -63,11 +73,22 @@ function require_login(): array
     return $u;
 }
 
-/** 管理者でなければ 403 */
+/** 管理者でなければ 403（利用者管理など、管理者専用の画面） */
 function require_admin(): array
 {
     $u = require_login();
     if (($u['role'] ?? '') !== 'admin') {
+        http_response_code(403);
+        exit('この画面を表示する権限がありません。');
+    }
+    return $u;
+}
+
+/** 管理者・編集者のどちらでもなければ 403（資料・更新履歴の登録／修正／削除） */
+function require_editor(): array
+{
+    $u = require_login();
+    if (!in_array($u['role'] ?? '', ['admin', 'editor'], true)) {
         http_response_code(403);
         exit('この画面を表示する権限がありません。');
     }
@@ -123,6 +144,16 @@ function api_require_admin(): array
     $u = api_require_login();
     if (($u['role'] ?? '') !== 'admin') {
         json_error('この操作には管理者権限が必要です。', 403);
+    }
+    return $u;
+}
+
+/** API 用：資料・更新履歴の登録／修正／削除には管理者・編集者どちらかの権限が必要 */
+function api_require_editor(): array
+{
+    $u = api_require_login();
+    if (!in_array($u['role'] ?? '', ['admin', 'editor'], true)) {
+        json_error('この操作には登録・修正・削除の権限が必要です。', 403);
     }
     return $u;
 }

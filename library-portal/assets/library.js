@@ -370,8 +370,10 @@ function fileRounds(it) {
   return { rounds, total: seen };
 }
 
-/** 版数の道のり（出発点 → … → いま）。版数が一つも無いときは出さない */
+/** 版数の道のり（出発点 → … → いま）。版数が一つも無いときは出さない。
+ *  各段は押すと、右ページのその更新内容がその場で開いて確認できる。 */
 function versionRoad(it) {
+  const n = it.history.length;
   const chain = [...it.history].reverse()
     .filter((h) => h.version)
     .filter((h, i, arr) => i === 0 || h.version !== arr[i - 1].version);
@@ -379,11 +381,15 @@ function versionRoad(it) {
 
   const steps = chain.map((h, i) => {
     const isNow = i === chain.length - 1;
+    const oldIdx = n - 1 - it.history.indexOf(h);
+    const jumpKey = esc(h.uid || oldIdx);
     return `
       <li class="lp-road-step${isNow ? ' is-now' : ''}" style="--d:${i}">
-        <span class="lp-road-ver">${esc(h.version)}</span>
-        <span class="lp-road-when">${fmtDate(h.date)}</span>
-        <span class="lp-road-kind">${isNow ? '最新' : esc(h.kind)}</span>
+        <button class="lp-road-jump" type="button" data-road-jump="${jumpKey}" title="この版の更新内容を確認する">
+          <span class="lp-road-ver">${esc(h.version)}</span>
+          <span class="lp-road-when">${fmtDate(h.date)}</span>
+          <span class="lp-road-kind">${isNow ? '最新' : esc(h.kind)}</span>
+        </button>
       </li>`;
   }).join('');
 
@@ -392,6 +398,21 @@ function versionRoad(it) {
       <span class="lp-road-label">版数の道のり</span>
       <ol class="lp-road-track">${steps}</ol>
     </div>`;
+}
+
+/** 版数の道のりの1段をクリックしたとき、右ページのその更新内容を開いて見えるようにする */
+function jumpToChronicleEntry(uid) {
+  const spread = $('spread');
+  if (!spread) return;
+  const row = spread.querySelector(`[data-open-entry="${CSS.escape(String(uid))}"]`);
+  if (!row) return;
+  const detail = row.parentElement.querySelector('.lp-chr-detail');
+  if (detail && detail.hidden) {
+    detail.hidden = false;
+    row.setAttribute('aria-expanded', 'true');
+    row.closest('.lp-chr-item').classList.add('is-open');
+  }
+  row.scrollIntoView({ behavior: 'smooth', block: 'center' });
 }
 
 /** 1件の更新で直したファイルの一覧表 */
@@ -1493,7 +1514,7 @@ async function init() {
   $('spread').addEventListener('click', (e) => {
     // 見開きは一覧の中に差し込まれているため、ここで処理したクリックは
     // 上位（#list）へ伝えない。伝わると同じ操作が二重に走ってしまう
-    if (e.target.closest('[data-close-spread], [data-series], [data-edit-item], [data-edit-update], [data-delete-update], [data-book], [data-add], [data-open-entry], [data-all-entries], [data-chr-order]')) {
+    if (e.target.closest('[data-close-spread], [data-series], [data-edit-item], [data-edit-update], [data-delete-update], [data-book], [data-add], [data-open-entry], [data-all-entries], [data-chr-order], [data-road-jump]')) {
       e.stopPropagation();
     }
     if (e.target.closest('[data-close-spread]')) { closeBook(); return; }
@@ -1509,6 +1530,8 @@ async function init() {
     if (orderBtn) { setChronicleOrder(orderBtn.dataset.chrOrder); return; }
     const allBtn = e.target.closest('[data-all-entries]');
     if (allBtn) { toggleAllEntries(allBtn); return; }
+    const roadJump = e.target.closest('[data-road-jump]');
+    if (roadJump) { jumpToChronicleEntry(roadJump.dataset.roadJump); return; }
     const entry = e.target.closest('[data-open-entry]');
     if (entry) { toggleEntry(entry); return; }
     const editItem = e.target.closest('[data-edit-item]');

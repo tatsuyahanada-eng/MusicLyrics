@@ -1,7 +1,8 @@
 <?php
 /**
  * GET  api/items.php        … ライブラリ一覧＋更新履歴を返す（要ログイン）
- * POST api/items.php        … アイテムを新規登録（管理者のみ）
+ * POST api/items.php        … アイテムを新規登録（管理者・編集者）
+ * PUT  api/items.php        … アイテムを修正（管理者・編集者）
  */
 declare(strict_types=1);
 // SSO（シングルサインオン）を再度有効化する場合は次の行のコメントを外す
@@ -105,7 +106,7 @@ if ($method === 'GET') {
 }
 
 if ($method === 'POST') {
-    api_require_admin();
+    api_require_editor();
     api_verify_csrf();
 
     $b = json_body();
@@ -160,7 +161,7 @@ if ($method === 'POST') {
    登録済みアイテムの修正（管理IDは変更しない）
    ------------------------------------------------------------ */
 if ($method === 'PUT') {
-    api_require_admin();
+    api_require_editor();
     api_verify_csrf();
 
     $b = json_body();

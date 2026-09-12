@@ -73,7 +73,7 @@ if ($method === 'POST') {
     if ($name === '') {
         json_error('表示名は必須です。');
     }
-    if (!in_array($role, ['admin', 'viewer'], true)) {
+    if (!in_array($role, ['admin', 'editor', 'viewer'], true)) {
         json_error('権限の指定が不正です。');
     }
     if ($email !== '' && !filter_var($email, FILTER_VALIDATE_EMAIL)) {
@@ -116,7 +116,7 @@ if ($method === 'PATCH' || $method === 'PUT') {
     if (array_key_exists('role', $b)) {
         $role = s($b, 'role', 10);
         $revoke = ($role === '' || $role === 'none');
-        if (!$revoke && !in_array($role, ['admin', 'viewer'], true)) {
+        if (!$revoke && !in_array($role, ['admin', 'editor', 'viewer'], true)) {
             json_error('権限の指定が不正です。');
         }
         if ($revoke && lp_auth_mode() === 'local') {

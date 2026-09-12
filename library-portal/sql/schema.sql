@@ -27,7 +27,7 @@ CREATE TABLE IF NOT EXISTS lp_users (
   display_name   VARCHAR(60)  NOT NULL COMMENT '表示名（氏名）',
   email          VARCHAR(120)     NULL COMMENT 'メールアドレス',
   dept           VARCHAR(60)      NULL COMMENT '所属',
-  role           VARCHAR(10)  NOT NULL DEFAULT 'viewer' COMMENT 'admin / viewer',
+  role           VARCHAR(10)  NOT NULL DEFAULT 'viewer' COMMENT 'admin / editor / viewer',
   password_hash  VARCHAR(255) NOT NULL COMMENT 'password_hash() の値',
   is_active      TINYINT(1)   NOT NULL DEFAULT 1 COMMENT '1=有効 / 0=停止',
   must_change_pw TINYINT(1)   NOT NULL DEFAULT 0 COMMENT '1=次回ログイン時にパスワード変更必須',

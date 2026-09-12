@@ -68,6 +68,7 @@ $defRole  = lp_default_role();
 
     <p class="lp-help">
       <strong>管理者</strong>はアイテム・更新履歴の登録と利用者管理を含むすべての操作が行えます。
+      <strong>編集者</strong>は閲覧・登録・更新・削除ができますが、利用者の追加・削除・権限変更（この画面）はできません。
       <strong>閲覧のみ</strong>は一覧と更新履歴の閲覧、URLへのアクセスのみが行えます。
       権限は行の中のスイッチでいつでも切り替えられます。
     </p>
@@ -146,6 +147,13 @@ $defRole  = lp_default_role();
           </span>
         </label>
         <label class="lp-roleopt">
+          <input type="radio" name="uRole" value="editor">
+          <span class="lp-roleopt-body">
+            <span class="lp-roleopt-title">編集者（閲覧・登録・更新・削除）</span>
+            <span class="lp-roleopt-desc">アイテム・更新履歴の閲覧・登録・修正・削除ができます。利用者の追加・削除・権限変更はできません。</span>
+          </span>
+        </label>
+        <label class="lp-roleopt">
           <input type="radio" name="uRole" value="viewer" checked>
           <span class="lp-roleopt-body">
             <span class="lp-roleopt-title">閲覧のみ（一般利用者）</span>
@@ -180,7 +188,7 @@ $defRole  = lp_default_role();
       canManageAccounts: <?= $canAcct ? 'true' : 'false' ?>
     };
   </script>
-  <script src="assets/settings.js?v=1"></script>
+  <script src="assets/settings.js?v=2"></script>
   <script src="assets/pwa.js?v=2"></script>
 </body>
 </html>

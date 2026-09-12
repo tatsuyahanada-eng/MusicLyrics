@@ -1,8 +1,8 @@
 <?php
 /**
- * POST   api/updates.php … 更新履歴を1件登録（管理者のみ）
- * PUT    api/updates.php … 登録済みの更新履歴を1件修正（管理者のみ）
- * DELETE api/updates.php … 登録済みの更新履歴を1件削除（管理者のみ）
+ * POST   api/updates.php … 更新履歴を1件登録（管理者・編集者）
+ * PUT    api/updates.php … 登録済みの更新履歴を1件修正（管理者・編集者）
+ * DELETE api/updates.php … 登録済みの更新履歴を1件削除（管理者・編集者）
  *
  * 添付ファイル（画像・PDF・ZIP）を送る場合は multipart/form-data、
  * 送らない場合は今まで通り JSON のどちらでも受け付ける。
@@ -17,7 +17,7 @@ if (!in_array($method, ['POST', 'PUT', 'DELETE'], true)) {
     json_error('許可されていないメソッドです。', 405);
 }
 
-$user = api_require_admin();
+$user = api_require_editor();
 api_verify_csrf();
 
 if ($method === 'DELETE') {

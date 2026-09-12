@@ -142,7 +142,7 @@ function resolve_role(int $userId): ?string
     if ($role === false) {
         return lp_default_role();
     }
-    return in_array($role, ['admin', 'viewer'], true) ? (string)$role : lp_default_role();
+    return in_array($role, ['admin', 'editor', 'viewer'], true) ? (string)$role : lp_default_role();
 }
 
 /** このアプリでの権限を設定（central では app_key 単位の行を作成／更新） */

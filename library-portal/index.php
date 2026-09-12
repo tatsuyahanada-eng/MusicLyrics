@@ -9,11 +9,14 @@ if ($user === null) {
     header('Location: login.php');
     exit;
 }
-$isAdmin = ($user['role'] ?? '') === 'admin';
+$role    = $user['role'] ?? '';
+$isAdmin = $role === 'admin';
+$canEdit = in_array($role, ['admin', 'editor'], true);   // 登録・修正・削除ができるか
+$roleLabel = ['admin' => '管理者', 'editor' => '編集者'][$role] ?? '閲覧のみ';
 $csrf    = csrf_token();
 // sql/upgrade.sql をまだ実行していないと使えない項目を、画面側にも伝えておく
 // （フォームでは選べるのに保存されない、という状態を防ぐため）
-$dbMissing = $isAdmin ? lp_missing_columns() : [];
+$dbMissing = $canEdit ? lp_missing_columns() : [];
 ?>
 <!DOCTYPE html>
 <html lang="ja">
@@ -26,7 +29,7 @@ $dbMissing = $isAdmin ? lp_missing_columns() : [];
   <link rel="apple-touch-icon" href="assets/icon-192.png?v=6">
   <link rel="manifest" href="manifest.webmanifest">
   <meta name="theme-color" content="#007a33">
-  <link rel="stylesheet" href="assets/library.css?v=30">
+  <link rel="stylesheet" href="assets/library.css?v=31">
 </head>
 <body class="lp-body">
 
@@ -43,14 +46,14 @@ $dbMissing = $isAdmin ? lp_missing_columns() : [];
       </h1>
       <div class="lp-header-actions">
         <span class="lp-count"><strong id="statItems">0</strong> 件 ／ 更新 <strong id="statHistory">0</strong> 件</span>
-        <?php if ($isAdmin): ?>
+        <?php if ($canEdit): ?>
           <button id="btnNewItem" class="lp-btn lp-btn-ghost lp-btn-sm" type="button">＋ アイテム</button>
           <button id="btnNewUpdate" class="lp-btn lp-btn-primary" type="button">＋ 更新を登録</button>
         <?php endif; ?>
         <div class="lp-user">
           <button id="btnUserMenu" class="lp-user-btn" type="button" aria-haspopup="true" aria-expanded="false">
             <span class="lp-user-name"><?= h($user['display_name']) ?></span>
-            <span class="lp-role lp-role-<?= $isAdmin ? 'admin' : 'viewer' ?>"><?= $isAdmin ? '管理者' : '閲覧のみ' ?></span>
+            <span class="lp-role lp-role-<?= $role === 'admin' ? 'admin' : ($role === 'editor' ? 'editor' : 'viewer') ?>"><?= h($roleLabel) ?></span>
           </button>
           <div id="userMenu" class="lp-user-menu" hidden>
             <?php if ($isAdmin): ?>
@@ -102,7 +105,7 @@ $dbMissing = $isAdmin ? lp_missing_columns() : [];
 
   <footer class="lp-footer">
     <div class="lp-footer-inner">
-      <p class="lp-footer-status">ライブラリポータル ／ <?= h($user['login_id']) ?> としてログイン中<?= $isAdmin ? '（管理者）' : '（閲覧のみ）' ?></p>
+      <p class="lp-footer-status">ライブラリポータル ／ <?= h($user['login_id']) ?> としてログイン中（<?= h($roleLabel) ?>）</p>
       <p class="lp-footer-copyright">
         <img class="lp-footer-logo" src="assets/welsys-logo.jpg" alt="WELSYS ロゴ">
         <span>&copy; <?= date('Y') ?> ウェルシス株式会社</span>
@@ -288,12 +291,12 @@ $dbMissing = $isAdmin ? lp_missing_columns() : [];
         name: <?= json_encode($user['display_name']) ?>,
         role: <?= json_encode($user['role']) ?>
       },
-      canEdit: <?= $isAdmin ? 'true' : 'false' ?>,
+      canEdit: <?= $canEdit ? 'true' : 'false' ?>,
       dbMissing: <?= json_encode($dbMissing) ?>,
       uploadMaxBytes: <?= (int)lp_upload_max_bytes() ?>
     };
   </script>
-  <script src="assets/library.js?v=32"></script>
+  <script src="assets/library.js?v=33"></script>
   <script src="assets/pwa.js?v=2"></script>
   <script>
     // インストール導線：すぐに実行できる端末ではその場で、それ以外は案内ページへ
