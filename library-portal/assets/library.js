@@ -1028,12 +1028,39 @@ function openUpdateModal(itemId, uid) {
 
 const UPLOAD_ALLOWED_EXT = ['jpg', 'jpeg', 'png', 'gif', 'webp', 'pdf', 'zip'];
 
+/**
+ * この登録・修正を保存すると版数がいくつになるかを、保存前に見積もる。
+ * 実際の採番は includes/helpers.php（サーバー側）が行うが、規則は numberVersions() と同じなので
+ * ここでは同じ規則をその項目の履歴に当てはめて先読みするだけ（保存はしない）。
+ */
+function previewNextVersion(itemId, uid, date, time, bump) {
+  const it = items.find((x) => x.id === itemId);
+  if (!it) return null;
+  const hist = it.history.map((h) => ({ ...h }));
+  const marker = uid ? Number(uid) : -1;
+  if (uid) {
+    const target = hist.find((h) => h.uid === marker);
+    if (!target) return null;
+    target.date = date;
+    target.time = time;
+    target.bump = bump;
+  } else {
+    hist.push({ uid: marker, date, time, bump });
+  }
+  const clone = { history: hist };
+  sortHistory(clone);
+  numberVersions(clone);
+  const entry = hist.find((h) => h.uid === marker);
+  return entry ? entry.version : null;
+}
+
 async function submitUpdate(ev) {
   ev.preventDefault();
   const form = $('updateForm');
   const edit = form.dataset.mode === 'edit';
   const itemId = $('fItem').value;
   const file = $('fAttachment').files[0] || null;
+  const it = items.find((x) => x.id === itemId);
 
   // ネットワークに投げる前に分かる範囲だけ、その場で確認しておく
   if (file) {
@@ -1046,6 +1073,18 @@ async function submitUpdate(ev) {
     if (file.size > max) {
       formError('updateError', `ファイルサイズが大きすぎます（上限 ${fmtBytes(max)}）。`);
       return;
+    }
+  }
+
+  // 「間違った項目・版数のまま登録してしまう」ことを防ぐため、保存前に版数を確認してもらう
+  if (it) {
+    const previewVer = previewNextVersion(
+      itemId, edit ? form.dataset.uid : null, $('fDate').value, $('fTime').value, $('fBump').value
+    );
+    if (previewVer) {
+      const verb = edit ? '修正すると' : 'この内容で登録すると';
+      const ok = confirm(`「${it.name}」を ${verb} Ver${previewVer} になります。よろしいですか？`);
+      if (!ok) return;
     }
   }
 
