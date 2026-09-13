@@ -659,13 +659,15 @@ function chronicle(it) {
         <li class="lp-chr-item${i === 0 ? ' is-latest' : ''}${prev ? '' : ' is-first'}" style="--d:${step}">
           <button class="lp-chr-row" type="button" data-open-entry="${esc(e.uid || oldIdx)}"
                   aria-expanded="false">
-            <span class="lp-chr-date">${fmtDate(e.date)}</span>
-            <span class="lp-chr-ver">${esc(e.version)}</span>
+            <span class="lp-chr-row-head">
+              <span class="lp-chr-date">${fmtDate(e.date)}</span>
+              <span class="lp-chr-ver">${esc(e.version)}</span>
+              ${e.attachment ? `<span class="lp-chr-clip" title="添付ファイルあり：${esc(e.attachment.name)}">${ICON_CLIP}</span>` : ''}
+              ${i === 0 ? '<span class="lp-chr-tag">最新</span>' : ''}
+              ${prev ? '' : '<span class="lp-chr-tag lp-chr-tag-start">出発点</span>'}
+              <span class="lp-chr-mark" aria-hidden="true">${ICON_CHEVRON}</span>
+            </span>
             <span class="lp-chr-title">${esc(e.summary)}</span>
-            ${e.attachment ? `<span class="lp-chr-clip" title="添付ファイルあり：${esc(e.attachment.name)}">${ICON_CLIP}</span>` : ''}
-            ${i === 0 ? '<span class="lp-chr-tag">最新</span>' : ''}
-            ${prev ? '' : '<span class="lp-chr-tag lp-chr-tag-start">出発点</span>'}
-            <span class="lp-chr-mark" aria-hidden="true">${ICON_CHEVRON}</span>
           </button>
 
           <div class="lp-chr-detail" hidden>
