@@ -7,7 +7,7 @@
    ============================================================ */
 const CACHE = 'library-portal-v40';
 const SHELL = [
-  'assets/library.css?v=34',
+  'assets/library.css?v=35',
   'assets/library.js?v=37',
   'assets/settings.js?v=4',
   'assets/pwa.js?v=2',
