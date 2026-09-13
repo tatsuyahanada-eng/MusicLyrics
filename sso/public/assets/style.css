@@ -71,6 +71,12 @@ a:hover { color: var(--purple-deep); }
   text-decoration: none;
   color: inherit;
 }
+.brand__icon {
+  width: 36px;
+  height: 36px;
+  border-radius: 9px;
+  flex: none;
+}
 .brand__title {
   font-size: 20px;
   font-weight: 700;

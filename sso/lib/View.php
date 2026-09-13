@@ -51,6 +51,7 @@ final class View
 <header class="site-header">
   <div class="site-header__inner">
     <a class="brand" href="<?= h(Config::baseUrl('index.php')) ?>">
+      <img class="brand__icon" src="<?= h($asset) ?>/img/icon-192.png" alt="" width="36" height="36">
       <span class="brand__title"><?= h(self::PRODUCT_NAME) ?></span>
     </a>
     <?php if ($user !== null): ?>
