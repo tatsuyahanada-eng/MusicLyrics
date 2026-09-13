@@ -1,0 +1,10 @@
+{
+  "permissions": {
+    "allow": [
+      "mcp__Google_Calendar__list_events",
+      "mcp__Google_Calendar__get_event",
+      "mcp__Google_Calendar__update_event",
+      "mcp__Google_Calendar__create_event"
+    ]
+  }
+}
