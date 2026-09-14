@@ -290,7 +290,23 @@ textarea.sc-input { resize: vertical; line-height: 1.5; min-height: 2.6em; }
   margin-bottom: 12px;
   box-shadow: var(--sc-shadow);
 }
+.sc-toolbar-head { display: flex; align-items: center; gap: 6px; }
 .sc-toolbar-label { font-size: 0.72rem; color: var(--sc-muted); font-weight: 700; }
+.sc-hint-toggle {
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  border: 1px solid var(--sc-border);
+  background: var(--sc-surface-2);
+  color: var(--sc-muted);
+  font-size: 0.66rem;
+  font-weight: 800;
+  line-height: 1;
+  padding: 0;
+  cursor: pointer;
+}
+.sc-hint-toggle:hover { background: var(--sc-primary); border-color: var(--sc-primary); color: #fff; }
+.sc-hint-toggle[aria-expanded="true"] { background: var(--sc-primary); border-color: var(--sc-primary); color: #fff; }
 
 /* ---- 出力（カレンダーの下） ---- */
 .sc-output-row {
@@ -1135,11 +1151,41 @@ textarea.sc-input { resize: vertical; line-height: 1.5; min-height: 2.6em; }
   to   { opacity: 1; transform: translate(-50%, 0); }
 }
 
+/* ---- 自前の確認ダイアログ（confirm()の代わり） ---- */
+.sc-confirm-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 300;
+  background: rgba(15, 23, 42, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+}
+.sc-confirm-box {
+  background: var(--sc-surface);
+  border-radius: 14px;
+  padding: 20px;
+  width: 100%;
+  max-width: 360px;
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.3);
+}
+.sc-confirm-msg {
+  white-space: pre-wrap;
+  font-size: 0.9rem;
+  line-height: 1.6;
+  margin: 0 0 16px;
+}
+.sc-confirm-actions { display: flex; gap: 8px; }
+.sc-confirm-actions .sc-btn { flex: 1; }
+
 /* ---- レスポンシブ ---- */
 @media (max-width: 900px) {
   .sc-main { grid-template-columns: minmax(0, 1fr); }
   .sc-side { position: static; max-height: none; display: block; }
   .sc-side-inner { max-height: none; }
+  /* 操作モードのボタンは、スマホでスクロールしても常に上部に残るようにする */
+  .sc-side-toolbar { position: sticky; top: 107px; z-index: 25; margin-bottom: 10px; }
 
   /* ダブルタップで予定入力を開いたときは、カレンダーの上に重ねてポップアップ表示する */
   .sc-side.sc-side-modal-open {
@@ -1206,6 +1252,7 @@ textarea.sc-input { resize: vertical; line-height: 1.5; min-height: 2.6em; }
   .sc-jump .sc-input-sm { width: auto; max-width: 108px; }
   .sc-vrow { grid-template-columns: 58px repeat(5, minmax(0, 1fr)); }
   .sc-vhead { top: 126px; }
+  .sc-side-toolbar { top: 126px; }
   .sc-vdate { min-height: 40px; padding: 3px 4px; }
   .sc-vdate-num { font-size: 0.86rem; }
   .sc-vdate-wd { font-size: 0.62rem; }

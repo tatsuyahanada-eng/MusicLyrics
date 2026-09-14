@@ -629,7 +629,8 @@ function jobDuration(job) {
 
 const $ = (id) => document.getElementById(id);
 let elCalendar, elMonthLabel, elMonthPicker, elSidePanel, elSideAside, elStats,
-    elConflictBanner, elExportText, elAvailCount, elJobList, elJobCount, elToast;
+    elConflictBanner, elExportText, elAvailCount, elJobList, elJobCount, elToast,
+    elConfirmOverlay, elConfirmMsg, elConfirmOk, elConfirmCancel;
 
 /* ------------------------------------------------------------
    描画
@@ -2567,7 +2568,7 @@ function applyPaint(dateKey) {
  * まとめて入力（休み希望／稼働可／未定に戻す）モードで1日だけタップしたときに、
  * その場で確認してから確定する。誤タップは防ぎつつ、パネルまで移動する手間はなくす。
  */
-function confirmSingleDayPaint(dateKey) {
+async function confirmSingleDayPaint(dateKey) {
   const label = view.paint === 'off' ? '休み希望' : view.paint === 'available' ? '稼働可' : '未定';
   const verb = view.paint === 'clear' ? 'に戻します' : 'で登録します';
   let msg = `${formatDate(dateKey, 'long')}を「${label}」${verb}。\nよろしいですか？`;
@@ -2577,7 +2578,7 @@ function confirmSingleDayPaint(dateKey) {
     msg += `\n\n※この日にはすでに予定が${busy.length}件あります。`;
   }
 
-  const ok = confirm(msg);
+  const ok = await customConfirm(msg);
   if (ok) applyPaint(dateKey);
   selectDate(dateKey, { noScroll: true });
   if (ok) toast(`${formatDate(dateKey)}を${label}にしました`);
@@ -2594,6 +2595,27 @@ function toast(msg, isError) {
   elToast.hidden = false;
   clearTimeout(toastTimer);
   toastTimer = setTimeout(() => { elToast.hidden = true; }, 2600);
+}
+
+/**
+ * ブラウザ標準の confirm() の代わりに使う確認ダイアログ。
+ * ホーム画面に追加したPWAなど、端末によっては confirm() が出ない（または無反応で
+ * そのまま先に進んでしまう）ことがあるため、休み希望などの1タップ確定には必ずこちらを使う。
+ */
+let confirmResolve = null;
+function customConfirm(message) {
+  return new Promise((resolve) => {
+    confirmResolve = resolve;
+    elConfirmMsg.textContent = message;
+    elConfirmOverlay.hidden = false;
+  });
+}
+function closeCustomConfirm(result) {
+  if (elConfirmOverlay.hidden) return;
+  elConfirmOverlay.hidden = true;
+  const resolve = confirmResolve;
+  confirmResolve = null;
+  if (resolve) resolve(result);
 }
 
 async function copyText(text) {
@@ -2848,6 +2870,17 @@ function bindEvents() {
     view.month = Number(v.slice(5, 7)) - 1;
     renderAll();
   });
+
+  // 操作方法の説明は初期状態では畳んでおき、「？」で必要なときだけ開く
+  const hintToggle = $('paintHintToggle');
+  if (hintToggle) {
+    hintToggle.addEventListener('click', () => {
+      const hint = $('paintHint');
+      const open = hint.hidden;
+      hint.hidden = !open;
+      hintToggle.setAttribute('aria-expanded', String(open));
+    });
+  }
 
   // まとめて入力モード
   document.querySelectorAll('.sc-paint-tab').forEach((tab) => {
@@ -3458,10 +3491,18 @@ function bindEvents() {
 
   // キーボード操作
   document.addEventListener('keydown', (ev) => {
+    if (ev.key === 'Escape' && !elConfirmOverlay.hidden) { closeCustomConfirm(false); return; }
     if (ev.key === 'Escape' && elSideAside.classList.contains('sc-side-modal-open')) { closeForm(); return; }
     if (ev.target.matches('input, textarea, select')) return;
     if (ev.key === 'ArrowLeft') moveMonth(-1);
     if (ev.key === 'ArrowRight') moveMonth(1);
+  });
+
+  // 自前の確認ダイアログ
+  elConfirmOk.addEventListener('click', () => closeCustomConfirm(true));
+  elConfirmCancel.addEventListener('click', () => closeCustomConfirm(false));
+  elConfirmOverlay.addEventListener('click', (ev) => {
+    if (ev.target === elConfirmOverlay) closeCustomConfirm(false);
   });
 }
 
@@ -3482,6 +3523,10 @@ function init() {
   elJobList = $('jobList');
   elJobCount = $('jobCount');
   elToast = $('toast');
+  elConfirmOverlay = $('confirmOverlay');
+  elConfirmMsg = $('confirmMsg');
+  elConfirmOk = $('confirmOkBtn');
+  elConfirmCancel = $('confirmCancelBtn');
 
   loadState();
   loadSyncConfig();

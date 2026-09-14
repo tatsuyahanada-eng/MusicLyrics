@@ -13,7 +13,7 @@
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="default">
   <meta name="apple-mobile-web-app-title" content="VertiCale">
-  <link rel="stylesheet" href="schedule.css?v=42">
+  <link rel="stylesheet" href="schedule.css?v=43">
 </head>
 <body class="sc-body">
 
@@ -85,7 +85,10 @@
     <!-- 右：操作モード＋詳細パネル -->
     <aside class="sc-side">
       <div class="sc-side-toolbar">
-        <span class="sc-toolbar-label">操作モード</span>
+        <div class="sc-toolbar-head">
+          <span class="sc-toolbar-label">操作モード</span>
+          <button type="button" id="paintHintToggle" class="sc-hint-toggle" aria-expanded="false" aria-controls="paintHint" title="操作方法の説明を表示">？</button>
+        </div>
         <div class="sc-paint-tabs" role="group" aria-label="まとめて入力モード">
           <button class="sc-paint-tab active" data-paint="off-mode" type="button">選択のみ</button>
           <button class="sc-paint-tab sc-paint-tab-multi" data-paint="multi" type="button">☑ まとめて登録</button>
@@ -93,7 +96,7 @@
           <button class="sc-paint-tab" data-paint="off" type="button">✕ 休み希望</button>
           <button class="sc-paint-tab" data-paint="clear" type="button">− 未定に戻す</button>
         </div>
-        <p id="paintHint" class="sc-hint">
+        <p id="paintHint" class="sc-hint" hidden>
           枠（早朝・AM・P1・P2・夜間）を1回クリックすると内容を確認できます。空いている枠はダブルクリック（スマホはダブルタップ）で登録画面が開きます。予定がある枠は内容の確認のままなので、新規に追加したいときは「＋予定を登録」ボタンを押してください。ドラッグすると複数の枠をまとめて選べます。
           ◯稼働可・✕休み希望は、左端の日付をクリック（ドラッグ）して設定します。
         </p>
@@ -451,6 +454,18 @@ Require valid-user</pre>
 
   <div id="toast" class="sc-toast" role="status" aria-live="polite" hidden></div>
 
-  <script src="schedule.js?v=42"></script>
+  <!-- 端末やPWAの状態によってはブラウザ標準のconfirm()が出ないことがあるため、
+       休み希望・稼働可などの1タップ確定には自前の確認ダイアログを使う -->
+  <div id="confirmOverlay" class="sc-confirm-overlay" hidden>
+    <div class="sc-confirm-box" role="alertdialog" aria-modal="true" aria-labelledby="confirmMsg">
+      <p id="confirmMsg" class="sc-confirm-msg"></p>
+      <div class="sc-confirm-actions">
+        <button type="button" id="confirmCancelBtn" class="sc-btn sc-btn-outline">キャンセル</button>
+        <button type="button" id="confirmOkBtn" class="sc-btn">OK</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="schedule.js?v=43"></script>
 </body>
 </html>
