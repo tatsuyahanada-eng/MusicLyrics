@@ -93,6 +93,7 @@ input[type=text],input[type=date],input[type=time],select,textarea{
 }
 select{appearance:none;-webkit-appearance:none;background-image:url("data:image/svg+xml;charset=utf8,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%231565C0' stroke-width='2.5' stroke-linecap='round'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 8px center;background-size:15px;padding-right:28px;}
 textarea{font-family:'SFMono-Regular',Menlo,Consolas,'Courier New',monospace;font-size:13px;line-height:1.55;resize:vertical;min-height:130px;}
+#msg-remark{min-height:68px;}
 input:focus,select:focus,textarea:focus{border-color:var(--blue);box-shadow:0 0 0 3px rgba(0,61,165,.14);}
 .btn{
   display:inline-flex;align-items:center;justify-content:center;gap:6px;
@@ -659,13 +660,13 @@ input:focus,select:focus,textarea:focus{border-color:var(--blue);box-shadow:0 0 
           <div class="day-notes" id="day-gyotai-notes-out" hidden><span class="dn-label">📌 注意事項</span><span id="day-gyotai-notes-out-body"></span></div>
           <div class="equip-row" id="equip-row"></div>
           <textarea id="msg-out" class="msg-ta" rows="9" oninput="onMsgInput('out',this.value)"></textarea>
-          <div class="row-btns msg-btns">
-            <button class="btn btn-primary btn-sm" id="cp-out" onclick="copyMsg('out')">コピー</button>
-          </div>
           <div class="field" style="margin-top:9px;">
             <label for="msg-remark">特記事項（任意）</label>
             <textarea id="msg-remark" rows="2" placeholder="入力すると、退店連絡の一番下に追加されます（空欄なら何も入りません）"
                       oninput="onRemarkInput(this.value)"></textarea>
+          </div>
+          <div class="row-btns msg-btns">
+            <button class="btn btn-primary btn-sm" id="cp-out" onclick="copyMsg('out')">コピー</button>
           </div>
         </div>
       </div>
@@ -675,6 +676,9 @@ input:focus,select:focus,textarea:focus{border-color:var(--blue);box-shadow:0 0 
       <div class="pb-label">
         <span>よく使う文（押すとコピー）</span>
         <button class="pb-edit" onclick="showTab('set')">編集</button>
+      </div>
+      <div class="row-btns" style="margin-bottom:9px;">
+        <button class="btn btn-sub btn-sm" onclick="openStoreChat()">Google Chat を開く</button>
       </div>
       <div class="ph-grid" id="phrase-chips"></div>
     </div>
