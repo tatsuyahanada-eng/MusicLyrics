@@ -821,15 +821,21 @@ function spreadLeft(it) {
 
         ${it.description ? `<p class="lp-page-desc">${esc(it.description)}</p>` : ''}
 
-        ${url ? `<p class="lp-page-open">
-          <a class="lp-dl" href="${esc(url)}" target="_blank" rel="noopener">${ICON_EXTERNAL}<span>この資料を開く</span></a>
-          <span class="lp-dl-url">${esc(url)}</span>
-        </p>` : attach ? `<p class="lp-page-open">
-          <a class="lp-attach-link lp-attach-link-lg" href="${esc(attach.url)}">${ICON_CLIP}<span>${esc(attach.name)}</span></a>
-          <span class="lp-dl-url">${fmtBytes(attach.size)}${attachedEntry && attachedEntry !== h
-            ? `　／　${esc(attachedEntry.version || '')} （${fmtDate(attachedEntry.date)}）で登録されたファイル`
-            : ''}</span>
-        </p>` : '<p class="lp-page-open"><span class="lp-muted">URL 未設定</span></p>'}
+        <div class="lp-page-open">
+          <div class="lp-page-open-row">
+            ${url ? `<a class="lp-dl" href="${esc(url)}" target="_blank" rel="noopener">${ICON_EXTERNAL}<span>この資料を開く</span></a>`
+              : attach ? `<a class="lp-attach-link lp-attach-link-lg" href="${esc(attach.url)}">${ICON_CLIP}<span>${esc(attach.name)}</span></a>`
+              : '<span class="lp-muted">URL 未設定</span>'}
+            ${CAN_EDIT ? `
+              <button class="lp-btn lp-btn-ghost lp-btn-sm" type="button" data-add="${esc(it.id)}">＋ この資料の更新を登録</button>
+              <button class="lp-btn lp-btn-ghost lp-btn-sm" type="button" data-edit-item="${esc(it.id)}">✎ この資料を修正</button>
+            ` : ''}
+          </div>
+          ${url ? `<span class="lp-dl-url">${esc(url)}</span>`
+            : attach ? `<span class="lp-dl-url">${fmtBytes(attach.size)}${attachedEntry && attachedEntry !== h
+              ? `　／　${esc(attachedEntry.version || '')} （${fmtDate(attachedEntry.date)}）で登録されたファイル`
+              : ''}</span>` : ''}
+        </div>
 
         <dl class="lp-okuzuke">
           <div><dt>公開開始</dt><dd>${fmtDate(it.createdAt)}</dd></div>
@@ -840,11 +846,6 @@ function spreadLeft(it) {
 
         ${versionRoad(it)}
         ${siblingsBlock(it)}
-
-        ${CAN_EDIT ? `<p class="lp-page-actions">
-          <button class="lp-btn lp-btn-ghost lp-btn-sm" type="button" data-add="${esc(it.id)}">＋ この資料の更新を登録</button>
-          <button class="lp-btn lp-btn-ghost lp-btn-sm" type="button" data-edit-item="${esc(it.id)}">✎ この資料を修正</button>
-        </p>` : ''}
       </div>
       <span class="lp-folio">${esc(it.id)}</span>
     </section>`;
@@ -1679,7 +1680,7 @@ async function init() {
 
   // 以下は index.php（ログイン後の画面）にのみ存在する要素
   const bind = (id, ev, fn) => { const el = $(id); if (el) el.addEventListener(ev, fn); };
-  bind('btnNewUpdate', 'click', () => openUpdateModal());
+  bind('btnNewUpdate', 'click', () => openUpdateModal(readingId || undefined));
   // 資料を選ばずにモーダルを開いた場合、あとから選んだ資料に合わせて最新ファイルの表示を更新する
   bind('fItem', 'change', () => {
     if ($('updateForm').dataset.mode !== 'edit') refreshLatestFileHint($('fItem').value);

@@ -458,7 +458,6 @@
 .lp-okuzuke dt { font-size: .64rem; font-weight: 700; letter-spacing: .04em; color: var(--lp-ink-soft); }
 .lp-okuzuke dd { margin: 2px 0 0; font-size: .82rem; font-weight: 700; color: var(--lp-ink); }
 .lp-page-l .lp-road { margin-top: 17px; }
-.lp-page-actions { margin-top: 17px; }
 
 /* ---- 右ページ：更新の年表 ---- */
 .lp-page-h {
@@ -1832,7 +1831,7 @@
   transition: color .16s var(--lp-ease), border-color .16s var(--lp-ease);
 }
 .lp-chr-delete:hover { color: #b3261e; border-color: #e2a29c; }
-.lp-page-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+.lp-page-open-row { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; }
 
 /* 絞り込み・並び替え・表示切替が増えたので、狭い画面では折り返して収める */
 @media (max-width: 720px) {
