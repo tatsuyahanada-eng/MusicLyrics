@@ -3,6 +3,7 @@ package com.netdiag.ui.screens
 import android.app.Application
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
+import com.netdiag.core.DiagnosticsLog
 import com.netdiag.core.traffic.SpeedEvent
 import com.netdiag.core.traffic.SpeedTest
 import kotlinx.coroutines.Job
@@ -31,6 +32,10 @@ class TrafficViewModel(app: Application) : AndroidViewModel(app) {
 
     private var job: Job? = null
 
+    init {
+        DiagnosticsLog.init(app)
+    }
+
     fun setDuration(sec: Int) {
         if (!_state.value.running) _state.update { it.copy(durationSec = sec) }
     }
@@ -58,7 +63,7 @@ class TrafficViewModel(app: Application) : AndroidViewModel(app) {
                         _state.update {
                             it.copy(phase = "上り（アップロード）測定中", upMbps = ev.mbps, progress = ev.progress)
                         }
-                    is SpeedEvent.Done ->
+                    is SpeedEvent.Done -> {
                         _state.update {
                             it.copy(
                                 running = false, done = true, phase = "完了",
@@ -66,8 +71,16 @@ class TrafficViewModel(app: Application) : AndroidViewModel(app) {
                                 latencyMs = ev.latencyMs, progress = 1f,
                             )
                         }
-                    is SpeedEvent.Error ->
+                        DiagnosticsLog.add(
+                            "SPEEDTEST 下り${"%.1f".format(ev.downMbps)}Mbps " +
+                                "上り${"%.1f".format(ev.upMbps)}Mbps " +
+                                "Ping${ev.latencyMs?.let { "${it}ms" } ?: "-"}"
+                        )
+                    }
+                    is SpeedEvent.Error -> {
                         _state.update { it.copy(running = false, phase = "エラー", error = ev.message) }
+                        DiagnosticsLog.add("SPEEDTEST エラー: ${ev.message}")
+                    }
                 }
             }
             _state.update { it.copy(running = false) }

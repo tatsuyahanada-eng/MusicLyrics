@@ -3,6 +3,7 @@ package com.netdiag.ui.screens
 import android.app.Application
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
+import com.netdiag.core.DiagnosticsLog
 import com.netdiag.core.net.DiscoveredHost
 import com.netdiag.core.net.HostDiscovery
 import com.netdiag.core.net.NetInfo
@@ -42,6 +43,7 @@ class ScanViewModel(app: Application) : AndroidViewModel(app) {
     val state: StateFlow<ScanUiState> = _state.asStateFlow()
 
     init {
+        DiagnosticsLog.init(app)
         seedRangeDefaults(_state.value.info)
     }
 
@@ -108,6 +110,11 @@ class ScanViewModel(app: Application) : AndroidViewModel(app) {
                 }
             }
             mdnsJob.join()
+            val found = _state.value.hosts
+            DiagnosticsLog.add(
+                "SCAN ${found.size}台検出 " +
+                    found.joinToString(", ") { it.hostname ?: it.ip }.take(300)
+            )
         }
     }
 
