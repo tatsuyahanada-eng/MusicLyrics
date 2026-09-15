@@ -49,9 +49,31 @@ fun TrafficScreen(vm: TrafficViewModel = viewModel()) {
                 )
                 Spacer(Modifier.height(12.dp))
 
-                SpeedGauge("▼ ダウンロード", s.downMbps, MaterialTheme.colorScheme.primary)
-                Spacer(Modifier.height(18.dp))
-                SpeedGauge("▲ アップロード", s.upMbps, MaterialTheme.colorScheme.secondary)
+                // One gauge, alternating: shows download while that phase runs,
+                // then switches to upload (and stays on upload once done, since
+                // it measured last) — rather than two gauges competing for space.
+                val showingUpload = s.phase.contains("上り") || s.done
+                SpeedGauge(
+                    if (showingUpload) "▲ アップロード" else "▼ ダウンロード",
+                    if (showingUpload) s.upMbps else s.downMbps,
+                    if (showingUpload) MaterialTheme.colorScheme.secondary else MaterialTheme.colorScheme.primary,
+                )
+
+                if (s.running || s.done) {
+                    Spacer(Modifier.height(10.dp))
+                    Row(horizontalArrangement = Arrangement.spacedBy(20.dp)) {
+                        Text(
+                            "▼ %.1f Mbps".format(s.downMbps),
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.primary,
+                        )
+                        Text(
+                            "▲ %.1f Mbps".format(s.upMbps),
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.secondary,
+                        )
+                    }
+                }
 
                 Spacer(Modifier.height(12.dp))
                 Text(

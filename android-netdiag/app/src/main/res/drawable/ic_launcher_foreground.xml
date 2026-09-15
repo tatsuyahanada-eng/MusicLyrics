@@ -3,78 +3,125 @@
     android:height="108dp"
     android:viewportWidth="108"
     android:viewportHeight="108">
-    <!-- NetScope glyph: a wireframe globe (network) with a magnifying glass
-         (scope), in phosphor green — matches the app's terminal/matrix theme. -->
+    <!-- NetScope glyph: a green-neon framed badge containing a wireframe globe
+         (network) crossed by a magnifying glass (scope). Each bright element is
+         drawn twice — a wide low-alpha pass, then a crisp pass — to fake a
+         neon glow without blur support in VectorDrawable. -->
 
-    <!-- Globe outer meridian (main circle) -->
+    <!-- Framed badge border (glow, then crisp) -->
     <path
         android:fillColor="#00000000"
-        android:strokeColor="#7CFFB2"
+        android:strokeColor="#39FF6A"
+        android:strokeAlpha="0.35"
+        android:strokeWidth="9"
+        android:pathData="M20,6 L88,6 A14,14 0 0,1 102,20 L102,88 A14,14 0 0,1 88,102 L20,102 A14,14 0 0,1 6,88 L6,20 A14,14 0 0,1 20,6 Z" />
+    <path
+        android:fillColor="#00000000"
+        android:strokeColor="#5CFF9A"
+        android:strokeWidth="4.5"
+        android:pathData="M20,6 L88,6 A14,14 0 0,1 102,20 L102,88 A14,14 0 0,1 88,102 L20,102 A14,14 0 0,1 6,88 L6,20 A14,14 0 0,1 20,6 Z" />
+
+    <!-- Globe outer meridian (glow, then crisp) -->
+    <path
+        android:fillColor="#00000000"
+        android:strokeColor="#39FF6A"
+        android:strokeAlpha="0.30"
+        android:strokeWidth="7"
+        android:pathData="M20,44 A22,22 0 1,0 64,44 A22,22 0 1,0 20,44 Z" />
+    <path
+        android:fillColor="#00000000"
+        android:strokeColor="#8CFFC2"
         android:strokeWidth="3"
         android:strokeLineCap="round"
-        android:pathData="M26,46 A18,18 0 1,0 62,46 A18,18 0 1,0 26,46 Z" />
+        android:pathData="M20,44 A22,22 0 1,0 64,44 A22,22 0 1,0 20,44 Z" />
 
     <!-- Vertical meridian (straight, pole to pole) -->
     <path
         android:fillColor="#00000000"
         android:strokeColor="#22C55E"
-        android:strokeWidth="2.2"
+        android:strokeWidth="2.4"
         android:strokeLineCap="round"
-        android:pathData="M44,28 L44,64" />
+        android:pathData="M42,22 L42,66" />
 
     <!-- Left-bulging meridian arc -->
     <path
         android:fillColor="#00000000"
         android:strokeColor="#22C55E"
-        android:strokeWidth="2.2"
+        android:strokeWidth="2.4"
         android:strokeLineCap="round"
-        android:pathData="M44,28 A9,18 0 0,0 44,64" />
+        android:pathData="M42,22 A11,22 0 0,0 42,66" />
 
     <!-- Right-bulging meridian arc -->
     <path
         android:fillColor="#00000000"
         android:strokeColor="#22C55E"
-        android:strokeWidth="2.2"
+        android:strokeWidth="2.4"
         android:strokeLineCap="round"
-        android:pathData="M44,28 A9,18 0 0,1 44,64" />
+        android:pathData="M42,22 A11,22 0 0,1 42,66" />
 
     <!-- Equator -->
     <path
         android:fillColor="#00000000"
         android:strokeColor="#22C55E"
-        android:strokeWidth="2.2"
+        android:strokeWidth="2.4"
         android:strokeLineCap="round"
-        android:pathData="M26,46 L62,46" />
+        android:pathData="M20,44 L64,44" />
 
-    <!-- Network node dots on the globe -->
+    <!-- Diagonal network link, upper-left to lower-right -->
     <path
-        android:fillColor="#EAFFF3"
-        android:pathData="M44,28m-2.2,0a2.2,2.2 0,1 1,4.4 0a2.2,2.2 0,1 1,-4.4 0" />
-    <path
-        android:fillColor="#EAFFF3"
-        android:pathData="M28,38m-2.2,0a2.2,2.2 0,1 1,4.4 0a2.2,2.2 0,1 1,-4.4 0" />
-    <path
-        android:fillColor="#EAFFF3"
-        android:pathData="M35,58m-2.2,0a2.2,2.2 0,1 1,4.4 0a2.2,2.2 0,1 1,-4.4 0" />
+        android:fillColor="#00000000"
+        android:strokeColor="#22C55E"
+        android:strokeWidth="2"
+        android:strokeLineCap="round"
+        android:pathData="M27,30 L54,58" />
 
-    <!-- Magnifying glass: lens (dark glass, green rim) -->
+    <!-- Network node dots on the globe (glow, then crisp) -->
+    <path android:fillColor="#39FF6A" android:fillAlpha="0.35"
+        android:pathData="M42,22m-4,0a4,4 0,1 1,8 0a4,4 0,1 1,-8 0" />
+    <path android:fillColor="#EAFFF3"
+        android:pathData="M42,22m-2.4,0a2.4,2.4 0,1 1,4.8 0a2.4,2.4 0,1 1,-4.8 0" />
+
+    <path android:fillColor="#39FF6A" android:fillAlpha="0.35"
+        android:pathData="M27,30m-4,0a4,4 0,1 1,8 0a4,4 0,1 1,-8 0" />
+    <path android:fillColor="#EAFFF3"
+        android:pathData="M27,30m-2.4,0a2.4,2.4 0,1 1,4.8 0a2.4,2.4 0,1 1,-4.8 0" />
+
+    <path android:fillColor="#39FF6A" android:fillAlpha="0.35"
+        android:pathData="M31,56m-4,0a4,4 0,1 1,8 0a4,4 0,1 1,-8 0" />
+    <path android:fillColor="#EAFFF3"
+        android:pathData="M31,56m-2.4,0a2.4,2.4 0,1 1,4.8 0a2.4,2.4 0,1 1,-4.8 0" />
+
+    <!-- Magnifying glass: lens glow, dark glass, bright rim -->
+    <path
+        android:fillColor="#00000000"
+        android:strokeColor="#39FF6A"
+        android:strokeAlpha="0.35"
+        android:strokeWidth="9"
+        android:pathData="M75,73m-14,0a14,14 0,1 1,28 0a14,14 0,1 1,-28 0" />
     <path
         android:fillColor="#050805"
         android:strokeColor="#39FF6A"
-        android:strokeWidth="4"
-        android:pathData="M68,68m-10,0a10,10 0,1 1,20 0a10,10 0,1 1,-20 0" />
+        android:strokeWidth="5"
+        android:pathData="M75,73m-13,0a13,13 0,1 1,26 0a13,13 0,1 1,-26 0" />
     <!-- Glass highlight -->
     <path
         android:fillColor="#00000000"
-        android:strokeColor="#B9FFD2"
-        android:strokeWidth="1.6"
+        android:strokeColor="#C8FFDD"
+        android:strokeWidth="2"
         android:strokeLineCap="round"
-        android:pathData="M61.5,62 A7,7 0 0,1 68,58" />
-    <!-- Handle -->
+        android:pathData="M66,66 A10,10 0 0,1 75,61" />
+    <!-- Handle (glow, then crisp) -->
     <path
         android:fillColor="#00000000"
         android:strokeColor="#39FF6A"
-        android:strokeWidth="5"
+        android:strokeAlpha="0.35"
+        android:strokeWidth="10"
         android:strokeLineCap="round"
-        android:pathData="M75.5,75.5 L85,85" />
+        android:pathData="M84.5,82.5 L100,98" />
+    <path
+        android:fillColor="#00000000"
+        android:strokeColor="#39FF6A"
+        android:strokeWidth="6"
+        android:strokeLineCap="round"
+        android:pathData="M84.5,82.5 L100,98" />
 </vector>
