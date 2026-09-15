@@ -32,6 +32,9 @@ import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.netdiag.core.wifi.BandAdvice
+import com.netdiag.core.wifi.ChannelRating
+import com.netdiag.core.wifi.ChannelScore
 import com.netdiag.core.wifi.SecurityRisk
 import com.netdiag.core.wifi.WifiAp
 import com.netdiag.ui.LabeledValue
@@ -97,6 +100,22 @@ fun WifiScreen(vm: WifiViewModel = viewModel()) {
             item { WifiSpectrum(s.aps) }
         }
 
+        if (s.channelAdvice.isNotEmpty()) {
+            item {
+                SectionCard("空きチャンネル診断") {
+                    Text(
+                        "混雑していない＝電波が安定しやすいチャンネルです。ルーターの設定で選ぶと改善が期待できます。",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                    s.channelAdvice.forEach { advice ->
+                        Spacer(Modifier.height(12.dp))
+                        BandAdviceBlock(advice)
+                    }
+                }
+            }
+        }
+
         if (s.channelLoad.isNotEmpty()) {
             item {
                 SectionCard("チャンネル混雑（AP数）") {
@@ -130,6 +149,71 @@ fun WifiScreen(vm: WifiViewModel = viewModel()) {
             items(s.aps, key = { it.bssid }) { ap -> ApCard(ap) }
         }
     }
+}
+
+@Composable
+private fun BandAdviceBlock(advice: BandAdvice) {
+    val best = advice.recommended.firstOrNull()
+    Row(
+        Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text(advice.band, fontWeight = FontWeight.Bold, color = NameColor,
+            fontFamily = FontFamily.Monospace, style = MaterialTheme.typography.bodyMedium)
+        advice.currentChannel?.let {
+            Text("現在: ch$it", style = MaterialTheme.typography.bodySmall,
+                fontFamily = FontFamily.Monospace,
+                color = MaterialTheme.colorScheme.onSurfaceVariant)
+        }
+    }
+    if (best != null) {
+        Spacer(Modifier.height(4.dp))
+        Text(
+            "おすすめ ch$best  ← 一番空いています",
+            color = Color(0xFF2E9E54),
+            fontWeight = FontWeight.Bold,
+            fontFamily = FontFamily.Monospace,
+            style = MaterialTheme.typography.bodyMedium,
+        )
+    }
+    Spacer(Modifier.height(6.dp))
+    val maxScore = advice.ranked.maxOf { it.score }.coerceAtLeast(0.01)
+    advice.ranked.forEach { cs -> ChannelScoreRow(cs, maxScore) }
+}
+
+@Composable
+private fun ChannelScoreRow(cs: ChannelScore, maxScore: Double) {
+    Row(verticalAlignment = Alignment.CenterVertically,
+        modifier = Modifier.padding(vertical = 2.dp)) {
+        Text("ch${cs.channel}",
+            modifier = Modifier.width(52.dp),
+            style = MaterialTheme.typography.bodySmall,
+            fontFamily = FontFamily.Monospace,
+            color = if (cs.isCurrent) NameColor else MaterialTheme.colorScheme.onSurface,
+            fontWeight = if (cs.isCurrent) FontWeight.Bold else FontWeight.Normal)
+        Box(Modifier.weight(1f)) {
+            MeterBar((cs.score / maxScore).toFloat().coerceIn(0f, 1f), ratingColor(cs.rating))
+        }
+        Spacer(Modifier.width(8.dp))
+        Text(ratingLabel(cs.rating),
+            modifier = Modifier.width(64.dp),
+            style = MaterialTheme.typography.labelSmall,
+            color = ratingColor(cs.rating))
+        if (cs.isCurrent) Tag("現在", MaterialTheme.colorScheme.secondary)
+    }
+}
+
+private fun ratingColor(rating: ChannelRating): Color = when (rating) {
+    ChannelRating.CLEAR -> Color(0xFF2E9E54)
+    ChannelRating.MODERATE -> Color(0xFFE0A422)
+    ChannelRating.BUSY -> Color(0xFFD05050)
+}
+
+private fun ratingLabel(rating: ChannelRating): String = when (rating) {
+    ChannelRating.CLEAR -> "空き"
+    ChannelRating.MODERATE -> "やや混雑"
+    ChannelRating.BUSY -> "混雑"
 }
 
 @Composable

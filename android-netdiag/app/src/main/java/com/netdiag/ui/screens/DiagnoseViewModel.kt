@@ -4,6 +4,7 @@ import android.app.Application
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.netdiag.core.DiagnosticsLog
+import com.netdiag.core.net.DnsRecordType
 import com.netdiag.core.net.DnsServerResult
 import com.netdiag.core.net.DnsTool
 import com.netdiag.core.net.Hop
@@ -12,6 +13,8 @@ import com.netdiag.core.net.PingTool
 import com.netdiag.core.net.SystemDnsResult
 import com.netdiag.core.net.TraceEvent
 import com.netdiag.core.net.Traceroute
+import com.netdiag.core.net.WhoisResult
+import com.netdiag.core.net.WhoisTool
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -44,9 +47,14 @@ data class DiagnoseUiState(
     // DNS
     val dnsHost: String = "example.com",
     val dnsServer: String = "8.8.8.8",
+    val dnsRecordType: DnsRecordType = DnsRecordType.A,
     val dnsRunning: Boolean = false,
     val systemDns: SystemDnsResult? = null,
     val serverDns: DnsServerResult? = null,
+    // Whois
+    val whoisQuery: String = "example.com",
+    val whoisRunning: Boolean = false,
+    val whoisResult: WhoisResult? = null,
     // External reachability (internet) test
     val extRunning: Boolean = false,
     val extResults: List<ExtResult> = DiagnoseViewModel.EXTERNAL_TARGETS.map {
@@ -89,6 +97,8 @@ class DiagnoseViewModel(app: Application) : AndroidViewModel(app) {
     fun setTraceResolve(v: Boolean) = _state.update { it.copy(traceResolve = v) }
     fun setDnsHost(v: String) = _state.update { it.copy(dnsHost = v) }
     fun setDnsServer(v: String) = _state.update { it.copy(dnsServer = v) }
+    fun setDnsRecordType(v: DnsRecordType) = _state.update { it.copy(dnsRecordType = v) }
+    fun setWhoisQuery(v: String) = _state.update { it.copy(whoisQuery = v) }
 
     fun runPing() {
         if (_state.value.pingRunning) { pingJob?.cancel(); _state.update { it.copy(pingRunning = false) }; return }
@@ -246,11 +256,26 @@ class DiagnoseViewModel(app: Application) : AndroidViewModel(app) {
         viewModelScope.launch {
             val sys = DnsTool.resolveSystem(s.dnsHost.trim())
             _state.update { it.copy(systemDns = sys) }
-            val server = DnsTool.queryServer(s.dnsServer.trim(), s.dnsHost.trim())
+            val server = DnsTool.queryServer(s.dnsServer.trim(), s.dnsHost.trim(), s.dnsRecordType)
             _state.update { it.copy(serverDns = server, dnsRunning = false) }
             DiagnosticsLog.add(
-                "DNS ${s.dnsHost.trim()} sys=${sys.addresses.joinToString("/").ifBlank { "解決失敗" }} " +
+                "DNS ${s.dnsRecordType.label} ${s.dnsHost.trim()} " +
+                    "sys=${sys.addresses.joinToString("/").ifBlank { "解決失敗" }} " +
                     "@${s.dnsServer.trim()}=${server.addresses.joinToString("/").ifBlank { "応答なし" }}"
+            )
+        }
+    }
+
+    fun runWhois() {
+        if (_state.value.whoisRunning) return
+        val query = _state.value.whoisQuery.trim()
+        if (query.isBlank()) return
+        _state.update { it.copy(whoisRunning = true, whoisResult = null) }
+        viewModelScope.launch {
+            val result = WhoisTool.lookup(query)
+            _state.update { it.copy(whoisResult = result, whoisRunning = false) }
+            DiagnosticsLog.add(
+                "WHOIS $query @${result.server} ${if (result.success) "取得" else "失敗: ${result.error ?: "不明"}"}"
             )
         }
     }

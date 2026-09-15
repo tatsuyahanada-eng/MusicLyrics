@@ -3,6 +3,7 @@ package com.netdiag.ui.screens
 import android.app.Application
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
+import com.netdiag.core.wifi.BandAdvice
 import com.netdiag.core.wifi.ChannelLoad
 import com.netdiag.core.wifi.WifiAp
 import com.netdiag.core.wifi.WifiSurvey
@@ -18,6 +19,7 @@ data class WifiUiState(
     val hasPermission: Boolean = false,
     val aps: List<WifiAp> = emptyList(),
     val channelLoad: List<ChannelLoad> = emptyList(),
+    val channelAdvice: List<BandAdvice> = emptyList(),
     val connectedRssi: Int? = null,
     val scanning: Boolean = false,
 )
@@ -55,6 +57,7 @@ class WifiViewModel(app: Application) : AndroidViewModel(app) {
                 it.copy(
                     aps = aps,
                     channelLoad = survey.channelLoad(aps),
+                    channelAdvice = survey.channelAdvice(aps),
                     scanning = false,
                 )
             }

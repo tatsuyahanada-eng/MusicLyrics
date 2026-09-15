@@ -32,9 +32,13 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.drawText
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import com.netdiag.core.wifi.WifiAp
 import com.netdiag.ui.NameColor
 import com.netdiag.ui.SectionCard
@@ -141,11 +145,18 @@ private fun SpectrumCanvas(
     onSelect: (Int?) -> Unit,
 ) {
     val gridColor = MaterialTheme.colorScheme.surfaceVariant
+    val labelColor = MaterialTheme.colorScheme.onSurfaceVariant
+    val textMeasurer = rememberTextMeasurer()
+    val labelStyle = TextStyle(
+        color = labelColor,
+        fontSize = 9.sp,
+        fontFamily = FontFamily.Monospace,
+    )
 
     Canvas(
         Modifier
             .fillMaxWidth()
-            .height(180.dp)
+            .height(200.dp)
             .pointerInput(sorted, span) {
                 detectTapGestures { pos ->
                     // Select the access point whose peak is nearest the tap X.
@@ -163,16 +174,28 @@ private fun SpectrumCanvas(
     ) {
         val w = size.width
         val h = size.height
-        val baseline = h - 18f
+        // Leave a strip under the baseline for the channel-number axis labels.
+        val baseline = h - 30f
         val top = 8f
         val usableH = baseline - top
 
         drawLine(gridColor, Offset(0f, baseline), Offset(w, baseline), strokeWidth = 1.5f)
-        val tickStep = if (span > 30) 10 else if (span > 14) 4 else 1
+        // Space ticks out so labels never collide, whatever the channel span.
+        val tickStep = when {
+            span > 60 -> 20
+            span > 30 -> 10
+            span > 14 -> 4
+            else -> 1
+        }
         var ch = minCh
         while (ch <= minCh + span.toInt()) {
             val x = (ch - minCh) / span * w
             drawLine(gridColor, Offset(x, top), Offset(x, baseline), strokeWidth = 0.5f)
+            drawLine(labelColor, Offset(x, baseline), Offset(x, baseline + 4f), strokeWidth = 1f)
+            // Channel number, centered under its tick (kept inside the canvas edges).
+            val layout = textMeasurer.measure(ch.toString(), labelStyle)
+            val labelX = (x - layout.size.width / 2f).coerceIn(0f, w - layout.size.width)
+            drawText(layout, topLeft = Offset(labelX, baseline + 6f))
             ch += tickStep
         }
 

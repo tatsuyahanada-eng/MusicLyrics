@@ -1,13 +1,11 @@
 package com.netdiag.ui.screens
 
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.material3.Button
 import androidx.compose.material3.LinearProgressIndicator
@@ -18,13 +16,9 @@ import android.content.Intent
 import android.net.Uri
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.netdiag.ui.SectionCard
@@ -55,11 +49,11 @@ fun TrafficScreen(vm: TrafficViewModel = viewModel()) {
                 )
                 Spacer(Modifier.height(12.dp))
 
-                SpeedBig("▼ ダウンロード", s.downMbps, MaterialTheme.colorScheme.primary)
-                Spacer(Modifier.height(16.dp))
-                SpeedBig("▲ アップロード", s.upMbps, MaterialTheme.colorScheme.secondary)
+                SpeedGauge("▼ ダウンロード", s.downMbps, MaterialTheme.colorScheme.primary)
+                Spacer(Modifier.height(18.dp))
+                SpeedGauge("▲ アップロード", s.upMbps, MaterialTheme.colorScheme.secondary)
 
-                Spacer(Modifier.height(10.dp))
+                Spacer(Modifier.height(12.dp))
                 Text(
                     "レイテンシ（Ping）: " + (s.latencyMs?.let { "$it ms" } ?: "—"),
                     style = MaterialTheme.typography.bodyMedium,
@@ -115,21 +109,3 @@ fun TrafficScreen(vm: TrafficViewModel = viewModel()) {
     }
 }
 
-@Composable
-private fun SpeedBig(label: String, mbps: Double, color: Color) {
-    Column(Modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally) {
-        Text(label, style = MaterialTheme.typography.titleMedium,
-            fontWeight = FontWeight.SemiBold, color = color)
-        Spacer(Modifier.height(2.dp))
-        Row(verticalAlignment = Alignment.Bottom) {
-            Text(
-                String.format("%.1f", mbps),
-                fontSize = 56.sp, lineHeight = 60.sp,
-                fontWeight = FontWeight.Bold, color = color,
-            )
-            Spacer(Modifier.width(6.dp))
-            Text("Mbps", fontSize = 22.sp, fontWeight = FontWeight.SemiBold,
-                color = color, modifier = Modifier.padding(bottom = 8.dp))
-        }
-    }
-}

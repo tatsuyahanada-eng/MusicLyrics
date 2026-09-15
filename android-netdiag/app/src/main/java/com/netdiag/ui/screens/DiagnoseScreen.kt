@@ -13,6 +13,8 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.Button
+import androidx.compose.material3.FilterChip
+import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
@@ -27,6 +29,7 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.netdiag.core.net.DnsRecordType
 import com.netdiag.core.net.Hop
 import com.netdiag.ui.LabeledValue
 import com.netdiag.ui.MonoSmall
@@ -205,13 +208,32 @@ fun DiagnoseScreen(vm: DiagnoseViewModel = viewModel()) {
                     modifier = Modifier.fillMaxWidth(),
                 )
                 Spacer(Modifier.height(8.dp))
+                Text("レコード種別", style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Spacer(Modifier.height(4.dp))
+                FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    DnsRecordType.entries.forEach { type ->
+                        FilterChip(
+                            selected = s.dnsRecordType == type,
+                            onClick = { vm.setDnsRecordType(type) },
+                            label = { Text(type.label) },
+                            colors = FilterChipDefaults.filterChipColors(
+                                selectedContainerColor = MaterialTheme.colorScheme.primary,
+                                selectedLabelColor = MaterialTheme.colorScheme.onPrimary,
+                            ),
+                        )
+                    }
+                }
+                Spacer(Modifier.height(8.dp))
                 OctetIpField("比較用DNSサーバー IP", s.dnsServer, vm::setDnsServer)
                 Spacer(Modifier.height(8.dp))
-                Button(onClick = vm::runDns, enabled = !s.dnsRunning) { Text("DNS テスト") }
+                Button(onClick = vm::runDns, enabled = !s.dnsRunning) {
+                    Text(if (s.dnsRunning) "問い合わせ中…" else "DNS テスト")
+                }
 
                 s.systemDns?.let { r ->
                     Spacer(Modifier.height(12.dp))
-                    Text("システムDNS", style = MaterialTheme.typography.labelLarge)
+                    Text("システムDNS (端末の標準解決)", style = MaterialTheme.typography.labelLarge)
                     if (r.success) {
                         LabeledValue("結果", r.addresses.joinToString(", "), monospace = true)
                         LabeledValue("応答時間", "${r.elapsedMs} ms")
@@ -223,12 +245,56 @@ fun DiagnoseScreen(vm: DiagnoseViewModel = viewModel()) {
                 }
                 s.serverDns?.let { r ->
                     Spacer(Modifier.height(10.dp))
-                    Text("指定サーバー (${r.server})", style = MaterialTheme.typography.labelLarge)
+                    Text("指定サーバー ${r.recordType.label} @${r.server}",
+                        style = MaterialTheme.typography.labelLarge)
                     if (r.success) {
-                        LabeledValue("結果", r.addresses.joinToString(", "), monospace = true)
+                        r.records.forEach { rec ->
+                            MonoSmall("${rec.type}  ${rec.value}")
+                        }
                         LabeledValue("応答時間", "${r.elapsedMs} ms")
                     } else {
-                        Text("応答なし: ${r.error ?: "不明"}",
+                        Text(
+                            r.error?.let { "応答なし: $it" }
+                                ?: "${r.recordType.label} レコードは見つかりませんでした",
+                            color = MaterialTheme.colorScheme.error,
+                            style = MaterialTheme.typography.bodyMedium,
+                        )
+                    }
+                }
+            }
+        }
+
+        // ---- Whois ----
+        item {
+            SectionCard("Whois 検索（ドメイン / IP の登録情報）") {
+                Text(
+                    "ドメインやIPアドレスの公開登録情報（登録者・レジストラ・ネームサーバー等）を取得します。",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                Spacer(Modifier.height(8.dp))
+                OutlinedTextField(
+                    value = s.whoisQuery,
+                    onValueChange = vm::setWhoisQuery,
+                    label = { Text("ドメイン または IP") },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth(),
+                )
+                Spacer(Modifier.height(8.dp))
+                Button(onClick = vm::runWhois, enabled = !s.whoisRunning) {
+                    Text(if (s.whoisRunning) "検索中…" else "Whois 検索")
+                }
+                s.whoisResult?.let { r ->
+                    Spacer(Modifier.height(12.dp))
+                    if (r.success) {
+                        Text("応答サーバー: ${r.server} / ${r.elapsedMs} ms",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Spacer(Modifier.height(6.dp))
+                        Text(r.text, fontFamily = FontFamily.Monospace,
+                            style = MaterialTheme.typography.bodySmall)
+                    } else {
+                        Text("取得失敗: ${r.error ?: "不明"}",
                             color = MaterialTheme.colorScheme.error,
                             style = MaterialTheme.typography.bodyMedium)
                     }

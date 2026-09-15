@@ -31,6 +31,32 @@ data class WifiAp(
 
 data class ChannelLoad(val band: String, val channel: Int, val apCount: Int)
 
+/** How congested a single candidate channel is. `score` 0 = empty, higher = busier. */
+data class ChannelScore(
+    val channel: Int,
+    val score: Double,
+    val apCount: Int,     // APs whose center sits exactly on this channel
+    val isCurrent: Boolean,
+) {
+    /** Coarse label so the UI can colour-code without re-deriving thresholds. */
+    val rating: ChannelRating
+        get() = when {
+            score < 0.30 -> ChannelRating.CLEAR
+            score < 1.20 -> ChannelRating.MODERATE
+            else -> ChannelRating.BUSY
+        }
+}
+
+enum class ChannelRating { CLEAR, MODERATE, BUSY }
+
+/** Per-band recommendation of the least-congested channels to move to. */
+data class BandAdvice(
+    val band: String,
+    val currentChannel: Int?,     // channel the connected AP uses, if any
+    val recommended: List<Int>,   // clearest candidate channels, best first
+    val ranked: List<ChannelScore>,
+)
+
 /**
  * Wi-Fi environment survey: surrounding access points, their signal strength,
  * channel usage and security standard. Requires location permission to read
@@ -83,6 +109,9 @@ class WifiSurvey(context: Context) {
             .map { (key, list) -> ChannelLoad(key.first, key.second, list.size) }
             .sortedWith(compareBy({ it.band }, { it.channel }))
 
+    /** Recommends the clearest channels per band so the user can dodge congestion. */
+    fun channelAdvice(aps: List<WifiAp>): List<BandAdvice> = computeChannelAdvice(aps)
+
     @SuppressLint("MissingPermission")
     private fun connectedBssid(): String? {
         @Suppress("DEPRECATION")
@@ -119,6 +148,58 @@ class WifiSurvey(context: Context) {
     }
 
     companion object {
+        // The channels worth recommending: for 2.4GHz only 1/6/11 are truly
+        // non-overlapping; for 5/6GHz we prefer non-DFS blocks that home routers
+        // can pick without radar-detection delays.
+        private val CANDIDATES_24 = listOf(1, 6, 11)
+        private val CANDIDATES_5 = listOf(36, 40, 44, 48, 149, 153, 157, 161)
+        private val CANDIDATES_6 = listOf(37, 53, 69, 85, 101, 117, 133, 149)
+
+        /**
+         * Scores each recommended candidate channel by how much surrounding
+         * traffic would overlap it, weighted by that AP's signal strength, then
+         * ranks them clearest-first. Pure function so it is trivial to unit test.
+         */
+        fun computeChannelAdvice(aps: List<WifiAp>): List<BandAdvice> =
+            listOf("2.4GHz", "5GHz", "6GHz").mapNotNull { band ->
+                val bandAps = aps.filter { it.band == band && it.channel > 0 }
+                if (bandAps.isEmpty()) return@mapNotNull null
+                val current = bandAps.firstOrNull { it.isConnected }?.channel
+                val candidates = when (band) {
+                    "2.4GHz" -> CANDIDATES_24
+                    "5GHz" -> CANDIDATES_5
+                    else -> CANDIDATES_6
+                }
+                val ranked = candidates.map { ch ->
+                    ChannelScore(
+                        channel = ch,
+                        score = channelInterference(ch, bandAps),
+                        apCount = bandAps.count { it.channel == ch },
+                        isCurrent = ch == current,
+                    )
+                }.sortedBy { it.score }
+                BandAdvice(
+                    band = band,
+                    currentChannel = current,
+                    recommended = ranked.take(3).map { it.channel },
+                    ranked = ranked,
+                )
+            }
+
+        /**
+         * Overlap-weighted interference on [candidate] from every AP in the band.
+         * Wi-Fi channel numbers are spaced 5 MHz apart, so a channel that is
+         * `w` MHz wide reaches `w / 5` channel-numbers before its energy fades;
+         * closer APs and stronger signals count for more.
+         */
+        private fun channelInterference(candidate: Int, aps: List<WifiAp>): Double =
+            aps.sumOf { ap ->
+                val reach = (ap.channelWidthMhz / 5.0).coerceAtLeast(4.0)
+                val distance = kotlin.math.abs(ap.channel - candidate)
+                val overlap = (1.0 - distance / reach).coerceAtLeast(0.0)
+                overlap * (ap.signalQuality / 100.0)
+            }
+
         fun bandOf(freq: Int): String = when {
             freq in 2401..2499 -> "2.4GHz"
             freq in 4900..5899 -> "5GHz"
