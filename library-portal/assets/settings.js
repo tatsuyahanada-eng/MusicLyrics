@@ -257,15 +257,41 @@ function openUserModal(user) {
 
   $('modalOverlay').hidden = false;
   $('userModal').hidden = false;
+  modalDirtySnapshot = serializeForm($('userForm'));
   (user ? $('uName') : $('uLoginId')).focus();
 }
 
+/** フォームの入力内容を、変更があったかどうか比較できる文字列にする */
+function serializeForm(form) {
+  if (!form) return '';
+  const parts = [];
+  form.querySelectorAll('input, textarea, select').forEach((el) => {
+    if (el.type === 'checkbox' || el.type === 'radio') { parts.push(el.checked ? '1' : '0'); return; }
+    parts.push(el.value);
+  });
+  // カテゴリのアイコン選択はボタンのクリックだけで切り替わり、input の値には表れないため別途見る
+  const onIcon = form.querySelector('.lp-iconbtn.is-on');
+  if (onIcon) parts.push(`icon:${onIcon.dataset.icon}`);
+  return parts.join('');
+}
+let modalDirtySnapshot = '';
+function currentModalForm() {
+  const modal = ['userModal', 'categoryModal'].map((id) => $(id)).find((el) => el && !el.hidden);
+  return modal ? modal.querySelector('form') : null;
+}
 function closeModal() {
   $('modalOverlay').hidden = true;
   $('userModal').hidden = true;
   $('userForm').reset();
   const catModal = $('categoryModal');
   if (catModal) { catModal.hidden = true; $('categoryForm').reset(); }
+}
+/** 入力途中で閉じようとしたときは、書きかけの内容が消えることを確認してから閉じる */
+function requestCloseModal() {
+  const form = currentModalForm();
+  if (form && serializeForm(form) !== modalDirtySnapshot
+      && !confirm('入力中の内容は保存されていません。このまま閉じてもよろしいですか？')) return;
+  closeModal();
 }
 
 function showError(msg) {
@@ -288,6 +314,7 @@ function openCategoryModal(cat) {
 
   $('modalOverlay').hidden = false;
   $('categoryModal').hidden = false;
+  modalDirtySnapshot = serializeForm($('categoryForm'));
   (cat ? $('cLabel') : $('cLabel')).focus();
 }
 
@@ -452,9 +479,9 @@ async function init() {
 
   const btnNew = $('btnNewUser');
   if (btnNew) btnNew.addEventListener('click', () => openUserModal(null));
-  $('btnCloseUserModal').addEventListener('click', closeModal);
-  $('btnUserCancel').addEventListener('click', closeModal);
-  $('modalOverlay').addEventListener('click', closeModal);
+  $('btnCloseUserModal').addEventListener('click', requestCloseModal);
+  $('btnUserCancel').addEventListener('click', requestCloseModal);
+  $('modalOverlay').addEventListener('click', requestCloseModal);
   $('userForm').addEventListener('submit', submitUser);
 
   $('userList').addEventListener('click', (e) => {
@@ -473,8 +500,8 @@ async function init() {
   });
 
   $('btnNewCategory').addEventListener('click', () => openCategoryModal(null));
-  $('btnCloseCategoryModal').addEventListener('click', closeModal);
-  $('btnCategoryCancel').addEventListener('click', closeModal);
+  $('btnCloseCategoryModal').addEventListener('click', requestCloseModal);
+  $('btnCategoryCancel').addEventListener('click', requestCloseModal);
   $('categoryForm').addEventListener('submit', submitCategory);
   $('cColorRow').addEventListener('click', (e) => {
     const btn = e.target.closest('.lp-swatch');
@@ -503,7 +530,7 @@ async function init() {
 
   document.addEventListener('keydown', (e) => {
     if (e.key !== 'Escape') return;
-    if (!$('userModal').hidden || !$('categoryModal').hidden) closeModal();
+    if (!$('userModal').hidden || !$('categoryModal').hidden) requestCloseModal();
   });
 }
 

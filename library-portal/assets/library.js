@@ -1100,14 +1100,39 @@ function renderItemOptions() {
 }
 
 /* ---------- モーダル共通 ---------- */
+/** フォームの入力内容を、変更があったかどうか比較できる文字列にする（ファイルはファイル名だけ見る） */
+function serializeForm(form) {
+  if (!form) return '';
+  const parts = [];
+  form.querySelectorAll('input, textarea, select').forEach((el) => {
+    if (el.type === 'file') { parts.push(el.files && el.files[0] ? el.files[0].name : ''); return; }
+    if (el.type === 'checkbox' || el.type === 'radio') { parts.push(el.checked ? '1' : '0'); return; }
+    parts.push(el.value);
+  });
+  return parts.join('');
+}
+let modalDirtySnapshot = '';
+function currentModalForm() {
+  const modal = ['updateModal', 'itemModal', 'pwModal'].map((id) => $(id)).find((el) => el && !el.hidden);
+  return modal ? modal.querySelector('form') : null;
+}
 function showModal(el) {
   $('modalOverlay').hidden = false;
   el.hidden = false;
+  modalDirtySnapshot = serializeForm(el.querySelector('form'));
 }
 function hideModals() {
   $('modalOverlay').hidden = true;
   ['updateModal', 'itemModal', 'pwModal'].forEach((id) => { const el = $(id); if (el) el.hidden = true; });
   ['updateError', 'itemError', 'pwError'].forEach((id) => { const el = $(id); if (el) el.hidden = true; });
+}
+/** 入力途中で閉じようとしたときは、書きかけの内容が消えることを確認してから閉じる（閉じたら true） */
+function requestHideModals() {
+  const form = currentModalForm();
+  if (form && serializeForm(form) !== modalDirtySnapshot
+      && !confirm('入力中の内容は保存されていません。このまま閉じてもよろしいですか？')) return false;
+  hideModals();
+  return true;
 }
 function formError(id, message) {
   const el = $(id);
@@ -1686,13 +1711,13 @@ async function init() {
     if ($('updateForm').dataset.mode !== 'edit') refreshLatestFileHint($('fItem').value);
   });
   bind('btnNewItem', 'click', () => openItemModal());
-  bind('btnCloseModal', 'click', hideModals);
-  bind('btnCancel', 'click', hideModals);
-  bind('btnCloseItemModal', 'click', hideModals);
-  bind('btnItemCancel', 'click', hideModals);
-  bind('btnClosePwModal', 'click', hideModals);
-  bind('btnPwCancel', 'click', hideModals);
-  bind('modalOverlay', 'click', hideModals);
+  bind('btnCloseModal', 'click', requestHideModals);
+  bind('btnCancel', 'click', requestHideModals);
+  bind('btnCloseItemModal', 'click', requestHideModals);
+  bind('btnItemCancel', 'click', requestHideModals);
+  bind('btnClosePwModal', 'click', requestHideModals);
+  bind('btnPwCancel', 'click', requestHideModals);
+  bind('modalOverlay', 'click', requestHideModals);
   bind('updateForm', 'submit', submitUpdate);
   bind('itemForm', 'submit', submitItem);
   bind('iCategory', 'change', updateSuggestedItemId);
@@ -1727,7 +1752,8 @@ async function init() {
   document.addEventListener('keydown', (e) => {
     if (e.key !== 'Escape') return;
     closeUserMenu();
-    hideModals();
+    const modalWasOpen = !!currentModalForm();
+    if (modalWasOpen && !requestHideModals()) return;   // 確認をキャンセルしたら本も閉じない
     if (readingId) closeBook();
   });
 }

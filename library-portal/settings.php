@@ -246,7 +246,7 @@ $defRole  = lp_default_role();
       canManageAccounts: <?= $canAcct ? 'true' : 'false' ?>
     };
   </script>
-  <script src="assets/settings.js?v=4"></script>
+  <script src="assets/settings.js?v=5"></script>
   <script src="assets/pwa.js?v=2"></script>
 </body>
 </html>
