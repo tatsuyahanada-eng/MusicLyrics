@@ -28,11 +28,18 @@ jobs:
           distribution: temurin
           java-version: "17"
 
-      - name: Set up Android SDK
-        uses: android-actions/setup-android@v3
-
+      # ubuntu-latest ships the Android SDK pre-installed. We install just the
+      # packages this build needs with the bundled sdkmanager, instead of the
+      # setup-android action (its default run tries the obsolete "tools" package
+      # and fails on current runner images).
       - name: Install SDK packages
-        run: sdkmanager "platform-tools" "platforms;android-35" "build-tools;35.0.0"
+        run: |
+          set -e
+          SDK_ROOT="${ANDROID_SDK_ROOT:-$ANDROID_HOME}"
+          SDKMANAGER="$(find "$SDK_ROOT/cmdline-tools" -name sdkmanager -type f 2>/dev/null | sort | tail -n1)"
+          echo "Using sdkmanager: $SDKMANAGER"
+          yes | "$SDKMANAGER" --licenses >/dev/null 2>&1 || true
+          "$SDKMANAGER" "platform-tools" "platforms;android-35" "build-tools;35.0.0"
 
       - name: Build debug APK
         working-directory: android-netdiag
