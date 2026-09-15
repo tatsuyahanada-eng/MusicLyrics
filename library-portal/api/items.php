@@ -24,7 +24,7 @@ if ($method === 'GET') {
         : "NULL AS file_path, NULL AS file_name, NULL AS file_size, NULL AS file_mime";
 
     $items = db()->query(
-        "SELECT item_id, name, category, {$seriesCol}, created_by, description, download_url, created_date
+        "SELECT item_id, name, category, {$seriesCol}, created_by, description, download_url, created_date, created_at
            FROM lp_items WHERE is_active = 1 ORDER BY item_id"
     )->fetchAll();
 
@@ -95,6 +95,8 @@ if ($method === 'GET') {
             'series'      => $i['series'] ?? '',
             'creator'     => $i['created_by'],
             'createdAt'   => $i['created_date'],
+            // 更新が一件も無い新規登録品を並び順の最後に沈めないため、登録の実時刻も渡す
+            'registeredAt' => $i['created_at'],
             'downloadUrl' => $i['download_url'] ?? '',
             'description' => $i['description'] ?? '',
             'history'     => $historyByItem[$i['item_id']] ?? [],

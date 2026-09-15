@@ -392,7 +392,13 @@ function historyMatches(h, q) {
 
 /* 並び替えできる項目。key は比較に使う値、type は比較のしかた */
 const SORTS = {
-  updated:  { label: '最終更新',  type: 'text', key: (it) => { const h = latest(it); return h ? `${h.date} ${h.time}` : ''; } },
+  // 更新が一件も無い新規登録品は、登録した日時そのものを「最終更新」として扱う
+  // （そうしないと並び替えの基準が空になり、いちばん下に沈んでしまうため）
+  updated:  { label: '最終更新',  type: 'text', key: (it) => {
+    const h = latest(it);
+    if (h) return `${h.date} ${h.time}`;
+    return it.registeredAt ? String(it.registeredAt).slice(0, 16) : '';
+  } },
   name:     { label: '名称',      type: 'ja',   key: (it) => it.name },
   category: { label: '種別',      type: 'ja',   key: (it) => it.category },
   series:   { label: 'シリーズ',  type: 'ja',   key: (it) => it.series || '' },
