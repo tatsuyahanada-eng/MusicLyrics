@@ -51,6 +51,7 @@ import com.netdiag.core.net.OsGuesser
 import com.netdiag.core.net.PortScanner
 import com.netdiag.ui.LabeledValue
 import com.netdiag.ui.NameColor
+import com.netdiag.ui.NetScopeHeader
 import com.netdiag.ui.OctetIpField
 import com.netdiag.ui.SectionCard
 import com.netdiag.ui.Tag
@@ -67,6 +68,8 @@ fun ScanScreen(vm: ScanViewModel = viewModel()) {
         verticalArrangement = Arrangement.spacedBy(12.dp),
         contentPadding = androidx.compose.foundation.layout.PaddingValues(vertical = 12.dp),
     ) {
+        item { NetScopeHeader() }
+
         item {
             SectionCard(title = "このネットワーク") {
                 if (info.hasIpv4) {

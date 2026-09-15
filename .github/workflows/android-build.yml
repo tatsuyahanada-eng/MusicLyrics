@@ -46,21 +46,23 @@ jobs:
         run: ./gradlew assembleDebug --stacktrace --no-daemon
 
       - name: Stage APK
-        run: cp android-netdiag/app/build/outputs/apk/debug/app-debug.apk netdiag-debug.apk
+        run: cp android-netdiag/app/build/outputs/apk/debug/app-debug.apk netscope.apk
 
       - name: Upload APK artifact
         uses: actions/upload-artifact@v4
         with:
-          name: netdiag-debug-apk
-          path: netdiag-debug.apk
+          name: netscope-apk
+          path: netscope.apk
           if-no-files-found: error
 
       - name: Publish to "netdiag-latest" release
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          gh release create netdiag-latest netdiag-debug.apk \
-            --title "NetDiag latest build" \
+          gh release create netdiag-latest netscope.apk \
+            --title "NetScope latest build" \
             --notes "ネット調査ツール デバッグAPK。提供元不明アプリのインストールを許可した端末でインストールできます。" \
             --target "$GITHUB_SHA" \
-          || gh release upload netdiag-latest netdiag-debug.apk --clobber
+          || gh release upload netdiag-latest netscope.apk --clobber
+          # Drop the old asset name from earlier builds so only netscope.apk remains.
+          gh release delete-asset netdiag-latest netdiag-debug.apk -y || true
