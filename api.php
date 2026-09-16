@@ -1063,19 +1063,32 @@ switch ($action) {
     $title = trim(isset($d['title']) ? $d['title'] : '');
     if ($title === '') fail('title は必須です');
     $who = cbc_node_author($pdo, $d);
-    $curq = $pdo->prepare('SELECT lock_hash FROM nodes WHERE id = ?');
+    $curq = $pdo->prepare('SELECT title, body, lock_hash FROM nodes WHERE id = ?');
     $curq->execute(array($d['id']));
-    $curHash = $curq->fetchColumn();
-    if ($curHash === false) $curHash = null;
+    $curRow = $curq->fetch();
+    if ($curRow === false) fail('項目が存在しません', 404);
+    $curHash = $curRow['lock_hash'];
     list($lset, $lhash) = lock_hash_from($d, $curHash);
+    $newBody = isset($d['body']) ? $d['body'] : '';
     // 更新日時：明示指定があればその値、なければ現在時刻（履歴の並び順を手動調整するため）
-    $ua = (isset($d['updated_at']) && (int)$d['updated_at'] > 0) ? (int)$d['updated_at'] : now_ms();
+    $manualUa = (isset($d['updated_at']) && (int)$d['updated_at'] > 0);
+    $ua = $manualUa ? (int)$d['updated_at'] : now_ms();
+
+    // 見出しも本文も閲覧ロックも変わっていないなら、何もせずに終える。
+    // 開いて「保存」を押しただけで履歴の「更新」に出てしまうのを防ぐ。
+    // （更新日時を手で指定したときは、本人の意思なのでそのまま反映する）
+    if (!$manualUa
+        && (string)$curRow['title'] === (string)$title
+        && (string)$curRow['body'] === (string)$newBody
+        && (!$lset || (string)$lhash === (string)$curHash)) {
+      ok(array('unchanged' => true));
+    }
     if ($lset) {
       $up = $pdo->prepare('UPDATE nodes SET title = ?, body = ?, updated_by = COALESCE(?, updated_by), lock_hash = ?, updated_at = ? WHERE id = ?');
-      $up->execute(array($title, isset($d['body']) ? $d['body'] : '', $who, $lhash, $ua, $d['id']));
+      $up->execute(array($title, $newBody, $who, $lhash, $ua, $d['id']));
     } else {
       $up = $pdo->prepare('UPDATE nodes SET title = ?, body = ?, updated_by = COALESCE(?, updated_by), updated_at = ? WHERE id = ?');
-      $up->execute(array($title, isset($d['body']) ? $d['body'] : '', $who, $ua, $d['id']));
+      $up->execute(array($title, $newBody, $who, $ua, $d['id']));
     }
     // 本文が変わった可能性があるので、この項目のAI検索用の索引を捨てる。
     // 「索引が無い＝作り直しが必要」と扱えるようになり、検索のたびに全項目の本文を
@@ -1196,9 +1209,11 @@ switch ($action) {
     $sib = $q->fetch();
     if (!$sib) ok(); // 端なので何もしない
     $pdo->beginTransaction();
-    $swap = $pdo->prepare('UPDATE nodes SET sort_order = ?, updated_at = ? WHERE id = ?');
-    $swap->execute(array($sib['sort_order'], now_ms(), $node['id']));
-    $swap->execute(array($node['sort_order'], now_ms(), $sib['id']));
+    // 並び替えは「内容の更新」ではないので updated_at / updated_by は触らない。
+    // （触ると、中身を直していないのに履歴の「更新」に出てしまう）
+    $swap = $pdo->prepare('UPDATE nodes SET sort_order = ? WHERE id = ?');
+    $swap->execute(array($sib['sort_order'], $node['id']));
+    $swap->execute(array($node['sort_order'], $sib['id']));
     $pdo->commit();
     ok();
   }
@@ -1251,10 +1266,12 @@ switch ($action) {
     if (!$inserted) $newOrder[] = $id;
 
     $pdo->beginTransaction();
-    $up = $pdo->prepare('UPDATE nodes SET parent_id = ?, updated_at = ? WHERE id = ?');
-    $up->execute(array($parent, now_ms(), $id));
-    $ord = $pdo->prepare('UPDATE nodes SET sort_order = ?, updated_at = ? WHERE id = ?');
-    foreach ($newOrder as $i => $nid) { $ord->execute(array($i, now_ms(), $nid)); }
+    // ドラッグでの並び替え・階層移動も「内容の更新」ではないので
+    // updated_at / updated_by は触らない（履歴の「更新」に出さない）。
+    $up = $pdo->prepare('UPDATE nodes SET parent_id = ? WHERE id = ?');
+    $up->execute(array($parent, $id));
+    $ord = $pdo->prepare('UPDATE nodes SET sort_order = ? WHERE id = ?');
+    foreach ($newOrder as $i => $nid) { $ord->execute(array($i, $nid)); }
     $pdo->commit();
     ok();
   }

@@ -291,20 +291,35 @@
     if (serverMode()) {
       const body2 = Object.assign({ id, title, body, author: who }, lockFields(lockOpt));
       if (ua) body2.updated_at = ua;
-      await apiCall('node_update', { method: 'POST', body: body2 });
+      // サーバーは、見出し・本文・閲覧ロックのどれも変わっていなければ
+      // unchanged:true を返し、更新日時を動かさない（履歴に残さない）
+      const res = await apiCall('node_update', { method: 'POST', body: body2 });
       await reloadFromServer();
+      return { unchanged: !!(res && res.unchanged) };
     } else {
       const n = findNode(id);
       if (n) {
-        n.title = title; n.body = body; n.updated_by = who || n.updated_by; n.updated_at = ua || Date.now();
+        // 見出しも本文も変わっていなければ、更新日時は動かさない
+        // （開いて「保存」を押しただけで履歴の「更新」に出ないようにする）。
+        // 更新日時を手で指定したときは、本人の意思なのでそのまま反映する。
+        const lockChanging = !!(lockOpt && (!lockOpt.enabled !== !n.locked || (lockOpt.enabled && lockOpt.pw)));
+        const bodyChanged = (n.title !== title) || ((n.body || '') !== (body || '')) || lockChanging;
+        if (bodyChanged || ua) {
+          n.updated_by = who || n.updated_by;
+          n.updated_at = ua || Date.now();
+        }
+        n.title = title; n.body = body;
         if (lockOpt) {
           if (!lockOpt.enabled) { n.lock = ''; n.locked = false; unlockPw.delete(id); unlockedIds.delete(id); }
           else if (lockOpt.pw) { n.lock = lockOpt.pw; n.locked = true; unlockPw.set(id, lockOpt.pw); unlockedIds.add(id); }
           // enabled かつ pw 空 → 既存のロック状態・パスワードを維持（変更なし）
         }
+        persist();
+        return { unchanged: !bodyChanged && !ua };
       }
       persist();
     }
+    return { unchanged: false };
   }
   // 「更新」（全文書き換え）とは別の「追記」：今の内容は書き換えず、新しい内容を先頭に足す。
   // updated_at は変えず、appended_at だけを進める（最終更新日と最終追記日を別々に表示するため）。
@@ -2237,8 +2252,31 @@
       if (b) { b.disabled = false; b.title = canAttach ? '' : '添付はサーバー(DB)接続時のみ'; }
     });
     hydrateEditorFields(); // 保存済みの入力欄を編集用ウィジェットに復元
+    // 開いた時点の中身を覚えておく。保存時にこれと同じなら「何も直していない」
+    // と判断して、更新日時を動かさない（履歴の「更新」に出さない）。
+    // 保存されているHTMLと直接くらべないのは、編集欄に読み込んだだけで
+    // 見た目に影響しない整形（段落の<p>付けなど）が入ることがあるため。
+    if (dialogTarget) {
+      dialogTarget.openSnapshot = {
+        title: nodeTitleInput.value.trim(),
+        body: bodyForSave(),
+        lockEnabled: !!(nodeLockChk && nodeLockChk.checked),
+      };
+    }
     nodeDialog.showModal();
     nodeTitleInput.focus();
+  }
+
+  // 開いてから閉じるまでに、見出し・本文・閲覧ロックのどれかが変わったか。
+  // 何も変わっていなければ保存そのものを行わない（更新日時を動かさない）。
+  // 更新日時を手で指定したときは、本人の意思なので保存する。
+  function editSessionUnchanged(title, body, lockOpt, updatedAt) {
+    const snap = dialogTarget && dialogTarget.openSnapshot;
+    if (!snap) return false;
+    if (updatedAt) return false;                       // 更新日時の手動指定あり
+    if (lockOpt && lockOpt.pw) return false;           // 新しいロックのパスワードを入力
+    if (lockOpt && !!lockOpt.enabled !== !!snap.lockEnabled) return false; // ロックの入切を変更
+    return title === snap.title && body === snap.body;
   }
 
   nodeForm.addEventListener('submit', async (e) => {
@@ -2263,8 +2301,13 @@
     submitBtn.disabled = true;
     nodeError('');
     try {
+      let saveRes = null;
       if (dialogTarget.mode === 'edit') {
-        await opUpdate(dialogTarget.id, title, body, author, lockOpt, updatedAt);
+        if (editSessionUnchanged(title, body, lockOpt, updatedAt)) {
+          saveRes = { unchanged: true }; // サーバーへ送らない（更新日時も動かさない）
+        } else {
+          saveRes = await opUpdate(dialogTarget.id, title, body, author, lockOpt, updatedAt);
+        }
       } else {
         if (dialogTarget.parentId) { openNodes.add(dialogTarget.parentId); persistOpen(); }
         await opCreate(dialogTarget.parentId, title, body, author, lockOpt);
@@ -2272,7 +2315,8 @@
       nodeDialog.close();
       renderEdit();
       if (!navView.hidden) renderNav(); // 案内モードから編集した場合は即反映
-      flashSaved();
+      // 中身が変わっていないときは、そう伝える（履歴の「更新」にも出していない）
+      flashSaved(saveRes && saveRes.unchanged ? '変更はありませんでした（履歴には残しません）' : '保存しました');
     } catch (err) {
       nodeError('保存に失敗しました：' + err.message);
     } finally {
