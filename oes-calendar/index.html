@@ -229,34 +229,50 @@ input:focus,select:focus,textarea:focus{border-color:var(--blue);box-shadow:0 0 
 .sim-led{display:flex;align-items:center;gap:4px;font-size:9px;color:#333;white-space:nowrap;}
 .sim-led i{width:8px;height:8px;border:1px solid #8C8C8C;background:#D8D8D8;border-radius:2px;display:block;flex-shrink:0;}
 .sim-led.on i{background:var(--sky);border-color:var(--sky);}
-.sim-screen{flex:1;min-width:0;background:#fff;border:1px solid #BDBDBD;border-radius:4px;padding:6px 9px;position:relative;}
+.sim-screen{flex:0 1 220px;min-width:0;background:#fff;border:1px solid #BDBDBD;border-radius:4px;padding:6px 9px;position:relative;}
 .sim-brand{font-size:10px;font-weight:700;letter-spacing:.1em;color:#333;}
 .sim-model{position:absolute;right:8px;bottom:5px;text-align:right;font-size:8px;color:#555;line-height:1.35;}
 .sim-model span{font-size:7.5px;}
-.sim-lcd{font-family:'SFMono-Regular',Menlo,Consolas,monospace;padding:8px 0 14px;min-height:58px;}
-.lcd-l1,.lcd-l2{font-size:15px;font-weight:700;color:#111;line-height:1.55;word-break:break-all;min-height:23px;}
+.sim-lcd{font-family:'SFMono-Regular',Menlo,Consolas,monospace;padding:6px 0 12px;min-height:44px;}
+.lcd-l1,.lcd-l2{font-size:11.5px;font-weight:700;color:#111;line-height:1.5;word-break:break-all;min-height:17px;letter-spacing:0;}
 .sim-keys{display:grid;grid-template-columns:repeat(7,1fr);gap:4px;}
 .simkey{position:relative;min-height:38px;border:1px solid #9A9A9A;border-radius:5px;background:#FDFDFD;
   color:#1A1A1D;font-family:inherit;font-size:13.5px;font-weight:700;cursor:pointer;padding:2px;
   display:flex;align-items:center;justify-content:center;text-align:center;line-height:1.1;overflow:hidden;
-  user-select:none;-webkit-user-select:none;touch-action:manipulation;}
+  user-select:none;-webkit-user-select:none;touch-action:manipulation;transition:box-shadow .1s,transform .1s;}
 .simkey .sub{position:absolute;top:2px;left:3px;font-size:8px;font-weight:700;color:#666;}
 .simkey.k-gold{background:#7A5A16;color:#fff;border-color:#5E4511;font-size:9.5px;letter-spacing:-.03em;white-space:nowrap;}
-.simkey.k-pow{color:var(--sky);border-color:var(--sky);border-width:2px;font-size:10.5px;}
+.simkey.k-black{background:#2B2B2B;color:#fff;border-color:#1A1A1A;}
+.simkey.k-pow{border-width:2px;font-size:10.5px;}
+.simkey.k-pow.k-black{border-color:var(--sky);}
 .simkey.k-clear{font-size:10.5px;}
 .simkey.k-blank{background:#2B2B2B;border-color:#2B2B2B;cursor:default;}
 .simkey.press{transform:translateY(1px);background:#E4E4E4;}
 .simkey.k-gold.press{background:#5E4511;}
-.simkey.on{background:var(--sky);border-color:var(--sky);color:#fff;box-shadow:0 0 0 3px rgba(134,16,12,.22);}
+.simkey.k-black.press{background:#000;}
+/* ハイライトは3種類を色分けする: 通常の1回押す＝濃い赤／長押し＝オレンジ／連続で何回か押す＝濃い青 */
+.simkey.on{background:var(--sky);border-color:var(--sky);color:#fff;box-shadow:0 0 0 4px rgba(134,16,12,.32);transform:scale(1.06);z-index:1;}
 .simkey.on .sub{color:#fff;}
+.simkey.on.hold-mode{background:#B26A00;border-color:#B26A00;box-shadow:0 0 0 4px rgba(178,106,0,.35);}
+.simkey.on.rep-mode{background:var(--blue);border-color:var(--blue);box-shadow:0 0 0 4px rgba(0,61,165,.3);}
 .simkey.hold{animation:simhold 1s ease-in-out infinite;}
-@keyframes simhold{0%,100%{box-shadow:0 0 0 3px rgba(134,16,12,.25);}50%{box-shadow:0 0 0 8px rgba(134,16,12,.08);}}
+.simkey.on.hold-mode.hold{animation:simholdamber 1s ease-in-out infinite;}
+@keyframes simhold{0%,100%{box-shadow:0 0 0 4px rgba(134,16,12,.32);}50%{box-shadow:0 0 0 10px rgba(134,16,12,.1);}}
+@keyframes simholdamber{0%,100%{box-shadow:0 0 0 4px rgba(178,106,0,.35);}50%{box-shadow:0 0 0 10px rgba(178,106,0,.12);}}
+.rep-badge{position:absolute;top:-7px;right:-7px;background:var(--blue-d);color:#fff;font-size:9.5px;font-weight:700;
+  min-width:17px;height:17px;border-radius:999px;display:flex;align-items:center;justify-content:center;
+  padding:0 3px;box-shadow:0 0 0 2px #fff;}
 .sim-msg{margin:9px 0 6px;font-size:12.5px;font-weight:700;color:var(--blue-d);min-height:19px;line-height:1.5;}
+/* 画面は変わらないが実際に起こること（印刷など）の説明 */
+.sim-note{margin:-3px 0 6px;font-size:12px;font-weight:600;color:#7A5A16;line-height:1.5;}
+.sim-note:empty{display:none;}
 /* 手順のチップ（9 → 9 → 8 → 実行 → 完了） */
 .cmd-steps{display:flex;flex-wrap:wrap;gap:5px;align-items:center;margin-top:10px;}
 .cmd-step{display:inline-flex;align-items:center;gap:5px;border:1px solid var(--line);border-radius:999px;
   background:var(--white);padding:5px 11px;font-size:12.5px;font-weight:700;color:var(--blue-d);}
 .cmd-step.on{background:var(--sky);border-color:var(--sky);color:#fff;}
+.cmd-step.on.hold-mode{background:#B26A00;border-color:#B26A00;}
+.cmd-step.on.rep-mode{background:var(--blue);border-color:var(--blue);}
 .cmd-step.done{opacity:.4;}
 .cmd-step .cs-tag{font-size:9.5px;font-weight:700;padding:1px 6px;border-radius:999px;background:var(--blue-l);color:var(--blue-d);}
 .cmd-step.on .cs-tag{background:rgba(255,255,255,.3);color:#fff;}
@@ -268,14 +284,23 @@ input:focus,select:focus,textarea:focus{border-color:var(--blue);box-shadow:0 0 
 .cs-list{display:flex;flex-direction:column;gap:6px;}
 .cs-row{display:flex;flex-wrap:wrap;gap:5px;align-items:center;border:1px solid var(--line-w);
   border-radius:var(--r-s);padding:6px 7px;background:var(--white);}
-.cs-row select{flex:1 1 118px;min-width:0;}
-.cs-row .cs-disp{flex:1 1 100%;}
+.cs-row select{flex:1 1 100px;min-width:0;}
+.cs-lines{flex:1 1 100%;display:flex;gap:5px;flex-wrap:wrap;}
+.cs-lines .cs-disp{flex:1 1 140px;min-width:0;}
+.cs-memo{flex:1 1 100%;}
+.cs-memo .cs-note{width:100%;font-size:12px;color:#7A5A16;font-style:italic;}
 .cs-no{width:20px;flex-shrink:0;font-size:11px;font-weight:700;color:var(--muted);text-align:center;}
 .cs-hold{display:inline-flex;align-items:center;gap:5px;font-size:11.5px;font-weight:600;color:#3A3D40;
   white-space:nowrap;min-height:34px;padding:0 4px;cursor:pointer;}
-.cs-hold input{width:16px;height:16px;accent-color:var(--blue);}
+.cs-hold input[type=checkbox]{width:16px;height:16px;accent-color:var(--blue);}
+.cs-rep{flex:0 0 auto;}
+.cs-rep input[type=number]{width:44px;min-height:26px;padding:2px 4px;text-align:center;font-size:12.5px;}
 .cs-ops{display:flex;gap:4px;margin-left:auto;}
 .cs-ops button{width:34px;padding:0;justify-content:center;}
+/* 設定画面のコマンド見出し（折りたたみ。名前はその場で編集できる） */
+.cm-name-inline{flex:1;min-width:80px;font-size:13px;font-weight:700;color:var(--blue-d);
+  border:1px solid transparent;background:transparent;padding:5px 6px;border-radius:5px;}
+.cm-name-inline:hover,.cm-name-inline:focus{border-color:var(--line);background:var(--white);outline:none;}
 /* 画面が広いときは実機と同じように「画面の右側にキー」の並びにする */
 @media (min-width:760px){
   .sim-panel{flex-direction:row;align-items:center;}
@@ -777,6 +802,7 @@ input:focus,select:focus,textarea:focus{border-color:var(--blue);box-shadow:0 0 
           <div class="sim-keys" id="sim-keys"></div>
         </div>
         <div class="sim-msg" id="sim-msg"></div>
+        <div class="sim-note" id="sim-note"></div>
         <div class="hint">
           実機と同じようにボタンを押せます（<b>長押し</b>・<b>2つ同時押し</b>にも対応）。
           登録された手順どおりに押すと、その画面が表示されます。
@@ -928,12 +954,34 @@ input:focus,select:focus,textarea:focus{border-color:var(--blue);box-shadow:0 0 
         </div>
       </div>
       <div class="card-body">
+        <div class="grid-form" style="margin-bottom:12px;">
+          <div class="field"><label>待機中の画面　1行目</label>
+            <input type="text" id="sim-idle-l1" value="" autocomplete="off" onchange="onCommonChange()"></div>
+          <div class="field"><label>待機中の画面　2行目</label>
+            <input type="text" id="sim-idle-l2" value="" autocomplete="off" onchange="onCommonChange()"></div>
+        </div>
         <div class="hint" style="margin-bottom:9px;">
-          「🎛️ コマンド一覧」タブのシミュレーターで使う操作手順です。押すボタンを順番に登録します。
-          <b>長押し</b>にチェックを入れると長押し、<b>同時に押すボタン</b>を選ぶと2つ同時押しになります。
-          「画面に出る文字」を入れると、そのボタンを押したときに画面の表示が変わります。
+          何も操作していないときにシミュレーターの画面に出る文字です。実機は機種や設定によって「[01]」や時刻が
+          出ないこともあるので、そのまま自由に書き換えられます。<code>{time}</code> と書いた部分だけ現在時刻に置き換わります
+          （時刻を出したくない場合は書かないでください）。
+        </div>
+        <div class="hint" style="margin-bottom:9px;">
+          「📋 コマンド一覧」タブのシミュレーターで使う操作手順です。見出しをタップすると詳しい編集欄が開きます。
+          押すボタンを順番に登録し、<b>長押し</b>／<b>同時に押すボタン</b>／同じボタンを<b>連続で何回か押す</b>／
+          「画面の1〜2行目に出る文字」を、手順ごとに設定できます。画面が変わらず<b>結果だけが起こる操作</b>
+          （明細票が印刷される、など）は「結果コメント」に書いておくと手順の中に表示されます。
         </div>
         <div id="cmd-list"></div>
+        <div class="row-btns" style="margin-top:11px;">
+          <button class="btn btn-ghost btn-sm" onclick="exportCommandsCsv()">CSVで書き出す</button>
+          <button class="btn btn-ghost btn-sm" onclick="$('cmd-csv-file').click()">CSVから読み込む</button>
+          <input type="file" id="cmd-csv-file" accept=".csv,text/csv" style="display:none" onchange="onCommandsCsvChange(this)">
+        </div>
+        <div class="hint" style="margin-top:6px;">
+          CSVは表計算ソフトで編集できます。1行が1つの手順で、同じ「コマンド名」の行が続けて並んでいると
+          1つの操作としてまとめて読み込みます。「結果コメント」の列は画面が変わらない操作の説明用です。
+          読み込むと今のコマンド一覧はすべて置き換わります。
+        </div>
       </div>
     </div>
 
@@ -1133,20 +1181,31 @@ function defaultCommands(){
   return [
     { id:'cm-maint', name:'保守機能モードに入る',
       note:'◁と▷を同時に長押しします。ほかの保守機能はこのモードに入ってから操作します。',
-      steps:[ { id:'cs-mt1', keys:['LEFT','RIGHT'], hold:true, display:'ホシュキノウ　モード' } ] },
+      steps:[ { id:'cs-mt1', keys:['LEFT','RIGHT'], hold:true, repeat:1, l1:'ホシュキノウ　モード', l2:'', memo:'' } ] },
     { id:'cm-install', name:'インストール情報を表示する',
       note:'保守機能モードに入ってから操作します。',
       steps:[
-        { id:'cs-in1', keys:['9'],    hold:false, display:'' },
-        { id:'cs-in2', keys:['9'],    hold:false, display:'' },
-        { id:'cs-in3', keys:['8'],    hold:false, display:'' },
-        { id:'cs-in4', keys:['EXEC'], hold:false, display:'インストールジョウホウ' }
+        { id:'cs-in1', keys:['9'],    hold:false, repeat:2, l1:'', l2:'', memo:'' },
+        { id:'cs-in2', keys:['8'],    hold:false, repeat:1, l1:'', l2:'', memo:'' },
+        { id:'cs-in3', keys:['EXEC'], hold:false, repeat:1, l1:'インストールジョウホウ', l2:'', memo:'' }
       ] },
     { id:'cm-power', name:'電源を切る',
       note:'電源ボタンを長押しし、画面の確認表示が出たらもう一度押します。',
       steps:[
-        { id:'cs-pw1', keys:['POWER'], hold:true,  display:'デンゲンヲ　キリマスカ？' },
-        { id:'cs-pw2', keys:['POWER'], hold:false, display:'シュウリョウ　シマス' }
+        { id:'cs-pw1', keys:['POWER'], hold:true,  repeat:1, l1:'デンゲンヲ', l2:'キリマスカ？', memo:'' },
+        { id:'cs-pw2', keys:['POWER'], hold:false, repeat:1, l1:'シュウリョウ', l2:'シマス', memo:'' }
+      ] },
+    { id:'cm-sysid', name:'システムIDを確認する',
+      note:'保守機能モードに入ってから操作します。',
+      steps:[
+        { id:'cs-id1', keys:['MENU'], hold:false, repeat:1,
+          l1:'システムID＝＿＿＿＿＿＿＿＿', l2:'決定[実行]　次へ[メニュー]', memo:'' }
+      ] },
+    { id:'cm-print', name:'取引明細を印刷する（サンプル）',
+      note:'保守機能モードに入ってから操作します。画面表示は変わりません。',
+      steps:[
+        { id:'cs-pr1', keys:['SHIFT','EXEC'], hold:false, repeat:1, l1:'', l2:'',
+          memo:'画面表示は変わりませんが、明細票（レシート）が印刷されます。' }
       ] }
   ];
 }
@@ -1169,6 +1228,8 @@ function defaultSettings(){
     entryNotes: DEFAULT_ENTRY_NOTES.map(function(t){ return { id: uid('en'), text: t }; }),
     midNotes: DEFAULT_MID_NOTES.map(function(t){ return { id: uid('mn'), text: t }; }),
     commands: defaultCommands(),
+    simIdleL1: '二重化　（メイン）',
+    simIdleL2: '[01]　{time}',
     calendarApiUrl: '',
     calendarQuery: '',
     gyotai: [
@@ -1356,6 +1417,8 @@ function normalizeSettings(o){
     },
     calendarApiUrl: strOr(o.calendarApiUrl, ''),
     calendarQuery:  strOr(o.calendarQuery,  ''),
+    simIdleL1: (typeof o.simIdleL1 === 'string') ? o.simIdleL1 : d.simIdleL1,
+    simIdleL2: (typeof o.simIdleL2 === 'string') ? o.simIdleL2 : d.simIdleL2,
     phrases: [],
     entryNotes: [],
     midNotes: [],
@@ -1449,8 +1512,10 @@ function normalizeGyotaiNotes(raw){
 function trimLines(s){
   return String(s || '').split('\n').map(function(l){ return l.replace(/^[ \t]+|[ \t]+$/g, ''); }).join('\n').trim();
 }
-/* コマンド一覧（保守機能の操作手順）を配列 [{id, name, note, steps:[{id, keys, hold, display}]}] に正規化する。
-   存在しないキーidは捨てる（実機のキー配列を変えたときに壊れた手順が残らないように）。 */
+/* コマンド一覧（保守機能の操作手順）を配列 [{id, name, note, steps:[{id, keys, hold, repeat, l1, l2}]}] に
+   正規化する。存在しないキーidは捨てる（実機のキー配列を変えたときに壊れた手順が残らないように）。
+   旧仕様（1行だけの display）からの互換: display の中身を l1 に、l2 は空にして引き継ぐ。
+   hold（長押し）と repeat（連続で何回か押す）は同時に成立しないので、holdがtrueならrepeatは常に1にする。 */
 function normalizeCommands(raw){
   if(!Array.isArray(raw)) return [];
   var out = [];
@@ -1463,12 +1528,22 @@ function normalizeCommands(raw){
       (Array.isArray(st && st.keys) ? st.keys : []).forEach(function(k){
         if(simKeyDef(k) && k !== 'BLANK' && keys.indexOf(k) < 0) keys.push(k);
       });
+      if(keys.length > 2) keys = keys.slice(0, 2);
       if(!keys.length) return;
+      var hold = !!(st && st.hold);
+      var repeat = hold ? 1 : clampInt(st && st.repeat, 1, 20, 1);
+      var l1 = (st && typeof st.l1 === 'string') ? st.l1
+             : (st && typeof st.display === 'string') ? st.display : '';
+      var l2 = (st && typeof st.l2 === 'string') ? st.l2 : '';
+      var memo = (st && typeof st.memo === 'string') ? st.memo : '';
       steps.push({
         id: (st && st.id) ? st.id : uid('cs'),
         keys: keys,
-        hold: !!(st && st.hold),
-        display: (st && typeof st.display === 'string') ? st.display : ''
+        hold: hold,
+        repeat: repeat,
+        l1: l1,
+        l2: l2,
+        memo: memo
       });
     });
     out.push({
@@ -3031,14 +3106,14 @@ function copyAppsScript(){
    ========================================================================= */
 /* 実機のキー配列（7列×3行）。idは手順データに保存される値なので、あとから変えないこと */
 var SIM_KEYS = [
-  { id:'F',     label:'F',       name:'F',            cls:'k-fn' },
-  { id:'UP',    label:'△',      name:'△（上）',      cls:'k-fn' },
-  { id:'SHIFT', label:'シフト',  name:'シフト',        cls:'k-gold' },
+  { id:'F',     label:'F',       name:'F',            cls:'k-black' },
+  { id:'UP',    label:'△',      name:'△（上）',      cls:'k-black' },
+  { id:'SHIFT', label:'シフト',  name:'シフト',        cls:'k-black' },
   { id:'A1',    label:'1', sub:'A', name:'1（A）',     cls:'k-num' },
   { id:'B2',    label:'2', sub:'B', name:'2（B）',     cls:'k-num' },
   { id:'C3',    label:'3', sub:'C', name:'3（C）',     cls:'k-num' },
-  { id:'POWER', label:'電源',    name:'電源',          cls:'k-pow' },
-  { id:'LEFT',  label:'◁',      name:'◁（左）',      cls:'k-fn' },
+  { id:'POWER', label:'電源',    name:'電源',          cls:'k-black k-pow' },
+  { id:'LEFT',  label:'◁',      name:'◁（左）',      cls:'k-black' },
   { id:'MENU',  label:'メニュー', name:'メニュー',      cls:'k-gold' },
   { id:'RIGHT', label:'▷',      name:'▷（右）',      cls:'k-fn' },
   { id:'D4',    label:'4', sub:'D', name:'4（D）',     cls:'k-num' },
@@ -3051,10 +3126,9 @@ var SIM_KEYS = [
   { id:'7',     label:'7',       name:'7',            cls:'k-num' },
   { id:'8',     label:'8',       name:'8',            cls:'k-num' },
   { id:'9',     label:'9',       name:'9',            cls:'k-num' },
-  { id:'CLEAR', label:'クリア',  name:'クリア',        cls:'k-clear' }
+  { id:'CLEAR', label:'クリア',  name:'クリア',        cls:'k-black k-clear' }
 ];
 var SIM_HOLD_MS = 600;               /* これ以上押し続けたら「長押し」とみなす */
-var SIM_DEFAULT_L1 = '二重化　（メイン）';
 
 function simKeyDef(id){
   for(var i = 0; i < SIM_KEYS.length; i++){ if(SIM_KEYS[i].id === id) return SIM_KEYS[i]; }
@@ -3062,10 +3136,12 @@ function simKeyDef(id){
 }
 function simKeyLabel(id){ var k = simKeyDef(id); return k ? k.label : id; }
 function simKeyName(id){ var k = simKeyDef(id); return k ? k.name : id; }
-/* 「◁ ＋ ▷ を長押し」のような、1ステップぶんの読み上げ用ラベル */
+/* 「◁ ＋ ▷ を長押し」「9（2回）」のような、1ステップぶんの読み上げ用ラベル */
+function stepRepeat(st){ return Math.max(1, (st && st.repeat) || 1); }
 function simStepLabel(st){
   var names = (st.keys || []).map(function(k){ return simKeyLabel(k); }).join(' ＋ ');
-  return names + (st.hold ? '（長押し）' : '');
+  var n = stepRepeat(st);
+  return names + (st.hold ? '（長押し）' : (n > 1 ? '（' + n + '回）' : ''));
 }
 function findCommand(id){
   for(var i = 0; i < settings.commands.length; i++){ if(settings.commands[i].id === id) return settings.commands[i]; }
@@ -3076,22 +3152,46 @@ function findCmdStep(c, sid){
   for(var i = 0; i < c.steps.length; i++){ if(c.steps[i].id === sid) return c.steps[i]; }
   return null;
 }
-/* 2つのステップが同じ操作か（押すキーの組み合わせと長押しの有無で判定する） */
+/* 2つのステップが同じ操作か（押すキーの組み合わせと長押しの有無で判定する。回数は無関係） */
 function sameStep(a, b){
   if(!a || !b) return false;
   if(!!a.hold !== !!b.hold) return false;
   var ka = (a.keys || []).slice().sort().join(','), kb = (b.keys || []).slice().sort().join(',');
   return ka !== '' && ka === kb;
 }
+/* 手順を「実際に押す回数ぶん」の1回押しの並びに展開する（連続で何回か押す手順の照合・表示用）。
+   画面表示（l1/l2）はその手順の最後の1回にだけ乗せる。 */
+function expandPhysicalSteps(cmd){
+  var out = [];
+  (cmd ? cmd.steps : []).forEach(function(st){
+    var n = stepRepeat(st);
+    for(var i = 0; i < n; i++){
+      var last = (i === n - 1);
+      out.push({ keys: st.keys, hold: st.hold, l1: last ? st.l1 : '', l2: last ? st.l2 : '', memo: last ? st.memo : '' });
+    }
+  });
+  return out;
+}
 
 /* ---------- 画面（LCD）の表示 ---------- */
 function nowHHMM(){ var d = new Date(); return pad(d.getHours()) + '：' + pad(d.getMinutes()); }
+/* 待機中の画面文字列の {time} だけを現在時刻に置き換える（書かなければ時刻は出ない） */
+function applyIdleTokens(s){ return (s || '').replace(/\{time\}/g, nowHHMM()); }
 function simSetScreen(l1, l2){
-  if($('sim-l1')) $('sim-l1').textContent = l1;
-  if($('sim-l2')) $('sim-l2').textContent = (l2 === undefined) ? ('[01]　' + nowHHMM()) : l2;
+  if($('sim-l1')) $('sim-l1').textContent = l1 || '';
+  if($('sim-l2')) $('sim-l2').textContent = l2 || '';
 }
-function simDefaultScreen(){ simSetScreen(SIM_DEFAULT_L1); }
+function simDefaultScreen(){
+  simSetScreen(applyIdleTokens(settings.simIdleL1), applyIdleTokens(settings.simIdleL2));
+  simSetNote('');
+}
 function simSetMsg(msg){ if($('sim-msg')) $('sim-msg').innerHTML = msg || ''; }
+/* 画面は変わらないが実際には何か起こる操作（明細票の印刷など）の説明。LCDには出さず、案内エリアに表示する */
+function simSetNote(memo){
+  var el = $('sim-note');
+  if(!el) return;
+  el.innerHTML = memo ? ('📝 ' + esc(memo)) : '';
+}
 
 /* ---------- キーパッドの描画と操作 ---------- */
 function renderSimKeys(){
@@ -3150,12 +3250,9 @@ function simUpKey(id){
 /* 1回ぶんの操作が確定したときの処理 */
 function simEmit(step){
   cmdStop();
-  /* ①手順を選んでいる最中なら、次に押すべきボタンと合っているかを見る */
-  if(cmdSeq && cmdIdx >= 0 && cmdIdx < cmdSeq.steps.length && sameStep(cmdSeq.steps[cmdIdx], step)){
-    simInput = [];
-    cmdGo(cmdIdx + 1);
-    return;
-  }
+  /* ①手順を選んでいる最中なら、次に押すべきボタンと合っているかを見る（同じボタンを連続で
+        何回か押す手順なら、規定の回数に達するまでは同じ手順にとどまる） */
+  if(cmdSeq && cmdIdx >= 0 && cmdIdx < cmdSeq.steps.length && cmdTryAdvance(step)) return;
   /* ②履歴に足して、登録済みのコマンドと照合する。
         最後まで一致したらその画面を出し、途中まで一致していれば途中の画面を出す
         （例: 電源長押しで確認表示 → もう一度押して終了、のように段階的に変わる操作のため）。 */
@@ -3163,15 +3260,16 @@ function simEmit(step){
   if(simInput.length > 12) simInput.shift();
   var hit = simMatchProgress();
   if(hit){
-    if(hit.len >= hit.cmd.steps.length){
+    if(hit.len >= hit.phys.length){
       simInput = [];
       simShowCommand(hit.cmd);
       return;
     }
-    var st = hit.cmd.steps[hit.len - 1];
-    if(st.display) simSetScreen(st.display);
+    var st = hit.phys[hit.len - 1];
+    if(st.l1 || st.l2) simSetScreen(st.l1 || '', st.l2 || '');
+    simSetNote(st.memo || '');
     simSetMsg('<b>' + esc(simStepLabel(step)) + '</b>　…　' + esc(hit.cmd.name)
-      + '（あと' + (hit.cmd.steps.length - hit.len) + '手順）');
+      + '（あと' + (hit.phys.length - hit.len) + '回）');
     return;
   }
   /* ③クリアは履歴を消して最初の画面に戻す */
@@ -3183,38 +3281,42 @@ function simEmit(step){
   }
   simSetMsg('<b>' + esc(simStepLabel(step)) + '</b> を押しました');
 }
-/* 履歴の末尾が、登録済みコマンドの手順の「先頭から何手順ぶん」と一致するかを探す。
-   返り値 {cmd, len}。len が cmd.steps.length と同じなら最後まで一致（＝そのコマンドの完了）。
+/* 履歴の末尾が、登録済みコマンドを「1回押し」単位に展開したものの先頭から何回ぶんと一致するかを探す。
+   返り値 {cmd, len, phys}。len が phys.length と同じなら最後まで一致（＝そのコマンドの完了）。
    最後まで一致したものを優先し、次に長く一致したものを優先する。 */
 function simMatchProgress(){
   var best = null, bestScore = -1;
   settings.commands.forEach(function(c){
-    var n = c.steps.length;
+    var phys = expandPhysicalSteps(c);
+    var n = phys.length;
     if(!n) return;
     for(var k = Math.min(n, simInput.length); k >= 1; k--){
       var tail = simInput.slice(simInput.length - k), hit = true;
-      for(var i = 0; i < k; i++){ if(!sameStep(c.steps[i], tail[i])){ hit = false; break; } }
+      for(var i = 0; i < k; i++){ if(!sameStep(phys[i], tail[i])){ hit = false; break; } }
       if(!hit) continue;
       var score = (k >= n) ? (k + 100) : k;      /* 完了しているものを優先する */
-      if(score > bestScore){ bestScore = score; best = { cmd: c, len: k }; }
+      if(score > bestScore){ bestScore = score; best = { cmd: c, len: k, phys: phys }; }
       break;                                      /* この命令はいちばん長い一致だけ見ればよい */
     }
   });
   return best;
 }
 function simShowCommand(c){
-  var last = null;
-  for(var i = c.steps.length - 1; i >= 0; i--){ if(c.steps[i].display){ last = c.steps[i].display; break; } }
-  simSetScreen(last || c.name);
-  simSetMsg('✅ <b>' + esc(c.name) + '</b> の画面を表示しました');
+  var phys = expandPhysicalSteps(c), last = null;
+  for(var i = phys.length - 1; i >= 0; i--){ if(phys[i].l1 || phys[i].l2){ last = phys[i]; break; } }
+  /* 画面に出る文字が1つも登録されていない操作は、実機と同じく画面を変えない（結果コメントだけ案内する） */
+  if(last) simSetScreen(last.l1 || '', last.l2 || '');
+  simSetNote((phys.length ? phys[phys.length - 1].memo : '') || '');
+  simSetMsg('✅ <b>' + esc(c.name) + '</b>' + (last ? ' の画面を表示しました' : ' の操作が完了しました'));
   toast(c.name);
   /* 選択中の手順と同じなら、チップも全部「済」にする */
-  if(cmdSeq && cmdSeq.id === c.id){ cmdIdx = cmdSeq.steps.length; renderCmdSteps(); clearCmdHighlight(); }
+  if(cmdSeq && cmdSeq.id === c.id){ cmdIdx = cmdSeq.steps.length; cmdRepDone = 0; renderCmdSteps(); clearCmdHighlight(); }
 }
 
 /* ---------- 手順のガイド（プルダウンで選んで順番に見る） ---------- */
 var cmdSeq = null;       /* 選択中のコマンド */
 var cmdIdx = -1;         /* 次に押すステップの番号（-1は未開始） */
+var cmdRepDone = 0;      /* 現在のステップで、すでに何回押せたか（「連続で何回か押す」の進み具合） */
 var cmdTimer = null;
 var cmdPlaying = false;
 
@@ -3235,12 +3337,19 @@ function onCmdSelect(){
   cmdStop();
   cmdSeq = sel ? findCommand(sel.value) : null;
   cmdIdx = -1;
+  cmdRepDone = 0;
   simInput = [];
   clearCmdHighlight();
   renderCmdSteps();
   simDefaultScreen();
   simSetMsg(cmdSeq ? 'この手順どおりにボタンを押すか、「順番に再生」を押してください' : '');
   if($('cmd-note')) $('cmd-note').textContent = cmdSeq ? (cmdSeq.note || '') : '';
+}
+/* チップの色分け用クラス（長押し＝オレンジ／連続で何回か押す＝青／それ以外＝既定の赤） */
+function stepModeClass(st){
+  if(st.hold) return ' hold-mode';
+  if(stepRepeat(st) > 1) return ' rep-mode';
+  return '';
 }
 function renderCmdSteps(){
   var host = $('cmd-steps');
@@ -3252,10 +3361,12 @@ function renderCmdSteps(){
   }
   var html = '';
   cmdSeq.steps.forEach(function(st, i){
-    var cls = (i === cmdIdx) ? ' on' : (cmdIdx >= 0 && i < cmdIdx ? ' done' : '');
+    var n = stepRepeat(st);
+    var cls = (i === cmdIdx) ? (' on' + stepModeClass(st)) : (cmdIdx >= 0 && i < cmdIdx ? ' done' : '');
     if(i > 0) html += '<span class="cmd-arrow">→</span>';
-    html += '<span class="cmd-step' + cls + '">' + esc(simStepLabel(st).replace('（長押し）', ''))
+    html += '<span class="cmd-step' + cls + '">' + esc(simStepLabel(st).replace(/（長押し）|（\d+回）/, ''))
       + (st.hold ? '<span class="cs-tag">長押し</span>' : '')
+      + (n > 1 ? '<span class="cs-tag">×' + n + (i === cmdIdx ? '　' + cmdRepDone + '/' + n : '') + '</span>' : '')
       + ((st.keys || []).length > 1 ? '<span class="cs-tag">同時</span>' : '')
       + '</span>';
   });
@@ -3265,22 +3376,37 @@ function renderCmdSteps(){
 }
 function clearCmdHighlight(){
   Array.prototype.forEach.call(document.querySelectorAll('#sim-keys .simkey'), function(el){
-    el.classList.remove('on', 'hold', 'press');
+    el.classList.remove('on', 'hold', 'press', 'hold-mode', 'rep-mode');
+    var b = el.querySelector('.rep-badge'); if(b) b.parentNode.removeChild(b);
   });
 }
-function highlightStep(st){
+function highlightStep(st, repDone){
   clearCmdHighlight();
+  var n = stepRepeat(st);
   (st.keys || []).forEach(function(k){
     var el = simKeyEl(k);
-    if(el){ el.classList.add('on'); if(st.hold) el.classList.add('hold'); }
+    if(!el) return;
+    el.classList.add('on');
+    if(st.hold){ el.classList.add('hold-mode', 'hold'); }
+    else if(n > 1){
+      el.classList.add('rep-mode');
+      var badge = document.createElement('span');
+      badge.className = 'rep-badge';
+      badge.textContent = (Math.min(repDone || 0, n - 1) + 1) + '/' + n;
+      el.appendChild(badge);
+    }
   });
 }
 /* i番目のステップを「次に押すもの」にする（i-1番目までは押し終わった状態） */
 function cmdGo(i){
   if(!cmdSeq) return;
   var prev = (i > 0) ? cmdSeq.steps[i - 1] : null;
-  if(prev && prev.display) simSetScreen(prev.display);
+  if(prev){
+    if(prev.l1 || prev.l2) simSetScreen(prev.l1 || '', prev.l2 || '');
+    simSetNote(prev.memo || '');
+  }
   cmdIdx = i;
+  cmdRepDone = 0;
   renderCmdSteps();
   if(i >= cmdSeq.steps.length){
     clearCmdHighlight();
@@ -3288,8 +3414,25 @@ function cmdGo(i){
     cmdStop();
     return;
   }
-  highlightStep(cmdSeq.steps[i]);
+  highlightStep(cmdSeq.steps[i], 0);
   simSetMsg((i + 1) + ' / ' + cmdSeq.steps.length + '　<b>' + esc(simStepLabel(cmdSeq.steps[i])) + '</b> を押してください');
+}
+/* 実機のキー操作が、いま案内中のステップと合っているかを見る。
+   合っていれば true を返す（連続で何回か押す手順なら、規定の回数に達するまでは同じステップにとどまる）。 */
+function cmdTryAdvance(step){
+  var st = cmdSeq.steps[cmdIdx];
+  if(!sameStep(st, step)) return false;
+  simInput = [];
+  cmdRepDone++;
+  var n = stepRepeat(st);
+  if(cmdRepDone >= n){
+    cmdGo(cmdIdx + 1);
+  }else{
+    renderCmdSteps();
+    highlightStep(st, cmdRepDone);
+    simSetMsg('<b>' + esc(simStepLabel(st)) + '</b>　' + cmdRepDone + ' / ' + n + '回　押しました（あと' + (n - cmdRepDone) + '回）');
+  }
+  return true;
 }
 function cmdNext(){
   if(!cmdSeq){ toast('先に操作を選んでください'); return; }
@@ -3299,6 +3442,7 @@ function cmdNext(){
 function cmdReset(){
   cmdStop();
   cmdIdx = -1;
+  cmdRepDone = 0;
   simInput = [];
   clearCmdHighlight();
   renderCmdSteps();
@@ -3314,23 +3458,32 @@ function cmdPlay(){
   cmdPlaying = true;
   updatePlayBtn();
   cmdGo(0);
-  var tick = function(){
+  var pressOnce = function(){
     if(!cmdPlaying) return;
     var cur = cmdSeq.steps[cmdIdx];
     if(!cur){ cmdStop(); return; }
+    var n = stepRepeat(cur);
     cmdTimer = setTimeout(function(){
       if(!cmdPlaying) return;
       (cur.keys || []).forEach(function(k){
         var el = simKeyEl(k);
         if(el){ el.classList.add('press'); setTimeout(function(){ el.classList.remove('press'); }, 160); }
       });
+      cmdRepDone++;
+      if(cmdRepDone < n){
+        renderCmdSteps();
+        highlightStep(cur, cmdRepDone);
+        simSetMsg('<b>' + esc(simStepLabel(cur)) + '</b>　' + cmdRepDone + ' / ' + n + '回');
+        pressOnce();
+        return;
+      }
       var wasLast = (cmdIdx + 1 >= cmdSeq.steps.length);
       cmdGo(cmdIdx + 1);
       if(wasLast){ cmdStop(); return; }
-      tick();
-    }, cur.hold ? 1600 : 850);
+      pressOnce();
+    }, cur.hold ? 1600 : (n > 1 ? 480 : 850));
   };
-  tick();
+  pressOnce();
 }
 function cmdStop(){
   cmdPlaying = false;
@@ -3360,6 +3513,8 @@ function renderSettings(){
   $('set-kw-out').value      = settings.dayKeywords.out;
   $('set-cal-url').value     = settings.calendarApiUrl;
   $('set-cal-q').value       = settings.calendarQuery;
+  $('sim-idle-l1').value     = settings.simIdleL1;
+  $('sim-idle-l2').value     = settings.simIdleL2;
 
   renderPhraseList();
   renderEntryNoteList();
@@ -3626,12 +3781,15 @@ function simKeyOptions(selected, allowNone){
 }
 function cmdStepRowHtml(c, st, si){
   var k1 = st.keys[0] || '', k2 = st.keys[1] || '';
+  var n = stepRepeat(st);
   return '<div class="cs-row">'
     + '<span class="cs-no">' + (si + 1) + '</span>'
     + '<select onchange="setCmdStepKey(\'' + c.id + '\',\'' + st.id + '\',0,this.value)">' + simKeyOptions(k1, false) + '</select>'
     + '<select onchange="setCmdStepKey(\'' + c.id + '\',\'' + st.id + '\',1,this.value)">' + simKeyOptions(k2, true) + '</select>'
     + '<label class="cs-hold"><input type="checkbox"' + (st.hold ? ' checked' : '')
     +   ' onchange="setCmdStepHold(\'' + c.id + '\',\'' + st.id + '\',this.checked)">長押し</label>'
+    + '<label class="cs-hold cs-rep">連続<input type="number" min="1" max="20" value="' + n + '"'
+    +   (st.hold ? ' disabled' : '') + ' onchange="setCmdStepRepeat(\'' + c.id + '\',\'' + st.id + '\',this.value)">回</label>'
     + '<span class="cs-ops">'
     +   '<button class="btn btn-ghost btn-sm" onclick="moveCmdStep(\'' + c.id + '\',' + si + ',-1)"'
     +     (si === 0 ? ' disabled' : '') + ' aria-label="上へ">↑</button>'
@@ -3639,10 +3797,26 @@ function cmdStepRowHtml(c, st, si){
     +     (si === c.steps.length - 1 ? ' disabled' : '') + ' aria-label="下へ">↓</button>'
     +   '<button class="btn btn-danger btn-sm" onclick="removeCmdStep(\'' + c.id + '\',\'' + st.id + '\')" aria-label="削除">✕</button>'
     + '</span>'
-    + '<input type="text" class="cs-disp" value="' + esc(st.display) + '" autocomplete="off"'
-    +   ' placeholder="画面に出る文字（任意）例: インストールジョウホウ"'
-    +   ' oninput="setCmdStepDisplay(\'' + c.id + '\',\'' + st.id + '\',this.value)">'
+    + '<div class="cs-lines">'
+    +   '<input type="text" class="cs-disp" value="' + esc(st.l1) + '" autocomplete="off"'
+    +     ' placeholder="画面1行目（任意）例: インストールジョウホウ"'
+    +     ' oninput="setCmdStepLine(\'' + c.id + '\',\'' + st.id + '\',1,this.value)">'
+    +   '<input type="text" class="cs-disp" value="' + esc(st.l2) + '" autocomplete="off"'
+    +     ' placeholder="画面2行目（任意）"'
+    +     ' oninput="setCmdStepLine(\'' + c.id + '\',\'' + st.id + '\',2,this.value)">'
+    + '</div>'
+    + '<div class="cs-memo">'
+    +   '<input type="text" class="cs-note" value="' + esc(st.memo) + '" autocomplete="off"'
+    +     ' placeholder="結果コメント（任意）画面は変わらないが実際に起こること　例: 明細票が印刷されます"'
+    +     ' oninput="setCmdStepMemo(\'' + c.id + '\',\'' + st.id + '\',this.value)">'
+    + '</div>'
     + '</div>';
+}
+/* コマンドごとの折りたたみ開閉状態（見た目だけの状態なので、settingsには入れない） */
+var cmdOpenSet = {};
+function toggleCmdOpen(id){
+  cmdOpenSet[id] = !cmdOpenSet[id];
+  renderCommandList();
 }
 function renderCommandList(){
   var host = $('cmd-list');
@@ -3653,23 +3827,24 @@ function renderCommandList(){
   }
   var html = '';
   settings.commands.forEach(function(c, ci){
-    html += '<div class="slot-edit">'
-      + '<div class="slot-edit-head"><span class="t">コマンド ' + (ci + 1) + '</span>'
-      +   '<span class="gy-ops">'
+    html += '<div class="gy-item' + (cmdOpenSet[c.id] ? ' open' : '') + '" id="gy-cm-' + c.id + '">'
+      + '<div class="gy-head" onclick="toggleCmdOpen(\'' + c.id + '\')">'
+      +   '<span class="caret">▶</span>'
+      +   '<span class="gy-name" style="flex:0 0 auto;">コマンド' + (ci + 1) + '</span>'
+      +   '<input type="text" class="cm-name-inline" value="' + esc(c.name) + '" autocomplete="off"'
+      +     ' placeholder="操作の名前　例: インストール情報を表示する" onclick="event.stopPropagation()"'
+      +     ' oninput="setCommandName(\'' + c.id + '\',this.value)">'
+      +   '<span class="gy-ops" onclick="event.stopPropagation()">'
       +     '<button class="btn btn-ghost btn-sm" onclick="moveCommand(' + ci + ',-1)"' + (ci === 0 ? ' disabled' : '') + ' aria-label="上へ">↑</button>'
       +     '<button class="btn btn-ghost btn-sm" onclick="moveCommand(' + ci + ',1)"' + (ci === settings.commands.length - 1 ? ' disabled' : '') + ' aria-label="下へ">↓</button>'
       +     '<button class="btn btn-danger btn-sm" onclick="removeCommand(\'' + c.id + '\')">削除</button>'
       +   '</span>'
       + '</div>'
-      + '<div class="grid-form" style="margin-bottom:9px;">'
-      +   '<div class="field"><label>操作の名前</label>'
-      +     '<input type="text" value="' + esc(c.name) + '" autocomplete="off" placeholder="例: インストール情報を表示する"'
-      +     ' oninput="setCommandName(\'' + c.id + '\',this.value)"></div>'
-      +   '<div class="field"><label>説明（任意）</label>'
+      + '<div class="gy-body" onclick="event.stopPropagation()">'
+      +   '<div class="field" style="margin-bottom:9px;"><label>説明（任意）</label>'
       +     '<input type="text" value="' + esc(c.note) + '" autocomplete="off" placeholder="例: 保守機能モードに入ってから操作します"'
       +     ' oninput="setCommandNote(\'' + c.id + '\',this.value)"></div>'
-      + '</div>'
-      + '<div class="cs-list">';
+      +   '<div class="cs-list">';
     if(!c.steps.length){
       html += '<div class="hint">まだ手順がありません。「＋ 押すボタンを追加」から順番に登録してください。</div>';
     }
@@ -3678,16 +3853,18 @@ function renderCommandList(){
       + '<div class="row-btns" style="margin-top:9px;">'
       +   '<button class="btn btn-sub btn-sm" onclick="addCmdStep(\'' + c.id + '\')">＋ 押すボタンを追加</button>'
       + '</div>'
-      + '</div>';
+      + '</div></div>';
   });
   host.innerHTML = html;
 }
 function addCommand(){
   if(!requireAdmin()) return;
-  settings.commands.push({ id: uid('cm'), name: '', note: '', steps: [] });
+  var c = { id: uid('cm'), name: '', note: '', steps: [] };
+  settings.commands.push(c);
+  cmdOpenSet[c.id] = true;
   afterSettingsChange(true);
-  var boxes = document.querySelectorAll('#cmd-list .grid-form input');
-  if(boxes.length) boxes[boxes.length - 2].focus();
+  var el = document.querySelector('#gy-cm-' + c.id + ' .cm-name-inline');
+  if(el) el.focus();
 }
 function removeCommand(id){
   if(!requireAdmin()) return;
@@ -3697,6 +3874,7 @@ function removeCommand(id){
   for(var i = 0; i < settings.commands.length; i++){
     if(settings.commands[i].id === id){ settings.commands.splice(i, 1); break; }
   }
+  delete cmdOpenSet[id];
   afterSettingsChange(true);
 }
 function moveCommand(i, d){
@@ -3721,7 +3899,7 @@ function setCommandNote(id, v){
 function addCmdStep(cid){
   if(!requireAdmin()) return;
   var c = findCommand(cid); if(!c) return;
-  c.steps.push({ id: uid('cs'), keys: ['9'], hold: false, display: '' });
+  c.steps.push({ id: uid('cs'), keys: ['9'], hold: false, repeat: 1, l1: '', l2: '' });
   afterSettingsChange(true);
 }
 function removeCmdStep(cid, sid){
@@ -3756,15 +3934,120 @@ function setCmdStepKey(cid, sid, pos, v){
   st.keys = keys.filter(function(k){ return !!k; });
   afterSettingsChange(true);
 }
+/* 長押しと「連続で何回か押す」は同時に成立しないので、片方を設定したらもう片方を既定に戻す */
 function setCmdStepHold(cid, sid, on){
   var st = findCmdStep(findCommand(cid), sid); if(!st) return;
   st.hold = !!on;
+  if(st.hold) st.repeat = 1;
+  afterSettingsChange(true);
+}
+function setCmdStepRepeat(cid, sid, v){
+  var st = findCmdStep(findCommand(cid), sid); if(!st) return;
+  var n = clampInt(v, 1, 20, 1);
+  st.repeat = n;
+  if(n > 1) st.hold = false;
+  afterSettingsChange(true);
+}
+function setCmdStepLine(cid, sid, which, v){
+  var st = findCmdStep(findCommand(cid), sid); if(!st) return;
+  if(which === 1) st.l1 = v; else st.l2 = v;
   afterSettingsChange(false);
 }
-function setCmdStepDisplay(cid, sid, v){
+function setCmdStepMemo(cid, sid, v){
   var st = findCmdStep(findCommand(cid), sid); if(!st) return;
-  st.display = v;
+  st.memo = v;
   afterSettingsChange(false);
+}
+
+/* ---------- コマンド一覧のCSV書き出し・読み込み ---------- */
+var CMD_CSV_HEADER = ['コマンド名', '説明', 'ボタン1', 'ボタン2（同時押し）', '長押し', '連続回数', '画面1行目', '画面2行目', '結果コメント'];
+function csvEscape(v){
+  v = String(v == null ? '' : v);
+  return /[",\n\r]/.test(v) ? '"' + v.replace(/"/g, '""') + '"' : v;
+}
+function exportCommandsCsv(){
+  var lines = [CMD_CSV_HEADER.map(csvEscape).join(',')];
+  settings.commands.forEach(function(c){
+    if(!c.steps.length){
+      lines.push([c.name, c.note, '', '', '', '', '', '', ''].map(csvEscape).join(','));
+      return;
+    }
+    c.steps.forEach(function(st){
+      lines.push([
+        c.name, c.note, st.keys[0] || '', st.keys[1] || '',
+        st.hold ? '1' : '', stepRepeat(st) > 1 ? stepRepeat(st) : '', st.l1 || '', st.l2 || '', st.memo || ''
+      ].map(csvEscape).join(','));
+    });
+  });
+  var csv = '﻿' + lines.join('\r\n') + '\r\n';   /* 先頭にBOMを付けてExcelでも文字化けしないようにする */
+  saveBlob(new Blob([csv], { type: 'text/csv' }), 'oes-commands.csv');
+  toast('CSVを書き出しました');
+}
+/* シンプルなCSVパーサー（ダブルクォートで囲んだフィールド内のカンマ・改行に対応） */
+function parseCsv(text){
+  var rows = [], row = [], field = '', i = 0, inQuotes = false;
+  text = text.replace(/^﻿/, '');
+  while(i < text.length){
+    var ch = text[i];
+    if(inQuotes){
+      if(ch === '"'){
+        if(text[i + 1] === '"'){ field += '"'; i += 2; continue; }
+        inQuotes = false; i++; continue;
+      }
+      field += ch; i++; continue;
+    }
+    if(ch === '"'){ inQuotes = true; i++; continue; }
+    if(ch === ','){ row.push(field); field = ''; i++; continue; }
+    if(ch === '\r'){ i++; continue; }
+    if(ch === '\n'){ row.push(field); rows.push(row); row = []; field = ''; i++; continue; }
+    field += ch; i++;
+  }
+  if(field !== '' || row.length){ row.push(field); rows.push(row); }
+  return rows.filter(function(r){ return r.length > 1 || (r[0] || '').trim() !== ''; });
+}
+function onCommandsCsvChange(inputEl){
+  var file = inputEl.files && inputEl.files[0];
+  inputEl.value = '';
+  if(!file) return;
+  if(!requireAdmin()) return;
+  var reader = new FileReader();
+  reader.onload = function(){
+    importCommandsCsv(String(reader.result || ''));
+  };
+  reader.onerror = function(){ toast('ファイルを読み込めませんでした'); };
+  reader.readAsText(file, 'utf-8');
+}
+function importCommandsCsv(text){
+  var rows = parseCsv(text);
+  if(rows.length && /コマンド名/.test(rows[0][0] || '')) rows.shift();   /* 見出し行を読み飛ばす */
+  if(!rows.length){ toast('CSVにデータがありませんでした'); return; }
+
+  var byName = [], cur = null, skipped = 0;
+  rows.forEach(function(r){
+    var name = (r[0] || '').trim();
+    if(!name) return;
+    if(!cur || cur.name !== name){
+      cur = { name: name, note: r[1] || '', steps: [] };
+      byName.push(cur);
+    }
+    var k1 = (r[2] || '').trim(), k2 = (r[3] || '').trim();
+    if(!k1){ return; }                       /* ボタン1が無い行（コマンド名のみの空手順など）は手順として数えない */
+    if(!simKeyDef(k1) || k1 === 'BLANK'){ skipped++; return; }
+    var keys = [k1];
+    if(k2 && simKeyDef(k2) && k2 !== 'BLANK' && k2 !== k1) keys.push(k2);
+    var hold = /^(1|true|はい|○|TRUE)$/i.test((r[4] || '').trim());
+    var repeat = hold ? 1 : clampInt(r[5], 1, 20, 1);
+    cur.steps.push({ id: uid('cs'), keys: keys, hold: hold, repeat: repeat, l1: r[6] || '', l2: r[7] || '', memo: r[8] || '' });
+  });
+  if(!byName.length){ toast('読み込めるコマンドがありませんでした（ボタン1の列をご確認ください）'); return; }
+  if(!confirm('CSVから' + byName.length + '件のコマンドを読み込みます。今のコマンド一覧と置き換わります。よろしいですか？')) return;
+
+  settings.commands = byName.map(function(c){
+    return { id: uid('cm'), name: c.name, note: c.note, steps: c.steps };
+  });
+  cmdOpenSet = {};
+  afterSettingsChange(true);
+  toast('CSVから' + byName.length + '件読み込みました' + (skipped ? '（' + skipped + '件はボタンが不明のため除外）' : ''));
 }
 
 /* 業態の並び替え（カレンダー画面のプルダウンの順番になる） */
@@ -4001,6 +4284,8 @@ function onCommonChange(){
   settings.dayKeywords.out     = $('set-kw-out').value || '退店報告';
   settings.calendarApiUrl      = $('set-cal-url').value.trim();
   settings.calendarQuery       = $('set-cal-q').value.trim();
+  settings.simIdleL1           = $('sim-idle-l1').value;
+  settings.simIdleL2           = $('sim-idle-l2').value;
   if(settings.timeRange.endHour < settings.timeRange.startHour){
     settings.timeRange.endHour = settings.timeRange.startHour;
   }
