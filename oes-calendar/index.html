@@ -212,12 +212,12 @@ input:focus,select:focus,textarea:focus{border-color:var(--blue);box-shadow:0 0 
 .note b{color:#5E4409;}
 /* 業態ごとの手順書・資料（設定画面の一覧） */
 .gyman-list{display:flex;flex-direction:column;gap:6px;}
-.gyman-item{display:flex;align-items:center;gap:8px;border:1px solid var(--line-w);border-radius:var(--r-s);padding:6px 8px;background:var(--white);}
+.gyman-item{display:flex;align-items:flex-start;gap:8px;border:1px solid var(--line-w);border-radius:var(--r-s);padding:6px 8px;background:var(--white);}
 .gyman-ic{flex-shrink:0;width:30px;height:30px;border-radius:5px;object-fit:cover;}
 .gyman-ic-pdf{display:flex;align-items:center;justify-content:center;background:var(--sky);color:#fff;font-size:9px;font-weight:700;}
-.gyman-name{flex:1;min-width:0;font-size:12.5px;color:var(--blue-d);text-decoration:none;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.gyman-name{flex:1;min-width:0;font-size:12.5px;color:var(--blue-d);text-decoration:none;white-space:normal;word-break:break-all;line-height:1.4;padding-top:2px;}
 .gyman-name:hover{text-decoration:underline;}
-.gyman-size{flex-shrink:0;font-size:11px;color:var(--muted);}
+.gyman-size{flex-shrink:0;font-size:11px;color:var(--muted);padding-top:2px;}
 
 /* ---------- 作業当日 ---------- */
 .day-sum{padding:4px 2px;}
@@ -568,10 +568,6 @@ input:focus,select:focus,textarea:focus{border-color:var(--blue);box-shadow:0 0 
                    onkeydown="if(event.key==='Enter')buildDayFromGyotai()">
           </div>
         </div>
-        <div class="day-manuals" id="day-gyotai-manuals" hidden>
-          <span class="dn-label">📎 手順書・資料</span>
-          <div class="dm-list" id="day-gyotai-manuals-list"></div>
-        </div>
         <div class="grid2" style="margin-top:9px;">
           <div class="field">
             <label for="day-start">開始</label>
@@ -584,6 +580,10 @@ input:focus,select:focus,textarea:focus{border-color:var(--blue);box-shadow:0 0 
         </div>
         <div class="row-btns" style="margin-top:11px;">
           <button class="btn btn-primary btn-block" onclick="buildDayFromGyotai()">この内容で連絡文を作る</button>
+        </div>
+        <div class="day-manuals" id="day-gyotai-manuals" hidden style="margin-top:9px;">
+          <span class="dn-label">📎 手順書・資料</span>
+          <div class="dm-list" id="day-gyotai-manuals-list"></div>
         </div>
         <div class="row-btns" style="margin-top:9px;">
           <button class="btn btn-ghost btn-sm" id="btn-day-clear" onclick="clearDayAll()">クリア（最初からやり直す）</button>
@@ -2135,7 +2135,7 @@ function updateDayGyotaiManuals(){
   if(!manuals || !manuals.length){ box.hidden = true; list.innerHTML = ''; return; }
   var html = '';
   manuals.forEach(function(m){
-    html += '<a class="dm-item" href="' + esc(m.url) + '" target="_blank" rel="noopener">'
+    html += '<a class="dm-item" href="' + esc(m.url) + '" target="_blank" rel="noopener" onclick="return openManualWindow(this.href)">'
       + (m.type === 'pdf'
           ? '<span class="dm-ic dm-ic-pdf">PDF</span>'
           : '<img class="dm-ic dm-ic-img" src="' + esc(m.url) + '" alt="">')
@@ -2900,7 +2900,7 @@ function renderSettings(){
         + (m.type === 'pdf'
             ? '<span class="gyman-ic gyman-ic-pdf">PDF</span>'
             : '<img class="gyman-ic gyman-ic-img" src="' + esc(m.url) + '" alt="">')
-        + '<a class="gyman-name" href="' + esc(m.url) + '" target="_blank" rel="noopener">' + esc(m.name) + '</a>'
+        + '<a class="gyman-name" href="' + esc(m.url) + '" target="_blank" rel="noopener" onclick="return openManualWindow(this.href)">' + esc(m.name) + '</a>'
         + '<span class="gyman-size">' + fmtFileSize(m.size) + '</span>'
         + '<button class="btn btn-danger btn-sm" onclick="removeGyManual(\'' + g.id + '\',\'' + m.id + '\')">削除</button>'
         + '</div>';
@@ -3155,6 +3155,14 @@ function findGyManual(g, mid){
   for(var i = 0; i < g.manuals.length; i++){ if(g.manuals[i].id === mid) return g.manuals[i]; }
   return null;
 }
+/* 手順書・資料を別ウィンドウで開く。OES入替作業APPをホーム画面から起動している場合でも、
+   同一オリジンのリンクをただクリックしただけではアプリ内に留まってしまうことがあるため、
+   明示的にwindow.open()を呼ぶ（ポップアップがブロックされた場合だけ通常のリンク遷移にフォールバックする）。 */
+function openManualWindow(url){
+  var w = null;
+  try{ w = window.open(url, '_blank', 'noopener'); }catch(e){ w = null; }
+  return !w; /* trueを返すと呼び出し元の<a>の既定動作（target="_blank"での遷移）にフォールバックする */
+}
 function fmtFileSize(n){
   n = Number(n) || 0;
   if(n >= 1024*1024) return (n/1024/1024).toFixed(1) + 'MB';
@@ -3355,6 +3363,7 @@ function copyPh(el){
    厳密なアクセス制御は ① か .htaccess のBasic認証で行う。
    ========================================================================= */
 var ADMIN_KEY = 'oes-calendar-admin-unlocked';
+var ADMIN_PW_KEY = 'oes-calendar-admin-pw';
 var ADMIN_CONFIG_FILE = 'config.json';       /* パスワードのハッシュを置く設定ファイル */
 var ADMIN_AUTH_ENDPOINT = 'admin-auth.php';  /* あればサーバー側で照合する */
 var ADMIN_SALT = 'oes-calendar:';
@@ -3470,7 +3479,7 @@ function unlockSettings(){
   if(!v){ toast('管理者パスワードを入力してください'); return; }
   verifyAdminPassword(v, function(ok){
     if(!ok){ toast('パスワードが違います'); return; }
-    try{ sessionStorage.setItem(ADMIN_KEY, '1'); }catch(e){}
+    try{ sessionStorage.setItem(ADMIN_KEY, '1'); sessionStorage.setItem(ADMIN_PW_KEY, v); }catch(e){}
     adminPw = v;
     if(el) el.value = '';
     applyLockState();
@@ -3479,9 +3488,16 @@ function unlockSettings(){
 }
 function lockSettings(){
   adminPw = '';
-  try{ sessionStorage.removeItem(ADMIN_KEY); }catch(e){}
+  try{ sessionStorage.removeItem(ADMIN_KEY); sessionStorage.removeItem(ADMIN_PW_KEY); }catch(e){}
   applyLockState();
   toast('設定をロックしました');
+}
+/* ロック解除状態のまま画面を開き直しても（PWAの再起動など）パスワードを聞き直さないための復元。
+   isAdminUnlocked()がtrueのときだけ、同じタブ内のsessionStorageから平文を戻す
+   （タブを閉じる／lockSettings()で消える。他のタブや別端末には残らない）。 */
+function restoreAdminPw(){
+  if(!isAdminUnlocked()) return;
+  try{ adminPw = sessionStorage.getItem(ADMIN_PW_KEY) || ''; }catch(e){}
 }
 /* 変更系の処理はここを通す（ロック中は何も変更させない） */
 function requireAdmin(){
@@ -3969,6 +3985,7 @@ function installPwa(){
    起動処理
    ========================================================================= */
 (function init(){
+  restoreAdminPw();
   loadAdminConfig();
   loadSettings();
 

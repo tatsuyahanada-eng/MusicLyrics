@@ -19,8 +19,14 @@
      ソルトは `ADMIN_SALT` = `'oes-calendar:'`） → ③ 組み込みの `ADMIN_HASH_FALLBACK`（初期パスワード）。
   ②③はハッシュなので平文は読めないが総当たりは防げない。厳密に守るなら①か
   `deploy/.htaccess.sample` のBasic認証を併用する。初期パスワードは `deploy/config.php` を参照。
-  解除時に入力された平文は `adminPw`（メモリのみ・`lockSettings()` で破棄）に置き、
-  共有設定の保存POSTにだけ使う。**sessionStorage等に保存しないこと。**
+  解除時に入力された平文は `adminPw` に置き、共有設定の保存や手順書アップロードのPOSTに使う。
+  **`sessionStorage`（キー`ADMIN_PW_KEY`＝`'oes-calendar-admin-pw'`）にも保存し、`lockSettings()`
+  またはタブを閉じるまで残す**（利用者の指定：ロック解除中に画面を開き直しても
+  ＝PWAの再起動やページ再読み込みでも、手順書アップロードのたびに毎回パスワードを
+  聞き直されるのは不便、という要望で、当初の「メモリのみ・保存しない」方針から変更した。
+  `restoreAdminPw()` が起動時に `isAdminUnlocked()`（`sessionStorage`の別キー）がtrueのときだけ
+  読み戻す。`sessionStorage`はそのブラウザタブを閉じれば消え、他のタブ・他の端末には残らないため、
+  「ロック中は誰でも見られる設定タブ」という前提のリスクを大きくは広げない、という判断）。
 - **「担当者」という概念は廃止済み。** 担当者名・担当者定型文・担当者ごとのカレンダーURL・
   差し込み文字 `{担当者}` `{担当者定型文}` はすべて削除した。復活させないこと
   （旧い設定ファイルに残っていても `fillTemplate()` が空文字に置き換えて消す）。
@@ -328,10 +334,23 @@ GoogleカレンダーへOES入替作業の予定を登録するための、単�
     （パス操作・上書き事故防止。元のファイル名は表示用の`name`としてのみ`settings.json`に残す）。
   - `manual-delete.php`は`url`をそのまま信用せず`basename()`でファイル名部分だけを取り出してから
     `manuals/`フォルダ内のパスを組み立てる（`../`等でのパス操作を防ぐため）。
-  - 作業当日タブでは、業態プルダウンの直下（店舗名の下・開始時刻の上）に一覧を表示する
-    （`#day-gyotai-manuals`／`updateDayGyotaiManuals()`）。画像はサムネイル、PDFは「PDF」バッジで、
-    タップ（クリック）すると新しいタブでそのまま開く。**「この内容で連絡文を作る」を押す前から見える**
-    ようにする（店舗名の入力や連絡文の作成を待たず、業態を選んだ時点で参照できることが目的のため）。
+  - 設定画面の一覧（`.gyman-name`）は**ファイル名を省略せず全文表示し、長ければ折り返す**
+    （`white-space:normal;word-break:break-all;`。以前は`text-overflow:ellipsis`で1行に切り詰めて
+    いたが、どのファイルか分からなくなるという利用者の指摘で変更した。日本語ファイル名も
+    `word-break:break-all`で単語区切りに関係なく折り返す）。作業当日タブ側の短い表示
+    （`.dm-name`、`max-width:180px`で省略）はこの変更の対象外（コンパクトな一覧を維持する）。
+  - 作業当日タブでは、**「この内容で連絡文を作る」ボタンの下、「クリア（最初からやり直す）」ボタンの上**
+    に一覧を表示する（`#day-gyotai-manuals`／`updateDayGyotaiManuals()`。利用者の指定による配置。
+    当初は業態プルダウンの直下に置いていたが、この位置に変更した）。
+    **表示の有無・中身は連絡文を作ったかどうかに関係なく、業態を選んだ時点で決まる**
+    （`onDayGyotaiChange()`から呼ぶ。DOM上の位置を移しただけで、この条件は変えていない）。
+    画像はサムネイル、PDFは「PDF」バッジで表示し、タップ（クリック）すると`openManualWindow()`で
+    別ウィンドウとして開く（`window.open(url, '_blank', 'noopener')`を明示的に呼ぶ。ポップアップが
+    ブロックされた場合だけ`<a target="_blank">`本来の遷移にフォールバックする。単なる`<a target="_blank">`
+    だけだと、ホーム画面から起動したPWA＝WebAPK内では同一オリジンのリンクがアプリ内に留まってしまう
+    ことがある、という利用者からの指摘で追加した。ただしAndroidのTWAは検証済みドメイン内の
+    トップレベル遷移をアプリ内に留める仕様があり、機種・Chromeのバージョンによっては
+    この対策でも改善しない場合がある）。
     該当する資料が無い業態を選んだときは`hidden`属性で非表示にする。
   - **PHPが使えないサーバーでは利用できない**（`settings-save.php`と異なり、ファイルの保存には
     サーバー側の処理が必須で、ダウンロード＋FTPアップロードのような代替経路は用意していない）。
@@ -389,8 +408,9 @@ GoogleカレンダーへOES入替作業の予定を登録するための、単�
 2. **🛠️ 作業当日** — **主動線は「業態をプルダウンで選び、店舗名を入れるだけ」**（`#day-gyotai` /
    `#day-tenpo` →「この内容で連絡文を作る」＝`buildDayFromGyotai()`）。その業態・時間帯の定型文から
    入店/中間報告/退店を作る。時間帯（`#day-slot-field`）は**その業態の時間帯が2つ以上あるときだけ**出す。
-   **業態を選んだ時点で、その業態の「手順書・資料」（`g.manuals`）を店舗名の下に表示する**
-   （`#day-gyotai-manuals`。連絡文を作る前から見える。詳細は「重要なルール」の該当項目を参照）。
+   **業態を選んだ時点で、その業態の「手順書・資料」（`g.manuals`）が決まる**
+   （`#day-gyotai-manuals`。表示位置は「この内容で連絡文を作る」ボタンの下・「クリア」ボタンの上。
+   詳細は「重要なルール」の該当項目を参照）。
    Googleカレンダーの説明文の貼り付けは、同じカード内の折りたたみ（`#gy-paste`）に入れた**補助動線**。
    各欄のコピー→「今日の作業」カードの「Google Chat を開く」（`#btn-open-chat`）でその業態・店舗のGoogle Chatを
    開いて貼り付ける（①②③個別のChatボタンは廃止済み。同じボタンは画面下の「よく使う文」欄の直前にもある）。
@@ -431,6 +451,8 @@ GoogleカレンダーへOES入替作業の予定を登録するための、単�
 | `removeGyManual(gid,mid)` / `deleteGyManualFile(url)` | 手順書・資料の削除（一覧から即除去＋共有設定を保存／サーバー上の実ファイル削除は失敗しても無視） |
 | `normalizeGyotaiManuals(raw)` / `findGyManual(g,mid)` / `fmtFileSize(n)` | 手順書・資料の正規化／検索／サイズ表示（「1.2MB」等）用の整形 |
 | `updateDayGyotaiManuals()` | 作業当日タブで選んだ業態の手順書・資料を`#day-gyotai-manuals`へ一覧表示。該当なしは非表示 |
+| `openManualWindow(url)` | 手順書・資料を別ウィンドウで開く（`window.open()`を明示的に呼び、失敗時だけ通常のリンク遷移にフォールバック） |
+| `restoreAdminPw()` | 起動時、ロック解除状態が残っていれば`sessionStorage`から`adminPw`（平文パスワード）を復元する |
 | `renderEntryNoteRow()` / `onEntryNoteToggle()` / `rebuildEntryNoteBlock()` / `stripEntryNoteLines()` | ①入店連絡に足す文（選択式） |
 | `renderEntryNoteList()` ほか | 設定画面での「入店連絡に足す文」の追加・編集・並び替え・削除 |
 | `renderMidNoteRow()` / `onMidNoteToggle()` / `rebuildMidNoteBlock()` / `stripMidNoteLines()` | ②中間報告に足す文（選択式。entryNotesと同じ仕組みをmidNotesに複製したもの） |
