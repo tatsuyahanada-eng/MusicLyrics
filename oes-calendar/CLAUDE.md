@@ -53,6 +53,7 @@ GoogleカレンダーへOES入替作業の予定を登録するための、単�
 | `admin-auth.php` | `config.php` を使ってサーバー側でパスワードを照合するエンドポイント（同上、そのまま置く） |
 | `manual-upload.php` | 業態ごとの手順書・資料（画像・PDF）のアップロード用エンドポイント（同上、そのまま置く。保存先の `manuals/` フォルダは初回アクセス時に自動作成される） |
 | `manual-delete.php` | 業態ごとの手順書・資料の実ファイルを削除するエンドポイント（同上、そのまま置く） |
+| `manual-view.php` | PDFをダウンロード形式（`Content-Disposition: attachment`）で渡すエンドポイント（同上、そのまま置く。端末の既定のPDFアプリで開けるようにするため） |
 | `deploy/.htaccess.sample` | Basic認証用サンプル（内容がサーバーごとに違うため手動設置。`.htaccess`として置く） |
 | `deploy/config.php` | 管理者パスワードの置き場所（PHP。ここが唯一の平文。**秘密情報のため自動配布の対象にせず、手動で`config.php`として置く**。一度置けば以降のZIP更新で上書きされない） |
 | `deploy/config.json.sample` | PHPが使えない場合のパスワード設定（SHA-256ハッシュ）。手動で`config.json`として置く |
@@ -334,23 +335,30 @@ GoogleカレンダーへOES入替作業の予定を登録するための、単�
     （パス操作・上書き事故防止。元のファイル名は表示用の`name`としてのみ`settings.json`に残す）。
   - `manual-delete.php`は`url`をそのまま信用せず`basename()`でファイル名部分だけを取り出してから
     `manuals/`フォルダ内のパスを組み立てる（`../`等でのパス操作を防ぐため）。
-  - 設定画面の一覧（`.gyman-name`）は**ファイル名を省略せず全文表示し、長ければ折り返す**
-    （`white-space:normal;word-break:break-all;`。以前は`text-overflow:ellipsis`で1行に切り詰めて
-    いたが、どのファイルか分からなくなるという利用者の指摘で変更した。日本語ファイル名も
-    `word-break:break-all`で単語区切りに関係なく折り返す）。作業当日タブ側の短い表示
-    （`.dm-name`、`max-width:180px`で省略）はこの変更の対象外（コンパクトな一覧を維持する）。
+  - 設定画面の一覧（`.gyman-name`）・作業当日タブの一覧（`.dm-name`）は**どちらもファイル名を
+    省略せず全文表示し、長ければ折り返す**（`white-space:normal;word-break:break-all;`。
+    以前は両方とも`text-overflow:ellipsis`／`.dm-name`は`max-width:180px`で1行に切り詰めて
+    いたが、どのファイルか分からなくなるという利用者の指摘で両方とも変更した。日本語ファイル名も
+    `word-break:break-all`で単語区切りに関係なく折り返す）。
   - 作業当日タブでは、**「この内容で連絡文を作る」ボタンの下、「クリア（最初からやり直す）」ボタンの上**
     に一覧を表示する（`#day-gyotai-manuals`／`updateDayGyotaiManuals()`。利用者の指定による配置。
     当初は業態プルダウンの直下に置いていたが、この位置に変更した）。
     **表示の有無・中身は連絡文を作ったかどうかに関係なく、業態を選んだ時点で決まる**
     （`onDayGyotaiChange()`から呼ぶ。DOM上の位置を移しただけで、この条件は変えていない）。
-    画像はサムネイル、PDFは「PDF」バッジで表示し、タップ（クリック）すると`openManualWindow()`で
-    別ウィンドウとして開く（`window.open(url, '_blank', 'noopener')`を明示的に呼ぶ。ポップアップが
-    ブロックされた場合だけ`<a target="_blank">`本来の遷移にフォールバックする。単なる`<a target="_blank">`
-    だけだと、ホーム画面から起動したPWA＝WebAPK内では同一オリジンのリンクがアプリ内に留まってしまう
-    ことがある、という利用者からの指摘で追加した。ただしAndroidのTWAは検証済みドメイン内の
-    トップレベル遷移をアプリ内に留める仕様があり、機種・Chromeのバージョンによっては
-    この対策でも改善しない場合がある）。
+    画像はサムネイル、PDFは「PDF」バッジで表示する。
+  - **タップ（クリック）したときのリンク先は`manualHref(m)`で種類ごとに変える。**
+    画像はそのまま`m.url`（`manuals/xxx.png`）を直接開く。**PDFは`manual-view.php`を経由させる**
+    （`manual-view.php?file=<manuals/内のファイル名>&name=<元のファイル名>`）。理由:
+    ホーム画面から起動したPWA（WebAPK）の中でPDFをその場で開こうとすると、Androidの仕様で
+    同一オリジンのページがアプリ内に留まってしまい、PDFがまともに開けない
+    （`window.open()`で別ウィンドウを試みても改善しないと利用者から報告された）。
+    `manual-view.php`はファイルを`Content-Disposition: attachment`で返す＝ダウンロードとして渡すことで、
+    Android側の「ダウンロード完了→開く」の流れに乗せ、Acrobat Readerなど端末の既定のPDFアプリで
+    開けるようにする（`filename*=UTF-8''...`で日本語ファイル名も正しく渡す）。
+    画像はどのブラウザでも問題なく表示できアプリへの受け渡しが不要なため、この対象外（従来どおり直接開く）。
+    リンクのクリック自体は引き続き`openManualWindow()`（`window.open()`を明示的に呼ぶ）を通す
+    （ポップアップブロック時は`<a target="_blank">`本来の遷移にフォールバック。PDF側は最終的に
+    ダウンロードとして処理されるため実害はない）。
     該当する資料が無い業態を選んだときは`hidden`属性で非表示にする。
   - **PHPが使えないサーバーでは利用できない**（`settings-save.php`と異なり、ファイルの保存には
     サーバー側の処理が必須で、ダウンロード＋FTPアップロードのような代替経路は用意していない）。
@@ -452,6 +460,7 @@ GoogleカレンダーへOES入替作業の予定を登録するための、単�
 | `normalizeGyotaiManuals(raw)` / `findGyManual(g,mid)` / `fmtFileSize(n)` | 手順書・資料の正規化／検索／サイズ表示（「1.2MB」等）用の整形 |
 | `updateDayGyotaiManuals()` | 作業当日タブで選んだ業態の手順書・資料を`#day-gyotai-manuals`へ一覧表示。該当なしは非表示 |
 | `openManualWindow(url)` | 手順書・資料を別ウィンドウで開く（`window.open()`を明示的に呼び、失敗時だけ通常のリンク遷移にフォールバック） |
+| `manualHref(m)` | 手順書・資料のリンク先URLを種類ごとに決める（画像は`m.url`を直接、PDFは`manual-view.php`経由） |
 | `restoreAdminPw()` | 起動時、ロック解除状態が残っていれば`sessionStorage`から`adminPw`（平文パスワード）を復元する |
 | `renderEntryNoteRow()` / `onEntryNoteToggle()` / `rebuildEntryNoteBlock()` / `stripEntryNoteLines()` | ①入店連絡に足す文（選択式） |
 | `renderEntryNoteList()` ほか | 設定画面での「入店連絡に足す文」の追加・編集・並び替え・削除 |
@@ -537,14 +546,15 @@ Basic認証を使う場合は `deploy/.htaccess.sample` を参考にする（`Au
 （「ZIPファイル用意して」と言われたときだけ作る、という扱いにしない）。
 - 対象: `index.html` `manifest.json` `manual.html` `sw.js` `icon-192.png` `icon-512.png`
   `icon-512-maskable.png` `assets/` `settings-save.php` `admin-auth.php` `manual-upload.php`
-  `manual-delete.php` `deploy/`（サーバー配置に関係する一式。`CLAUDE.md` `SPEC.md`
+  `manual-delete.php` `manual-view.php` `deploy/`（サーバー配置に関係する一式。`CLAUDE.md` `SPEC.md`
   `README.md` `legacy/` `apps-script/` は開発用ドキュメントなので含めない）。
 - ZIPの中身は**サーバーのドキュメントルート直下に展開したときの相対パスと同じ階層**にする
   （`oes-app/index.html` のような余計な1段フォルダを作らない。`zip -r ../oes-app.zip index.html
   manifest.json manual.html sw.js icon-*.png assets settings-save.php admin-auth.php
-  manual-upload.php manual-delete.php deploy` のように、対象ディレクトリ内から直接zip化する）。
-- **`settings-save.php` `admin-auth.php` `manual-upload.php` `manual-delete.php` はリポジトリの
-  直下（index.htmlと同じ階層）に置くこと。`deploy/`の中には戻さない。** これらは秘密情報を
+  manual-upload.php manual-delete.php manual-view.php deploy` のように、対象ディレクトリ内から
+  直接zip化する）。
+- **`settings-save.php` `admin-auth.php` `manual-upload.php` `manual-delete.php` `manual-view.php`
+  はリポジトリの直下（index.htmlと同じ階層）に置くこと。`deploy/`の中には戻さない。** これらは秘密情報を
   含まないため、利用者が手動でコピー・リネームしなくてもZIP展開だけでそのまま動く設計にしている
   （以前は`deploy/`のサンプルを手動でコピーする方式だったが、置き忘れによる不具合報告を受けて
   この形に変更した）。一方 `config.php`（管理者パスワードという秘密情報そのもの）と

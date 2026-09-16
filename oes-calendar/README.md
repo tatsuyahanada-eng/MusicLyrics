@@ -64,11 +64,13 @@ GoogleカレンダーへOES入替作業の予定をまとめて登録するた�
 ### 業態ごとの手順書・資料（画像・PDF）について
 
 設定タブの各業態の中で、手順書や注意事項の画像・PDFを登録できます（管理者のみ・1件30MBまで）。
-登録すると、作業当日タブでその業態を選んだ時点で店舗名の下に表示され、探すことなく開けます。
+登録すると、作業当日タブで「この内容で連絡文を作る」ボタンの下に表示され、探すことなく開けます。
+**PDFはタップするとダウンロードされ、Acrobat Readerなど端末の既定のPDFアプリで開けます**
+（ホーム画面から起動したアプリの中ではPDFがうまく開けないことがあるための対応です）。
 
-`manual-upload.php` / `manual-delete.php` はリポジトリ直下（`settings-save.php`と同じ場所）に既に
-置いてあるので、手動でコピー・移動する必要はありません（配布ZIPを展開すればそのまま使えます）。
-最初にアップロードしたときに、ファイルを保存するための `manuals/` フォルダが自動で作られます
+`manual-upload.php` / `manual-delete.php` / `manual-view.php` はリポジトリ直下（`settings-save.php`と
+同じ場所）に既に置いてあるので、手動でコピー・移動する必要はありません（配布ZIPを展開すればそのまま
+使えます）。最初にアップロードしたときに、ファイルを保存するための `manuals/` フォルダが自動で作られます
 （設置先フォルダへの書き込み権限が必要です。**PHPが動くサーバーが必須**。
 `settings-save.php` と異なり、PHPが使えない場合の代替手段はありません）。
 
@@ -132,6 +134,7 @@ admin-auth.php         ← 任意。config.php とセットで使うパスワー
 settings-save.php      ← 任意。PHPが使えるサーバーなら共有設定をその場で保存できる
 manual-upload.php      ← 任意。業態ごとの手順書・資料（画像・PDF）をアップロードできる（PHP必須）
 manual-delete.php      ← 任意。上記の資料をサーバーから削除する（PHP必須）
+manual-view.php        ← 任意。PDFを端末の既定のアプリで開けるようにする（PHP必須）
 config.php             ← 【手動で設置】管理者パスワード（PHPが使えるサーバー向け・推奨）。
                           秘密情報のため配布ZIPには含まれない。deploy/config.php を元に1回だけ用意する
 config.json            ← 【手動で設置・任意】PHPが使えない場合のパスワード設定（ハッシュ）。
@@ -171,7 +174,7 @@ Basic認証をかける場合は [`deploy/.htaccess.sample`](deploy/.htaccess.sa
 | `assets/` | ロゴ画像・機器画像・PWAアイコン |
 | `apps-script/` | Googleカレンダー連携用のApps Scriptコード（現在は停止中の機能。参考用） |
 | `manifest.json` `sw.js` `icon-*.png` | PWA（アプリとしてインストール）用 |
-| `settings-save.php` `admin-auth.php` `manual-upload.php` `manual-delete.php` | サーバー側の任意エンドポイント（秘密情報を含まないため配布ZIPにそのまま含まれる。PHPが動く場合のみ機能する） |
+| `settings-save.php` `admin-auth.php` `manual-upload.php` `manual-delete.php` `manual-view.php` | サーバー側の任意エンドポイント（秘密情報を含まないため配布ZIPにそのまま含まれる。PHPが動く場合のみ機能する） |
 | `deploy/` | 秘密情報・サーバー固有設定など、手動での設置が前提のサンプル（管理者パスワード・Basic認証・アップロード上限のPHP設定・ハッシュ作成ページ） |
 | `legacy/` | Claude Chatで作成した旧版（参照用・非稼働） |
 

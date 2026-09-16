@@ -263,10 +263,11 @@ Googleカレンダーの説明文の貼り付け（`#day-paste` → `loadDayFrom
 - **業態ごとに「手順書・資料」（画像・PDF）を複数登録でき、業態を選んだ時点で内容が決まる**
   （`g.manuals[]` = `{id, name, type, url, size}`の配列 / `#day-gyotai-manuals` / `updateDayGyotaiManuals()`）。
   **表示位置は「この内容で連絡文を作る」ボタンの下・「クリア」ボタンの上**（利用者の指定）。
-  画像はサムネイル、PDFは「PDF」の小さなバッジで表示し、タップ（クリック）すると`openManualWindow()`で
-  別ウィンドウとして開く（`window.open()`を明示的に呼ぶ。ホーム画面から起動したPWA内で同一オリジンの
-  リンクがアプリ内に留まってしまう問題への対策。Androidの機種・バージョンによっては完全には
-  改善しないことがある）。連絡文をまだ作っていなくても中身は決まる（業態を選んだ時点で）。
+  画像はサムネイル、PDFは「PDF」の小さなバッジで表示する。タップ（クリック）したときのリンク先は
+  種類ごとに違う（`manualHref(m)`）: 画像はそのまま直接開き、**PDFは`manual-view.php`を経由して
+  ダウンロード形式（`Content-Disposition: attachment`）で渡す**ことで、端末の既定のPDFアプリ
+  （Acrobat Readerなど）で開けるようにする（ホーム画面から起動したPWA内ではPDFがまともに開けない
+  という問題への対策。詳しくは5.2節参照）。連絡文をまだ作っていなくても中身は決まる（業態を選んだ時点で）。
   該当する資料が無い業態では非表示。詳しい保存の仕組み（アップロード先のサーバー、権限、対応形式）は 5.2 を参照。
 - 店舗名は `applySuffix()` で語尾（既定は「店」）を補ってから使う。生成した内容は `setDayCtx()` に渡すため、
   「今日の作業」の表示・Chatボタンの業態＋店舗照合・よく使う文の差し込み文字も従来どおり働く。
@@ -501,22 +502,34 @@ Googleカレンダーの説明文の貼り付け（`#day-paste` → `loadDayFrom
 - 各業態の中にある「＋ ファイルを追加（画像・PDF）」（`addGyManualClick(gid)`）を押すとファイル選択が開き、
   選ぶと `uploadGyManual(gid, file)` が管理者パスワード付きで `manual-upload.php` へアップロードする。
   成功すると一覧（サムネイル・ファイル名・サイズ・削除ボタン）に追加され、`settings.json` へ自動保存される。
-  **ファイル名は省略せず全文を折り返して表示する**（`.gyman-name`、`word-break:break-all`）。
+  **ファイル名は省略せず全文を折り返して表示する**（設定画面の`.gyman-name`・作業当日タブの`.dm-name`
+  どちらも`word-break:break-all`。以前は`.dm-name`だけ`max-width:180px`で省略していたが統一した）。
 - 対応形式は画像（jpg/png/gif/webp）とPDF、**1件30MBまで**。クライアント側でも簡易チェックするが、
   実際の検証はサーバー側（`manual-upload.php` が `finfo` でファイルの中身を見て判定）で行う。
 - 削除（`removeGyManual(gid, mid)`）は確認ダイアログの後、一覧と `settings.json` から即座に取り除く。
   サーバー上の実ファイルの削除は `manual-delete.php` へ依頼するが、失敗しても一覧には影響しない
   （孤立したファイルが1つ残るだけで実害がないため）。
 - 作業当日タブでは、業態を選んだ時点（連絡文を作る前でも）で内容が決まり、「この内容で連絡文を作る」
-  ボタンの下・「クリア」ボタンの上に一覧表示される。タップ（クリック）すると `openManualWindow()`
-  経由で別ウィンドウとして開く（4.1節参照）。
+  ボタンの下・「クリア」ボタンの上に一覧表示される。タップ（クリック）すると`manualHref(m)`が
+  種類ごとに決めたURLへ`openManualWindow()`（`window.open()`）経由で遷移する（4.1節参照）。
+- **PDFは`manual-view.php`を経由し、ダウンロード形式（`Content-Disposition: attachment`、
+  `filename*=UTF-8''...`で日本語ファイル名も維持）で渡す。** ホーム画面から起動したPWA
+  （WebAPK）の中でPDFをその場で開こうとすると、Androidの仕様で同一オリジンのページがアプリ内に
+  留まってしまい、`window.open()`で別ウィンドウを試みても改善しないという不具合が報告されたための対策。
+  ダウンロードとして渡せばAndroid側の「ダウンロード完了→開く」の流れに乗り、Acrobat Readerなど
+  端末の既定のPDFアプリで開ける。画像はこの対象外（`m.url`をそのまま直接開く。画像はどのブラウザでも
+  問題なく表示でき、外部アプリへの受け渡しが不要なため）。
+  `manual-view.php`は`?file=<manuals/内のランダムなファイル名>&name=<元のファイル名>`を受け取り、
+  `file`は`basename()`でパス操作を防いだ上で`manuals/`フォルダ内のみ参照する。認証は不要
+  （一覧に出ているファイルをそのまま渡すだけで、`manuals/`への直リンクと実質同じ扱いのため）。
 - **`manual-upload.php` が置かれていない・PHPが使えないサーバーでは利用できない**
   （`settings-save.php` と違い、ダウンロード＋FTPアップロードのような代替経路は無い）。
   その場合はアップロード時にエラーメッセージで案内する。
-- `manual-upload.php` / `manual-delete.php` はリポジトリの直下（index.htmlと同じ階層）に置いてあり、
-  手動でのコピー・リネームは不要（配布ZIPを展開すればそのまま使える）。
-  パスワードは `settings-save.php` と同じ `config.php`（秘密情報のため`deploy/`に置き、手動で設置する）
-  から読み込んで照合する。
+- `manual-upload.php` / `manual-delete.php` / `manual-view.php` はリポジトリの直下（index.htmlと同じ階層）
+  に置いてあり、手動でのコピー・リネームは不要（配布ZIPを展開すればそのまま使える）。
+  `manual-upload.php` / `manual-delete.php` のパスワードは `settings-save.php` と同じ `config.php`
+  （秘密情報のため`deploy/`に置き、手動で設置する）から読み込んで照合する
+  （`manual-view.php` はファイルを渡すだけで認証は不要）。
   `manual-upload.php` は保存先の `manuals/` フォルダを初回アクセス時に自動作成し、
   中に実行不可化用の `.htaccess` も自動生成する（アップロードされたファイルの中でスクリプトが
   実行されないようにする多層防御）。保存ファイル名は元のファイル名を使わずランダムな名前にする。
@@ -761,13 +774,13 @@ sessionStorage['oes-calendar-admin-pw'] = '（入力されたパスワード）'
 ## 10. 認証・配置
 
 - 配置: ドキュメントルート配下に `index.html` / `manual.html` / `assets/` / `settings-save.php` /
-  `admin-auth.php` / `manual-upload.php` / `manual-delete.php` を同じ階層で置く（配布ZIPを展開すれば
-  この4つのPHPファイルは最初からこの階層に入っているので、手動でコピー・リネームする必要はない）。
-  共有設定を使う場合は同じ場所に `settings.json`（アプリが書き出したもの）を置く。
+  `admin-auth.php` / `manual-upload.php` / `manual-delete.php` / `manual-view.php` を同じ階層で置く
+  （配布ZIPを展開すればこの5つのPHPファイルは最初からこの階層に入っているので、手動でコピー・
+  リネームする必要はない）。共有設定を使う場合は同じ場所に `settings.json`（アプリが書き出したもの）を置く。
   PHPが動くサーバーであれば `settings-save.php` によりアプリの「共有設定を保存」からサーバーへ
   直接保存でき（`settings.json` を書き込むためフォルダに書き込み権限が必要）、
-  業態ごとの手順書・資料（画像・PDF）機能も `manual-upload.php` / `manual-delete.php` により使える
-  （アップロードしたファイルを保存する `manuals/` フォルダをこのスクリプトが自動で作成するため、
+  業態ごとの手順書・資料（画像・PDF）機能も `manual-upload.php` / `manual-delete.php` / `manual-view.php`
+  により使える（アップロードしたファイルを保存する `manuals/` フォルダをこのスクリプトが自動で作成するため、
   設置場所に書き込み権限が必要）。
   ただし、いずれもパスワード照合には**秘密情報を含む** `config.php`（または`config.json`）が必要で、
   これらは自動配布の対象にせず `deploy/` フォルダのサンプルを元に**手動で1回だけ**用意する
@@ -797,6 +810,7 @@ sessionStorage['oes-calendar-admin-pw'] = '（入力されたパスワード）'
   でのみ表示される。iOS Safari等では表示されず、手動手順（メニューからのインストール）の案内のみになる。
 - コピー機能は `https://` 配信が確実。非セキュアな環境では `execCommand` によるフォールバックで動作する。
 - ICSインポートは確認なしで一括登録されるため、取込前の確認が必要。
-- 業態ごとの手順書・資料（画像・PDF）のアップロード・削除は `manual-upload.php` / `manual-delete.php` が
-  置かれたPHPサーバーでのみ使える。`settings-save.php` と異なり、ダウンロード＋FTPアップロードのような
-  代替経路は無いため、PHPが使えないサーバーではこの機能自体を利用できない。
+- 業態ごとの手順書・資料（画像・PDF）のアップロード・削除・PDFの表示（`manual-view.php`）は
+  対応するPHPファイルが置かれたPHPサーバーでのみ使える。`settings-save.php` と異なり、
+  ダウンロード＋FTPアップロードのような代替経路は無いため、PHPが使えないサーバーではこの機能自体を
+  利用できない。

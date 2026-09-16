@@ -250,11 +250,11 @@ input:focus,select:focus,textarea:focus{border-color:var(--blue);box-shadow:0 0 
 }
 .day-manuals .dn-label{display:block; font-weight:700; color:var(--blue-d); font-size:12.5px; margin-bottom:6px;}
 .dm-list{display:flex;flex-wrap:wrap;gap:7px;}
-.dm-item{display:flex;align-items:center;gap:6px;border:1px solid var(--line);border-radius:var(--r-s);
+.dm-item{display:flex;align-items:flex-start;gap:6px;border:1px solid var(--line);border-radius:var(--r-s);
   background:var(--white);padding:5px 9px 5px 5px;text-decoration:none;max-width:100%;}
 .dm-ic{flex-shrink:0;width:26px;height:26px;border-radius:4px;object-fit:cover;}
 .dm-ic-pdf{display:flex;align-items:center;justify-content:center;background:var(--sky);color:#fff;font-size:8px;font-weight:700;}
-.dm-name{font-size:12.5px;color:var(--blue-d);font-weight:700;max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.dm-name{font-size:12.5px;color:var(--blue-d);font-weight:700;white-space:normal;word-break:break-all;line-height:1.4;padding-top:2px;}
 /* 入店連絡に足す文（チェックしたものだけが本文に入る） */
 .note-row{display:flex;flex-direction:column;gap:5px;margin-bottom:7px;}
 .note-row label{
@@ -2135,7 +2135,7 @@ function updateDayGyotaiManuals(){
   if(!manuals || !manuals.length){ box.hidden = true; list.innerHTML = ''; return; }
   var html = '';
   manuals.forEach(function(m){
-    html += '<a class="dm-item" href="' + esc(m.url) + '" target="_blank" rel="noopener" onclick="return openManualWindow(this.href)">'
+    html += '<a class="dm-item" href="' + esc(manualHref(m)) + '" target="_blank" rel="noopener" onclick="return openManualWindow(this.href)">'
       + (m.type === 'pdf'
           ? '<span class="dm-ic dm-ic-pdf">PDF</span>'
           : '<img class="dm-ic dm-ic-img" src="' + esc(m.url) + '" alt="">')
@@ -2900,7 +2900,7 @@ function renderSettings(){
         + (m.type === 'pdf'
             ? '<span class="gyman-ic gyman-ic-pdf">PDF</span>'
             : '<img class="gyman-ic gyman-ic-img" src="' + esc(m.url) + '" alt="">')
-        + '<a class="gyman-name" href="' + esc(m.url) + '" target="_blank" rel="noopener" onclick="return openManualWindow(this.href)">' + esc(m.name) + '</a>'
+        + '<a class="gyman-name" href="' + esc(manualHref(m)) + '" target="_blank" rel="noopener" onclick="return openManualWindow(this.href)">' + esc(m.name) + '</a>'
         + '<span class="gyman-size">' + fmtFileSize(m.size) + '</span>'
         + '<button class="btn btn-danger btn-sm" onclick="removeGyManual(\'' + g.id + '\',\'' + m.id + '\')">削除</button>'
         + '</div>';
@@ -3162,6 +3162,19 @@ function openManualWindow(url){
   var w = null;
   try{ w = window.open(url, '_blank', 'noopener'); }catch(e){ w = null; }
   return !w; /* trueを返すと呼び出し元の<a>の既定動作（target="_blank"での遷移）にフォールバックする */
+}
+/* 手順書・資料のリンク先URLを決める。PDFは manual-view.php を経由させ、
+   ダウンロード（Content-Disposition: attachment）として渡すことで、
+   ホーム画面から起動したPWA内に留まらず、Acrobat Readerなど端末の既定のPDFアプリで
+   開けるようにする（利用者からの指摘：PWA内ではPDFがまともに開けない）。
+   画像はそのまま直接開く（画像はどのブラウザでも問題なく表示でき、外部アプリへの
+   受け渡しは不要なため）。 */
+function manualHref(m){
+  if(m.type === 'pdf'){
+    var fname = String(m.url || '').split('/').pop();
+    return 'manual-view.php?file=' + encodeURIComponent(fname) + '&name=' + encodeURIComponent(m.name || fname);
+  }
+  return m.url;
 }
 function fmtFileSize(n){
   n = Number(n) || 0;
