@@ -309,6 +309,23 @@ input:focus,select:focus,textarea:focus{border-color:var(--blue);box-shadow:0 0 
 .cmd-fin{display:inline-flex;align-items:center;border:1px dashed var(--line);border-radius:999px;
   padding:5px 11px;font-size:12.5px;font-weight:700;color:var(--muted);}
 .cmd-fin.on{background:var(--green);border-color:var(--green);color:#fff;border-style:solid;}
+/* 「操作を選んで手順を見る」を左右2列に（左＝実機シミュレーターと同じ操作、右＝文章の簡易手順）。
+   画面が狭いときは折り返して縦に並ぶ。 */
+.cmd-guide-body{display:flex;flex-wrap:wrap;gap:18px;}
+.cmd-guide-left{flex:1 1 260px;min-width:0;}
+.cmd-guide-right{flex:1 1 200px;min-width:0;border-top:1px solid var(--line-w);padding-top:12px;}
+@media (min-width:640px){
+  .cmd-guide-right{border-top:none;border-left:1px solid var(--line-w);padding-top:0;padding-left:18px;}
+}
+.cmd-textlist-title{font-size:12px;font-weight:700;color:var(--muted);margin-bottom:6px;}
+.cmd-textlist{list-style:none;display:flex;flex-direction:column;gap:6px;font-size:12.5px;color:var(--ink);}
+.cmd-textlist li{display:flex;gap:7px;line-height:1.5;padding:3px 4px;border-radius:6px;}
+.cmd-textlist .tl-no{flex-shrink:0;font-weight:700;color:var(--muted);min-width:16px;}
+.cmd-textlist .tl-scr{display:block;font-size:11px;color:var(--muted);margin-top:1px;}
+.cmd-textlist li.on{background:var(--blue-l2);}
+.cmd-textlist li.on .tl-no{color:var(--sky);}
+.cmd-textlist li.done{opacity:.5;}
+.cmd-textlist li.fin{font-weight:700;color:var(--green);}
 /* 設定画面のコマンド編集 */
 .cs-list{display:flex;flex-direction:column;gap:6px;}
 .cs-row{display:flex;flex-wrap:wrap;gap:5px;align-items:center;border:1px solid var(--line-w);
@@ -857,17 +874,23 @@ input:focus,select:focus,textarea:focus{border-color:var(--blue);box-shadow:0 0 
         <div class="card-title"><span class="step">2</span>操作を選んで手順を見る</div>
         <button class="btn btn-ghost btn-sm" onclick="showTab('set')">手順を追加・編集</button>
       </div>
-      <div class="card-body">
-        <div class="field" style="max-width:280px;">
-          <label for="cmd-select">調べたい操作</label>
-          <select id="cmd-select" onchange="onCmdSelect()"></select>
+      <div class="card-body cmd-guide-body">
+        <div class="cmd-guide-left">
+          <div class="field" style="max-width:280px;">
+            <label for="cmd-select">調べたい操作</label>
+            <select id="cmd-select" onchange="onCmdSelect()"></select>
+          </div>
+          <div class="hint" id="cmd-note" style="margin-top:6px;"></div>
+          <div class="cmd-steps" id="cmd-steps"></div>
+          <div class="row-btns" style="margin-top:11px;">
+            <button class="btn btn-primary btn-sm" id="btn-cmd-play" onclick="cmdPlayToggle()">順番に再生</button>
+            <button class="btn btn-sub btn-sm" onclick="cmdNext()">1つ進む</button>
+            <button class="btn btn-ghost btn-sm" onclick="cmdReset()">最初から</button>
+          </div>
         </div>
-        <div class="hint" id="cmd-note" style="margin-top:6px;"></div>
-        <div class="cmd-steps" id="cmd-steps"></div>
-        <div class="row-btns" style="margin-top:11px;">
-          <button class="btn btn-primary btn-sm" id="btn-cmd-play" onclick="cmdPlayToggle()">順番に再生</button>
-          <button class="btn btn-sub btn-sm" onclick="cmdNext()">1つ進む</button>
-          <button class="btn btn-ghost btn-sm" onclick="cmdReset()">最初から</button>
+        <div class="cmd-guide-right">
+          <div class="cmd-textlist-title">簡易手順</div>
+          <ol class="cmd-textlist" id="cmd-textlist"></ol>
         </div>
       </div>
     </div>
@@ -3496,9 +3519,10 @@ function stepModeClass(st){
 function renderCmdSteps(){
   var host = $('cmd-steps');
   if(!host) return;
-  if(!cmdSeq){ host.innerHTML = ''; return; }
+  if(!cmdSeq){ host.innerHTML = ''; renderCmdTextList(); return; }
   if(!cmdSeq.steps.length){
     host.innerHTML = '<div class="hint">この操作にはまだ手順が登録されていません（設定タブで追加できます）。</div>';
+    renderCmdTextList();
     return;
   }
   var html = '';
@@ -3515,6 +3539,26 @@ function renderCmdSteps(){
   });
   html += '<span class="cmd-arrow">→</span>'
     + '<span class="cmd-fin' + (cmdIdx >= cmdSeq.steps.length ? ' on' : '') + '">完了</span>';
+  host.innerHTML = html;
+  renderCmdTextList();
+}
+/* 「動画」（実機シミュレーター）だけでなく、手順を上から順番に読める文章のリストも出す */
+function renderCmdTextList(){
+  var host = $('cmd-textlist');
+  if(!host) return;
+  if(!cmdSeq || !cmdSeq.steps.length){ host.innerHTML = ''; return; }
+  var html = '';
+  cmdSeq.steps.forEach(function(st, i){
+    var cls = (i === cmdIdx) ? ' on' : (cmdIdx >= 0 && i < cmdIdx ? ' done' : '');
+    var scr = [st.l1, st.l2].filter(function(t){ return t; }).join('　');
+    html += '<li class="' + cls.trim() + '"><span class="tl-no">' + (i + 1) + '.</span>'
+      + '<span>' + esc(simStepLabel(st))
+      + (scr ? '<span class="tl-scr">→ 画面: ' + esc(scr) + '</span>' : '')
+      + (st.memo ? '<span class="tl-scr">📝 ' + esc(st.memo) + '</span>' : '')
+      + '</span></li>';
+  });
+  html += '<li class="fin' + (cmdIdx >= cmdSeq.steps.length ? ' on' : '') + '">'
+    + '<span class="tl-no">✅</span><span>完了</span></li>';
   host.innerHTML = html;
 }
 function clearCmdHighlight(){
@@ -3625,7 +3669,7 @@ function cmdPlay(){
       cmdGo(cmdIdx + 1);
       if(wasLast){ cmdStop(); return; }
       pressOnce();
-    }, cur.hold ? 1600 : (cur.stayDown ? 500 : (n > 1 ? 480 : 850)));
+    }, cur.hold ? 2200 : (cur.stayDown ? 800 : (n > 1 ? 650 : 1150)));
   };
   pressOnce();
 }
