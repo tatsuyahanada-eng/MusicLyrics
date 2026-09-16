@@ -765,7 +765,6 @@ input:focus,select:focus,textarea:focus{border-color:var(--blue);box-shadow:0 0 
         <button class="btn btn-sub btn-sm" id="btn-open-chat" onclick="openStoreChat()">Google Chat を開く</button>
       </div>
       <div class="card-body">
-        <div class="hint" style="margin:-4px 0 9px;text-align:right;">「業態 店舗名」をコピーします。Chatの検索欄に貼り付けてください</div>
         <div class="day-sum" id="day-sum"></div>
       </div>
     </div>
@@ -3073,11 +3072,9 @@ function rebuildDayMsgs(){
    URLと連動しないクライアント内完結の検索のため、URLでの事前入力はできないと
    利用者に実機で確認済み。貼り付けだけで済むようにする）。 */
 var chatWin = null;
+/* Google Chatを開くだけ（以前は「業態 店舗名」もコピーしていたが、入店・中間・退店の
+   コピー内容を上書きしてしまう恐れがあるとの指摘を受けて、コピーはやめた）。 */
 function openStoreChat(){
-  var gyotai = dayCtx ? (dayCtx.gyotai || '') : '';
-  var tenpo  = dayCtx ? (dayCtx.tenpo  || '') : '';
-  var query = (gyotai + ' ' + tenpo).replace(/^\s+|\s+$/g, '');
-
   var w = null;
   try{ w = window.open('https://chat.google.com/', 'oes-store-chat'); }catch(e){ w = null; }
   if(!w){
@@ -3085,12 +3082,7 @@ function openStoreChat(){
   }
   chatWin = w;
   try{ if(w) w.focus(); }catch(e){}
-
-  if(query){
-    copyText(query, function(okFlag){
-      toast(okFlag ? '「' + query + '」をコピーしました。Chatの検索欄に貼り付けてください' : 'Google Chatを開きました');
-    });
-  }
+  toast('Google Chatを開きました');
 }
 
 /* ---------- コピー ---------- */
