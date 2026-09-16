@@ -232,14 +232,18 @@ input:focus,select:focus,textarea:focus{border-color:var(--blue);box-shadow:0 0 
 .sim-led{display:flex;align-items:center;gap:4px;font-size:9px;color:#333;white-space:nowrap;}
 .sim-led i{width:8px;height:8px;border:1px solid #8C8C8C;background:#D8D8D8;border-radius:2px;display:block;flex-shrink:0;}
 .sim-led.on i{background:var(--sky);border-color:var(--sky);}
-.sim-screen{flex:0 1 220px;min-width:0;background:#DCDCDC;border:1px solid #9A9A9A;border-radius:4px;
+/* 表示部（.sim-lcd-box）は内容に関係なく常に同じ大きさにする。長い文字はJS（fitLcdLine）で
+   自動的に文字サイズを縮めて枠内に収め、折り返しはしない（実機のLCDは1行=1段のため）。 */
+.sim-screen{flex:0 0 270px;width:270px;background:#DCDCDC;border:1px solid #9A9A9A;border-radius:4px;
   padding:6px 9px;position:relative;display:flex;flex-direction:column;gap:3px;}
 .sim-brand{font-size:10px;font-weight:700;letter-spacing:.1em;color:#333;}
-.sim-lcd-box{background:#fff;border:1px solid #BDBDBD;border-radius:3px;padding:5px 7px;}
+.sim-lcd-box{background:#fff;border:1px solid #BDBDBD;border-radius:3px;padding:5px 7px;
+  width:100%;height:54px;box-sizing:border-box;overflow:hidden;display:flex;flex-direction:column;justify-content:center;gap:2px;}
 .sim-model{text-align:right;font-size:8px;color:#555;line-height:1.35;}
 .sim-model span{font-size:7.5px;}
-.sim-lcd{font-family:'SFMono-Regular',Menlo,Consolas,monospace;}
-.lcd-l1,.lcd-l2{font-size:14px;font-weight:700;color:#111;line-height:1.4;word-break:break-all;min-height:20px;letter-spacing:0;}
+.sim-lcd{font-family:'SFMono-Regular',Menlo,Consolas,monospace;width:100%;}
+.lcd-l1,.lcd-l2{font-size:15px;font-weight:700;color:#111;line-height:1.3;white-space:nowrap;
+  overflow:hidden;letter-spacing:0;width:100%;}
 .sim-keys{display:grid;grid-template-columns:repeat(7,1fr);gap:4px;}
 .simkey{position:relative;min-height:38px;border:1px solid #9A9A9A;border-radius:5px;background:#FDFDFD;
   color:#1A1A1D;font-family:inherit;font-size:13.5px;font-weight:700;cursor:pointer;padding:2px;
@@ -255,16 +259,20 @@ input:focus,select:focus,textarea:focus{border-color:var(--blue);box-shadow:0 0 
 .simkey.press{transform:translateY(1px);background:#E4E4E4;}
 .simkey.k-gold.press{background:#5E4511;}
 .simkey.k-black.press{background:#000;}
-/* ハイライトは3種類を色分けする: 通常の1回押す＝濃い赤／長押し＝オレンジ／連続で何回か押す＝蛍光ブルー
-   （connect-modeの色はアプリ共通の--blue（実は濃いグレー）だと目立たないため、専用の鮮やかな青を使う） */
+/* ハイライトは4種類を色分けする: 通常の1回押す＝濃い赤／長押し＝オレンジ／
+   連続で何回か押す＝蛍光ブルー／押しまま（離さずに次へ）＝蛍光グリーン
+   （rep-modeの色はアプリ共通の--blue（実は濃いグレー）だと目立たないため、専用の鮮やかな青を使う） */
 .simkey.on{background:var(--sky);border-color:var(--sky);color:#fff;box-shadow:0 0 0 5px rgba(134,16,12,.4);transform:scale(1.1);z-index:1;}
 .simkey.on .sub{color:#fff;}
 .simkey.on.hold-mode{background:#B26A00;border-color:#B26A00;box-shadow:0 0 0 5px rgba(178,106,0,.42);}
 .simkey.on.rep-mode{background:#0066FF;border-color:#0066FF;box-shadow:0 0 0 5px rgba(0,102,255,.48);}
+.simkey.on.stay-mode{background:#00B368;border-color:#00B368;box-shadow:0 0 0 5px rgba(0,179,104,.45);}
 .simkey.hold{animation:simhold 1s ease-in-out infinite;}
 .simkey.on.hold-mode.hold{animation:simholdamber 1s ease-in-out infinite;}
+.simkey.on.stay-mode.hold{animation:simholdgreen 1s ease-in-out infinite;}
 @keyframes simhold{0%,100%{box-shadow:0 0 0 5px rgba(134,16,12,.4);}50%{box-shadow:0 0 0 11px rgba(134,16,12,.12);}}
 @keyframes simholdamber{0%,100%{box-shadow:0 0 0 5px rgba(178,106,0,.42);}50%{box-shadow:0 0 0 11px rgba(178,106,0,.14);}}
+@keyframes simholdgreen{0%,100%{box-shadow:0 0 0 5px rgba(0,179,104,.45);}50%{box-shadow:0 0 0 11px rgba(0,179,104,.15);}}
 .rep-badge{position:absolute;top:-7px;right:-7px;background:#0066FF;color:#fff;font-size:9.5px;font-weight:700;
   min-width:17px;height:17px;border-radius:999px;display:flex;align-items:center;justify-content:center;
   padding:0 3px;box-shadow:0 0 0 2px #fff;}
@@ -313,7 +321,7 @@ input:focus,select:focus,textarea:focus{border-color:var(--blue);box-shadow:0 0 
 .cm-name-inline:hover,.cm-name-inline:focus{border-color:var(--line);background:var(--white);outline:none;}
 /* 画面が広いときは実機と同じように「画面の右側にキー」の並びにする */
 @media (min-width:760px){
-  .sim-panel{flex-direction:row;align-items:center;}
+  .sim-panel{flex-direction:row;align-items:center;width:fit-content;max-width:100%;}
   .sim-top{flex:0 0 auto;}
   .sim-keys{flex:0 0 auto;width:340px;}
 }
@@ -832,7 +840,7 @@ input:focus,select:focus,textarea:focus{border-color:var(--blue);box-shadow:0 0 
         <button class="btn btn-ghost btn-sm" onclick="showTab('set')">手順を追加・編集</button>
       </div>
       <div class="card-body">
-        <div class="field">
+        <div class="field" style="max-width:280px;">
           <label for="cmd-select">調べたい操作</label>
           <select id="cmd-select" onchange="onCmdSelect()"></select>
         </div>
@@ -965,9 +973,6 @@ input:focus,select:focus,textarea:focus{border-color:var(--blue);box-shadow:0 0 
     <div class="card">
       <div class="card-head">
         <div class="card-title">コマンド一覧（保守機能の操作手順）</div>
-        <div class="row-btns">
-          <button class="btn btn-sub btn-sm" onclick="addCommand()">＋ コマンドを追加</button>
-        </div>
       </div>
       <div class="card-body">
         <div class="hint" style="margin-bottom:9px;">
@@ -982,9 +987,14 @@ input:focus,select:focus,textarea:focus{border-color:var(--blue);box-shadow:0 0 
         </div>
         <div class="hint" style="margin-bottom:9px;">
           「📋 コマンド一覧」タブのシミュレーターで使う操作手順です。見出しをタップすると詳しい編集欄が開きます。
-          押すボタンを順番に登録し、<b>長押し</b>／<b>同時に押すボタン</b>／同じボタンを<b>連続で何回か押す</b>／
-          「画面の1〜2行目に出る文字」を、手順ごとに設定できます。画面が変わらず<b>結果だけが起こる操作</b>
-          （明細票が印刷される、など）は「結果コメント」に書いておくと手順の中に表示されます。
+          押すボタンを順番に登録し、<b>長押し</b>／<b>押しまま</b>（離さずに次の手順へ進む）／
+          <b>同時に押すボタン</b>／同じボタンを<b>連続で何回か押す</b>／「画面の1〜2行目に出る文字」を、
+          手順ごとに設定できます。画面が変わらず<b>結果だけが起こる操作</b>（明細票が印刷される、など）は
+          「結果コメント」に書いておくと手順の中に表示されます。この操作を選んだときの
+          <b>待機画面（この操作を始める前の実機の状態）</b>も指定できます。
+        </div>
+        <div class="row-btns" style="margin-bottom:9px;">
+          <button class="btn btn-sub btn-sm" onclick="addCommand()">＋ コマンドを追加</button>
         </div>
         <div id="cmd-list"></div>
         <div class="row-btns" style="margin-top:11px;">
@@ -994,8 +1004,9 @@ input:focus,select:focus,textarea:focus{border-color:var(--blue);box-shadow:0 0 
         </div>
         <div class="hint" style="margin-top:6px;">
           CSVは表計算ソフトで編集できます。1行が1つの手順で、同じ「コマンド名」の行が続けて並んでいると
-          1つの操作としてまとめて読み込みます。「結果コメント」の列は画面が変わらない操作の説明用です。
-          読み込むと今のコマンド一覧はすべて置き換わります。
+          1つの操作としてまとめて読み込みます。「待機画面」の列は名前で指定します（一致するものが無ければ
+          未設定になります）。「押しまま」の列は離さずに次の手順へ進める操作用、「結果コメント」の列は
+          画面が変わらない操作の説明用です。読み込むと今のコマンド一覧はすべて置き換わります。
         </div>
       </div>
     </div>
@@ -1206,31 +1217,31 @@ function defaultIdleScreens(){
 function defaultCommands(){
   return [
     { id:'cm-maint', name:'保守機能モードに入る',
-      note:'◁と▷を同時に長押しします。ほかの保守機能はこのモードに入ってから操作します。',
-      steps:[ { id:'cs-mt1', keys:['LEFT','RIGHT'], hold:true, repeat:1, l1:'ホシュキノウ　モード', l2:'', memo:'' } ] },
+      note:'◁と▷を同時に長押しします。ほかの保守機能はこのモードに入ってから操作します。', idleScreen:'',
+      steps:[ { id:'cs-mt1', keys:['LEFT','RIGHT'], hold:true, stayDown:false, repeat:1, l1:'ホシュキノウ　モード', l2:'', memo:'' } ] },
     { id:'cm-install', name:'インストール情報を表示する',
-      note:'保守機能モードに入ってから操作します。',
+      note:'保守機能モードに入ってから操作します。', idleScreen:'',
       steps:[
-        { id:'cs-in1', keys:['9'],    hold:false, repeat:2, l1:'', l2:'', memo:'' },
-        { id:'cs-in2', keys:['8'],    hold:false, repeat:1, l1:'', l2:'', memo:'' },
-        { id:'cs-in3', keys:['EXEC'], hold:false, repeat:1, l1:'インストールジョウホウ', l2:'', memo:'' }
+        { id:'cs-in1', keys:['9'],    hold:false, stayDown:false, repeat:2, l1:'', l2:'', memo:'' },
+        { id:'cs-in2', keys:['8'],    hold:false, stayDown:false, repeat:1, l1:'', l2:'', memo:'' },
+        { id:'cs-in3', keys:['EXEC'], hold:false, stayDown:false, repeat:1, l1:'インストールジョウホウ', l2:'', memo:'' }
       ] },
     { id:'cm-power', name:'電源を切る',
-      note:'電源ボタンを長押しし、画面の確認表示が出たらもう一度押します。',
+      note:'電源ボタンを長押しし、画面の確認表示が出たらもう一度押します。', idleScreen:'',
       steps:[
-        { id:'cs-pw1', keys:['POWER'], hold:true,  repeat:1, l1:'デンゲンヲ', l2:'キリマスカ？', memo:'' },
-        { id:'cs-pw2', keys:['POWER'], hold:false, repeat:1, l1:'シュウリョウ', l2:'シマス', memo:'' }
+        { id:'cs-pw1', keys:['POWER'], hold:true,  stayDown:false, repeat:1, l1:'デンゲンヲ', l2:'キリマスカ？', memo:'' },
+        { id:'cs-pw2', keys:['POWER'], hold:false, stayDown:false, repeat:1, l1:'シュウリョウ', l2:'シマス', memo:'' }
       ] },
     { id:'cm-sysid', name:'システムIDを確認する',
-      note:'保守機能モードに入ってから操作します。',
+      note:'保守機能モードに入ってから操作します。', idleScreen:'',
       steps:[
-        { id:'cs-id1', keys:['MENU'], hold:false, repeat:1,
+        { id:'cs-id1', keys:['MENU'], hold:false, stayDown:false, repeat:1,
           l1:'システムID＝＿＿＿＿＿＿＿＿', l2:'決定[実行]　次へ[メニュー]', memo:'' }
       ] },
     { id:'cm-print', name:'取引明細を印刷する（サンプル）',
-      note:'保守機能モードに入ってから操作します。画面表示は変わりません。',
+      note:'保守機能モードに入ってから操作します。画面表示は変わりません。', idleScreen:'',
       steps:[
-        { id:'cs-pr1', keys:['SHIFT','EXEC'], hold:false, repeat:1, l1:'', l2:'',
+        { id:'cs-pr1', keys:['SHIFT','EXEC'], hold:false, stayDown:false, repeat:1, l1:'', l2:'',
           memo:'画面表示は変わりませんが、明細票（レシート）が印刷されます。' }
       ] }
   ];
@@ -1578,8 +1589,9 @@ function normalizeCommands(raw){
       });
       if(keys.length > 2) keys = keys.slice(0, 2);
       if(!keys.length) return;
-      var hold = !!(st && st.hold);
-      var repeat = hold ? 1 : clampInt(st && st.repeat, 1, 20, 1);
+      var stayDown = !!(st && st.stayDown);
+      var hold = stayDown ? false : !!(st && st.hold);
+      var repeat = (hold || stayDown) ? 1 : clampInt(st && st.repeat, 1, 20, 1);
       var l1 = (st && typeof st.l1 === 'string') ? st.l1
              : (st && typeof st.display === 'string') ? st.display : '';
       var l2 = (st && typeof st.l2 === 'string') ? st.l2 : '';
@@ -1588,6 +1600,7 @@ function normalizeCommands(raw){
         id: (st && st.id) ? st.id : uid('cs'),
         keys: keys,
         hold: hold,
+        stayDown: stayDown,
         repeat: repeat,
         l1: l1,
         l2: l2,
@@ -1598,6 +1611,7 @@ function normalizeCommands(raw){
       id: c.id || uid('cm'),
       name: name || '（名称未設定）',
       note: (typeof c.note === 'string') ? c.note : '',
+      idleScreen: (typeof c.idleScreen === 'string') ? c.idleScreen : '',
       steps: steps
     });
   });
@@ -3189,10 +3203,15 @@ function stepRepeat(st){ return Math.max(1, (st && st.repeat) || 1); }
 function simStepLabel(st){
   var names = (st.keys || []).map(function(k){ return simKeyLabel(k); }).join(' ＋ ');
   var n = stepRepeat(st);
-  return names + (st.hold ? '（長押し）' : (n > 1 ? '（' + n + '回）' : ''));
+  return names + (st.hold ? '（長押し）' : st.stayDown ? '（押しまま）' : (n > 1 ? '（' + n + '回）' : ''));
 }
 function findCommand(id){
   for(var i = 0; i < settings.commands.length; i++){ if(settings.commands[i].id === id) return settings.commands[i]; }
+  return null;
+}
+function findIdleScreen(id){
+  var list = settings.idleScreens || [];
+  for(var i = 0; i < list.length; i++){ if(list[i].id === id) return list[i]; }
   return null;
 }
 function findCmdStep(c, sid){
@@ -3225,9 +3244,21 @@ function expandPhysicalSteps(cmd){
 function nowHHMM(){ var d = new Date(); return pad(d.getHours()) + '：' + pad(d.getMinutes()); }
 /* 待機中の画面文字列の {time} だけを現在時刻に置き換える（書かなければ時刻は出ない） */
 function applyIdleTokens(s){ return (s || '').replace(/\{time\}/g, nowHHMM()); }
+var LCD_FONT_MAX = 15, LCD_FONT_MIN = 8;
+/* 表示部の大きさは常に固定なので、長い文字は折り返さずに文字サイズだけを縮めて枠内に収める */
+function fitLcdLine(el){
+  if(!el) return;
+  el.style.fontSize = LCD_FONT_MAX + 'px';
+  var size = LCD_FONT_MAX;
+  while(el.scrollWidth > el.clientWidth && size > LCD_FONT_MIN){
+    size -= 0.5;
+    el.style.fontSize = size + 'px';
+  }
+}
 function simSetScreen(l1, l2){
-  if($('sim-l1')) $('sim-l1').textContent = l1 || '';
-  if($('sim-l2')) $('sim-l2').textContent = l2 || '';
+  var e1 = $('sim-l1'), e2 = $('sim-l2');
+  if(e1){ e1.textContent = l1 || ''; fitLcdLine(e1); }
+  if(e2){ e2.textContent = l2 || ''; fitLcdLine(e2); }
 }
 /* いま選んでいる待機画面（練習用に電源オフ・サブ単独などへ切り替えられる。共有設定には入れない） */
 var curIdleId = null;
@@ -3286,12 +3317,14 @@ var simGroup = [];       /* 1回の操作でまとめて押されたキー（同
 var simGroupStart = 0;
 var simHoldTimer = null;
 var simInput = [];       /* 押した操作の履歴（登録済みコマンドとの照合用） */
+var simStayMatched = false; /* 「押しまま」ですでに次のステップへ進んだか（離したときに二重で進めないように） */
 
 function simKeyEl(id){ return document.querySelector('#sim-keys .simkey[data-key="' + id + '"]'); }
 function simDownKey(id){
   if(simDown[id]) return;
   if(!simGroup.length){
     simGroupStart = Date.now();
+    simStayMatched = false;
     simHoldTimer = setTimeout(function(){
       simHoldTimer = null;
       simGroup.forEach(function(k){ var el = simKeyEl(k); if(el) el.classList.add('hold'); });
@@ -3301,6 +3334,20 @@ function simDownKey(id){
   simDown[id] = 1;
   if(simGroup.indexOf(id) < 0) simGroup.push(id);
   var el = simKeyEl(id); if(el) el.classList.add('press');
+  checkStayDownMatch();
+}
+/* 案内中のステップが「押しまま」なら、離すのを待たずに押した時点で次へ進む
+   （F を押したまま次のボタンを押す、のような操作を離さずに続けられるようにするため） */
+function checkStayDownMatch(){
+  if(simStayMatched) return;
+  if(!(cmdSeq && cmdIdx >= 0 && cmdIdx < cmdSeq.steps.length)) return;
+  var st = cmdSeq.steps[cmdIdx];
+  if(!st.stayDown) return;
+  var ka = simGroup.slice().sort().join(','), kb = (st.keys || []).slice().sort().join(',');
+  if(!ka || ka !== kb) return;
+  simStayMatched = true;
+  if(simHoldTimer){ clearTimeout(simHoldTimer); simHoldTimer = null; }
+  cmdTryAdvance({ keys: simGroup.slice(), hold: false });
 }
 function simUpKey(id){
   if(!simDown[id]) return;
@@ -3309,9 +3356,12 @@ function simUpKey(id){
   for(var k in simDown){ if(simDown.hasOwnProperty(k)) return; }   /* まだ他のキーが押されている */
   var held = (Date.now() - simGroupStart) >= SIM_HOLD_MS;
   if(simHoldTimer){ clearTimeout(simHoldTimer); simHoldTimer = null; }
+  var wasStayMatch = simStayMatched;
   var step = { keys: simGroup.slice(), hold: held };
-  simGroup.forEach(function(kk){ var e2 = simKeyEl(kk); if(e2) e2.classList.remove('hold','press'); });
+  simGroup.forEach(function(kk){ var e2 = simKeyEl(kk); if(e2) e2.classList.remove('hold','press','stay-mode'); });
   simGroup = [];
+  simStayMatched = false;
+  if(wasStayMatch) return;   /* 押しままで既に進んでいるので、離したときは何もしない */
   simEmit(step);
 }
 /* 1回ぶんの操作が確定したときの処理 */
@@ -3408,6 +3458,12 @@ function onCmdSelect(){
   simInput = [];
   clearCmdHighlight();
   renderCmdSteps();
+  /* コマンドごとに待機画面が指定されていれば、それに切り替えてから表示する
+     （操作によって「その操作を始める前の実機の状態」が違うため） */
+  if(cmdSeq && cmdSeq.idleScreen && findIdleScreen(cmdSeq.idleScreen)){
+    curIdleId = cmdSeq.idleScreen;
+    renderIdleSelect();
+  }
   simDefaultScreen();
   simSetMsg(cmdSeq ? 'この手順どおりにボタンを押すか、「順番に再生」を押してください' : '');
   if($('cmd-note')) $('cmd-note').textContent = cmdSeq ? (cmdSeq.note || '') : '';
@@ -3415,6 +3471,7 @@ function onCmdSelect(){
 /* チップの色分け用クラス（長押し＝オレンジ／連続で何回か押す＝青／それ以外＝既定の赤） */
 function stepModeClass(st){
   if(st.hold) return ' hold-mode';
+  if(st.stayDown) return ' stay-mode';
   if(stepRepeat(st) > 1) return ' rep-mode';
   return '';
 }
@@ -3431,8 +3488,9 @@ function renderCmdSteps(){
     var n = stepRepeat(st);
     var cls = (i === cmdIdx) ? (' on' + stepModeClass(st)) : (cmdIdx >= 0 && i < cmdIdx ? ' done' : '');
     if(i > 0) html += '<span class="cmd-arrow">→</span>';
-    html += '<span class="cmd-step' + cls + '">' + esc(simStepLabel(st).replace(/（長押し）|（\d+回）/, ''))
+    html += '<span class="cmd-step' + cls + '">' + esc(simStepLabel(st).replace(/（長押し）|（押しまま）|（\d+回）/, ''))
       + (st.hold ? '<span class="cs-tag">長押し</span>' : '')
+      + (st.stayDown ? '<span class="cs-tag">押しまま</span>' : '')
       + (n > 1 ? '<span class="cs-tag">×' + n + (i === cmdIdx ? '　' + cmdRepDone + '/' + n : '') + '</span>' : '')
       + ((st.keys || []).length > 1 ? '<span class="cs-tag">同時</span>' : '')
       + '</span>';
@@ -3455,6 +3513,7 @@ function highlightStep(st, repDone){
     if(!el) return;
     el.classList.add('on');
     if(st.hold){ el.classList.add('hold-mode', 'hold'); }
+    else if(st.stayDown){ el.classList.add('stay-mode', 'hold'); }
     else if(n > 1){
       el.classList.add('rep-mode');
       var badge = document.createElement('span');
@@ -3548,7 +3607,7 @@ function cmdPlay(){
       cmdGo(cmdIdx + 1);
       if(wasLast){ cmdStop(); return; }
       pressOnce();
-    }, cur.hold ? 1600 : (n > 1 ? 480 : 850));
+    }, cur.hold ? 1600 : (cur.stayDown ? 500 : (n > 1 ? 480 : 850)));
   };
   pressOnce();
 }
@@ -3856,8 +3915,10 @@ function cmdStepRowHtml(c, st, si){
     + '<select onchange="setCmdStepKey(\'' + c.id + '\',\'' + st.id + '\',1,this.value)">' + simKeyOptions(k2, true) + '</select>'
     + '<label class="cs-hold"><input type="checkbox"' + (st.hold ? ' checked' : '')
     +   ' onchange="setCmdStepHold(\'' + c.id + '\',\'' + st.id + '\',this.checked)">長押し</label>'
+    + '<label class="cs-hold"><input type="checkbox"' + (st.stayDown ? ' checked' : '')
+    +   ' onchange="setCmdStepStayDown(\'' + c.id + '\',\'' + st.id + '\',this.checked)">押しまま</label>'
     + '<label class="cs-hold cs-rep">連続<input type="number" min="1" max="20" value="' + n + '"'
-    +   (st.hold ? ' disabled' : '') + ' onchange="setCmdStepRepeat(\'' + c.id + '\',\'' + st.id + '\',this.value)">回</label>'
+    +   ((st.hold || st.stayDown) ? ' disabled' : '') + ' onchange="setCmdStepRepeat(\'' + c.id + '\',\'' + st.id + '\',this.value)">回</label>'
     + '<span class="cs-ops">'
     +   '<button class="btn btn-ghost btn-sm" onclick="moveCmdStep(\'' + c.id + '\',' + si + ',-1)"'
     +     (si === 0 ? ' disabled' : '') + ' aria-label="上へ">↑</button>'
@@ -3968,6 +4029,13 @@ function renderCommandList(){
       +   '<div class="field" style="margin-bottom:9px;"><label>説明（任意）</label>'
       +     '<input type="text" value="' + esc(c.note) + '" autocomplete="off" placeholder="例: 保守機能モードに入ってから操作します"'
       +     ' oninput="setCommandNote(\'' + c.id + '\',this.value)"></div>'
+      +   '<div class="field" style="margin-bottom:9px;"><label>この操作を選んだときの待機画面（任意）</label>'
+      +     '<select onchange="setCommandIdleScreen(\'' + c.id + '\',this.value)">'
+      +       '<option value="">（今選んでいる画面のまま）</option>'
+      +       settings.idleScreens.map(function(s){
+                return '<option value="' + esc(s.id) + '"' + (c.idleScreen === s.id ? ' selected' : '') + '>' + esc(s.name) + '</option>';
+              }).join('')
+      +     '</select></div>'
       +   '<div class="cs-list">';
     if(!c.steps.length){
       html += '<div class="hint">まだ手順がありません。「＋ 押すボタンを追加」から順番に登録してください。</div>';
@@ -4011,8 +4079,9 @@ function duplicateCommand(id){
     id: uid('cm'),
     name: c.name ? (c.name + '（コピー）') : '',
     note: c.note,
+    idleScreen: c.idleScreen,
     steps: c.steps.map(function(st){
-      return { id: uid('cs'), keys: st.keys.slice(), hold: st.hold, repeat: st.repeat, l1: st.l1, l2: st.l2, memo: st.memo };
+      return { id: uid('cs'), keys: st.keys.slice(), hold: st.hold, stayDown: st.stayDown, repeat: st.repeat, l1: st.l1, l2: st.l2, memo: st.memo };
     })
   };
   settings.commands.splice(i + 1, 0, copy);
@@ -4038,6 +4107,11 @@ function setCommandName(id, v){
 function setCommandNote(id, v){
   var c = findCommand(id); if(!c) return;
   c.note = v;
+  afterSettingsChange(false);
+}
+function setCommandIdleScreen(id, v){
+  var c = findCommand(id); if(!c) return;
+  c.idleScreen = v || '';
   afterSettingsChange(false);
 }
 function addCmdStep(cid){
@@ -4079,17 +4153,24 @@ function setCmdStepKey(cid, sid, pos, v){
   afterSettingsChange(true);
 }
 /* 長押しと「連続で何回か押す」は同時に成立しないので、片方を設定したらもう片方を既定に戻す */
+/* 長押し・押しまま・連続は互いに排他（どれか1つを選ぶともう2つは既定値に戻る） */
 function setCmdStepHold(cid, sid, on){
   var st = findCmdStep(findCommand(cid), sid); if(!st) return;
   st.hold = !!on;
-  if(st.hold) st.repeat = 1;
+  if(st.hold){ st.repeat = 1; st.stayDown = false; }
+  afterSettingsChange(true);
+}
+function setCmdStepStayDown(cid, sid, on){
+  var st = findCmdStep(findCommand(cid), sid); if(!st) return;
+  st.stayDown = !!on;
+  if(st.stayDown){ st.repeat = 1; st.hold = false; }
   afterSettingsChange(true);
 }
 function setCmdStepRepeat(cid, sid, v){
   var st = findCmdStep(findCommand(cid), sid); if(!st) return;
   var n = clampInt(v, 1, 20, 1);
   st.repeat = n;
-  if(n > 1) st.hold = false;
+  if(n > 1){ st.hold = false; st.stayDown = false; }
   afterSettingsChange(true);
 }
 function setCmdStepLine(cid, sid, which, v){
@@ -4104,7 +4185,7 @@ function setCmdStepMemo(cid, sid, v){
 }
 
 /* ---------- コマンド一覧のCSV書き出し・読み込み ---------- */
-var CMD_CSV_HEADER = ['コマンド名', '説明', 'ボタン1', 'ボタン2（同時押し）', '長押し', '連続回数', '画面1行目', '画面2行目', '結果コメント'];
+var CMD_CSV_HEADER = ['コマンド名', '説明', '待機画面', 'ボタン1', 'ボタン2（同時押し）', '長押し', '押しまま', '連続回数', '画面1行目', '画面2行目', '結果コメント'];
 function csvEscape(v){
   v = String(v == null ? '' : v);
   return /[",\n\r]/.test(v) ? '"' + v.replace(/"/g, '""') + '"' : v;
@@ -4112,14 +4193,16 @@ function csvEscape(v){
 function exportCommandsCsv(){
   var lines = [CMD_CSV_HEADER.map(csvEscape).join(',')];
   settings.commands.forEach(function(c){
+    var idleName = (c.idleScreen && findIdleScreen(c.idleScreen)) ? findIdleScreen(c.idleScreen).name : '';
     if(!c.steps.length){
-      lines.push([c.name, c.note, '', '', '', '', '', '', ''].map(csvEscape).join(','));
+      lines.push([c.name, c.note, idleName, '', '', '', '', '', '', '', ''].map(csvEscape).join(','));
       return;
     }
     c.steps.forEach(function(st){
       lines.push([
-        c.name, c.note, st.keys[0] || '', st.keys[1] || '',
-        st.hold ? '1' : '', stepRepeat(st) > 1 ? stepRepeat(st) : '', st.l1 || '', st.l2 || '', st.memo || ''
+        c.name, c.note, idleName, st.keys[0] || '', st.keys[1] || '',
+        st.hold ? '1' : '', st.stayDown ? '1' : '', stepRepeat(st) > 1 ? stepRepeat(st) : '',
+        st.l1 || '', st.l2 || '', st.memo || ''
       ].map(csvEscape).join(','));
     });
   });
@@ -4166,32 +4249,43 @@ function importCommandsCsv(text){
   if(rows.length && /コマンド名/.test(rows[0][0] || '')) rows.shift();   /* 見出し行を読み飛ばす */
   if(!rows.length){ toast('CSVにデータがありませんでした'); return; }
 
-  var byName = [], cur = null, skipped = 0;
+  var byName = [], cur = null, skipped = 0, idleUnresolved = 0;
   rows.forEach(function(r){
     var name = (r[0] || '').trim();
     if(!name) return;
     if(!cur || cur.name !== name){
-      cur = { name: name, note: r[1] || '', steps: [] };
+      var idleName = (r[2] || '').trim(), idleId = '';
+      if(idleName){
+        var found = settings.idleScreens.filter(function(s){ return s.name === idleName; })[0];
+        if(found) idleId = found.id; else idleUnresolved++;
+      }
+      cur = { name: name, note: r[1] || '', idleScreen: idleId, steps: [] };
       byName.push(cur);
     }
-    var k1 = (r[2] || '').trim(), k2 = (r[3] || '').trim();
+    var k1 = (r[3] || '').trim(), k2 = (r[4] || '').trim();
     if(!k1){ return; }                       /* ボタン1が無い行（コマンド名のみの空手順など）は手順として数えない */
     if(!simKeyDef(k1) || k1 === 'BLANK'){ skipped++; return; }
     var keys = [k1];
     if(k2 && simKeyDef(k2) && k2 !== 'BLANK' && k2 !== k1) keys.push(k2);
-    var hold = /^(1|true|はい|○|TRUE)$/i.test((r[4] || '').trim());
-    var repeat = hold ? 1 : clampInt(r[5], 1, 20, 1);
-    cur.steps.push({ id: uid('cs'), keys: keys, hold: hold, repeat: repeat, l1: r[6] || '', l2: r[7] || '', memo: r[8] || '' });
+    var hold = /^(1|true|はい|○|TRUE)$/i.test((r[5] || '').trim());
+    var stayDown = !hold && /^(1|true|はい|○|TRUE)$/i.test((r[6] || '').trim());
+    var repeat = (hold || stayDown) ? 1 : clampInt(r[7], 1, 20, 1);
+    cur.steps.push({ id: uid('cs'), keys: keys, hold: hold, stayDown: stayDown, repeat: repeat, l1: r[8] || '', l2: r[9] || '', memo: r[10] || '' });
   });
   if(!byName.length){ toast('読み込めるコマンドがありませんでした（ボタン1の列をご確認ください）'); return; }
   if(!confirm('CSVから' + byName.length + '件のコマンドを読み込みます。今のコマンド一覧と置き換わります。よろしいですか？')) return;
 
   settings.commands = byName.map(function(c){
-    return { id: uid('cm'), name: c.name, note: c.note, steps: c.steps };
+    return { id: uid('cm'), name: c.name, note: c.note, idleScreen: c.idleScreen, steps: c.steps };
   });
   cmdOpenSet = {};
   afterSettingsChange(true);
-  toast('CSVから' + byName.length + '件読み込みました' + (skipped ? '（' + skipped + '件はボタンが不明のため除外）' : ''));
+  var msg = 'CSVから' + byName.length + '件読み込みました';
+  var notes = [];
+  if(skipped) notes.push(skipped + '件はボタンが不明のため除外');
+  if(idleUnresolved) notes.push('待機画面名が一致しないもの' + idleUnresolved + '件は未設定');
+  if(notes.length) msg += '（' + notes.join('、') + '）';
+  toast(msg);
 }
 
 /* 業態の並び替え（カレンダー画面のプルダウンの順番になる） */
