@@ -223,18 +223,23 @@ input:focus,select:focus,textarea:focus{border-color:var(--blue);box-shadow:0 0 
    実機（SEIKO SA-2610 マルチステーション）の見た目を再現する部分なので、
    アプリの2色ルール（濃い灰色×濃い赤）の対象外。機器写真と同じ扱いで実機の色を使う。
    ただし「いま押すボタン」のハイライトだけはアプリのアクセント色（--sky）にする。 */
+.sim-idle-row{display:flex;align-items:center;gap:7px;margin-bottom:8px;flex-wrap:wrap;}
+.sim-idle-row label{font-size:11.5px;font-weight:600;color:#3A3D40;}
+.sim-idle-row select{flex:0 1 220px;min-width:0;}
 .sim-panel{background:#E9E9E9;border:2px solid #9A9A9A;border-radius:10px;padding:9px;display:flex;flex-direction:column;gap:9px;}
 .sim-top{display:flex;gap:9px;align-items:stretch;}
 .sim-leds{display:flex;flex-direction:column;gap:5px;justify-content:center;flex-shrink:0;}
 .sim-led{display:flex;align-items:center;gap:4px;font-size:9px;color:#333;white-space:nowrap;}
 .sim-led i{width:8px;height:8px;border:1px solid #8C8C8C;background:#D8D8D8;border-radius:2px;display:block;flex-shrink:0;}
 .sim-led.on i{background:var(--sky);border-color:var(--sky);}
-.sim-screen{flex:0 1 220px;min-width:0;background:#fff;border:1px solid #BDBDBD;border-radius:4px;padding:6px 9px;position:relative;}
+.sim-screen{flex:0 1 220px;min-width:0;background:#DCDCDC;border:1px solid #9A9A9A;border-radius:4px;
+  padding:6px 9px;position:relative;display:flex;flex-direction:column;gap:3px;}
 .sim-brand{font-size:10px;font-weight:700;letter-spacing:.1em;color:#333;}
-.sim-model{position:absolute;right:8px;bottom:5px;text-align:right;font-size:8px;color:#555;line-height:1.35;}
+.sim-lcd-box{background:#fff;border:1px solid #BDBDBD;border-radius:3px;padding:5px 7px;}
+.sim-model{text-align:right;font-size:8px;color:#555;line-height:1.35;}
 .sim-model span{font-size:7.5px;}
-.sim-lcd{font-family:'SFMono-Regular',Menlo,Consolas,monospace;padding:6px 0 12px;min-height:44px;}
-.lcd-l1,.lcd-l2{font-size:11.5px;font-weight:700;color:#111;line-height:1.5;word-break:break-all;min-height:17px;letter-spacing:0;}
+.sim-lcd{font-family:'SFMono-Regular',Menlo,Consolas,monospace;}
+.lcd-l1,.lcd-l2{font-size:14px;font-weight:700;color:#111;line-height:1.4;word-break:break-all;min-height:20px;letter-spacing:0;}
 .sim-keys{display:grid;grid-template-columns:repeat(7,1fr);gap:4px;}
 .simkey{position:relative;min-height:38px;border:1px solid #9A9A9A;border-radius:5px;background:#FDFDFD;
   color:#1A1A1D;font-family:inherit;font-size:13.5px;font-weight:700;cursor:pointer;padding:2px;
@@ -250,16 +255,17 @@ input:focus,select:focus,textarea:focus{border-color:var(--blue);box-shadow:0 0 
 .simkey.press{transform:translateY(1px);background:#E4E4E4;}
 .simkey.k-gold.press{background:#5E4511;}
 .simkey.k-black.press{background:#000;}
-/* ハイライトは3種類を色分けする: 通常の1回押す＝濃い赤／長押し＝オレンジ／連続で何回か押す＝濃い青 */
-.simkey.on{background:var(--sky);border-color:var(--sky);color:#fff;box-shadow:0 0 0 4px rgba(134,16,12,.32);transform:scale(1.06);z-index:1;}
+/* ハイライトは3種類を色分けする: 通常の1回押す＝濃い赤／長押し＝オレンジ／連続で何回か押す＝蛍光ブルー
+   （connect-modeの色はアプリ共通の--blue（実は濃いグレー）だと目立たないため、専用の鮮やかな青を使う） */
+.simkey.on{background:var(--sky);border-color:var(--sky);color:#fff;box-shadow:0 0 0 5px rgba(134,16,12,.4);transform:scale(1.1);z-index:1;}
 .simkey.on .sub{color:#fff;}
-.simkey.on.hold-mode{background:#B26A00;border-color:#B26A00;box-shadow:0 0 0 4px rgba(178,106,0,.35);}
-.simkey.on.rep-mode{background:var(--blue);border-color:var(--blue);box-shadow:0 0 0 4px rgba(0,61,165,.3);}
+.simkey.on.hold-mode{background:#B26A00;border-color:#B26A00;box-shadow:0 0 0 5px rgba(178,106,0,.42);}
+.simkey.on.rep-mode{background:#0066FF;border-color:#0066FF;box-shadow:0 0 0 5px rgba(0,102,255,.48);}
 .simkey.hold{animation:simhold 1s ease-in-out infinite;}
 .simkey.on.hold-mode.hold{animation:simholdamber 1s ease-in-out infinite;}
-@keyframes simhold{0%,100%{box-shadow:0 0 0 4px rgba(134,16,12,.32);}50%{box-shadow:0 0 0 10px rgba(134,16,12,.1);}}
-@keyframes simholdamber{0%,100%{box-shadow:0 0 0 4px rgba(178,106,0,.35);}50%{box-shadow:0 0 0 10px rgba(178,106,0,.12);}}
-.rep-badge{position:absolute;top:-7px;right:-7px;background:var(--blue-d);color:#fff;font-size:9.5px;font-weight:700;
+@keyframes simhold{0%,100%{box-shadow:0 0 0 5px rgba(134,16,12,.4);}50%{box-shadow:0 0 0 11px rgba(134,16,12,.12);}}
+@keyframes simholdamber{0%,100%{box-shadow:0 0 0 5px rgba(178,106,0,.42);}50%{box-shadow:0 0 0 11px rgba(178,106,0,.14);}}
+.rep-badge{position:absolute;top:-7px;right:-7px;background:#0066FF;color:#fff;font-size:9.5px;font-weight:700;
   min-width:17px;height:17px;border-radius:999px;display:flex;align-items:center;justify-content:center;
   padding:0 3px;box-shadow:0 0 0 2px #fff;}
 .sim-msg{margin:9px 0 6px;font-size:12.5px;font-weight:700;color:var(--blue-d);min-height:19px;line-height:1.5;}
@@ -272,7 +278,7 @@ input:focus,select:focus,textarea:focus{border-color:var(--blue);box-shadow:0 0 
   background:var(--white);padding:5px 11px;font-size:12.5px;font-weight:700;color:var(--blue-d);}
 .cmd-step.on{background:var(--sky);border-color:var(--sky);color:#fff;}
 .cmd-step.on.hold-mode{background:#B26A00;border-color:#B26A00;}
-.cmd-step.on.rep-mode{background:var(--blue);border-color:var(--blue);}
+.cmd-step.on.rep-mode{background:#0066FF;border-color:#0066FF;}
 .cmd-step.done{opacity:.4;}
 .cmd-step .cs-tag{font-size:9.5px;font-weight:700;padding:1px 6px;border-radius:999px;background:var(--blue-l);color:var(--blue-d);}
 .cmd-step.on .cs-tag{background:rgba(255,255,255,.3);color:#fff;}
@@ -297,6 +303,10 @@ input:focus,select:focus,textarea:focus{border-color:var(--blue);box-shadow:0 0 
 .cs-rep input[type=number]{width:44px;min-height:26px;padding:2px 4px;text-align:center;font-size:12.5px;}
 .cs-ops{display:flex;gap:4px;margin-left:auto;}
 .cs-ops button{width:34px;padding:0;justify-content:center;}
+/* 待機中の画面の編集リスト（名前＋1〜2行目） */
+.is-row{display:flex;flex-wrap:wrap;gap:5px;align-items:center;border:1px solid var(--line-w);
+  border-radius:var(--r-s);padding:6px 7px;background:var(--white);margin-bottom:6px;}
+.is-name{flex:1 1 160px;min-width:0;font-weight:700;}
 /* 設定画面のコマンド見出し（折りたたみ。名前はその場で編集できる） */
 .cm-name-inline{flex:1;min-width:80px;font-size:13px;font-weight:700;color:var(--blue-d);
   border:1px solid transparent;background:transparent;padding:5px 6px;border-radius:5px;}
@@ -304,7 +314,7 @@ input:focus,select:focus,textarea:focus{border-color:var(--blue);box-shadow:0 0 
 /* 画面が広いときは実機と同じように「画面の右側にキー」の並びにする */
 @media (min-width:760px){
   .sim-panel{flex-direction:row;align-items:center;}
-  .sim-top{flex:1 1 auto;min-width:0;}
+  .sim-top{flex:0 0 auto;}
   .sim-keys{flex:0 0 auto;width:340px;}
 }
 
@@ -781,6 +791,10 @@ input:focus,select:focus,textarea:focus{border-color:var(--blue);box-shadow:0 0 
         <div class="card-title"><span class="step">1</span>機器の画面（シミュレーター）</div>
       </div>
       <div class="card-body">
+        <div class="sim-idle-row">
+          <label for="sim-idle-view">待機中の画面（練習用に切り替え）</label>
+          <select id="sim-idle-view" onchange="onIdleSelect(this.value)"></select>
+        </div>
         <div class="sim-panel">
           <div class="sim-top">
             <div class="sim-leds">
@@ -792,9 +806,11 @@ input:focus,select:focus,textarea:focus{border-color:var(--blue);box-shadow:0 0 
             </div>
             <div class="sim-screen">
               <div class="sim-brand">SEIKO</div>
-              <div class="sim-lcd">
-                <div class="lcd-l1" id="sim-l1">二重化　（メイン）</div>
-                <div class="lcd-l2" id="sim-l2">[01]　16：25</div>
+              <div class="sim-lcd-box">
+                <div class="sim-lcd">
+                  <div class="lcd-l1" id="sim-l1">二重化　（メイン）</div>
+                  <div class="lcd-l2" id="sim-l2">[01]　16：25</div>
+                </div>
               </div>
               <div class="sim-model">SA-2610<br><span>マルチステーション</span></div>
             </div>
@@ -954,16 +970,15 @@ input:focus,select:focus,textarea:focus{border-color:var(--blue);box-shadow:0 0 
         </div>
       </div>
       <div class="card-body">
-        <div class="grid-form" style="margin-bottom:12px;">
-          <div class="field"><label>待機中の画面　1行目</label>
-            <input type="text" id="sim-idle-l1" value="" autocomplete="off" onchange="onCommonChange()"></div>
-          <div class="field"><label>待機中の画面　2行目</label>
-            <input type="text" id="sim-idle-l2" value="" autocomplete="off" onchange="onCommonChange()"></div>
-        </div>
         <div class="hint" style="margin-bottom:9px;">
-          何も操作していないときにシミュレーターの画面に出る文字です。実機は機種や設定によって「[01]」や時刻が
-          出ないこともあるので、そのまま自由に書き換えられます。<code>{time}</code> と書いた部分だけ現在時刻に置き換わります
-          （時刻を出したくない場合は書かないでください）。
+          何も操作していないときにシミュレーターの画面に出る文字です。実機は電源の状態や二重化の構成によって
+          表示が変わるため、複数登録して「📋 コマンド一覧」タブのプルダウンで切り替えられます。
+          <code>{time}</code> と書いた部分だけ現在時刻に置き換わります（時刻を出したくない場合は書かないでください。
+          1〜2行目とも空にすると、電源が切れているような何も表示されない画面になります）。
+        </div>
+        <div id="idle-screen-list"></div>
+        <div class="row-btns" style="margin:9px 0 14px;">
+          <button class="btn btn-sub btn-sm" onclick="addIdleScreen()">＋ 待機画面を追加</button>
         </div>
         <div class="hint" style="margin-bottom:9px;">
           「📋 コマンド一覧」タブのシミュレーターで使う操作手順です。見出しをタップすると詳しい編集欄が開きます。
@@ -1175,6 +1190,17 @@ var DEFAULT_MID_NOTES = [
 ];
 
 /* ---------- 初期設定 ---------- */
+/* 待機中（何も操作していない）ときにLCDへ出す画面の初期サンプル。実機は電源の状態や
+   二重化の構成によって表示が変わるため、複数持たせて切り替えられるようにしてある。
+   {time} と書いた部分だけ現在時刻に置き換わる（applyIdleTokens）。 */
+function defaultIdleScreens(){
+  return [
+    { id:'is-dual', name:'二重化（メイン）', l1:'二重化　（メイン）', l2:'[01]　{time}' },
+    { id:'is-main', name:'メイン単独',       l1:'メイン　単独',       l2:'[01]　{time}' },
+    { id:'is-sub',  name:'サブ単独',         l1:'サブ　単独',         l2:'[02]　{time}' },
+    { id:'is-off',  name:'電源オフ（表示なし）', l1:'', l2:'' }
+  ];
+}
 /* コマンド一覧（保守機能のシミュレーター）の初期サンプル。
    キーのidは SIM_KEYS の id と対応する（LEFT=◁ / RIGHT=▷ / EXEC=実行 / POWER=電源 …）。 */
 function defaultCommands(){
@@ -1228,8 +1254,7 @@ function defaultSettings(){
     entryNotes: DEFAULT_ENTRY_NOTES.map(function(t){ return { id: uid('en'), text: t }; }),
     midNotes: DEFAULT_MID_NOTES.map(function(t){ return { id: uid('mn'), text: t }; }),
     commands: defaultCommands(),
-    simIdleL1: '二重化　（メイン）',
-    simIdleL2: '[01]　{time}',
+    idleScreens: defaultIdleScreens(),
     calendarApiUrl: '',
     calendarQuery: '',
     gyotai: [
@@ -1417,8 +1442,7 @@ function normalizeSettings(o){
     },
     calendarApiUrl: strOr(o.calendarApiUrl, ''),
     calendarQuery:  strOr(o.calendarQuery,  ''),
-    simIdleL1: (typeof o.simIdleL1 === 'string') ? o.simIdleL1 : d.simIdleL1,
-    simIdleL2: (typeof o.simIdleL2 === 'string') ? o.simIdleL2 : d.simIdleL2,
+    idleScreens: [],
     phrases: [],
     entryNotes: [],
     midNotes: [],
@@ -1451,6 +1475,16 @@ function normalizeSettings(o){
     });
   }
   s.commands = (o.commands === undefined) ? defaultCommands() : normalizeCommands(o.commands);
+  if(o.idleScreens === undefined){
+    /* 旧バージョン（待機画面が1つだけ、simIdleL1/simIdleL2）からの移行 */
+    if(typeof o.simIdleL1 === 'string' || typeof o.simIdleL2 === 'string'){
+      s.idleScreens = [{ id: uid('is'), name: '待機画面', l1: o.simIdleL1 || '', l2: o.simIdleL2 || '' }];
+    }else{
+      s.idleScreens = defaultIdleScreens();
+    }
+  }else{
+    s.idleScreens = normalizeIdleScreens(o.idleScreens);
+  }
   (o.gyotai||[]).forEach(function(g){
     var ng = {
       id: g.id || uid('g'),
@@ -1516,6 +1550,20 @@ function trimLines(s){
    正規化する。存在しないキーidは捨てる（実機のキー配列を変えたときに壊れた手順が残らないように）。
    旧仕様（1行だけの display）からの互換: display の中身を l1 に、l2 は空にして引き継ぐ。
    hold（長押し）と repeat（連続で何回か押す）は同時に成立しないので、holdがtrueならrepeatは常に1にする。 */
+function normalizeIdleScreens(raw){
+  if(!Array.isArray(raw)) return defaultIdleScreens();
+  var out = [];
+  raw.forEach(function(s){
+    if(!s) return;
+    out.push({
+      id: s.id || uid('is'),
+      name: (typeof s.name === 'string' && s.name.trim()) ? s.name.trim() : '（名称未設定）',
+      l1: (typeof s.l1 === 'string') ? s.l1 : '',
+      l2: (typeof s.l2 === 'string') ? s.l2 : ''
+    });
+  });
+  return out.length ? out : defaultIdleScreens();
+}
 function normalizeCommands(raw){
   if(!Array.isArray(raw)) return [];
   var out = [];
@@ -3114,14 +3162,14 @@ var SIM_KEYS = [
   { id:'C3',    label:'3', sub:'C', name:'3（C）',     cls:'k-num' },
   { id:'POWER', label:'電源',    name:'電源',          cls:'k-black k-pow' },
   { id:'LEFT',  label:'◁',      name:'◁（左）',      cls:'k-black' },
-  { id:'MENU',  label:'メニュー', name:'メニュー',      cls:'k-gold' },
-  { id:'RIGHT', label:'▷',      name:'▷（右）',      cls:'k-fn' },
+  { id:'MENU',  label:'メニュー', name:'メニュー',      cls:'k-black' },
+  { id:'RIGHT', label:'▷',      name:'▷（右）',      cls:'k-black' },
   { id:'D4',    label:'4', sub:'D', name:'4（D）',     cls:'k-num' },
   { id:'E5',    label:'5', sub:'E', name:'5（E）',     cls:'k-num' },
   { id:'F6',    label:'6', sub:'F', name:'6（F）',     cls:'k-num' },
   { id:'0',     label:'0',       name:'0',            cls:'k-num' },
   { id:'BLANK', label:'',        name:'',             cls:'k-blank' },
-  { id:'DOWN',  label:'▽',      name:'▽（下）',      cls:'k-fn' },
+  { id:'DOWN',  label:'▽',      name:'▽（下）',      cls:'k-black' },
   { id:'EXEC',  label:'実行',    name:'実行',          cls:'k-gold' },
   { id:'7',     label:'7',       name:'7',            cls:'k-num' },
   { id:'8',     label:'8',       name:'8',            cls:'k-num' },
@@ -3181,8 +3229,27 @@ function simSetScreen(l1, l2){
   if($('sim-l1')) $('sim-l1').textContent = l1 || '';
   if($('sim-l2')) $('sim-l2').textContent = l2 || '';
 }
+/* いま選んでいる待機画面（練習用に電源オフ・サブ単独などへ切り替えられる。共有設定には入れない） */
+var curIdleId = null;
+function curIdleScreen(){
+  var list = settings.idleScreens || [];
+  var found = null;
+  for(var i = 0; i < list.length; i++){ if(list[i].id === curIdleId) found = list[i]; }
+  return found || list[0] || { l1:'', l2:'' };
+}
+function renderIdleSelect(){
+  var sel = $('sim-idle-view');
+  if(!sel) return;
+  var list = settings.idleScreens || [];
+  if(!list.some(function(s){ return s.id === curIdleId; })) curIdleId = list[0] ? list[0].id : null;
+  sel.innerHTML = list.map(function(s){
+    return '<option value="' + esc(s.id) + '"' + (s.id === curIdleId ? ' selected' : '') + '>' + esc(s.name) + '</option>';
+  }).join('');
+}
+function onIdleSelect(v){ curIdleId = v; simDefaultScreen(); simSetMsg(''); }
 function simDefaultScreen(){
-  simSetScreen(applyIdleTokens(settings.simIdleL1), applyIdleTokens(settings.simIdleL2));
+  var s = curIdleScreen();
+  simSetScreen(applyIdleTokens(s.l1), applyIdleTokens(s.l2));
   simSetNote('');
 }
 function simSetMsg(msg){ if($('sim-msg')) $('sim-msg').innerHTML = msg || ''; }
@@ -3496,6 +3563,8 @@ function updatePlayBtn(){
 }
 function openCmdTab(){
   renderSimKeys();
+  renderIdleSelect();
+  simDefaultScreen();
   renderCmdSelect(true);
 }
 
@@ -3513,12 +3582,11 @@ function renderSettings(){
   $('set-kw-out').value      = settings.dayKeywords.out;
   $('set-cal-url').value     = settings.calendarApiUrl;
   $('set-cal-q').value       = settings.calendarQuery;
-  $('sim-idle-l1').value     = settings.simIdleL1;
-  $('sim-idle-l2').value     = settings.simIdleL2;
 
   renderPhraseList();
   renderEntryNoteList();
   renderMidNoteList();
+  renderIdleScreenList();
   renderCommandList();
 
   var host = $('gy-list'), html = '';
@@ -3812,6 +3880,61 @@ function cmdStepRowHtml(c, st, si){
     + '</div>'
     + '</div>';
 }
+/* ---------- 設定画面: 待機中の画面の編集 ---------- */
+function renderIdleScreenList(){
+  var host = $('idle-screen-list');
+  if(!host) return;
+  var list = settings.idleScreens;
+  if(!list.length){
+    host.innerHTML = '<div class="empty">まだありません。<br>「＋ 待機画面を追加」から登録してください。</div>';
+    return;
+  }
+  var html = '';
+  list.forEach(function(s, i){
+    html += '<div class="is-row">'
+      + '<input type="text" class="is-name" value="' + esc(s.name) + '" autocomplete="off"'
+      +   ' placeholder="名前（プルダウンに出ます）" oninput="setIdleScreenField(\'' + s.id + '\',\'name\',this.value)">'
+      + '<div class="cs-lines">'
+      +   '<input type="text" class="cs-disp" value="' + esc(s.l1) + '" autocomplete="off" placeholder="1行目"'
+      +     ' oninput="setIdleScreenField(\'' + s.id + '\',\'l1\',this.value)">'
+      +   '<input type="text" class="cs-disp" value="' + esc(s.l2) + '" autocomplete="off" placeholder="2行目"'
+      +     ' oninput="setIdleScreenField(\'' + s.id + '\',\'l2\',this.value)">'
+      + '</div>'
+      + '<span class="cs-ops">'
+      +   '<button class="btn btn-ghost btn-sm" onclick="moveIdleScreen(' + i + ',-1)"' + (i === 0 ? ' disabled' : '') + ' aria-label="上へ">↑</button>'
+      +   '<button class="btn btn-ghost btn-sm" onclick="moveIdleScreen(' + i + ',1)"' + (i === list.length - 1 ? ' disabled' : '') + ' aria-label="下へ">↓</button>'
+      +   '<button class="btn btn-danger btn-sm" onclick="removeIdleScreen(\'' + s.id + '\')" aria-label="削除">✕</button>'
+      + '</span>'
+      + '</div>';
+  });
+  host.innerHTML = html;
+}
+function addIdleScreen(){
+  if(!requireAdmin()) return;
+  settings.idleScreens.push({ id: uid('is'), name: '', l1: '', l2: '' });
+  afterSettingsChange(true);
+}
+function removeIdleScreen(id){
+  if(!requireAdmin()) return;
+  if(settings.idleScreens.length <= 1){ toast('待機画面は最低1つ必要です'); return; }
+  for(var i = 0; i < settings.idleScreens.length; i++){
+    if(settings.idleScreens[i].id === id){ settings.idleScreens.splice(i, 1); break; }
+  }
+  afterSettingsChange(true);
+}
+function moveIdleScreen(i, d){
+  if(!requireAdmin()) return;
+  var j = i + d;
+  if(j < 0 || j >= settings.idleScreens.length) return;
+  var list = settings.idleScreens, tmp = list[i]; list[i] = list[j]; list[j] = tmp;
+  afterSettingsChange(true);
+}
+function setIdleScreenField(id, which, v){
+  for(var i = 0; i < settings.idleScreens.length; i++){
+    if(settings.idleScreens[i].id === id){ settings.idleScreens[i][which] = v; break; }
+  }
+  afterSettingsChange(false);
+}
 /* コマンドごとの折りたたみ開閉状態（見た目だけの状態なので、settingsには入れない） */
 var cmdOpenSet = {};
 function toggleCmdOpen(id){
@@ -3837,6 +3960,7 @@ function renderCommandList(){
       +   '<span class="gy-ops" onclick="event.stopPropagation()">'
       +     '<button class="btn btn-ghost btn-sm" onclick="moveCommand(' + ci + ',-1)"' + (ci === 0 ? ' disabled' : '') + ' aria-label="上へ">↑</button>'
       +     '<button class="btn btn-ghost btn-sm" onclick="moveCommand(' + ci + ',1)"' + (ci === settings.commands.length - 1 ? ' disabled' : '') + ' aria-label="下へ">↓</button>'
+      +     '<button class="btn btn-ghost btn-sm" onclick="duplicateCommand(\'' + c.id + '\')" aria-label="複製">複製</button>'
       +     '<button class="btn btn-danger btn-sm" onclick="removeCommand(\'' + c.id + '\')">削除</button>'
       +   '</span>'
       + '</div>'
@@ -3876,6 +4000,26 @@ function removeCommand(id){
   }
   delete cmdOpenSet[id];
   afterSettingsChange(true);
+}
+/* 途中まで同じ手順のコマンドが多いので、複製してから一部だけ書き換えられるようにする */
+function duplicateCommand(id){
+  if(!requireAdmin()) return;
+  var i, c = null;
+  for(i = 0; i < settings.commands.length; i++){ if(settings.commands[i].id === id){ c = settings.commands[i]; break; } }
+  if(!c) return;
+  var copy = {
+    id: uid('cm'),
+    name: c.name ? (c.name + '（コピー）') : '',
+    note: c.note,
+    steps: c.steps.map(function(st){
+      return { id: uid('cs'), keys: st.keys.slice(), hold: st.hold, repeat: st.repeat, l1: st.l1, l2: st.l2, memo: st.memo };
+    })
+  };
+  settings.commands.splice(i + 1, 0, copy);
+  cmdOpenSet[copy.id] = true;
+  afterSettingsChange(true);
+  var el = document.querySelector('#gy-cm-' + copy.id + ' .cm-name-inline');
+  if(el) el.focus();
 }
 function moveCommand(i, d){
   if(!requireAdmin()) return;
@@ -4284,8 +4428,6 @@ function onCommonChange(){
   settings.dayKeywords.out     = $('set-kw-out').value || '退店報告';
   settings.calendarApiUrl      = $('set-cal-url').value.trim();
   settings.calendarQuery       = $('set-cal-q').value.trim();
-  settings.simIdleL1           = $('sim-idle-l1').value;
-  settings.simIdleL2           = $('sim-idle-l2').value;
   if(settings.timeRange.endHour < settings.timeRange.startHour){
     settings.timeRange.endHour = settings.timeRange.startHour;
   }
@@ -4301,7 +4443,7 @@ function afterSettingsChange(rerenderSettingsPane){
   renderPhraseChips();
   renderEntryNoteRow();
   renderMidNoteRow();
-  if(!$('pane-cmd').classList.contains('hidden')) renderCmdSelect(true);
+  if(!$('pane-cmd').classList.contains('hidden')){ renderIdleSelect(); renderCmdSelect(true); }
   if(rerenderSettingsPane) renderSettings();
 }
 function syncEntriesWithSettings(){
