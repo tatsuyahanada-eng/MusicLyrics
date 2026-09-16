@@ -445,7 +445,7 @@
 }
 .lp-nowbox-when { font-size: .68rem; color: rgba(255, 255, 255, .78); }
 
-.lp-page-desc { margin-top: 14px; font-size: .82rem; line-height: 1.85; color: #3a4540; }
+.lp-page-desc { margin-top: 14px; font-size: .82rem; line-height: 1.85; color: #3a4540; white-space: pre-line; }
 .lp-page-open { margin-top: 15px; }
 .lp-page-open .lp-dl-url { margin-top: 6px; }
 
@@ -779,7 +779,7 @@
   border: 1px solid var(--lp-green-line); border-radius: 4px; padding: 0 6px;
 }
 .lp-row-summary {
-  font-size: .84rem;
+  font-size: .84rem; white-space: pre-line;
   display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical;
   overflow: hidden;
 }
@@ -1894,7 +1894,7 @@
 }
 .lp-chr-title {
   display: block; font-size: .87rem; font-weight: 600; color: var(--lp-ink);
-  white-space: normal; line-height: 1.4;
+  white-space: pre-line; line-height: 1.4;
 }
 .lp-chr-mark {
   display: grid; place-items: center; color: var(--lp-ink-soft);
