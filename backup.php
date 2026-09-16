@@ -8,10 +8,10 @@
    ============================================================ */
 
 if (!defined('BACKUP_DIR')) define('BACKUP_DIR', __DIR__ . '/backups'); // 保存先
-// アクセス時（誰かが画面を開いたとき）の自動バックアップを行うか。
-// cronで確実に走るようにしたあとは、config.php に
-//   define('AUTO_BACKUP_ON_ACCESS', false);
-// と書けば止められる。既定は true（従来どおり）。
+// アクセス時（誰かが画面を開いたとき）の自動バックアップを行うか、の既定値。
+// 修正画面（管理者）から「自動バックアップの方法」で切り替えられるようになった
+// ため、通常はこの定数を書き換える必要はない。DB側の設定が無いとき
+// （アップデート直後など）だけ、ここの値が初期値として使われる。
 if (!defined('AUTO_BACKUP_ON_ACCESS')) define('AUTO_BACKUP_ON_ACCESS', true);
 // 何日分の自動バックアップを残すか。0 は「消さない」（既定）。
 // 例）define('BACKUP_KEEP_DAYS', 90); で90日より古いものを自動削除。
@@ -21,6 +21,37 @@ if (!defined('BACKUP_KEEP_DAYS')) define('BACKUP_KEEP_DAYS', 0);
 // （cronから backup.php だけを読み込んだ場合のため）。
 if (!function_exists('now_ms')) {
   function now_ms() { return (int) round(microtime(true) * 1000); }
+}
+
+// app_settings（キー/値）の読み書き。api.php にも同じものがあるので、
+// 無いときだけ用意する（cronから backup.php だけを読み込んだ場合のため）。
+if (!function_exists('cbc_setting_get')) {
+  function cbc_setting_get($pdo, $k, $def = '') {
+    try { $st = $pdo->prepare('SELECT v FROM app_settings WHERE k = ?'); $st->execute(array($k));
+      $v = $st->fetchColumn(); return ($v === false || $v === null) ? $def : $v; }
+    catch (Throwable $e) { return $def; }
+  }
+}
+if (!function_exists('cbc_setting_set')) {
+  function cbc_setting_set($pdo, $k, $v) {
+    try { $pdo->prepare('DELETE FROM app_settings WHERE k = ?')->execute(array($k));
+      $pdo->prepare('INSERT INTO app_settings (k, v) VALUES (?, ?)')->execute(array($k, $v)); }
+    catch (Throwable $e) { /* 保存失敗は致命ではない */ }
+  }
+}
+
+/* ---------- 自動バックアップの方法（'access'=アプリ利用時 / 'cron'=サーバーのcronのみ） ----------
+   修正画面（管理者）の「自動バックアップの方法」から切り替える。DBに未設定のときは
+   config.php の AUTO_BACKUP_ON_ACCESS を初期値として使う（アップデート直後の互換用）。 */
+function cbc_backup_mode($pdo) {
+  $v = cbc_setting_get($pdo, 'backup_mode', '');
+  if ($v === 'access' || $v === 'cron') return $v;
+  return AUTO_BACKUP_ON_ACCESS ? 'access' : 'cron';
+}
+function cbc_backup_set_mode($pdo, $mode) {
+  $mode = ($mode === 'cron') ? 'cron' : 'access';
+  cbc_setting_set($pdo, 'backup_mode', $mode);
+  return $mode;
 }
 
 /* ---------- 完全バックアップ（手動エクスポート／自動バックアップ 共通） ---------- */
@@ -117,7 +148,7 @@ function cbc_prune_backups($keepDays = null) {
 // 失敗してもアプリの動作に影響させない（ベストエフォート）。
 function cbc_maybe_auto_backup($pdo) {
   try {
-    if (!AUTO_BACKUP_ON_ACCESS) return;   // cronに任せる設定のときは何もしない
+    if (cbc_backup_mode($pdo) !== 'access') return; // cronに任せる設定のときは何もしない
     if ((int)date('G') < 12) return;      // 正午（12時）より前は対象外
     if (file_exists(cbc_backup_path(date('Y-m-d')))) return;
     cbc_write_backup($pdo);

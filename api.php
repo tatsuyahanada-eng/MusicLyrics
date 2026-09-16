@@ -143,16 +143,21 @@ function cbc_keyword_score($terms, $haystackLower) {
   return $score;
 }
 
-/* app_settings（キー/値）の読み書き（ピン留め・AIモデルのキャッシュ等に使用） */
-function cbc_setting_get($pdo, $k, $def = '') {
-  try { $st = $pdo->prepare('SELECT v FROM app_settings WHERE k = ?'); $st->execute(array($k));
-    $v = $st->fetchColumn(); return ($v === false || $v === null) ? $def : $v; }
-  catch (Throwable $e) { return $def; }
+/* app_settings（キー/値）の読み書き（ピン留め・AIモデルのキャッシュ等に使用）。
+   backup.php でも同じものを使うため、二重定義にならないようガードしている。 */
+if (!function_exists('cbc_setting_get')) {
+  function cbc_setting_get($pdo, $k, $def = '') {
+    try { $st = $pdo->prepare('SELECT v FROM app_settings WHERE k = ?'); $st->execute(array($k));
+      $v = $st->fetchColumn(); return ($v === false || $v === null) ? $def : $v; }
+    catch (Throwable $e) { return $def; }
+  }
 }
-function cbc_setting_set($pdo, $k, $v) {
-  try { $pdo->prepare('DELETE FROM app_settings WHERE k = ?')->execute(array($k));
-    $pdo->prepare('INSERT INTO app_settings (k, v) VALUES (?, ?)')->execute(array($k, $v)); }
-  catch (Throwable $e) { /* 保存失敗は致命ではない */ }
+if (!function_exists('cbc_setting_set')) {
+  function cbc_setting_set($pdo, $k, $v) {
+    try { $pdo->prepare('DELETE FROM app_settings WHERE k = ?')->execute(array($k));
+      $pdo->prepare('INSERT INTO app_settings (k, v) VALUES (?, ?)')->execute(array($k, $v)); }
+    catch (Throwable $e) { /* 保存失敗は致命ではない */ }
+  }
 }
 
 /* 1モデルに対して1回だけ generateContent を呼ぶ。戻り値: array(httpCode, responseBody, networkError) */
@@ -990,6 +995,7 @@ if ($action === 'config') {
   $tripPos = 999; // TOPの大項目一覧での「交通費精算」の並び順（大きいほど後ろ）
   $logoOn = true; // ヘッダーロゴの表示ON/OFF（管理者が切替・全端末共有）。既定はON。
   $logoUrl = 'logo-default.png'; // ヘッダーロゴの画像URL。既定は同梱のロゴ画像。
+  $backupMode = 'access'; // 自動バックアップの方法（'access'=アプリ利用時 / 'cron'=サーバーのcronのみ）
   if ($connected) {
     try { $aiOn = (cbc_setting_get(cbc_pdo(), 'ai_enabled', '1') !== '0'); } catch (Throwable $e) {}
     try { $invOn = (cbc_setting_get(cbc_pdo(), 'inv_enabled', '0') === '1'); } catch (Throwable $e) {}
@@ -997,7 +1003,9 @@ if ($action === 'config') {
     try { $tripPos = (int)cbc_setting_get(cbc_pdo(), 'trip_pos', '999'); } catch (Throwable $e) {}
     try { $logoOn = (cbc_setting_get(cbc_pdo(), 'logo_enabled', '1') !== '0'); } catch (Throwable $e) {}
     try { $logoUrl = cbc_setting_get(cbc_pdo(), 'logo_url', 'logo-default.png'); } catch (Throwable $e) {}
-    // 毎日正午をすぎた最初のアクセスで、完全バックアップを自動作成する（通常は file_exists のみで即戻る軽量チェック）
+    try { $backupMode = cbc_backup_mode(cbc_pdo()); } catch (Throwable $e) {}
+    // 「アプリ利用時」設定のときだけ、正午をすぎた最初のアクセスで完全バックアップを自動作成する
+    // （通常は file_exists のみで即戻る軽量チェック。'cron' 設定のときは何もしない）
     try { cbc_maybe_auto_backup(cbc_pdo()); } catch (Throwable $e) {}
   }
   ok(array(
@@ -1012,6 +1020,7 @@ if ($action === 'config') {
     'tripPos'     => $tripPos,
     'logoOn'      => $logoOn,
     'logoUrl'     => $logoUrl,
+    'backupMode'  => $backupMode,
     'uploads'     => true,
     'driver'      => defined('DB_DRIVER') ? DB_DRIVER : 'mysql',
     'error'       => $connected ? null : $err,
@@ -2176,6 +2185,16 @@ switch ($action) {
     $path = rtrim(BACKUP_DIR, '/') . '/' . $name;
     if (is_file($path)) @unlink($path);
     ok();
+  }
+
+  case 'backup_set_mode': {
+    // 自動バックアップの方法を切り替え（全端末共有・管理者のみ）
+    //   'access' … これまでどおり、誰かが正午以降にアプリへアクセスした時に作成
+    //   'cron'   … サーバーのcron（backup-cron.php）だけに任せ、アクセス時には作らない
+    require_admin_session($pdo);
+    $d = body_json();
+    $mode = cbc_backup_set_mode($pdo, isset($d['mode']) ? (string)$d['mode'] : '');
+    ok(array('backupMode' => $mode));
   }
 
   case 'trip_distance': {

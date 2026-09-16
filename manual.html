@@ -12,7 +12,7 @@
   <link rel="manifest" href="manifest.webmanifest">
   <link rel="icon" href="icon.svg" type="image/svg+xml">
   <link rel="apple-touch-icon" href="icon-192.png">
-  <link rel="stylesheet" href="manual.css?v=109">
+  <link rel="stylesheet" href="manual.css?v=110">
 </head>
 <body class="tm-body">
 
@@ -599,6 +599,27 @@
             <input id="logoFile" type="file" accept="image/png,image/jpeg,image/gif,image/webp" hidden>
           </div>
           <span id="logoMsg" class="tm-ai-setting-hint" aria-live="polite"></span>
+        </div>
+
+        <!-- ===== 自動バックアップの方法（全端末共有・管理者のみ） ===== -->
+        <div class="tm-ai-setting">
+          <div class="tm-ai-toggle-label">&#128190; 自動バックアップの方法</div>
+          <div class="tm-backupmode-row">
+            <label class="tm-backupmode-opt">
+              <input type="radio" name="backupMode" id="backupModeAccess" value="access">
+              <span>アプリを開いたときに作成（従来の方式）</span>
+            </label>
+            <label class="tm-backupmode-opt">
+              <input type="radio" name="backupMode" id="backupModeCron" value="cron">
+              <span>サーバーのcron（時間指定）だけに任せる</span>
+            </label>
+          </div>
+          <span class="tm-ai-setting-hint">
+            「アプリを開いたときに作成」は、正午以降に誰かがアプリを開くたびに、その日ぶんがまだ無ければ作成します。
+            「サーバーのcronだけに任せる」を選ぶと、この作成は行わず、サーバー側で設定した cron（backup-cron.php）の時刻だけで作成されます。
+            どちらも保存先・ファイル名・中身は同じで、1日1ファイルのため二重には作られません。
+          </span>
+          <span id="backupModeMsg" class="tm-ai-setting-hint" aria-live="polite"></span>
         </div>
 
         <!-- ===== Data sync (server DB) ===== -->
@@ -1570,6 +1591,6 @@
   </dialog>
 
   <script src="vendor/xlsx.full.min.js"></script>
-  <script src="manual.js?v=126"></script>
+  <script src="manual.js?v=127"></script>
 </body>
 </html>

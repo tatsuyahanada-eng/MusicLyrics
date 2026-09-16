@@ -1047,6 +1047,28 @@
     } finally { f.value = ''; }
   }); }
 
+  /* ---------- 自動バックアップの方法（'access'=アプリ利用時 / 'cron'=サーバーのcronのみ。全端末共有・管理者のみ） ---------- */
+  function updateBackupModeUI() {
+    const a = $('#backupModeAccess'), c = $('#backupModeCron');
+    if (a) a.checked = (backupMode === 'access');
+    if (c) c.checked = (backupMode === 'cron');
+  }
+  { const group = document.querySelectorAll('input[name="backupMode"]'); group.forEach((r) => r.addEventListener('change', async (e) => {
+    if (!e.target.checked) return;
+    const want = e.target.value === 'cron' ? 'cron' : 'access';
+    const prev = backupMode;
+    backupMode = want;
+    const m = $('#backupModeMsg');
+    try {
+      await apiCall('backup_set_mode', { method: 'POST', body: { mode: want } });
+      if (m) { m.style.color = ''; m.textContent = want === 'cron' ? 'サーバーのcronだけに任せる設定にしました。' : 'アプリを開いたときに作成する設定にしました。'; }
+    } catch (err) {
+      backupMode = prev;
+      if (m) { m.style.color = 'var(--tm-danger)'; m.textContent = '設定の保存に失敗：' + err.message; }
+    }
+    updateBackupModeUI();
+  })); }
+
   if (aiSummaryDialog) {
     aiSummaryDialog.addEventListener('close', () => { aiOpen = false; syncTrap(); });
     const cl = $('#aiSummaryClose'); if (cl) cl.addEventListener('click', () => aiSummaryDialog.close());
@@ -3183,6 +3205,7 @@
   let travelOrigin = '東京都台東区台東2-1-1'; // 交通費の起点（サーバー設定で上書き）
   let logoOn = false;            // 管理者による ヘッダーロゴ表示ON/OFF（全端末共有）
   let logoUrl = '';              // ヘッダーロゴの画像URL（全端末共有）
+  let backupMode = 'access';     // 自動バックアップの方法：'access'=アプリ利用時 / 'cron'=サーバーのcronのみ
   let dbError = null;
   let authRequired = false;      // Basic認証等でログインが必要（401）→ 中身を出さない
 
@@ -3432,11 +3455,13 @@
       if (cfg.travelOrigin) travelOrigin = cfg.travelOrigin;
       logoOn = !!cfg.logoOn;                  // ヘッダーロゴの表示ON/OFF（既定OFF）
       logoUrl = cfg.logoUrl || '';            // ヘッダーロゴの画像URL
+      backupMode = (cfg.backupMode === 'cron') ? 'cron' : 'access'; // 自動バックアップの方法
       dbError = cfg.error || null;
       updateAiToggleUI();
       updateInvToggleUI();
       updateTripToggleUI();
       updateLogoToggleUI();
+      updateBackupModeUI();
       applyBrandLogo();
       refreshAiIndexUI();
       // DB接続が一時的な「接続数オーバー(1040)」で失敗しているだけなら、

@@ -1341,6 +1341,13 @@ dialog.tm-chat-dialog { width: min(960px, 96vw); max-width: 96vw; }
   height: 36px; width: auto; max-width: 120px; object-fit: contain;
   padding: 4px 8px; border-radius: 6px; background: var(--tm-panel-solid); border: 1px solid var(--tm-line);
 }
+/* 自動バックアップの方法（2択のラジオボタン） */
+.tm-backupmode-row { display: flex; flex-wrap: wrap; gap: 8px 18px; flex-basis: 100%; margin-top: 2px; }
+.tm-backupmode-opt {
+  display: inline-flex; align-items: center; gap: 8px; cursor: pointer;
+  font-size: 13px; color: var(--tm-text);
+}
+.tm-backupmode-opt input { accent-color: var(--tm-cyan); width: 15px; height: 15px; cursor: pointer; }
 
 /* ---------- Buttons ---------- */
 .tm-btn {
