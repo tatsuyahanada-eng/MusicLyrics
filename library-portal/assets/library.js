@@ -190,7 +190,7 @@ function attachmentBoxHtml(a, big) {
           <img class="lp-attach-thumb" src="${esc(a.url)}" alt="${esc(a.name)}" loading="lazy">
         </a>
         <span class="lp-attach-current-info">
-          <a class="lp-attach-link" href="${esc(a.url)}">${esc(a.name)}</a>
+          <a class="lp-attach-link" href="${esc(a.url)}" target="_blank" rel="noopener">${esc(a.name)}</a>
           <span class="lp-attach-size">${fmtBytes(a.size)}</span>
         </span>
       </p>`;
@@ -198,7 +198,7 @@ function attachmentBoxHtml(a, big) {
   return `
     <p class="lp-attach-box">
       <span class="lp-attach-type-icon" aria-hidden="true">${attachmentTypeIcon(a.mime)}</span>
-      <a class="lp-attach-link" href="${esc(a.url)}">${esc(a.name)}</a>
+      <a class="lp-attach-link" href="${esc(a.url)}" target="_blank" rel="noopener">${esc(a.name)}</a>
       <span class="lp-attach-size">${fmtBytes(a.size)}</span>
     </p>`;
 }
@@ -830,7 +830,7 @@ function spreadLeft(it) {
         <div class="lp-page-open">
           <div class="lp-page-open-row">
             ${url ? `<a class="lp-dl" href="${esc(url)}" target="_blank" rel="noopener">${ICON_EXTERNAL}<span>この資料を開く</span></a>`
-              : attach ? `<a class="lp-attach-link lp-attach-link-lg" href="${esc(attach.url)}">${ICON_CLIP}<span>${esc(attach.name)}</span></a>`
+              : attach ? `<a class="lp-attach-link lp-attach-link-lg" href="${esc(attach.url)}" target="_blank" rel="noopener">${ICON_CLIP}<span>${esc(attach.name)}</span></a>`
               : '<span class="lp-muted">URL 未設定</span>'}
             ${CAN_EDIT ? `
               <button class="lp-btn lp-btn-ghost lp-btn-sm" type="button" data-add="${esc(it.id)}">＋ この資料の更新を登録</button>
@@ -981,7 +981,7 @@ function rowHtml(it) {
       <span class="lp-row-url">
         ${url ? `<a class="lp-url-link" href="${esc(url)}" target="_blank" rel="noopener"
                     aria-label="${esc(it.name)} を開く">${ICON_EXTERNAL}<span>開く</span></a>`
-              : attach ? `<a class="lp-attach-link" href="${esc(attach.url)}"
+              : attach ? `<a class="lp-attach-link" href="${esc(attach.url)}" target="_blank" rel="noopener"
                     aria-label="${esc(it.name)} をダウンロード">${ICON_CLIP}<span>DL</span></a>`
               : '<span class="lp-muted">—</span>'}
       </span>
@@ -1746,9 +1746,9 @@ async function init() {
     });
   }
 
-  // 「開く」は独立したウィンドウで起動する
+  // 「開く」は独立したウィンドウで起動する（URLも、アップロードした添付ファイルも同じ扱い）
   document.addEventListener('click', (e) => {
-    const link = e.target.closest('.lp-dl, .lp-url-link');
+    const link = e.target.closest('.lp-dl, .lp-url-link, .lp-attach-link, .lp-attach-thumb-link');
     if (!link || !link.href) return;
     // 修飾キー付きや中クリックは、利用者の意図どおりブラウザに任せる
     if (e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
