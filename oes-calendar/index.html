@@ -255,6 +255,8 @@ input:focus,select:focus,textarea:focus{border-color:var(--blue);box-shadow:0 0 
 .simkey.k-pow{border-width:2px;font-size:10.5px;}
 .simkey.k-pow.k-black{border-color:var(--sky);}
 .simkey.k-clear{font-size:10.5px;}
+/* 「メニュー」「シフト」は文字数が多く既定の大きさだと折り返してしまうため、1行に収まる大きさにする */
+.simkey.k-tight{font-size:9.5px;letter-spacing:-.03em;white-space:nowrap;}
 .simkey.k-blank{background:#2B2B2B;border-color:#2B2B2B;cursor:default;}
 .simkey.press{transform:translateY(1px);background:#E4E4E4;}
 .simkey.k-gold.press{background:#5E4511;}
@@ -3222,13 +3224,13 @@ function copyAppsScript(){
 var SIM_KEYS = [
   { id:'F',     label:'F',       name:'F',            cls:'k-black' },
   { id:'UP',    label:'△',      name:'△（上）',      cls:'k-black' },
-  { id:'SHIFT', label:'シフト',  name:'シフト',        cls:'k-black' },
+  { id:'SHIFT', label:'シフト',  name:'シフト',        cls:'k-black k-tight' },
   { id:'A1',    label:'1', sub:'A', name:'1（A）',     cls:'k-num' },
   { id:'B2',    label:'2', sub:'B', name:'2（B）',     cls:'k-num' },
   { id:'C3',    label:'3', sub:'C', name:'3（C）',     cls:'k-num' },
   { id:'POWER', label:'電源',    name:'電源',          cls:'k-black k-pow' },
   { id:'LEFT',  label:'◁',      name:'◁（左）',      cls:'k-black' },
-  { id:'MENU',  label:'メニュー', name:'メニュー',      cls:'k-black' },
+  { id:'MENU',  label:'メニュー', name:'メニュー',      cls:'k-black k-tight' },
   { id:'RIGHT', label:'▷',      name:'▷（右）',      cls:'k-black' },
   { id:'D4',    label:'4', sub:'D', name:'4（D）',     cls:'k-num' },
   { id:'E5',    label:'5', sub:'E', name:'5（E）',     cls:'k-num' },
