@@ -1184,8 +1184,20 @@ textarea.sc-input { resize: vertical; line-height: 1.5; min-height: 2.6em; }
   .sc-main { grid-template-columns: minmax(0, 1fr); }
   .sc-side { position: static; max-height: none; display: block; }
   .sc-side-inner { max-height: none; }
-  /* 操作モードのボタンは、スマホでスクロールしても常に上部に残るようにする */
-  .sc-side-toolbar { position: sticky; top: 107px; z-index: 25; margin-bottom: 10px; }
+  /* 操作モードのボタンは、スマホではカレンダーの中に埋もれてしまうため
+     （sticky はそのときの親要素の高さまでしか貼り付かない）、
+     画面（ビューポート）に対して常に固定して、常に上部に見えるようにする */
+  .sc-side-toolbar {
+    position: fixed;
+    top: 107px;
+    left: 0;
+    right: 0;
+    z-index: 50;
+    margin: 0;
+    border-radius: 0;
+  }
+  /* 固定した分だけ、カレンダーの先頭が隠れないように空けておく */
+  .sc-calendar-col { padding-top: 120px; }
 
   /* ダブルタップで予定入力を開いたときは、カレンダーの上に重ねてポップアップ表示する */
   .sc-side.sc-side-modal-open {

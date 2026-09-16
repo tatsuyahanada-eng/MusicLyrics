@@ -1228,7 +1228,7 @@ function monthDayKeys() {
 
 /** 一覧の対象名（見出し・集計に使う） */
 const LIST_TARGET_NAMES = {
-  off: '休み希望日', available: '稼働可能日',
+  off: '休み希望日', available: '稼働可能日', empty: '未定の日',
   confirmed: '確定した稼働日', tentative: '仮出勤の日',
 };
 
@@ -1431,6 +1431,12 @@ function listedDayKeys() {
       (j.status || 'confirmed') === wantStatus && (!project || j.title === project)));
   }
 
+  if (target === 'empty') {
+    const today = todayKey();
+    // 稼働可でも休み希望でもなく、予定も無い、今日以降のまだ決めていない日（集計の「未定」と同じ定義）
+    return monthDayKeys().filter((key) => key >= today && !state.wishes[key] && !jobsOn(key).length);
+  }
+
   return monthDayKeys().filter((key) => {
     const w = state.wishes[key] || null;
     if (target === 'off') return w === WISH_OFF;
@@ -1452,6 +1458,7 @@ function buildListText() {
   if (!keys.length) {
     const howTo = target === 'off' ? 'カレンダーで「✕ 休み希望」を設定してください。'
       : target === 'available' ? 'カレンダーで「◯ 稼働可」を設定してください。'
+      : target === 'empty' ? 'この先の日はすべて、休み希望・稼働可・予定のいずれかが決まっています。'
       : isProject ? '案件名や対象の月をご確認ください。'
       : 'カレンダーで予定を登録すると、ここに表示されます。';
     return `${title} ${name}は登録されていません。\n${howTo}`;
