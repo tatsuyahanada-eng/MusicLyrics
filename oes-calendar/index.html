@@ -3699,6 +3699,17 @@ function diagFetchOk(url){
     .then(function(r){ return { ok:r.ok, status:r.status, res:r }; },
           function(){ return { ok:false, status:0, res:null }; });
 }
+/* "8M" のようなini値をバイト数に変換する（manual-upload.phpのiniToBytes()と対になる） */
+function iniStrToBytes(s){
+  s = String(s || '').trim();
+  if(!s) return 0;
+  var unit = s.slice(-1).toLowerCase();
+  var num = parseInt(s, 10) || 0;
+  if(unit === 'g') return num * 1024 * 1024 * 1024;
+  if(unit === 'm') return num * 1024 * 1024;
+  if(unit === 'k') return num * 1024;
+  return num;
+}
 function runDiagnostics(){
   var out = $('diag-out'), btn = $('btn-diag');
   if(!out) return;
@@ -3706,7 +3717,7 @@ function runDiagnostics(){
   out.innerHTML = '<div class="hint">チェックしています…</div>';
 
   /* 完了順ではなく、いつも同じ順番で並ぶように場所を決めておく */
-  var rows = new Array(8);
+  var rows = new Array(9);
   var finish = function(){
     out.innerHTML = '<div class="diag">' + rows.filter(function(x){ return !!x; }).join('') + '</div>';
     if(btn) btn.disabled = false;
@@ -3817,15 +3828,41 @@ function runDiagnostics(){
     });
   }));
 
+  /* ⑦ 手順書・資料のアップロード上限 */
+  jobs.push(diagFetchOk(MANUAL_UPLOAD_ENDPOINT).then(function(r){
+    if(!r.ok){
+      rows[7] = diagRow('warn', 'manual-upload.php が使えません（HTTP ' + r.status + '）',
+        '業態ごとの手順書・資料（画像・PDF）のアップロード機能が使えません。使わない場合は無視して構いません。'
+        + 'index.html と同じ場所（deployフォルダの外）に manual-upload.php を置くと使えるようになります。');
+      return;
+    }
+    return r.res.json().then(function(o){
+      var post = iniStrToBytes(o.post_max_size), upload = iniStrToBytes(o.upload_max_filesize);
+      var appMax = o.max_bytes || MANUAL_MAX_BYTES;
+      var tooSmall = (post > 0 && post < appMax) || (upload > 0 && upload < appMax);
+      rows[7] = tooSmall
+        ? diagRow('warn', '手順書・資料のアップロード上限が小さい可能性があります',
+            '現在のサーバー設定: post_max_size = ' + esc(o.post_max_size) + ' / upload_max_filesize = ' + esc(o.upload_max_filesize)
+            + '（このアプリの上限は' + fmtFileSize(appMax) + '）。<br>'
+            + '<code>deploy/.user.ini.sample</code> を「.user.ini」にリネームして manual-upload.php と同じ場所に置くと'
+            + '引き上げられます（PHP-FPM環境向け。反映まで数分かかることがあります）。'
+            + 'それでも変わらない場合は <code>deploy/.htaccess-upload-limits.sample</code> もお試しください（mod_php環境向け）。')
+        : diagRow('ok', '手順書・資料のアップロード上限は十分です',
+            'post_max_size = ' + esc(o.post_max_size) + ' / upload_max_filesize = ' + esc(o.upload_max_filesize));
+    }, function(){
+      rows[7] = diagRow('warn', 'manual-upload.php の応答を読み取れませんでした', '');
+    });
+  }));
+
   Promise.all(jobs).then(function(){
-    /* ⑦ インストールの状態 */
+    /* ⑧ インストールの状態 */
     var standalone = (window.matchMedia && window.matchMedia('(display-mode: standalone)').matches) || navigator.standalone === true;
     if(standalone){
-      rows[7] = diagRow('ok', 'アプリとして起動しています', 'ブラウザではなくインストール済みのアプリで開いています。');
+      rows[8] = diagRow('ok', 'アプリとして起動しています', 'ブラウザではなくインストール済みのアプリで開いています。');
     }else if(deferredInstallPrompt){
-      rows[7] = diagRow('ok', 'このままインストールできます', '設定タブの「📱 アプリとしてインストール」ボタンからどうぞ。');
+      rows[8] = diagRow('ok', 'このままインストールできます', '設定タブの「📱 アプリとしてインストール」ボタンからどうぞ。');
     }else{
-      rows[7] = diagRow('warn', 'インストールのボタンが出ていません',
+      rows[8] = diagRow('warn', 'インストールのボタンが出ていません',
         '上の項目がすべて ✅ なのにボタンが出ない場合は、①すでにインストール済み ②iPhoneのSafari（メニューの「ホーム画面に追加」をお使いください）'
         + ' ③ページを何度か開くとブラウザが判定する、のいずれかです。<br>'
         + '<b>すでにChromeのマーク付きで追加してしまっている場合は、一度アイコンを削除してから、Chromeの「⋮」→「アプリをインストール」で追加し直してください。</b>');

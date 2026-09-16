@@ -1,0 +1,30 @@
+# ------------------------------------------------------------------
+# 手順書・資料（画像・PDF）アップロードの上限を引き上げるサンプル
+# （Apache + mod_php 環境向け。deploy/.user.ini.sample で反映されない場合にお試しください）
+#
+# 置き場所: index.html と同じ場所に ".htaccess" として置く
+#           （すでに .htaccess がある場合は、下の中身をその中に追記してください。
+#            deploy/.htaccess.sample を使っている場合はそちらに追記する）
+#
+# ⚠ 注意: この書き方はPHPがApacheモジュール(mod_php)として動くサーバー専用です。
+#   PHP-FPM/CGIで動くサーバーでは効果が無いか、環境によっては
+#   「500 Internal Server Error」でサイト全体が表示できなくなることがあります。
+#   <IfModule>で対象モジュールが無いときはスキップされるようにしていますが、
+#   それでも追加した直後にサイトが真っ白になったりエラーが出た場合は、
+#   すぐにこの内容を削除（またはこのファイル自体を削除）してください。
+#   mod_phpかPHP-FPMかが分からない場合は、まず deploy/.user.ini.sample を
+#   お試しください（そちらのほうが安全です）。
+# ------------------------------------------------------------------
+
+<IfModule mod_php.c>
+    php_value post_max_size 40M
+    php_value upload_max_filesize 35M
+</IfModule>
+<IfModule mod_php7.c>
+    php_value post_max_size 40M
+    php_value upload_max_filesize 35M
+</IfModule>
+<IfModule mod_php8.c>
+    php_value post_max_size 40M
+    php_value upload_max_filesize 35M
+</IfModule>

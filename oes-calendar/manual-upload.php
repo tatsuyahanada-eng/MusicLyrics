@@ -50,6 +50,20 @@ function iniToBytes(string $val): int {
     }
 }
 
+// GETは「今どんな上限で動いているか」を返すだけの診断用（設定タブの「サーバーの状態をチェック」から使う）。
+// アップロード自体はPOSTでしか行えないので、これがあっても実際のアップロード動作には影響しない。
+if (($_SERVER['REQUEST_METHOD'] ?? '') === 'GET') {
+    echo json_encode([
+        'ok'                  => true,
+        'diagnostic'          => true,
+        'post_max_size'       => (string)ini_get('post_max_size'),
+        'upload_max_filesize' => (string)ini_get('upload_max_filesize'),
+        'sapi'                => php_sapi_name(),
+        'max_bytes'           => MAX_BYTES,
+    ], JSON_UNESCAPED_UNICODE);
+    exit;
+}
+
 if (($_SERVER['REQUEST_METHOD'] ?? '') !== 'POST') {
     fail('POSTで送信してください', 405);
 }

@@ -51,6 +51,7 @@ GoogleカレンダーへOES入替作業の予定を登録するための、単�
 | `deploy/config.php` | 管理者パスワードの置き場所（PHP。ここが唯一の平文。**秘密情報のため自動配布の対象にせず、手動で`config.php`として置く**。一度置けば以降のZIP更新で上書きされない） |
 | `deploy/config.json.sample` | PHPが使えない場合のパスワード設定（SHA-256ハッシュ）。手動で`config.json`として置く |
 | `deploy/.user.ini.sample` | PHP-FPM環境で `post_max_size` / `upload_max_filesize` を引き上げるサンプル（サーバーごとに要否が違うため手動設置。`.user.ini`として置く。任意） |
+| `deploy/.htaccess-upload-limits.sample` | 上記が効かないmod_php環境向けの代替サンプル（`.htaccess`に追記する。任意。設置直後にサイトが表示できなくなったら即削除する） |
 | `deploy/make-hash.html` | `config.json` 用のハッシュを作る手元用ページ（**サーバーには置かない**） |
 | `legacy/` | Claude Chat時代の旧版（参照用・非稼働） |
 
@@ -81,7 +82,16 @@ GoogleカレンダーへOES入替作業の予定を登録するための、単�
   この「変更＝未共有として見せる」「使えるなら自動保存する」動作を外さないこと。
 - **原因を利用者が自分で特定できるようにする。** 設定タブの `#diag-card`（`runDiagnostics()`）で
   https / `settings.json` / `settings-save.php` / パスワード設定 / `manifest.json` / アイコン /
-  Service Worker / インストール状態を1つずつ確認し、✅⚠️❌と「どうすればよいか」を日本語で出す。
+  Service Worker / **手順書・資料アップロードの上限（`post_max_size`/`upload_max_filesize`）** /
+  インストール状態を1つずつ確認し、✅⚠️❌と「どうすればよいか」を日本語で出す。
+  アップロード上限のチェックは `manual-upload.php` を**GETで**呼ぶと診断用のJSON
+  （`post_max_size`・`upload_max_filesize`・`sapi`・`max_bytes`）を返す仕組みを利用している
+  （POST専用エンドポイントだが、GETのときだけ例外的にこの診断情報を返す。実際のアップロード動作
+  ＝POST側の処理には影響しない）。アプリの上限（`MANUAL_MAX_BYTES`）より小さい場合は、
+  `.user.ini`（PHP-FPM向け）または `.htaccess`（mod_php向け。`deploy/.htaccess-upload-limits.sample`）
+  で引き上げるよう案内する。**利用者から「アップロードに失敗する」「上限を上げたい」という
+  問い合わせが繰り返しあったため追加した機能。今後この種の問い合わせが来たら、まずこの
+  診断結果を見てもらうこと。**
   **ロック中でも実行できるようにする**（管理者以外のスマホから確認する用途があるため、
   `#lock-card` `#install-card` と同様にロック対象から除外する）。
   `settings.json` の読み込み成功時は、業態の並び順とサーバー上の更新日時を `#shared-status` に出して、
@@ -340,6 +350,14 @@ GoogleカレンダーへOES入替作業の予定を登録するための、単�
     （後ろにすると、上限超過時は`$_POST`が空＝パスワードも空になっているため、絶対に先にたどり着けない）。
     あわせて `deploy/.user.ini.sample`（`.user.ini`にリネームしてindex.htmlと同じ場所に置くと、
     PHP-FPM環境でこのフォルダだけ`post_max_size`/`upload_max_filesize`を引き上げられる）を用意した。
+    **`.user.ini`はPHPがApacheモジュール（mod_php）として動くサーバーでは効かない**
+    （PHP_INI_PERDIRの一部設定はCGI/FastCGI＝PHP-FPM経由でのみ`.user.ini`から読み込まれる仕様のため。
+    利用者が実際に`.user.ini`を設置しても数値が変わらない不具合が報告され、原因はこれだった）。
+    その場合の代替として `deploy/.htaccess-upload-limits.sample`（`php_value`をmod_php向けの
+    `<IfModule>`で囲んだもの）を用意した。**どちらが効くかはサーバーによって違うため、
+    両方試してもらう案内にすること**（`.user.ini`のほうが安全なので先に案内する）。
+    設定タブの「サーバーの状態をチェック」（`runDiagnostics()`）で、実際に効いている
+    `post_max_size`/`upload_max_filesize`の値を確認できるようにしてある（前項参照）。
 - **設定タブは常時表示を最小限にする。** 使用頻度の低い項目（共通設定・作業当日の目印・カレンダー連携）は
   「詳細設定」1枚に折りたたむ（既定は閉）。新しい設定項目を追加する場合も、まず「詳細設定」に入れることを検討する
   （毎回必ず調整するような項目だけを常時表示に置く）。
@@ -430,7 +448,7 @@ GoogleカレンダーへOES入替作業の予定を登録するための、単�
 | `loadSharedSettings()` / `saveSharedSettings()` / `reloadSharedSettings()` | 共有設定（`settings.json`）の読み込み・保存 |
 | `markSharedDirty()` / `updateDirtyBar()` | 未共有の変更を記録し、設定タブに警告バーを出す。保存できる環境なら自動保存を予約する |
 | `probeSaveEndpoint()` | 起動時に `settings-save.php` が本当に使えるかを判定する（PHP未実行・config.php欠落・404を区別する） |
-| `runDiagnostics()` / `diagRow()` | 設定タブの「サーバーの状態をチェック」。共有されない／インストールできない原因を1つずつ表示する |
+| `runDiagnostics()` / `diagRow()` / `diagFetchOk()` / `iniStrToBytes(s)` | 設定タブの「サーバーの状態をチェック」。共有されない／インストールできない／アップロード上限が小さい原因を1つずつ表示する |
 | `toggleGy(id)` | 折りたたみ（業態・「詳細設定」で共通利用）の開閉。要素idは `gy-<id>` |
 | `splitReport(text)` | 説明文を入店/中間報告/退店に振り分ける。目印は `settings.dayKeywords` |
 | `rebuildOutBlock()` / `stripEquipmentLines(text)` / `stripRemarkBlock(text)` | ③退店連絡の本文を「本文 → 機器台数 → 特記事項」の順に組み立て直す。入力したものだけ反映する |

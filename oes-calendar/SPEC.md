@@ -517,6 +517,11 @@ Googleカレンダーの説明文の貼り付け（`#day-paste` → `loadDayFrom
   超過が疑われる場合は上限値を含む具体的なメッセージを返す。`upload_max_filesize` 超過
   （`UPLOAD_ERR_INI_SIZE`）も同様に専用メッセージにする。`deploy/.user.ini.sample` を
   `.user.ini` として置くと、PHP-FPM環境ではこのフォルダだけ上限を引き上げられる。
+  **ただしPHPがApacheモジュール（mod_php）として動くサーバーでは `.user.ini` は効かない**
+  （PHP_INI_PERDIRの一部設定はCGI/FastCGI経由でのみ読み込まれる仕様のため）。その場合は
+  `deploy/.htaccess-upload-limits.sample`（`<IfModule>`で囲んだ`php_value`。mod_php向け）を試す。
+  どちらが効くかはサーバーによって違うため両方の案内をする（`.user.ini`のほうが安全なので先に）。
+  実際に効いている値は`manual-upload.php`をGETすると分かる（下記5.5.2参照）。
 
 ### 5.3 よく使う文（定型フレーズ）
 
@@ -595,7 +600,12 @@ Googleカレンダーの説明文の貼り付け（`#day-paste` → `loadDayFrom
   4. 管理者パスワードの設定ファイル（`admin-auth.php` / `config.json`）の有無
   5. `manifest.json` の取得と、そこに書かれたアイコンが全て取得できるか
   6. `sw.js` の取得と Service Worker の登録状態
-  7. インストール状態（スタンドアロン起動中か／`beforeinstallprompt` を受け取っているか）
+  7. **手順書・資料アップロードの上限**: `manual-upload.php` を**GETで**呼び、返ってくる診断用JSON
+     （`post_max_size` / `upload_max_filesize` / `sapi` / `max_bytes`）を見て、サーバーの上限が
+     アプリの上限（`MANUAL_MAX_BYTES`、既定30MB）より小さければ警告し、`.user.ini`
+     （PHP-FPM向け）または`.htaccess`（mod_php向け）での引き上げ方を案内する
+     （`manual-upload.php`が無い場合はその旨を表示。使わない機能なら無視してよい）。
+  8. インストール状態（スタンドアロン起動中か／`beforeinstallprompt` を受け取っているか）
 - `loadSharedSettings()` の成功時は `#shared-status` にも業態の並び順と更新日時を出す。
 
 ### 5.5.3 アプリインストールへの導線
