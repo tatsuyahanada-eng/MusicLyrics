@@ -261,21 +261,35 @@ input:focus,select:focus,textarea:focus{border-color:var(--blue);box-shadow:0 0 
 .simkey.k-black.press{background:#000;}
 /* ハイライトは4種類を色分けする: 通常の1回押す＝濃い赤／長押し＝オレンジ／
    連続で何回か押す＝蛍光ブルー／押しまま（離さずに次へ）＝蛍光グリーン
-   （rep-modeの色はアプリ共通の--blue（実は濃いグレー）だと目立たないため、専用の鮮やかな青を使う） */
-.simkey.on{background:var(--sky);border-color:var(--sky);color:#fff;box-shadow:0 0 0 5px rgba(134,16,12,.4);transform:scale(1.1);z-index:1;}
+   （rep-modeの色はアプリ共通の--blue（実は濃いグレー）だと目立たないため、専用の鮮やかな青を使う）。
+   どれも「光っている」ように常時アニメーションさせる（通常・長押し・押しままは呼吸するようなグロー、
+   連続で何回か押すものだけは、まだ足りない回数があることが分かるようにはっきり点滅させる）。 */
+.simkey.on{background:var(--sky);border-color:var(--sky);color:#fff;box-shadow:0 0 0 5px rgba(134,16,12,.4);
+  transform:scale(1.1);z-index:1;animation:simglow-red 1.1s ease-in-out infinite;}
 .simkey.on .sub{color:#fff;}
-.simkey.on.hold-mode{background:#B26A00;border-color:#B26A00;box-shadow:0 0 0 5px rgba(178,106,0,.42);}
-.simkey.on.rep-mode{background:#0066FF;border-color:#0066FF;box-shadow:0 0 0 5px rgba(0,102,255,.48);}
-.simkey.on.stay-mode{background:#00B368;border-color:#00B368;box-shadow:0 0 0 5px rgba(0,179,104,.45);}
-.simkey.hold{animation:simhold 1s ease-in-out infinite;}
-.simkey.on.hold-mode.hold{animation:simholdamber 1s ease-in-out infinite;}
-.simkey.on.stay-mode.hold{animation:simholdgreen 1s ease-in-out infinite;}
-@keyframes simhold{0%,100%{box-shadow:0 0 0 5px rgba(134,16,12,.4);}50%{box-shadow:0 0 0 11px rgba(134,16,12,.12);}}
-@keyframes simholdamber{0%,100%{box-shadow:0 0 0 5px rgba(178,106,0,.42);}50%{box-shadow:0 0 0 11px rgba(178,106,0,.14);}}
-@keyframes simholdgreen{0%,100%{box-shadow:0 0 0 5px rgba(0,179,104,.45);}50%{box-shadow:0 0 0 11px rgba(0,179,104,.15);}}
+.simkey.on.hold-mode{background:#B26A00;border-color:#B26A00;box-shadow:0 0 0 5px rgba(178,106,0,.42);
+  animation:simglow-amber 1.1s ease-in-out infinite;}
+.simkey.on.rep-mode{background:#0066FF;border-color:#0066FF;box-shadow:0 0 0 5px rgba(0,102,255,.48);
+  animation:simblink-blue .7s steps(1,end) infinite;}
+.simkey.on.stay-mode{background:#00B368;border-color:#00B368;box-shadow:0 0 0 5px rgba(0,179,104,.45);
+  animation:simglow-green 1.1s ease-in-out infinite;}
+@keyframes simglow-red{0%,100%{box-shadow:0 0 0 5px rgba(134,16,12,.45),0 0 16px 3px rgba(134,16,12,.55);}
+  50%{box-shadow:0 0 0 8px rgba(134,16,12,.15),0 0 22px 7px rgba(134,16,12,.85);}}
+@keyframes simglow-amber{0%,100%{box-shadow:0 0 0 5px rgba(178,106,0,.45),0 0 16px 3px rgba(178,106,0,.55);}
+  50%{box-shadow:0 0 0 8px rgba(178,106,0,.15),0 0 22px 7px rgba(178,106,0,.85);}}
+@keyframes simglow-green{0%,100%{box-shadow:0 0 0 5px rgba(0,179,104,.45),0 0 16px 3px rgba(0,179,104,.55);}
+  50%{box-shadow:0 0 0 8px rgba(0,179,104,.15),0 0 22px 7px rgba(0,179,104,.85);}}
+/* 連続で何回か押す手順は、次も同じキーだと分かるようにパキッと点滅させる（グローではなく明滅） */
+@keyframes simblink-blue{
+  0%,49%{background:#0066FF;box-shadow:0 0 0 5px rgba(0,102,255,.5),0 0 20px 6px rgba(0,102,255,.8);}
+  50%,100%{background:#7FB2FF;box-shadow:0 0 0 5px rgba(0,102,255,.15);}
+}
 .rep-badge{position:absolute;top:-7px;right:-7px;background:#0066FF;color:#fff;font-size:9.5px;font-weight:700;
   min-width:17px;height:17px;border-radius:999px;display:flex;align-items:center;justify-content:center;
   padding:0 3px;box-shadow:0 0 0 2px #fff;}
+/* プルダウンで案内していない状態（自由に押しているとき）で実際に600ms以上押さえている間の光り方。
+   ガイド中の .on.hold-mode / .on.stay-mode のほうが詳しいクラス指定なのでそちらが優先される */
+.simkey.hold{animation:simglow-red 1.1s ease-in-out infinite;}
 .sim-msg{margin:9px 0 6px;font-size:12.5px;font-weight:700;color:var(--blue-d);min-height:19px;line-height:1.5;}
 /* 画面は変わらないが実際に起こること（印刷など）の説明 */
 .sim-note{margin:-3px 0 6px;font-size:12px;font-weight:600;color:#7A5A16;line-height:1.5;}
@@ -286,7 +300,8 @@ input:focus,select:focus,textarea:focus{border-color:var(--blue);box-shadow:0 0 
   background:var(--white);padding:5px 11px;font-size:12.5px;font-weight:700;color:var(--blue-d);}
 .cmd-step.on{background:var(--sky);border-color:var(--sky);color:#fff;}
 .cmd-step.on.hold-mode{background:#B26A00;border-color:#B26A00;}
-.cmd-step.on.rep-mode{background:#0066FF;border-color:#0066FF;}
+.cmd-step.on.rep-mode{animation:simblink-blue-chip .7s steps(1,end) infinite;}
+@keyframes simblink-blue-chip{0%,49%{background:#0066FF;border-color:#0066FF;}50%,100%{background:#7FB2FF;border-color:#7FB2FF;}}
 .cmd-step.done{opacity:.4;}
 .cmd-step .cs-tag{font-size:9.5px;font-weight:700;padding:1px 6px;border-radius:999px;background:var(--blue-l);color:var(--blue-d);}
 .cmd-step.on .cs-tag{background:rgba(255,255,255,.3);color:#fff;}
@@ -319,6 +334,9 @@ input:focus,select:focus,textarea:focus{border-color:var(--blue);box-shadow:0 0 
 .cm-name-inline{flex:1;min-width:80px;font-size:13px;font-weight:700;color:var(--blue-d);
   border:1px solid transparent;background:transparent;padding:5px 6px;border-radius:5px;}
 .cm-name-inline:hover,.cm-name-inline:focus{border-color:var(--line);background:var(--white);outline:none;}
+/* コマンドの見出しから直接選べる、このコマンド用の待機画面 */
+.cm-idle-inline{flex:0 1 130px;min-width:90px;min-height:30px;font-size:11.5px;padding:4px 20px 4px 6px;
+  color:var(--blue-d);background-color:var(--white);}
 /* 画面が広いときは実機と同じように「画面の右側にキー」の並びにする */
 @media (min-width:760px){
   .sim-panel{flex-direction:row;align-items:center;width:fit-content;max-width:100%;}
@@ -4018,6 +4036,13 @@ function renderCommandList(){
       +   '<input type="text" class="cm-name-inline" value="' + esc(c.name) + '" autocomplete="off"'
       +     ' placeholder="操作の名前　例: インストール情報を表示する" onclick="event.stopPropagation()"'
       +     ' oninput="setCommandName(\'' + c.id + '\',this.value)">'
+      +   '<select class="cm-idle-inline" onclick="event.stopPropagation()"'
+      +     ' onchange="setCommandIdleScreen(\'' + c.id + '\',this.value)" title="この操作を選んだときの待機画面">'
+      +     '<option value="">（今の画面のまま）</option>'
+      +     settings.idleScreens.map(function(s){
+              return '<option value="' + esc(s.id) + '"' + (c.idleScreen === s.id ? ' selected' : '') + '>→ ' + esc(s.name) + '</option>';
+            }).join('')
+      +   '</select>'
       +   '<span class="gy-ops" onclick="event.stopPropagation()">'
       +     '<button class="btn btn-ghost btn-sm" onclick="moveCommand(' + ci + ',-1)"' + (ci === 0 ? ' disabled' : '') + ' aria-label="上へ">↑</button>'
       +     '<button class="btn btn-ghost btn-sm" onclick="moveCommand(' + ci + ',1)"' + (ci === settings.commands.length - 1 ? ' disabled' : '') + ' aria-label="下へ">↓</button>'
@@ -4029,13 +4054,6 @@ function renderCommandList(){
       +   '<div class="field" style="margin-bottom:9px;"><label>説明（任意）</label>'
       +     '<input type="text" value="' + esc(c.note) + '" autocomplete="off" placeholder="例: 保守機能モードに入ってから操作します"'
       +     ' oninput="setCommandNote(\'' + c.id + '\',this.value)"></div>'
-      +   '<div class="field" style="margin-bottom:9px;"><label>この操作を選んだときの待機画面（任意）</label>'
-      +     '<select onchange="setCommandIdleScreen(\'' + c.id + '\',this.value)">'
-      +       '<option value="">（今選んでいる画面のまま）</option>'
-      +       settings.idleScreens.map(function(s){
-                return '<option value="' + esc(s.id) + '"' + (c.idleScreen === s.id ? ' selected' : '') + '>' + esc(s.name) + '</option>';
-              }).join('')
-      +     '</select></div>'
       +   '<div class="cs-list">';
     if(!c.steps.length){
       html += '<div class="hint">まだ手順がありません。「＋ 押すボタンを追加」から順番に登録してください。</div>';
