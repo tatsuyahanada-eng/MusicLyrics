@@ -343,6 +343,7 @@ input:focus,select:focus,textarea:focus{border-color:var(--blue);box-shadow:0 0 
 .cs-rep input[type=number]{width:44px;min-height:26px;padding:2px 4px;text-align:center;font-size:12.5px;}
 .cs-ops{display:flex;gap:4px;margin-left:auto;}
 .cs-ops button{width:34px;padding:0;justify-content:center;}
+.cs-insert-top{align-self:flex-start;margin-bottom:2px;}
 /* 待機中の画面の編集リスト（名前＋1〜2行目） */
 .is-row{display:flex;flex-wrap:wrap;gap:5px;align-items:center;border:1px solid var(--line-w);
   border-radius:var(--r-s);padding:6px 7px;background:var(--white);margin-bottom:6px;}
@@ -886,6 +887,16 @@ input:focus,select:focus,textarea:focus{border-color:var(--blue);box-shadow:0 0 
             <button class="btn btn-primary btn-sm" id="btn-cmd-play" onclick="cmdPlayToggle()">順番に再生</button>
             <button class="btn btn-sub btn-sm" onclick="cmdNext()">1つ進む</button>
             <button class="btn btn-ghost btn-sm" onclick="cmdReset()">最初から</button>
+          </div>
+          <div class="field" style="max-width:220px;margin-top:9px;">
+            <label for="cmd-play-speed">「順番に再生」次に進むまでの秒数</label>
+            <select id="cmd-play-speed" onchange="setCmdPlaySpeed(this.value)">
+              <option value="0.8">0.8秒（速い）</option>
+              <option value="1.2" selected>1.2秒（標準）</option>
+              <option value="1.5">1.5秒</option>
+              <option value="2">2秒（ゆっくり）</option>
+              <option value="3">3秒（とてもゆっくり）</option>
+            </select>
           </div>
         </div>
         <div class="cmd-guide-right">
@@ -3637,6 +3648,16 @@ function cmdReset(){
   simDefaultScreen();
   simSetMsg(cmdSeq ? 'この手順どおりにボタンを押すか、「順番に再生」を押してください' : '');
 }
+/* 「順番に再生」で通常の手順1つに使う秒数。ボタン（#cmd-play-speed）で変更できる。
+   共有設定には入れない（見る人ごとの好みなので）。既定の1.2秒を基準に、長押し・押しまま・
+   連続押しの間隔も同じ比率で伸び縮みする。 */
+var cmdPlayStepSec = 1.2;
+function setCmdPlaySpeed(v){ cmdPlayStepSec = parseFloat(v) || 1.2; }
+function cmdPlayIntervals(){
+  var normal = cmdPlayStepSec * 1000;
+  var mul = normal / 1200;
+  return { normal: normal, rep: Math.round(650 * mul), stay: Math.round(800 * mul), hold: Math.round(2200 * mul) };
+}
 function cmdPlayToggle(){ if(cmdPlaying) cmdStop(); else cmdPlay(); }
 function cmdPlay(){
   if(!cmdSeq || !cmdSeq.steps.length){ toast('先に操作を選んでください'); return; }
@@ -3646,6 +3667,7 @@ function cmdPlay(){
   cmdPlaying = true;
   updatePlayBtn();
   cmdGo(0);
+  var iv = cmdPlayIntervals();
   var pressOnce = function(){
     if(!cmdPlaying) return;
     var cur = cmdSeq.steps[cmdIdx];
@@ -3669,7 +3691,7 @@ function cmdPlay(){
       cmdGo(cmdIdx + 1);
       if(wasLast){ cmdStop(); return; }
       pressOnce();
-    }, cur.hold ? 2200 : (cur.stayDown ? 800 : (n > 1 ? 650 : 1150)));
+    }, cur.hold ? iv.hold : (cur.stayDown ? iv.stay : (n > 1 ? iv.rep : iv.normal)));
   };
   pressOnce();
 }
@@ -3986,6 +4008,7 @@ function cmdStepRowHtml(c, st, si){
     +     (si === 0 ? ' disabled' : '') + ' aria-label="上へ">↑</button>'
     +   '<button class="btn btn-ghost btn-sm" onclick="moveCmdStep(\'' + c.id + '\',' + si + ',1)"'
     +     (si === c.steps.length - 1 ? ' disabled' : '') + ' aria-label="下へ">↓</button>'
+    +   '<button class="btn btn-ghost btn-sm" onclick="insertCmdStep(\'' + c.id + '\',' + si + ')" aria-label="この後に1つ追加" title="この後にボタンを1つ追加（入れ忘れたときに）">＋</button>'
     +   '<button class="btn btn-danger btn-sm" onclick="removeCmdStep(\'' + c.id + '\',\'' + st.id + '\')" aria-label="削除">✕</button>'
     + '</span>'
     + '<div class="cs-lines">'
@@ -4101,9 +4124,12 @@ function renderCommandList(){
       +   '<div class="cs-list">';
     if(!c.steps.length){
       html += '<div class="hint">まだ手順がありません。「＋ 押すボタンを追加」から順番に登録してください。</div>';
+    }else{
+      html += '<button class="btn btn-ghost btn-sm cs-insert-top" onclick="insertCmdStep(\'' + c.id + '\',-1)">＋ 先頭に追加</button>';
     }
     c.steps.forEach(function(st, si){ html += cmdStepRowHtml(c, st, si); });
     html += '</div>'
+      + '<div class="hint" style="margin-top:6px;">各行の「＋」でその手順のすぐ後に、押し忘れたボタンを差し込めます。↑↓で順番も入れ替えられます。</div>'
       + '<div class="row-btns" style="margin-top:9px;">'
       +   '<button class="btn btn-sub btn-sm" onclick="addCmdStep(\'' + c.id + '\')">＋ 押すボタンを追加</button>'
       + '</div>'
@@ -4179,7 +4205,14 @@ function setCommandIdleScreen(id, v){
 function addCmdStep(cid){
   if(!requireAdmin()) return;
   var c = findCommand(cid); if(!c) return;
-  c.steps.push({ id: uid('cs'), keys: ['9'], hold: false, repeat: 1, l1: '', l2: '' });
+  c.steps.push({ id: uid('cs'), keys: ['9'], hold: false, stayDown: false, repeat: 1, l1: '', l2: '', memo: '' });
+  afterSettingsChange(true);
+}
+/* 押し忘れたボタンをあとから途中に差し込めるようにする（afterIndexの直後、-1なら先頭に入れる） */
+function insertCmdStep(cid, afterIndex){
+  if(!requireAdmin()) return;
+  var c = findCommand(cid); if(!c) return;
+  c.steps.splice(afterIndex + 1, 0, { id: uid('cs'), keys: ['9'], hold: false, stayDown: false, repeat: 1, l1: '', l2: '', memo: '' });
   afterSettingsChange(true);
 }
 function removeCmdStep(cid, sid){
