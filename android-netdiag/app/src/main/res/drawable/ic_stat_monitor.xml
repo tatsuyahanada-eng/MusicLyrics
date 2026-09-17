@@ -1,0 +1,22 @@
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="24"
+    android:viewportHeight="24"
+    android:tint="#FFFFFF">
+    <!-- Status-bar icon: radar sweep. Must be a flat white silhouette; the
+         system tints it to match the status bar. -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:fillAlpha="0.45"
+        android:pathData="M12,12 L12,3 A9,9 0 0,1 21,12 Z" />
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M12,2 C6.48,2 2,6.48 2,12 s4.48,10 10,10 10,-4.48 10,-10 S17.52,2 12,2 zM12,20 c-4.41,0 -8,-3.59 -8,-8 s3.59,-8 8,-8 8,3.59 8,8 -3.59,8 -8,8 z" />
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M11,11.25 L20,11.25 L20,12.75 L11,12.75 z" />
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M12,12m-2,0a2,2 0,1 1,4 0a2,2 0,1 1,-4 0" />
+</vector>

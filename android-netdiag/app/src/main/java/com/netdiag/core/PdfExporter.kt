@@ -25,7 +25,13 @@ object PdfExporter {
     private const val PAGE_H = 842
     private const val MARGIN = 32f
 
-    fun export(context: Context, memo: String, logText: String, imagePaths: List<String>): File {
+    fun export(
+        context: Context,
+        memo: String,
+        logText: String,
+        imagePaths: List<String>,
+        alertText: String = "",
+    ): File {
         val doc = PdfDocument()
         val body = Paint().apply { color = Color.BLACK; textSize = 10.5f }
         val heading = Paint().apply { color = Color.rgb(11, 107, 168); textSize = 14f; isFakeBoldText = true }
@@ -88,6 +94,11 @@ object PdfExporter {
 
         drawHeading("診断ログ")
         drawParagraph(logText, body)
+
+        if (alertText.isNotBlank()) {
+            drawHeading("監視アラート")
+            drawParagraph(alertText, body)
+        }
 
         drawHeading("機器画像 (${imagePaths.size})")
         val maxImgH = PAGE_H - MARGIN * 2 - lineH

@@ -16,6 +16,7 @@ import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.EditNote
 import androidx.compose.material.icons.outlined.Home
+import androidx.compose.material.icons.outlined.RadioButtonChecked
 import androidx.compose.material.icons.outlined.Search
 import androidx.compose.material.icons.outlined.Settings
 import androidx.compose.material.icons.outlined.Speed
@@ -45,6 +46,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.netdiag.ui.screens.DiagnoseScreen
 import com.netdiag.ui.screens.MemoScreen
+import com.netdiag.ui.screens.MonitorScreen
 import com.netdiag.ui.screens.ScanScreen
 import com.netdiag.ui.screens.SettingsScreen
 import com.netdiag.ui.screens.TrafficScreen
@@ -59,6 +61,7 @@ private val tabs = listOf(
     Tab("診断", Icons.Outlined.Search),
     Tab("Wi-Fi", Icons.Outlined.Wifi),
     Tab("速度", Icons.Outlined.Speed),
+    Tab("監視", Icons.Outlined.RadioButtonChecked),
     Tab("メモ", Icons.Outlined.EditNote),
     Tab("設定", Icons.Outlined.Settings),
 )
@@ -99,7 +102,8 @@ fun NetDiagApp() {
                     1 -> DiagnoseScreen()
                     2 -> WifiScreen()
                     3 -> TrafficScreen()
-                    4 -> MemoScreen()
+                    4 -> MonitorScreen()
+                    5 -> MemoScreen()
                     else -> SettingsScreen(
                         settings = settings,
                         onChange = { settings = it; repo.save(it) },

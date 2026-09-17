@@ -19,6 +19,14 @@
     <uses-permission android:name="android.permission.CAMERA" />
     <uses-feature android:name="android.hardware.camera.any" android:required="false" />
 
+    <!-- LAN monitoring: multicast reception needs a multicast lock, and the
+         watchdog runs as a foreground service so it keeps listening in the
+         background. Alerts are delivered as notifications. -->
+    <uses-permission android:name="android.permission.CHANGE_WIFI_MULTICAST_STATE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE" />
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+
     <application
         android:allowBackup="false"
         android:icon="@mipmap/ic_launcher"
@@ -38,6 +46,18 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
+
+        <service
+            android:name=".core.monitor.MonitorService"
+            android:exported="false"
+            android:foregroundServiceType="specialUse">
+            <property
+                android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
+                android:value="Continuous LAN health monitoring: watches the device's own
+                    network configuration and LAN multicast announcements to alert the
+                    user about rogue DHCP servers, gateway/DNS changes and broadcast
+                    storms while the app is in the background." />
+        </service>
 
         <provider
             android:name="androidx.core.content.FileProvider"

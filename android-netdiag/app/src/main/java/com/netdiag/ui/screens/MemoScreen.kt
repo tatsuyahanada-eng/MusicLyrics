@@ -45,6 +45,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.netdiag.core.DiagnosticsLog
 import com.netdiag.core.ImageStore
+import com.netdiag.core.monitor.AlertStore
 import com.netdiag.core.PdfExporter
 import com.netdiag.ui.SectionCard
 import java.io.File
@@ -205,14 +206,14 @@ fun MemoScreen(vm: MemoViewModel = viewModel()) {
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 Button(onClick = {
                     runCatching {
-                        val pdf = PdfExporter.export(context, text, DiagnosticsLog.asPlainText(), images)
+                        val pdf = PdfExporter.export(context, text, DiagnosticsLog.asPlainText(), images, AlertStore.asPlainText())
                         val where = PdfExporter.saveToDownloads(context, pdf)
                         toastMemo(context, if (where != null) "保存しました: $where" else "保存に失敗しました")
                     }.onFailure { toastMemo(context, "PDF作成に失敗しました") }
                 }) { Text("ダウンロード保存") }
                 OutlinedButton(onClick = {
                     runCatching {
-                        val pdf = PdfExporter.export(context, text, DiagnosticsLog.asPlainText(), images)
+                        val pdf = PdfExporter.export(context, text, DiagnosticsLog.asPlainText(), images, AlertStore.asPlainText())
                         val uri = FileProvider.getUriForFile(context, authority, pdf)
                         val share = Intent(Intent.ACTION_SEND).apply {
                             type = "application/pdf"

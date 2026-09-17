@@ -5,6 +5,7 @@ import android.content.Context
 import androidx.lifecycle.AndroidViewModel
 import com.netdiag.core.DiagnosticsLog
 import com.netdiag.core.ImageStore
+import com.netdiag.core.monitor.AlertStore
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -22,6 +23,9 @@ class MemoViewModel(app: Application) : AndroidViewModel(app) {
     init {
         DiagnosticsLog.init(app)
         ImageStore.init(app)
+        // So the PDF export can include monitoring alerts even if the 監視 tab
+        // was never opened in this session.
+        AlertStore.init(app)
     }
 
     fun setText(v: String) {
