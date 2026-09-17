@@ -3,125 +3,70 @@
     android:height="108dp"
     android:viewportWidth="108"
     android:viewportHeight="108">
-    <!-- NetScope glyph: a green-neon framed badge containing a wireframe globe
-         (network) crossed by a magnifying glass (scope). Each bright element is
-         drawn twice — a wide low-alpha pass, then a crisp pass — to fake a
-         neon glow without blur support in VectorDrawable. -->
+    <!-- NetScope glyph: a wireframe globe (network) being swept by a radar
+         scan — reads as "network scanning" without needing a magnifying
+         glass. Everything is kept inside the ~66dp safe-zone circle centred
+         on (54,54) (radius 33) so it is never clipped by a round/squircle
+         launcher mask — no border frame or bleeding handle this time. -->
 
-    <!-- Framed badge border (glow, then crisp) -->
+    <!-- Globe outline -->
     <path
         android:fillColor="#00000000"
         android:strokeColor="#39FF6A"
-        android:strokeAlpha="0.35"
-        android:strokeWidth="9"
-        android:pathData="M20,6 L88,6 A14,14 0 0,1 102,20 L102,88 A14,14 0 0,1 88,102 L20,102 A14,14 0 0,1 6,88 L6,20 A14,14 0 0,1 20,6 Z" />
+        android:strokeWidth="5"
+        android:strokeLineCap="round"
+        android:pathData="M28,54 A26,26 0 1,0 80,54 A26,26 0 1,0 28,54 Z" />
+
+    <!-- Meridian cross (reads as "globe/world") -->
     <path
         android:fillColor="#00000000"
-        android:strokeColor="#5CFF9A"
-        android:strokeWidth="4.5"
-        android:pathData="M20,6 L88,6 A14,14 0 0,1 102,20 L102,88 A14,14 0 0,1 88,102 L20,102 A14,14 0 0,1 6,88 L6,20 A14,14 0 0,1 20,6 Z" />
+        android:strokeColor="#22C55E"
+        android:strokeWidth="2.6"
+        android:strokeLineCap="round"
+        android:pathData="M54,28 L54,80" />
+    <path
+        android:fillColor="#00000000"
+        android:strokeColor="#22C55E"
+        android:strokeWidth="2.6"
+        android:strokeLineCap="round"
+        android:pathData="M28,54 L80,54" />
+    <!-- Narrow meridian arcs either side of centre, for globe depth -->
+    <path
+        android:fillColor="#00000000"
+        android:strokeColor="#22C55E"
+        android:strokeWidth="2.2"
+        android:strokeLineCap="round"
+        android:pathData="M54,28 A13,26 0 0,0 54,80" />
+    <path
+        android:fillColor="#00000000"
+        android:strokeColor="#22C55E"
+        android:strokeWidth="2.2"
+        android:strokeLineCap="round"
+        android:pathData="M54,28 A13,26 0 0,1 54,80" />
 
-    <!-- Globe outer meridian (glow, then crisp) -->
+    <!-- Radar scan wedge (fading fill) + bright sweep line, origin at globe centre -->
+    <path
+        android:fillColor="#39FF6A"
+        android:fillAlpha="0.20"
+        android:pathData="M54,54 L54,28 A26,26 0 0,1 80,54 Z" />
     <path
         android:fillColor="#00000000"
         android:strokeColor="#39FF6A"
-        android:strokeAlpha="0.30"
-        android:strokeWidth="7"
-        android:pathData="M20,44 A22,22 0 1,0 64,44 A22,22 0 1,0 20,44 Z" />
-    <path
-        android:fillColor="#00000000"
-        android:strokeColor="#8CFFC2"
-        android:strokeWidth="3"
+        android:strokeWidth="4"
         android:strokeLineCap="round"
-        android:pathData="M20,44 A22,22 0 1,0 64,44 A22,22 0 1,0 20,44 Z" />
-
-    <!-- Vertical meridian (straight, pole to pole) -->
+        android:pathData="M54,54 L80,54" />
     <path
-        android:fillColor="#00000000"
-        android:strokeColor="#22C55E"
-        android:strokeWidth="2.4"
-        android:strokeLineCap="round"
-        android:pathData="M42,22 L42,66" />
+        android:fillColor="#EAFFF3"
+        android:pathData="M54,54m-3,0a3,3 0,1 1,6 0a3,3 0,1 1,-6 0" />
 
-    <!-- Left-bulging meridian arc -->
-    <path
-        android:fillColor="#00000000"
-        android:strokeColor="#22C55E"
-        android:strokeWidth="2.4"
-        android:strokeLineCap="round"
-        android:pathData="M42,22 A11,22 0 0,0 42,66" />
-
-    <!-- Right-bulging meridian arc -->
-    <path
-        android:fillColor="#00000000"
-        android:strokeColor="#22C55E"
-        android:strokeWidth="2.4"
-        android:strokeLineCap="round"
-        android:pathData="M42,22 A11,22 0 0,1 42,66" />
-
-    <!-- Equator -->
-    <path
-        android:fillColor="#00000000"
-        android:strokeColor="#22C55E"
-        android:strokeWidth="2.4"
-        android:strokeLineCap="round"
-        android:pathData="M20,44 L64,44" />
-
-    <!-- Diagonal network link, upper-left to lower-right -->
-    <path
-        android:fillColor="#00000000"
-        android:strokeColor="#22C55E"
-        android:strokeWidth="2"
-        android:strokeLineCap="round"
-        android:pathData="M27,30 L54,58" />
-
-    <!-- Network node dots on the globe (glow, then crisp) -->
+    <!-- Detected-device ping nodes on the globe -->
     <path android:fillColor="#39FF6A" android:fillAlpha="0.35"
-        android:pathData="M42,22m-4,0a4,4 0,1 1,8 0a4,4 0,1 1,-8 0" />
+        android:pathData="M35,40m-3.6,0a3.6,3.6 0,1 1,7.2 0a3.6,3.6 0,1 1,-7.2 0" />
     <path android:fillColor="#EAFFF3"
-        android:pathData="M42,22m-2.4,0a2.4,2.4 0,1 1,4.8 0a2.4,2.4 0,1 1,-4.8 0" />
+        android:pathData="M35,40m-2.2,0a2.2,2.2 0,1 1,4.4 0a2.2,2.2 0,1 1,-4.4 0" />
 
     <path android:fillColor="#39FF6A" android:fillAlpha="0.35"
-        android:pathData="M27,30m-4,0a4,4 0,1 1,8 0a4,4 0,1 1,-8 0" />
+        android:pathData="M40,72m-3.6,0a3.6,3.6 0,1 1,7.2 0a3.6,3.6 0,1 1,-7.2 0" />
     <path android:fillColor="#EAFFF3"
-        android:pathData="M27,30m-2.4,0a2.4,2.4 0,1 1,4.8 0a2.4,2.4 0,1 1,-4.8 0" />
-
-    <path android:fillColor="#39FF6A" android:fillAlpha="0.35"
-        android:pathData="M31,56m-4,0a4,4 0,1 1,8 0a4,4 0,1 1,-8 0" />
-    <path android:fillColor="#EAFFF3"
-        android:pathData="M31,56m-2.4,0a2.4,2.4 0,1 1,4.8 0a2.4,2.4 0,1 1,-4.8 0" />
-
-    <!-- Magnifying glass: lens glow, dark glass, bright rim -->
-    <path
-        android:fillColor="#00000000"
-        android:strokeColor="#39FF6A"
-        android:strokeAlpha="0.35"
-        android:strokeWidth="9"
-        android:pathData="M75,73m-14,0a14,14 0,1 1,28 0a14,14 0,1 1,-28 0" />
-    <path
-        android:fillColor="#050805"
-        android:strokeColor="#39FF6A"
-        android:strokeWidth="5"
-        android:pathData="M75,73m-13,0a13,13 0,1 1,26 0a13,13 0,1 1,-26 0" />
-    <!-- Glass highlight -->
-    <path
-        android:fillColor="#00000000"
-        android:strokeColor="#C8FFDD"
-        android:strokeWidth="2"
-        android:strokeLineCap="round"
-        android:pathData="M66,66 A10,10 0 0,1 75,61" />
-    <!-- Handle (glow, then crisp) -->
-    <path
-        android:fillColor="#00000000"
-        android:strokeColor="#39FF6A"
-        android:strokeAlpha="0.35"
-        android:strokeWidth="10"
-        android:strokeLineCap="round"
-        android:pathData="M84.5,82.5 L100,98" />
-    <path
-        android:fillColor="#00000000"
-        android:strokeColor="#39FF6A"
-        android:strokeWidth="6"
-        android:strokeLineCap="round"
-        android:pathData="M84.5,82.5 L100,98" />
+        android:pathData="M40,72m-2.2,0a2.2,2.2 0,1 1,4.4 0a2.2,2.2 0,1 1,-4.4 0" />
 </vector>
