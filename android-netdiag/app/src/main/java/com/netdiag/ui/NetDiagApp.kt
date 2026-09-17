@@ -1,20 +1,31 @@
 package com.netdiag.ui
 
+import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.infiniteRepeatable
-import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.foundation.layout.width
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.EditNote
+import androidx.compose.material.icons.outlined.ExpandLess
+import androidx.compose.material.icons.outlined.ExpandMore
 import androidx.compose.material.icons.outlined.Home
 import androidx.compose.material.icons.outlined.RadioButtonChecked
 import androidx.compose.material.icons.outlined.Search
@@ -24,9 +35,6 @@ import androidx.compose.material.icons.outlined.Wifi
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.NavigationBar
-import androidx.compose.material3.NavigationBarItem
-import androidx.compose.material3.NavigationBarItemDefaults
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -75,25 +83,12 @@ fun NetDiagApp() {
     NetDiagTheme(settings) {
         var selected by rememberSaveable { mutableIntStateOf(0) }
         Scaffold(
-            topBar = { TerminalHeader(tabs[selected].label) },
-            bottomBar = {
-                NavigationBar {
-                    tabs.forEachIndexed { index, tab ->
-                        NavigationBarItem(
-                            selected = selected == index,
-                            onClick = { selected = index },
-                            icon = { Icon(tab.icon, contentDescription = tab.label) },
-                            label = { Text(tab.label) },
-                            colors = NavigationBarItemDefaults.colors(
-                                selectedIconColor = MaterialTheme.colorScheme.onPrimary,
-                                selectedTextColor = MaterialTheme.colorScheme.primary,
-                                indicatorColor = MaterialTheme.colorScheme.primary,
-                                unselectedIconColor = MaterialTheme.colorScheme.onSurfaceVariant,
-                                unselectedTextColor = MaterialTheme.colorScheme.onSurfaceVariant,
-                            ),
-                        )
-                    }
-                }
+            topBar = {
+                TerminalMenuHeader(
+                    tabs = tabs,
+                    selectedIndex = selected,
+                    onSelect = { selected = it },
+                )
             },
         ) { padding ->
             Box(Modifier.fillMaxSize().padding(padding)) {
@@ -115,12 +110,22 @@ fun NetDiagApp() {
 }
 
 /**
- * Console-style top banner: a shell prompt in phosphor green with a blinking
- * block cursor, giving the whole app a terminal / matrix look.
+ * Console-style top banner doubling as navigation: a shell prompt in phosphor
+ * green with a blinking block cursor shows the current section, and tapping it
+ * drops down a full-width command list of every tab. This replaces a bottom
+ * NavigationBar, which — at 7 destinations — got cramped and wrapped labels
+ * onto two lines on narrow phones.
  */
 @Composable
-private fun TerminalHeader(section: String) {
+private fun TerminalMenuHeader(
+    tabs: List<Tab>,
+    selectedIndex: Int,
+    onSelect: (Int) -> Unit,
+) {
+    var expanded by remember { mutableStateOf(false) }
     val accent = MaterialTheme.colorScheme.primary
+    val current = tabs[selectedIndex]
+
     val transition = rememberInfiniteTransition(label = "cursor")
     val blink by transition.animateFloat(
         initialValue = 1f,
@@ -131,6 +136,7 @@ private fun TerminalHeader(section: String) {
         ),
         label = "blink",
     )
+
     Column(
         Modifier
             .fillMaxWidth()
@@ -140,6 +146,7 @@ private fun TerminalHeader(section: String) {
         Row(
             Modifier
                 .fillMaxWidth()
+                .clickable { expanded = !expanded }
                 .padding(horizontal = 14.dp, vertical = 10.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
@@ -157,7 +164,7 @@ private fun TerminalHeader(section: String) {
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
             Text(
-                section.lowercase(),
+                current.label.lowercase(),
                 fontFamily = FontFamily.Monospace,
                 fontSize = 15.sp,
                 color = NameColor,
@@ -168,7 +175,57 @@ private fun TerminalHeader(section: String) {
                 fontSize = 15.sp,
                 color = accent.copy(alpha = blink),
             )
+            Spacer(Modifier.weight(1f))
+            Icon(
+                if (expanded) Icons.Outlined.ExpandLess else Icons.Outlined.ExpandMore,
+                contentDescription = if (expanded) "メニューを閉じる" else "メニューを開く",
+                tint = accent,
+            )
         }
         HorizontalDivider(thickness = 1.dp, color = accent.copy(alpha = 0.45f))
+
+        AnimatedVisibility(
+            visible = expanded,
+            enter = fadeIn() + expandVertically(),
+            exit = fadeOut() + shrinkVertically(),
+        ) {
+            Column(Modifier.fillMaxWidth()) {
+                Column(Modifier.fillMaxWidth().background(MaterialTheme.colorScheme.surface)) {
+                    tabs.forEachIndexed { index, tab ->
+                        val isSelected = index == selectedIndex
+                        Row(
+                            Modifier
+                                .fillMaxWidth()
+                                .clickable { onSelect(index); expanded = false }
+                                .background(
+                                    if (isSelected) accent.copy(alpha = 0.12f)
+                                    else androidx.compose.ui.graphics.Color.Transparent
+                                )
+                                .padding(horizontal = 18.dp, vertical = 13.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            Icon(
+                                tab.icon,
+                                contentDescription = null,
+                                tint = if (isSelected) accent else MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier.size(20.dp),
+                            )
+                            Spacer(Modifier.width(14.dp))
+                            Text(
+                                "> ${tab.label}",
+                                fontFamily = FontFamily.Monospace,
+                                fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
+                                fontSize = 15.sp,
+                                color = if (isSelected) accent else NameColor,
+                            )
+                        }
+                        if (index != tabs.lastIndex) {
+                            HorizontalDivider(thickness = 0.5.dp, color = accent.copy(alpha = 0.15f))
+                        }
+                    }
+                }
+                HorizontalDivider(thickness = 1.dp, color = accent.copy(alpha = 0.45f))
+            }
+        }
     }
 }
