@@ -61,7 +61,7 @@ if ($method === 'GET') {
             'time'    => substr((string)$u['updated_time'], 0, 5),
             'author'  => $u['author'],
             'kind'    => $u['update_kind'],
-            'bump'    => ($u['bump_type'] ?? 'minor') === 'revision' ? 'revision' : 'minor',
+            'bump'    => in_array($u['bump_type'] ?? 'minor', ['revision', 'major'], true) ? $u['bump_type'] : 'minor',
             'summary' => $u['summary'],
             'target'  => $u['target_feature'],
             'files'   => $filesByUpdate[(int)$u['update_id']] ?? [],

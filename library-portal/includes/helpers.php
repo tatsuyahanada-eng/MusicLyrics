@@ -145,9 +145,10 @@ function lp_version_label(int $major, int $minor, int $rev): string
  * 更新履歴（古い順）から、各更新時点の版数を順に求める。
  *
  * アイテムの登録時点を Ver1.00 とし、そこから最初の更新も含めて毎回
- * バージョンアップとして数える（1回目の更新で 1.1、微修正なら 1.01）。
+ * バージョンアップとして数える（1回目の更新で 1.1、微修正なら 1.01、
+ * 大幅な変更（メジャーアップ）なら次のメジャー番号に切り上げ：1.4 → 2.00）。
  *
- * @param array $bumps 各更新の 'minor'（通常）または 'revision'（微修正）
+ * @param array $bumps 各更新の 'minor'（通常）・'revision'（微修正）・'major'（大幅な変更）
  * @return string[]    古い順の版数
  */
 function lp_version_series(array $bumps): array
@@ -162,6 +163,10 @@ function lp_version_series(array $bumps): array
             $rev++;
             if ($rev > 9) { $rev = 0; $minor++; }        // 1.19 の次は 1.2
             if ($minor > 9) { $minor = 0; $major++; }
+        } elseif ($bump === 'major') {
+            $major++;
+            $minor = 0;
+            $rev   = 0;
         } else {
             $minor++;
             $rev = 0;

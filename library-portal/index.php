@@ -157,6 +157,7 @@ $dbMissing = $canEdit ? lp_missing_columns() : [];
           <select id="fBump" class="lp-select">
             <option value="minor">通常の更新（1.1 → 1.2）</option>
             <option value="revision">微修正（1.1 → 1.11）</option>
+            <option value="major">大幅な変更（1.4 → 2.00）</option>
           </select>
           <span class="lp-field-hint lp-field-hint-warn" id="fBumpNote" hidden>
             データベースの更新（sql/upgrade.sql）がまだのため、ここを選んでも反映されません。
@@ -197,7 +198,8 @@ $dbMissing = $canEdit ? lp_missing_columns() : [];
       </label>
       <label class="lp-field"><span class="lp-field-label">URL（変更がある場合のみ）</span>
         <input id="fUrl" class="lp-input" type="url" placeholder="https://share.example.co.jp/..."></label>
-      <p class="lp-field-hint">版数は登録順から自動で決まります（アイテム登録時点が Ver1.00、最初の更新から 1.1・1.2…、微修正は 1.01・1.02…）。</p>
+      <p class="lp-field-hint">版数は登録順から自動で決まります（アイテム登録時点が Ver1.00、最初の更新から 1.1・1.2…、微修正は 1.01・1.02…、
+        大幅な変更は次のメジャー番号へ切り上がります：2.00・3.00…）。</p>
       <p class="lp-form-error" id="updateError" hidden></p>
       <div class="lp-form-actions">
         <button type="button" id="btnCancel" class="lp-btn lp-btn-ghost">キャンセル</button>
@@ -226,7 +228,7 @@ $dbMissing = $canEdit ? lp_missing_columns() : [];
         <label class="lp-field"><span class="lp-field-label">名称 <em>必須</em></span>
           <input id="iName" class="lp-input" type="text" required></label>
         <label class="lp-field"><span class="lp-field-label">作成者 <em>必須</em></span>
-          <input id="iCreator" class="lp-input" type="text" required></label>
+          <input id="iCreator" class="lp-input" type="text" value="<?= h($user['display_name']) ?>" required></label>
       </div>
       <label class="lp-field">
         <span class="lp-field-label">シリーズ（関連するものをまとめる名前）</span>
@@ -308,7 +310,7 @@ $dbMissing = $canEdit ? lp_missing_columns() : [];
       uploadMaxBytes: <?= (int)lp_upload_max_bytes() ?>
     };
   </script>
-  <script src="assets/library.js?v=43"></script>
+  <script src="assets/library.js?v=44"></script>
   <script src="assets/pwa.js?v=2"></script>
   <script>
     // インストール導線：すぐに実行できる端末ではその場で、それ以外は案内ページへ

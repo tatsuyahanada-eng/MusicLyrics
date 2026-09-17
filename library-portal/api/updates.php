@@ -73,7 +73,7 @@ $date    = s($b, 'date', 10);
 $time    = s($b, 'time', 5);
 $author  = s($b, 'author', 60);
 $kind    = s($b, 'kind', 20);
-$bump    = s($b, 'bump', 10) === 'revision' ? 'revision' : 'minor';
+$bump    = in_array(s($b, 'bump', 10), ['revision', 'major'], true) ? s($b, 'bump', 10) : 'minor';
 $summary = s($b, 'summary', 500);
 $target  = s($b, 'target', 200);
 $ticket  = s($b, 'ticket', 30);

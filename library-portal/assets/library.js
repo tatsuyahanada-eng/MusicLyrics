@@ -359,8 +359,14 @@ async function loadItems() {
   items.forEach((it) => { if (!it.version) numberVersions(it); });
 }
 
+/** bump の値を 'revision' / 'major' / 'minor' のいずれかに正規化する（不正な値は 'minor' 扱い） */
+function normalizeBump(v) {
+  return v === 'revision' || v === 'major' ? v : 'minor';
+}
+
 /* 版数の決まり：アイテムの登録時点を 1.00 とし、最初の更新から毎回バージョンアップ
-   として数える（通常の更新で 1.1・1.2…、微修正で 1.01・1.02…）。
+   として数える（通常の更新で 1.1・1.2…、微修正で 1.01・1.02…、
+   大幅な変更（メジャーアップ）は次のメジャー番号へ：1.4 → 2.00）。
    桁があふれたら繰り上げる（1.9 の次は 2.00）ので、同じ表記は二度出ない。
    本番では api/items.php が同じ規則で数えている（includes/helpers.php）。 */
 function numberVersions(it) {
@@ -370,10 +376,13 @@ function numberVersions(it) {
     : (rev === 0 ? `${major}.${minor}` : `${major}.${minor}${rev}`);
 
   [...it.history].reverse().forEach((e) => {         // 古い順に数える
-    if (e.bump === 'revision') {
+    const bump = normalizeBump(e.bump);
+    if (bump === 'revision') {
       rev++;
       if (rev > 9) { rev = 0; minor++; }
       if (minor > 9) { minor = 0; major++; }
+    } else if (bump === 'major') {
+      major++; minor = 0; rev = 0;
     } else {
       minor++; rev = 0;
       if (minor > 9) { minor = 0; major++; }
@@ -1185,7 +1194,7 @@ function openUpdateModal(itemId, uid) {
     $('fTime').value = entry.time;
     $('fKind').value = entry.kind;
     $('fAuthor').value = entry.author;
-    $('fBump').value = entry.bump === 'revision' ? 'revision' : 'minor';
+    $('fBump').value = normalizeBump(entry.bump);
     $('fTicket').value = entry.ticket || '';
     $('fSummary').value = entry.summary;
     $('fTarget').value = entry.target;
@@ -1436,7 +1445,7 @@ function buildUpdateFormFrom(entry, itemId) {
   fd.append('time', entry.time);
   fd.append('author', entry.author);
   fd.append('kind', entry.kind);
-  fd.append('bump', entry.bump === 'revision' ? 'revision' : 'minor');
+  fd.append('bump', normalizeBump(entry.bump));
   fd.append('summary', entry.summary);
   fd.append('target', entry.target);
   fd.append('ticket', entry.ticket || '');
