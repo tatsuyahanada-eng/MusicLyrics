@@ -44,6 +44,9 @@ import androidx.compose.ui.unit.dp
  *  phosphor body text on the dark background. */
 val NameColor: Color = Color(0xFFFFFFFF)
 
+/** Shared danger/critical red, used for destructive actions and alerts. */
+val DangerColor: Color = Color(0xFFD05050)
+
 @Composable
 fun SectionCard(
     title: String,

@@ -1,26 +1,23 @@
 package com.netdiag.ui.screens
 
 import android.app.Application
-import android.content.Context
 import androidx.lifecycle.AndroidViewModel
 import com.netdiag.core.DiagnosticsLog
 import com.netdiag.core.ImageStore
+import com.netdiag.core.MemoStore
 import com.netdiag.core.monitor.AlertStore
-import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.asStateFlow
 
 /**
  * A simple scratchpad for jotting down router IPs, device names, SSIDs, etc.
- * Persisted in SharedPreferences so it survives app restarts until cleared.
+ * Backed by [MemoStore], a persisted app-wide singleton, so a global action
+ * (e.g. the header's オールクリア) is visible here immediately.
  */
 class MemoViewModel(app: Application) : AndroidViewModel(app) {
 
-    private val prefs = app.getSharedPreferences("netdiag_memo", Context.MODE_PRIVATE)
-    private val _text = MutableStateFlow(prefs.getString(KEY, "") ?: "")
-    val text: StateFlow<String> = _text.asStateFlow()
+    val text = MemoStore.text
 
     init {
+        MemoStore.init(app)
         DiagnosticsLog.init(app)
         ImageStore.init(app)
         // So the PDF export can include monitoring alerts even if the 監視 tab
@@ -28,21 +25,10 @@ class MemoViewModel(app: Application) : AndroidViewModel(app) {
         AlertStore.init(app)
     }
 
-    fun setText(v: String) {
-        _text.value = v
-        prefs.edit().putString(KEY, v).apply()
-    }
+    fun setText(v: String) = MemoStore.setText(v)
 
     /** Appends a block of text (e.g. OCR result) on a new line. */
-    fun append(v: String) {
-        if (v.isBlank()) return
-        val current = _text.value
-        setText(if (current.isBlank()) v else "$current\n$v")
-    }
+    fun append(v: String) = MemoStore.append(v)
 
-    fun clear() = setText("")
-
-    private companion object {
-        const val KEY = "memo_text"
-    }
+    fun clear() = MemoStore.clear()
 }

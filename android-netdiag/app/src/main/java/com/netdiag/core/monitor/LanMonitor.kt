@@ -89,6 +89,23 @@ object LanMonitor {
         DiagnosticsLog.add("MONITOR 監視を停止しました")
     }
 
+    /**
+     * Forgets every remembered baseline and known-device set (all networks,
+     * not just the current one) and clears the live counters, without
+     * stopping the monitor if it's currently running. Used by the header's
+     * "オールクリア" so a fresh baseline gets captured on the very next tick,
+     * exactly as if the app had never seen any network before.
+     */
+    fun resetAll(context: Context) {
+        val app = context.applicationContext
+        app.getSharedPreferences("netdiag_baseline", Context.MODE_PRIVATE).edit().clear().apply()
+        app.getSharedPreferences("netdiag_devices", Context.MODE_PRIVATE).edit().clear().apply()
+        knownDevices = mutableSetOf()
+        devicePrefsKey = null
+        recentBySource.clear()
+        _status.update { MonitorStatus(running = it.running) }
+    }
+
     /** Accepts the current configuration as the new "normal" for this network. */
     fun rebaseline(context: Context) {
         val app = context.applicationContext

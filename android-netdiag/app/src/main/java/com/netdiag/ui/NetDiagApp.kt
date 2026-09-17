@@ -23,6 +23,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.DeleteSweep
 import androidx.compose.material.icons.outlined.EditNote
 import androidx.compose.material.icons.outlined.ExpandLess
 import androidx.compose.material.icons.outlined.ExpandMore
@@ -32,11 +33,13 @@ import androidx.compose.material.icons.outlined.Search
 import androidx.compose.material.icons.outlined.Settings
 import androidx.compose.material.icons.outlined.Speed
 import androidx.compose.material.icons.outlined.Wifi
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
@@ -46,12 +49,14 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.netdiag.core.AppReset
 import com.netdiag.ui.screens.DiagnoseScreen
 import com.netdiag.ui.screens.MemoScreen
 import com.netdiag.ui.screens.MonitorScreen
@@ -82,12 +87,15 @@ fun NetDiagApp() {
 
     NetDiagTheme(settings) {
         var selected by rememberSaveable { mutableIntStateOf(0) }
+        var showClearConfirm by remember { mutableStateOf(false) }
+
         Scaffold(
             topBar = {
                 TerminalMenuHeader(
                     tabs = tabs,
                     selectedIndex = selected,
                     onSelect = { selected = it },
+                    onClearAllClick = { showClearConfirm = true },
                 )
             },
         ) { padding ->
@@ -106,6 +114,30 @@ fun NetDiagApp() {
                 }
             }
         }
+
+        if (showClearConfirm) {
+            AlertDialog(
+                onDismissRequest = { showClearConfirm = false },
+                title = { Text("オールクリア") },
+                text = {
+                    Text(
+                        "メモ・診断ログ・監視アラート・撮影した画像・ネットワークの基準値を" +
+                            "すべて削除して、最初からやり直します。この操作は元に戻せません。"
+                    )
+                },
+                confirmButton = {
+                    TextButton(onClick = {
+                        AppReset.clearAll(context)
+                        showClearConfirm = false
+                    }) {
+                        Text("クリアする", color = MaterialTheme.colorScheme.error)
+                    }
+                },
+                dismissButton = {
+                    TextButton(onClick = { showClearConfirm = false }) { Text("キャンセル") }
+                },
+            )
+        }
     }
 }
 
@@ -121,6 +153,7 @@ private fun TerminalMenuHeader(
     tabs: List<Tab>,
     selectedIndex: Int,
     onSelect: (Int) -> Unit,
+    onClearAllClick: () -> Unit,
 ) {
     var expanded by remember { mutableStateOf(false) }
     val accent = MaterialTheme.colorScheme.primary
@@ -177,9 +210,19 @@ private fun TerminalMenuHeader(
             )
             Spacer(Modifier.weight(1f))
             Icon(
+                Icons.Outlined.DeleteSweep,
+                contentDescription = "オールクリア（メモ・ログ・画像を全て消去）",
+                tint = DangerColor,
+                modifier = Modifier
+                    .size(22.dp)
+                    .clickable(onClick = onClearAllClick),
+            )
+            Spacer(Modifier.width(14.dp))
+            Icon(
                 if (expanded) Icons.Outlined.ExpandLess else Icons.Outlined.ExpandMore,
                 contentDescription = if (expanded) "メニューを閉じる" else "メニューを開く",
                 tint = accent,
+                modifier = Modifier.size(20.dp),
             )
         }
         HorizontalDivider(thickness = 1.dp, color = accent.copy(alpha = 0.45f))
@@ -198,8 +241,7 @@ private fun TerminalMenuHeader(
                                 .fillMaxWidth()
                                 .clickable { onSelect(index); expanded = false }
                                 .background(
-                                    if (isSelected) accent.copy(alpha = 0.12f)
-                                    else androidx.compose.ui.graphics.Color.Transparent
+                                    if (isSelected) accent.copy(alpha = 0.12f) else Color.Transparent
                                 )
                                 .padding(horizontal = 18.dp, vertical = 13.dp),
                             verticalAlignment = Alignment.CenterVertically,

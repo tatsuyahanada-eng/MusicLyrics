@@ -44,6 +44,13 @@ object ImageStore {
         persist()
     }
 
+    /** Deletes every stored photo and forgets the list. */
+    fun clear() {
+        _paths.value.forEach { runCatching { File(it).delete() } }
+        _paths.value = emptyList()
+        persist()
+    }
+
     private fun persist() {
         prefs?.edit()?.putString("paths", _paths.value.joinToString("\n"))?.apply()
     }
