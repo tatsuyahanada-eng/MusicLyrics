@@ -12,6 +12,7 @@ import androidx.compose.animation.fadeOut
 import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -22,12 +23,13 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.Close
 import androidx.compose.material.icons.outlined.DeleteSweep
 import androidx.compose.material.icons.outlined.EditNote
-import androidx.compose.material.icons.outlined.ExpandLess
-import androidx.compose.material.icons.outlined.ExpandMore
 import androidx.compose.material.icons.outlined.Home
+import androidx.compose.material.icons.outlined.Menu
 import androidx.compose.material.icons.outlined.RadioButtonChecked
 import androidx.compose.material.icons.outlined.Search
 import androidx.compose.material.icons.outlined.Settings
@@ -49,6 +51,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
@@ -118,7 +121,7 @@ fun NetDiagApp() {
         if (showClearConfirm) {
             AlertDialog(
                 onDismissRequest = { showClearConfirm = false },
-                title = { Text("オールクリア") },
+                title = { Text("ALL CLEAR") },
                 text = {
                     Text(
                         "メモ・診断ログ・監視アラート・撮影した画像・ネットワークの基準値を" +
@@ -211,7 +214,7 @@ private fun TerminalMenuHeader(
             Spacer(Modifier.weight(1f))
             Icon(
                 Icons.Outlined.DeleteSweep,
-                contentDescription = "オールクリア（メモ・ログ・画像を全て消去）",
+                contentDescription = "ALL CLEAR（メモ・ログ・画像を全て消去）",
                 tint = DangerColor,
                 modifier = Modifier
                     .size(22.dp)
@@ -219,13 +222,16 @@ private fun TerminalMenuHeader(
             )
             Spacer(Modifier.width(14.dp))
             Icon(
-                if (expanded) Icons.Outlined.ExpandLess else Icons.Outlined.ExpandMore,
+                if (expanded) Icons.Outlined.Close else Icons.Outlined.Menu,
                 contentDescription = if (expanded) "メニューを閉じる" else "メニューを開く",
                 tint = accent,
-                modifier = Modifier.size(20.dp),
+                modifier = Modifier.size(22.dp),
             )
         }
         HorizontalDivider(thickness = 1.dp, color = accent.copy(alpha = 0.45f))
+
+        IconTabStrip(tabs = tabs, selectedIndex = selectedIndex, onSelect = onSelect, accent = accent)
+        HorizontalDivider(thickness = 1.dp, color = accent.copy(alpha = 0.25f))
 
         AnimatedVisibility(
             visible = expanded,
@@ -267,6 +273,47 @@ private fun TerminalMenuHeader(
                     }
                 }
                 HorizontalDivider(thickness = 1.dp, color = accent.copy(alpha = 0.45f))
+            }
+        }
+    }
+}
+
+/**
+ * Always-visible row of icon-only tab buttons — no labels, so all 7 fit on
+ * one line without wrapping. A quick way to jump straight to a section;
+ * the hamburger menu above still opens the full labelled list for anyone
+ * unsure what an icon means.
+ */
+@Composable
+private fun IconTabStrip(
+    tabs: List<Tab>,
+    selectedIndex: Int,
+    onSelect: (Int) -> Unit,
+    accent: Color,
+) {
+    Row(
+        Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 4.dp, vertical = 4.dp),
+        horizontalArrangement = Arrangement.SpaceEvenly,
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        tabs.forEachIndexed { index, tab ->
+            val isSelected = index == selectedIndex
+            Box(
+                Modifier
+                    .clip(RoundedCornerShape(8.dp))
+                    .background(if (isSelected) accent.copy(alpha = 0.16f) else Color.Transparent)
+                    .clickable { onSelect(index) }
+                    .padding(horizontal = 10.dp, vertical = 6.dp),
+                contentAlignment = Alignment.Center,
+            ) {
+                Icon(
+                    tab.icon,
+                    contentDescription = tab.label,
+                    tint = if (isSelected) accent else MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.size(22.dp),
+                )
             }
         }
     }
