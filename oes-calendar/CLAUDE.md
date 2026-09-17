@@ -491,11 +491,45 @@ GoogleカレンダーへOES入替作業の予定を登録するための、単�
     ハイライト色は蛍光グリーン（`.stay-mode`）。同時押し（2キー）と組み合わせても動作する
     （`simGroup`が両方のキーを含んだ時点で一致するため）。
   - **CSVで一括登録・書き出しができる**（`exportCommandsCsv()` / `importCommandsCsv()` / 手書きの`parseCsv()`）。
-    列は「コマンド名,説明,待機画面,ボタン1,ボタン2（同時押し）,長押し,押しまま,連続回数,画面1行目,画面2行目,
-    結果コメント」で、同じ「コマンド名」の行が連続していると1つの操作としてまとめる。「待機画面」列は
-    **名前**で指定し、読み込み時に`settings.idleScreens`の`name`と照合してidに解決する（一致しなければ
-    「今選んでいる画面のまま」扱いになる）。書き出しはBOM付き（Excel文字化け対策）。
+    列は「コマンド名,説明,役立つ場面,待機画面,ボタン1,ボタン2（同時押し）,長押し,押しまま,連続回数,
+    画面1行目,画面2行目,結果コメント」で、同じ「コマンド名」の行が連続していると1つの操作としてまとめる。
+    「待機画面」列は**名前**で指定し、読み込み時に`settings.idleScreens`の`name`と照合してidに解決する
+    （一致しなければ「今選んでいる画面のまま」扱いになる）。書き出しはBOM付き（Excel文字化け対策）。
     **読み込むと`settings.commands`は丸ごと置き換わる**（`confirm()`で確認してから）。待機画面一覧自体はCSVの対象外。
+  - **「簡易手順」（`#cmd-textlist`）の文字色は濃くしてある**（`.cmd-textlist{color:var(--ink);font-weight:700;}`）。
+    以前は淡いグレーで、利用者から「色が薄すぎてはっきり見えない」と指摘されたため濃くした
+    （画面表示部分の`.tl-scr`だけは本文より少し控えめな濃さ`#3A3D40`のまま、太字は保つ）。
+    **これより薄い色に戻さないこと。**
+  - **コマンドごとに「この操作が役に立つ場面」を書ける**（`c.usage`、任意）。手順そのもの（何を押すか）
+    とは別に、「なぜこの操作をするのか」を管理者があらかじめ書いておける欄。②カードの`#cmd-usage`に
+    プルダウンで選んだ瞬間に反映され、💡付きの淡いアンバー色の帯（`.cmd-usage`）で表示する
+    （書かれていなければ`.cmd-usage:empty{display:none;}`で欄自体を出さない）。設定タブのコマンド編集
+    （開いた詳細欄）に1行の入力欄を置き、CSVの「役立つ場面」列（コマンド名・説明の次、待機画面の前）
+    でも読み書きできる。**利用者の依頼**：「操作するコマンドがどういう時に役に立つのかということを
+    明記する、入力する画面が欲しい」という要望で追加した。
+  - **画面の枠外に「電源スイッチ」のイメージを置いた**（`.sim-pwrsw` / `#sw-rocker`、キーパッドの左）。
+    **利用者の依頼**：「画面の枠外で構わないから、電源のオンオフスイッチみたいな画面のイメージを
+    配置してほしい。何かのボタンを押しながら電源オン、というようなコマンド操作もあり得るので。
+    スイッチのイメージは上オン、下オフになる」という要望で追加した。**上＝ON・下＝OFF**（`SIM_SWITCH_KEYS`
+    の`PWRSW_ON`/`PWRSW_OFF`）。「何かのボタンを押しながら」という要望どおり、**キーパッド本体の
+    キーと完全に同じpress/hold/同時押し/押しままの仕組み**（`simDownKey()`/`simUpKey()`/
+    `checkStayDownMatch()`）に乗せている。そのため：
+    - `simKeyDef(id)`を`SIM_KEYS`と`SIM_SWITCH_KEYS`の両方を見るように拡張した。ラベル表示
+      （`simKeyLabel()`/`simStepLabel()`）はこの関数経由なので、電源スイッチも通常キーと同じ
+      表現で手順チップ・簡易手順に出る。
+    - `simKeyEl(id)`は`#sim-keys`の中だけを見るスコープ付きだったのを、`data-key`属性を持つ要素なら
+      どこでも見つけられるよう`document.querySelector('[data-key="..."]')`に広げた
+      （電源スイッチのボタンは`#sim-keys`の外にあるため）。
+    - 手順編集のキー選択プルダウン（`simKeyOptions()`）に「電源スイッチ（枠外）」という
+      `<optgroup>`を追加し、通常のキーと同じ並び（`keys`配列の1つとして）で選べるようにした。
+      これにより`['PWRSW_ON','7']`のような**電源スイッチ＋通常キーの同時押し**もそのまま組める。
+    - 押した瞬間（離すのを待たない）に見た目（`.sw-active`）と電源LED（`#led-power`の`.on`クラス）
+      を切り替える（`updatePwrSwitchVisual()`）。表示用の状態は`simPwrSwitchPos`（`'on'`/`'off'`、
+      共有設定には入れないローカル変数。初期値`'on'`）。
+    - `clearCmdHighlight()`に**既存の不具合**（`'stay-mode'`クラスの消し忘れ、`#sim-keys .simkey`
+      にしかセレクタが及んでおらず電源スイッチのハイライトが消えない）を見つけて修正した
+      （`'#sim-keys .simkey, .sw-cell'`に広げ、`'stay-mode'`をクラス除去リストに追加）。
+    - 見た目は実機の側面スイッチのイメージなので、アプリの2色ルールの対象外（キーパッド本体と同じ扱い）。
   - **`.sim-panel`まわりの見た目は実機の再現なので、アプリの2色ルール（濃い灰色×濃い赤）の対象外**
     （機器写真やウェルシスのロゴと同じ扱い。ゴールドの`実行`キーなどは実機の色）。
     ただし**「いま押すボタン」のハイライトだけはアクセント色（`--sky`）**にして、アプリ全体と揃える。
@@ -616,8 +650,10 @@ GoogleカレンダーへOES入替作業の予定を登録するための、単�
 | `openInstallHelp()` / `openModal()` | フッターの「アプリインストールはこちらから」。すぐ入れられるならダイアログ、無理ならOS別の手順を出す |
 | `installPwa()` | `beforeinstallprompt`で保持したイベントの`.prompt()`を呼び、PWAインストールダイアログを出す |
 | `renderPhraseChips()` / `copyPhrase(i)` | よく使う文のチップ描画とコピー |
-| `SIM_KEYS` / `simKeyDef(id)` / `simKeyLabel(id)` / `simStepLabel(st)` | コマンド一覧タブの実機キー配列と、その表示用ラベル（**idは保存データなので変えない**） |
-| `renderSimKeys()` / `simDownKey(id)` / `simUpKey(id)` | シミュレーターのキーパッド描画と、押す・離すの判定（長押し・同時押しの検出もここ） |
+| `SIM_KEYS` / `SIM_SWITCH_KEYS` / `simKeyDef(id)` / `simKeyLabel(id)` / `simStepLabel(st)` | コマンド一覧タブの実機キー配列（キーパッド／電源スイッチの2つ）と、その表示用ラベル（**idは保存データなので変えない**） |
+| `renderSimKeys()` / `renderPwrSwitch()` / `wireSimKeyEvents(btn,id)` | キーパッドと電源スイッチのボタン描画・pointerイベント配線（同じ関数を両方に使う） |
+| `simDownKey(id)` / `simUpKey(id)` / `simKeyEl(id)` | 押す・離すの判定（長押し・同時押しの検出もここ）。`simKeyEl`は`data-key`属性を持つ要素ならキーパッドの外（電源スイッチ）でも見つけられる |
+| `simPwrSwitchPos` / `updatePwrSwitchVisual()` | 電源スイッチの状態（`'on'`/`'off'`、共有設定には入れない）と、見た目（`.sw-active`）・電源LED（`#led-power`）への反映 |
 | `expandPhysicalSteps(cmd)` / `stepRepeat(st)` | 手順を「実際に押す回数ぶん」の1回押しの並びに展開する（連続押しの照合・表示用） |
 | `simEmit(step)` / `simMatchProgress()` / `simShowCommand(c)` | 1回の操作が確定したときの処理。登録済みコマンドと前方一致で照合し、途中／完了の画面を出す |
 | `simSetScreen(l1,l2)` / `simSetMsg(msg)` / `simSetNote(memo)` | シミュレーターのLCD表示（上下行、`fitLcdLine()`で自動縮小）・案内メッセージ・結果コメント欄 |
@@ -625,7 +661,7 @@ GoogleカレンダーへOES入替作業の予定を登録するための、単�
 | `simDefaultScreen()` / `curIdleScreen()` / `curIdleId` / `findIdleScreen(id)` / `applyIdleTokens(s)` | 待機中の画面（複数登録から選ばれている1つを表示。`{time}`置換） |
 | `renderIdleSelect()` / `onIdleSelect(v)` | シミュレーター側の待機画面プルダウン（`#sim-idle-view`）の描画と切り替え |
 | `renderCmdSelect()` / `onCmdSelect()` / `renderCmdSteps()` | 手順のプルダウンとチップ（9×2 → 8 → 実行 → 完了）の描画（コマンドごとの待機画面切り替えも`onCmdSelect`が行う） |
-| `renderCmdTextList()` | ②カード右側の「簡易手順」（手順を文章で上から順に読めるリスト）の描画。`renderCmdSteps()`から毎回呼ばれる |
+| `renderCmdTextList()` | ②カード右側の「簡易手順」（手順を文章で上から順に読めるリスト。文字は`var(--ink)`で濃く表示）の描画。`renderCmdSteps()`から毎回呼ばれる |
 | `cmdGo(i)` / `cmdTryAdvance(step)` / `cmdNext()` / `cmdPlay()` / `cmdStop()` / `cmdReset()` | 手順ガイドの進行（1つ進む・自動再生・最初から。連続押しの途中カウントも`cmdTryAdvance`が持つ） |
 | `simDownKey(id)` / `checkStayDownMatch()` / `simStayMatched` | 「押しまま」の判定（離すのを待たずに、押した時点で一致していれば次のステップへ進む） |
 | `normalizeCommands(raw)` / `defaultCommands()` | コマンド一覧の正規化と初期サンプル（保守機能モード／インストール情報／電源を切る／システムID確認／印刷サンプル） |
@@ -635,8 +671,9 @@ GoogleカレンダーへOES入替作業の予定を登録するための、単�
 | `insertCmdStep(cid,afterIndex)` | 押し忘れたボタンを途中（`afterIndex`の直後、-1なら先頭）に差し込む |
 | `cmdPlayStepSec` / `setCmdPlaySpeed(v)` / `cmdPlayIntervals()` | 「順番に再生」の間隔（`#cmd-play-speed`で0.8〜3秒に変更可、他の間隔も比例して伸縮） |
 | `setCommandIdleScreen(id,v)` | コマンドごとの待機画面（`c.idleScreen`）の設定 |
+| `setCommandUsage(id,v)` | コマンドごとの「この操作が役に立つ場面」（`c.usage`）の設定。②カードの`#cmd-usage`にそのまま反映される |
 | `setCmdStepStayDown(cid,sid,on)` | 手順の「押しまま」設定（長押し・連続とは排他） |
-| `exportCommandsCsv()` / `importCommandsCsv(text)` / `parseCsv(text)` | コマンド一覧のCSV書き出し・読み込み（読み込むと丸ごと置き換え。待機画面の列は名前で照合。待機画面一覧自体は対象外） |
+| `exportCommandsCsv()` / `importCommandsCsv(text)` / `parseCsv(text)` | コマンド一覧のCSV書き出し・読み込み（読み込むと丸ごと置き換え。列に「役立つ場面」を含む。待機画面の列は名前で照合。待機画面一覧自体は対象外） |
 | `renderCommandList()` / `addCommand()` / `addCmdStep(cid)` / `setCmdStepKey(...)` ほか | 設定画面でのコマンド・手順の追加・編集・並び替え・削除 |
 | `renderIdleScreenList()` / `addIdleScreen()` / `removeIdleScreen(id)` / `moveIdleScreen(i,d)` / `setIdleScreenField(id,which,v)` | 設定画面での待機画面の追加・編集・並び替え・削除（最低1件は残す） |
 | `renderPhraseList()` ほか | 設定画面でのよく使う文の追加・並び替え・削除 |
@@ -678,6 +715,12 @@ PWAインストールボタンの表示切り替え、横スクロールが出�
 **表示部（LCD）の大きさは内容にかかわらず常に同じで、長い文字は折り返さずに文字サイズだけが縮んで収まること**、
 待機中の画面（`settings.idleScreens`、`{time}`トークン）が複数登録できてプルダウンで切り替えられること、
 **コマンドごとに指定した待機画面が、そのコマンドを選んだ瞬間に反映されること**、
+**コマンドごとに設定した「役立つ場面」（`c.usage`）が②カードに💡付きで表示され、未設定なら欄自体が
+出ないこと**、**「簡易手順」の文字が薄すぎず、はっきり読める濃さで表示されること**、
+**画面の枠外にある電源スイッチ（`PWRSW_ON`/`PWRSW_OFF`）が、ON/OFFどちらを押しても即座に見た目
+（`.sw-active`）と電源LEDの点灯状態が切り替わること**、**電源スイッチがキー選択プルダウンの
+「電源スイッチ（枠外）」optgroupから選べ、通常のキーとの同時押し・押しままの手順（例:
+数字キーを押したまま電源スイッチをON）が正しく一致すること**、
 設定タブで待機画面の追加・編集・削除ができること、コマンドの複製（`duplicateCommand()`）が手順ごと
 正しくコピーされること、設定タブのコマンド編集が折りたたみ式で開閉できること
 （「＋ コマンドを追加」が一覧のすぐ上にあること）、

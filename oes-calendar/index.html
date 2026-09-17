@@ -84,6 +84,10 @@ body{
 }
 .card-body{padding:10px 11px;}
 .hint{font-size:11px;color:var(--muted);line-height:1.55;}
+/* 「こんな時に使う操作か」を、それ以外の説明（.hint）よりも目立つ場所に強調して出す */
+.cmd-usage{font-size:12px;font-weight:700;color:#7A5A16;background:#FCF3E3;border-radius:6px;
+  padding:6px 9px;line-height:1.5;margin-top:6px;}
+.cmd-usage:empty{display:none;}
 .field{display:flex;flex-direction:column;gap:4px;min-width:0;}
 .field > label{font-size:11px;font-weight:600;color:#3A3D40;}
 input[type=text],input[type=date],input[type=time],select,textarea{
@@ -226,7 +230,19 @@ input:focus,select:focus,textarea:focus{border-color:var(--blue);box-shadow:0 0 
 .sim-idle-row{display:flex;align-items:center;gap:7px;margin-bottom:8px;flex-wrap:wrap;}
 .sim-idle-row label{font-size:11.5px;font-weight:600;color:#3A3D40;}
 .sim-idle-row select{flex:0 1 220px;min-width:0;}
-.sim-panel{background:#E9E9E9;border:2px solid #9A9A9A;border-radius:10px;padding:9px;display:flex;flex-direction:column;gap:9px;}
+/* 電源スイッチ（画面の枠外・本体側面のイメージ）。上＝ON・下＝OFF。
+   キーパッドのキーと同じ.simkeyクラスを使い、ハイライト（グロー・点滅など）の見た目を共有する。
+   .active は「いま実際にどちらへ入っているか」の位置表示で、ガイドのハイライト（.on）とは別物。 */
+.sim-with-switch{display:flex;gap:12px;align-items:flex-start;}
+.sim-pwrsw{display:flex;flex-direction:column;align-items:center;gap:5px;flex-shrink:0;padding-top:4px;}
+.sw-cap{font-size:9px;font-weight:700;color:var(--muted);text-align:center;line-height:1.25;}
+.sw-rocker{display:flex;flex-direction:column;width:36px;border:2px solid #8C8C8C;border-radius:8px;
+  overflow:hidden;background:#D8D8D8;}
+.sw-cell{min-height:26px;border:none;border-radius:0;font-size:9.5px;letter-spacing:0;
+  background:transparent;color:#666;}
+.sw-cell.sw-on.sw-active{background:var(--sky);color:#fff;}
+.sw-cell.sw-off.sw-active{background:#2B2B2B;color:#fff;}
+.sim-panel{background:#E9E9E9;border:2px solid #9A9A9A;border-radius:10px;padding:9px;display:flex;flex-direction:column;gap:9px;min-width:0;}
 .sim-top{display:flex;gap:9px;align-items:stretch;}
 .sim-leds{display:flex;flex-direction:column;gap:5px;justify-content:center;flex-shrink:0;}
 .sim-led{display:flex;align-items:center;gap:4px;font-size:9px;color:#333;white-space:nowrap;}
@@ -320,13 +336,13 @@ input:focus,select:focus,textarea:focus{border-color:var(--blue);box-shadow:0 0 
   .cmd-guide-right{border-top:none;border-left:1px solid var(--line-w);padding-top:0;padding-left:18px;}
 }
 .cmd-textlist-title{font-size:12px;font-weight:700;color:var(--muted);margin-bottom:6px;}
-.cmd-textlist{list-style:none;display:flex;flex-direction:column;gap:6px;font-size:12.5px;color:var(--ink);}
+.cmd-textlist{list-style:none;display:flex;flex-direction:column;gap:6px;font-size:12.5px;color:var(--ink);font-weight:700;}
 .cmd-textlist li{display:flex;gap:7px;line-height:1.5;padding:3px 4px;border-radius:6px;}
-.cmd-textlist .tl-no{flex-shrink:0;font-weight:700;color:var(--muted);min-width:16px;}
-.cmd-textlist .tl-scr{display:block;font-size:11px;color:var(--muted);margin-top:1px;}
+.cmd-textlist .tl-no{flex-shrink:0;font-weight:700;color:var(--blue-d);min-width:16px;}
+.cmd-textlist .tl-scr{display:block;font-size:11px;font-weight:600;color:#3A3D40;margin-top:1px;}
 .cmd-textlist li.on{background:var(--blue-l2);}
 .cmd-textlist li.on .tl-no{color:var(--sky);}
-.cmd-textlist li.done{opacity:.5;}
+.cmd-textlist li.done{opacity:.55;}
 .cmd-textlist li.fin{font-weight:700;color:var(--green);}
 /* 設定画面のコマンド編集 */
 .cs-list{display:flex;flex-direction:column;gap:6px;}
@@ -840,10 +856,18 @@ input:focus,select:focus,textarea:focus{border-color:var(--blue);box-shadow:0 0 
           <label for="sim-idle-view">待機中の画面（練習用に切り替え）</label>
           <select id="sim-idle-view" onchange="onIdleSelect(this.value)"></select>
         </div>
+        <div class="sim-with-switch">
+          <div class="sim-pwrsw" title="電源スイッチ（本体側面などにあるイメージ。画面の枠外の操作）">
+            <div class="sw-cap">電源<br>スイッチ</div>
+            <div class="sw-rocker" id="sw-rocker">
+              <button type="button" class="simkey sw-cell sw-on" data-key="PWRSW_ON" aria-label="電源スイッチ ON（上）">ON</button>
+              <button type="button" class="simkey sw-cell sw-off" data-key="PWRSW_OFF" aria-label="電源スイッチ OFF（下）">OFF</button>
+            </div>
+          </div>
         <div class="sim-panel">
           <div class="sim-top">
             <div class="sim-leds">
-              <div class="sim-led on"><i></i>電源</div>
+              <div class="sim-led on" id="led-power"><i></i>電源</div>
               <div class="sim-led on"><i></i>オンライン</div>
               <div class="sim-led"><i></i>通信中</div>
               <div class="sim-led"><i></i>エラー</div>
@@ -861,6 +885,7 @@ input:focus,select:focus,textarea:focus{border-color:var(--blue);box-shadow:0 0 
             </div>
           </div>
           <div class="sim-keys" id="sim-keys"></div>
+        </div>
         </div>
         <div class="sim-msg" id="sim-msg"></div>
         <div class="sim-note" id="sim-note"></div>
@@ -882,6 +907,7 @@ input:focus,select:focus,textarea:focus{border-color:var(--blue);box-shadow:0 0 
             <label for="cmd-select">調べたい操作</label>
             <select id="cmd-select" onchange="onCmdSelect()"></select>
           </div>
+          <div class="cmd-usage" id="cmd-usage"></div>
           <div class="hint" id="cmd-note" style="margin-top:6px;"></div>
           <div class="cmd-steps" id="cmd-steps"></div>
           <div class="row-btns" style="margin-top:11px;">
@@ -1271,9 +1297,11 @@ function defaultCommands(){
   return [
     { id:'cm-maint', name:'保守機能モードに入る',
       note:'◁と▷を同時に長押しします。ほかの保守機能はこのモードに入ってから操作します。', idleScreen:'',
+      usage:'ほかの保守機能を使う前に、必ず最初に行う入り口の操作。',
       steps:[ { id:'cs-mt1', keys:['LEFT','RIGHT'], hold:true, stayDown:false, repeat:1, l1:'ホシュキノウ　モード', l2:'', memo:'' } ] },
     { id:'cm-install', name:'インストール情報を表示する',
       note:'保守機能モードに入ってから操作します。', idleScreen:'',
+      usage:'機器のソフトウェアのバージョンや設置状況を確認したいときに使う。',
       steps:[
         { id:'cs-in1', keys:['9'],    hold:false, stayDown:false, repeat:2, l1:'', l2:'', memo:'' },
         { id:'cs-in2', keys:['8'],    hold:false, stayDown:false, repeat:1, l1:'', l2:'', memo:'' },
@@ -1281,18 +1309,21 @@ function defaultCommands(){
       ] },
     { id:'cm-power', name:'電源を切る',
       note:'電源ボタンを長押しし、画面の確認表示が出たらもう一度押します。', idleScreen:'',
+      usage:'機器を入れ替える前や、再起動が必要なときに安全に電源を切りたいときに使う。',
       steps:[
         { id:'cs-pw1', keys:['POWER'], hold:true,  stayDown:false, repeat:1, l1:'デンゲンヲ', l2:'キリマスカ？', memo:'' },
         { id:'cs-pw2', keys:['POWER'], hold:false, stayDown:false, repeat:1, l1:'シュウリョウ', l2:'シマス', memo:'' }
       ] },
     { id:'cm-sysid', name:'システムIDを確認する',
       note:'保守機能モードに入ってから操作します。', idleScreen:'',
+      usage:'サポートに問い合わせるときなど、機器を識別するIDを伝えたいときに使う。',
       steps:[
         { id:'cs-id1', keys:['MENU'], hold:false, stayDown:false, repeat:1,
           l1:'システムID＝＿＿＿＿＿＿＿＿', l2:'決定[実行]　次へ[メニュー]', memo:'' }
       ] },
     { id:'cm-print', name:'取引明細を印刷する（サンプル）',
       note:'保守機能モードに入ってから操作します。画面表示は変わりません。', idleScreen:'',
+      usage:'その場で取引明細（レシート）を紙で確認したいときに使う。',
       steps:[
         { id:'cs-pr1', keys:['SHIFT','EXEC'], hold:false, stayDown:false, repeat:1, l1:'', l2:'',
           memo:'画面表示は変わりませんが、明細票（レシート）が印刷されます。' }
@@ -1664,6 +1695,7 @@ function normalizeCommands(raw){
       id: c.id || uid('cm'),
       name: name || '（名称未設定）',
       note: (typeof c.note === 'string') ? c.note : '',
+      usage: (typeof c.usage === 'string') ? c.usage : '',
       idleScreen: (typeof c.idleScreen === 'string') ? c.idleScreen : '',
       steps: steps
     });
@@ -3237,9 +3269,17 @@ var SIM_KEYS = [
   { id:'CLEAR', label:'クリア',  name:'クリア',        cls:'k-black k-clear' }
 ];
 var SIM_HOLD_MS = 600;               /* これ以上押し続けたら「長押し」とみなす */
+/* キーパッドの枠外にある電源スイッチ（実機の側面などにあるイメージ）。上＝ON・下＝OFF。
+   「何かのボタンを押しながら電源ON」のような手順も作れるよう、キーパッドのキーと同じ扱いで
+   手順のボタンとして選べるようにしてある（押す・離すの判定やコマンドとの照合もキーと共通）。 */
+var SIM_SWITCH_KEYS = [
+  { id:'PWRSW_ON',  label:'電源スイッチON',  name:'電源スイッチ ON（上）' },
+  { id:'PWRSW_OFF', label:'電源スイッチOFF', name:'電源スイッチ OFF（下）' }
+];
 
 function simKeyDef(id){
   for(var i = 0; i < SIM_KEYS.length; i++){ if(SIM_KEYS[i].id === id) return SIM_KEYS[i]; }
+  for(var j = 0; j < SIM_SWITCH_KEYS.length; j++){ if(SIM_SWITCH_KEYS[j].id === id) return SIM_SWITCH_KEYS[j]; }
   return null;
 }
 function simKeyLabel(id){ var k = simKeyDef(id); return k ? k.label : id; }
@@ -3350,13 +3390,33 @@ function renderSimKeys(){
   });
   host.innerHTML = html;
   Array.prototype.forEach.call(host.querySelectorAll('.simkey[data-key]'), function(btn){
-    var id = btn.getAttribute('data-key');
-    btn.addEventListener('pointerdown', function(e){ e.preventDefault(); simDownKey(id); });
-    btn.addEventListener('pointerup',   function(e){ e.preventDefault(); simUpKey(id); });
-    btn.addEventListener('pointercancel', function(){ simUpKey(id); });
-    /* マウスでボタンの外へ出たまま離した場合に押しっぱなしにならないようにする */
-    btn.addEventListener('pointerleave', function(){ if(simDown[id]) simUpKey(id); });
+    wireSimKeyEvents(btn, btn.getAttribute('data-key'));
   });
+}
+/* キー相当の要素にpointerイベントを配線する（キーパッドのキー・枠外の電源スイッチで共通利用） */
+function wireSimKeyEvents(btn, id){
+  btn.addEventListener('pointerdown', function(e){ e.preventDefault(); simDownKey(id); });
+  btn.addEventListener('pointerup',   function(e){ e.preventDefault(); simUpKey(id); });
+  btn.addEventListener('pointercancel', function(){ simUpKey(id); });
+  /* マウスでボタンの外へ出たまま離した場合に押しっぱなしにならないようにする */
+  btn.addEventListener('pointerleave', function(){ if(simDown[id]) simUpKey(id); });
+}
+/* 電源スイッチ（画面の枠外）。'on'＝上、'off'＝下。押す・離すの判定はキーパッドのキーと共通で、
+   「電源スイッチONにしながら他のボタンも押す」ような手順も同時押しとして組める。 */
+var simPwrSwitchPos = 'on';
+function renderPwrSwitch(){
+  var rocker = $('sw-rocker');
+  if(!rocker) return;
+  Array.prototype.forEach.call(rocker.querySelectorAll('.sw-cell[data-key]'), function(btn){
+    wireSimKeyEvents(btn, btn.getAttribute('data-key'));
+  });
+  updatePwrSwitchVisual();
+}
+function updatePwrSwitchVisual(){
+  var onEl = simKeyEl('PWRSW_ON'), offEl = simKeyEl('PWRSW_OFF'), led = $('led-power');
+  if(onEl) onEl.classList.toggle('sw-active', simPwrSwitchPos === 'on');
+  if(offEl) offEl.classList.toggle('sw-active', simPwrSwitchPos === 'off');
+  if(led) led.classList.toggle('on', simPwrSwitchPos === 'on');
 }
 var simDown = {};        /* いま押されているキー */
 var simGroup = [];       /* 1回の操作でまとめて押されたキー（同時押しの判定用） */
@@ -3365,7 +3425,8 @@ var simHoldTimer = null;
 var simInput = [];       /* 押した操作の履歴（登録済みコマンドとの照合用） */
 var simStayMatched = false; /* 「押しまま」ですでに次のステップへ進んだか（離したときに二重で進めないように） */
 
-function simKeyEl(id){ return document.querySelector('#sim-keys .simkey[data-key="' + id + '"]'); }
+/* キーパッド（#sim-keys）だけでなく、枠外の電源スイッチ（.sw-cell）も data-key で探す */
+function simKeyEl(id){ return document.querySelector('[data-key="' + id + '"]'); }
 function simDownKey(id){
   if(simDown[id]) return;
   if(!simGroup.length){
@@ -3380,6 +3441,9 @@ function simDownKey(id){
   simDown[id] = 1;
   if(simGroup.indexOf(id) < 0) simGroup.push(id);
   var el = simKeyEl(id); if(el) el.classList.add('press');
+  /* 電源スイッチは実機と同じく「切り替えた瞬間」に位置が変わる（離すのを待たない） */
+  if(id === 'PWRSW_ON'){ simPwrSwitchPos = 'on'; updatePwrSwitchVisual(); }
+  if(id === 'PWRSW_OFF'){ simPwrSwitchPos = 'off'; updatePwrSwitchVisual(); }
   checkStayDownMatch();
 }
 /* 案内中のステップが「押しまま」なら、離すのを待たずに押した時点で次へ進む
@@ -3513,6 +3577,7 @@ function onCmdSelect(){
   simDefaultScreen();
   simSetMsg(cmdSeq ? 'この手順どおりにボタンを押すか、「順番に再生」を押してください' : '');
   if($('cmd-note')) $('cmd-note').textContent = cmdSeq ? (cmdSeq.note || '') : '';
+  if($('cmd-usage')) $('cmd-usage').innerHTML = (cmdSeq && cmdSeq.usage) ? ('💡 ' + esc(cmdSeq.usage)) : '';
 }
 /* チップの色分け用クラス（長押し＝オレンジ／連続で何回か押す＝青／それ以外＝既定の赤） */
 function stepModeClass(st){
@@ -3567,8 +3632,9 @@ function renderCmdTextList(){
   host.innerHTML = html;
 }
 function clearCmdHighlight(){
-  Array.prototype.forEach.call(document.querySelectorAll('#sim-keys .simkey'), function(el){
-    el.classList.remove('on', 'hold', 'press', 'hold-mode', 'rep-mode');
+  /* #sim-keys のキーパッドだけでなく、枠外の電源スイッチ（.sw-cell）も対象にする */
+  Array.prototype.forEach.call(document.querySelectorAll('#sim-keys .simkey, .sw-cell'), function(el){
+    el.classList.remove('on', 'hold', 'press', 'hold-mode', 'rep-mode', 'stay-mode');
     var b = el.querySelector('.rep-badge'); if(b) b.parentNode.removeChild(b);
   });
 }
@@ -3700,6 +3766,7 @@ function updatePlayBtn(){
 }
 function openCmdTab(){
   renderSimKeys();
+  renderPwrSwitch();
   renderIdleSelect();
   simDefaultScreen();
   renderCmdSelect(true);
@@ -3977,11 +4044,18 @@ function movePhrase(i, d){
 function simKeyOptions(selected, allowNone){
   var html = allowNone
     ? '<option value=""' + (!selected ? ' selected' : '') + '>（同時押しなし）</option>' : '';
+  html += '<optgroup label="キーパッド">';
   SIM_KEYS.forEach(function(k){
     if(k.id === 'BLANK') return;
     html += '<option value="' + esc(k.id) + '"' + (k.id === selected ? ' selected' : '') + '>'
       + esc(k.name) + '</option>';
   });
+  html += '</optgroup><optgroup label="電源スイッチ（枠外）">';
+  SIM_SWITCH_KEYS.forEach(function(k){
+    html += '<option value="' + esc(k.id) + '"' + (k.id === selected ? ' selected' : '') + '>'
+      + esc(k.name) + '</option>';
+  });
+  html += '</optgroup>';
   return html;
 }
 function cmdStepRowHtml(c, st, si){
@@ -4115,6 +4189,9 @@ function renderCommandList(){
       +   '<div class="field" style="margin-bottom:9px;"><label>説明（任意）</label>'
       +     '<input type="text" value="' + esc(c.note) + '" autocomplete="off" placeholder="例: 保守機能モードに入ってから操作します"'
       +     ' oninput="setCommandNote(\'' + c.id + '\',this.value)"></div>'
+      +   '<div class="field" style="margin-bottom:9px;"><label>こんな時に使う操作か（任意）</label>'
+      +     '<input type="text" value="' + esc(c.usage) + '" autocomplete="off" placeholder="例: サポートに問い合わせるときに機器のIDを伝えたい"'
+      +     ' oninput="setCommandUsage(\'' + c.id + '\',this.value)"></div>'
       +   '<div class="cs-list">';
     if(!c.steps.length){
       html += '<div class="hint">まだ手順がありません。「＋ 押すボタンを追加」から順番に登録してください。</div>';
@@ -4161,6 +4238,7 @@ function duplicateCommand(id){
     id: uid('cm'),
     name: c.name ? (c.name + '（コピー）') : '',
     note: c.note,
+    usage: c.usage,
     idleScreen: c.idleScreen,
     steps: c.steps.map(function(st){
       return { id: uid('cs'), keys: st.keys.slice(), hold: st.hold, stayDown: st.stayDown, repeat: st.repeat, l1: st.l1, l2: st.l2, memo: st.memo };
@@ -4189,6 +4267,11 @@ function setCommandName(id, v){
 function setCommandNote(id, v){
   var c = findCommand(id); if(!c) return;
   c.note = v;
+  afterSettingsChange(false);
+}
+function setCommandUsage(id, v){
+  var c = findCommand(id); if(!c) return;
+  c.usage = v;
   afterSettingsChange(false);
 }
 function setCommandIdleScreen(id, v){
@@ -4274,7 +4357,7 @@ function setCmdStepMemo(cid, sid, v){
 }
 
 /* ---------- コマンド一覧のCSV書き出し・読み込み ---------- */
-var CMD_CSV_HEADER = ['コマンド名', '説明', '待機画面', 'ボタン1', 'ボタン2（同時押し）', '長押し', '押しまま', '連続回数', '画面1行目', '画面2行目', '結果コメント'];
+var CMD_CSV_HEADER = ['コマンド名', '説明', '役立つ場面', '待機画面', 'ボタン1', 'ボタン2（同時押し）', '長押し', '押しまま', '連続回数', '画面1行目', '画面2行目', '結果コメント'];
 function csvEscape(v){
   v = String(v == null ? '' : v);
   return /[",\n\r]/.test(v) ? '"' + v.replace(/"/g, '""') + '"' : v;
@@ -4284,12 +4367,12 @@ function exportCommandsCsv(){
   settings.commands.forEach(function(c){
     var idleName = (c.idleScreen && findIdleScreen(c.idleScreen)) ? findIdleScreen(c.idleScreen).name : '';
     if(!c.steps.length){
-      lines.push([c.name, c.note, idleName, '', '', '', '', '', '', '', ''].map(csvEscape).join(','));
+      lines.push([c.name, c.note, c.usage, idleName, '', '', '', '', '', '', '', ''].map(csvEscape).join(','));
       return;
     }
     c.steps.forEach(function(st){
       lines.push([
-        c.name, c.note, idleName, st.keys[0] || '', st.keys[1] || '',
+        c.name, c.note, c.usage, idleName, st.keys[0] || '', st.keys[1] || '',
         st.hold ? '1' : '', st.stayDown ? '1' : '', stepRepeat(st) > 1 ? stepRepeat(st) : '',
         st.l1 || '', st.l2 || '', st.memo || ''
       ].map(csvEscape).join(','));
@@ -4343,29 +4426,29 @@ function importCommandsCsv(text){
     var name = (r[0] || '').trim();
     if(!name) return;
     if(!cur || cur.name !== name){
-      var idleName = (r[2] || '').trim(), idleId = '';
+      var idleName = (r[3] || '').trim(), idleId = '';
       if(idleName){
         var found = settings.idleScreens.filter(function(s){ return s.name === idleName; })[0];
         if(found) idleId = found.id; else idleUnresolved++;
       }
-      cur = { name: name, note: r[1] || '', idleScreen: idleId, steps: [] };
+      cur = { name: name, note: r[1] || '', usage: r[2] || '', idleScreen: idleId, steps: [] };
       byName.push(cur);
     }
-    var k1 = (r[3] || '').trim(), k2 = (r[4] || '').trim();
+    var k1 = (r[4] || '').trim(), k2 = (r[5] || '').trim();
     if(!k1){ return; }                       /* ボタン1が無い行（コマンド名のみの空手順など）は手順として数えない */
     if(!simKeyDef(k1) || k1 === 'BLANK'){ skipped++; return; }
     var keys = [k1];
     if(k2 && simKeyDef(k2) && k2 !== 'BLANK' && k2 !== k1) keys.push(k2);
-    var hold = /^(1|true|はい|○|TRUE)$/i.test((r[5] || '').trim());
-    var stayDown = !hold && /^(1|true|はい|○|TRUE)$/i.test((r[6] || '').trim());
-    var repeat = (hold || stayDown) ? 1 : clampInt(r[7], 1, 20, 1);
-    cur.steps.push({ id: uid('cs'), keys: keys, hold: hold, stayDown: stayDown, repeat: repeat, l1: r[8] || '', l2: r[9] || '', memo: r[10] || '' });
+    var hold = /^(1|true|はい|○|TRUE)$/i.test((r[6] || '').trim());
+    var stayDown = !hold && /^(1|true|はい|○|TRUE)$/i.test((r[7] || '').trim());
+    var repeat = (hold || stayDown) ? 1 : clampInt(r[8], 1, 20, 1);
+    cur.steps.push({ id: uid('cs'), keys: keys, hold: hold, stayDown: stayDown, repeat: repeat, l1: r[9] || '', l2: r[10] || '', memo: r[11] || '' });
   });
   if(!byName.length){ toast('読み込めるコマンドがありませんでした（ボタン1の列をご確認ください）'); return; }
   if(!confirm('CSVから' + byName.length + '件のコマンドを読み込みます。今のコマンド一覧と置き換わります。よろしいですか？')) return;
 
   settings.commands = byName.map(function(c){
-    return { id: uid('cm'), name: c.name, note: c.note, idleScreen: c.idleScreen, steps: c.steps };
+    return { id: uid('cm'), name: c.name, note: c.note, usage: c.usage, idleScreen: c.idleScreen, steps: c.steps };
   });
   cmdOpenSet = {};
   afterSettingsChange(true);
