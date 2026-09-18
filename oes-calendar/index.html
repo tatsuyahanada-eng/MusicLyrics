@@ -240,23 +240,30 @@ input:focus,select:focus,textarea:focus{border-color:var(--blue);box-shadow:0 0 
    考えて横に並べる。画面の上に縦積みにすると、スイッチの高さぶんだけ縦に無駄な余白ができ、
    「変な位置」に見えるため）。狭い画面でも固定幅250pxの画面と衝突して横スクロールが出ないよう、
    .sim-top・.sim-panelの余白は最小限にしてある。広い画面（760px以上）では隙間を少し広げる。 */
-.sim-with-switch{display:flex;flex-direction:row;gap:5px;align-items:flex-start;}
+.sim-with-switch{display:flex;flex-direction:row;gap:4px;align-items:flex-start;}
 @media (min-width:760px){
   .sim-with-switch{gap:12px;}
 }
 .sim-pwrsw{display:flex;flex-direction:column;align-items:center;gap:5px;flex-shrink:0;padding-top:4px;}
-.sw-cap{font-size:9px;font-weight:700;color:var(--muted);text-align:center;line-height:1.25;}
-.sw-rocker{display:flex;flex-direction:column;width:34px;border:1px solid #8C8C8C;border-radius:8px;
+.sw-cap{font-size:8px;font-weight:700;color:var(--muted);text-align:center;line-height:1.2;white-space:nowrap;}
+.sw-rocker{display:flex;flex-direction:column;width:30px;border:1px solid #8C8C8C;border-radius:8px;
   overflow:hidden;background:#D8D8D8;}
 .sw-cell{min-height:26px;border:none;border-radius:0;font-size:9.5px;letter-spacing:0;
   background:transparent;color:#666;}
 .sw-cell.sw-on.sw-active{background:var(--sky);color:#fff;}
 .sw-cell.sw-off.sw-active{background:#2B2B2B;color:#fff;}
-.sim-panel{background:#E9E9E9;border:2px solid #9A9A9A;border-radius:10px;padding:6px;display:flex;flex-direction:column;gap:7px;min-width:0;}
+/* border-radius は「枠(border)+内側の余白(padding)」より小さくすること。大きいと、外側の丸い角の
+   曲線が内側の黒いベゼル（.sim-top）の角にわずかに重なり、SA-2610等の右端の文字が欠けて見える
+   不具合が実際に発生した（枠2px+余白6px=8pxのところ、角丸10pxだったため）。 */
+/* min-width:0 は付けない（付けるとflexが.sim-panelを中身より小さく縮めてしまい、固定幅250pxの
+   .sim-screenがベゼルの外へ静かにあふれて見えなくなる不具合が実際に発生した。0のままだと
+   スクロールバーも出ないため気づきにくい。あふれる場合は素直に横スクロールとして検知できるよう、
+   既定のmin-width:auto（中身の大きさを下回って縮まない）のままにする）。 */
+.sim-panel{background:#E9E9E9;border:1px solid #9A9A9A;border-radius:4px;padding:4px;display:flex;flex-direction:column;gap:7px;}
 /* 参考写真（黒枠＋緑がかった液晶）に合わせて、LED・画面をひとつの黒いベゼルにまとめる。
    狭い画面でも表示部（250px固定）と衝突して横スクロールが出ないよう、枠の余白は最小限にする。 */
 .sim-top{display:flex;gap:5px;align-items:stretch;background:#141414;border:1px solid #000;
-  border-radius:6px;padding:3px 4px;}
+  border-radius:4px;padding:3px;}
 .sim-leds{display:flex;flex-direction:column;gap:4px;justify-content:center;flex-shrink:0;}
 .sim-led{display:flex;align-items:center;gap:3px;font-size:8px;font-weight:700;color:#4CAF6B;white-space:nowrap;}
 .sim-led i{width:8px;height:8px;border:1px solid #2E5C3E;background:#1F3327;border-radius:2px;display:block;flex-shrink:0;}
@@ -264,7 +271,7 @@ input:focus,select:focus,textarea:focus{border-color:var(--blue);box-shadow:0 0 
 .sim-led.on i{background:#3ADC5C;border-color:#3ADC5C;box-shadow:0 0 4px 1px rgba(58,220,92,.6);}
 /* 表示部（.sim-lcd-box）は内容に関係なく常に同じ大きさにする。長い文字はJS（fitLcdLine）で
    自動的に文字サイズを縮めて枠内に収め、折り返しはしない（実機のLCDは1行=1段のため）。 */
-.sim-screen{flex:0 0 250px;width:250px;background:transparent;border:none;
+.sim-screen{flex:0 0 224px;width:224px;background:transparent;border:none;
   padding:0;position:relative;display:flex;flex-direction:column;gap:4px;}
 .sim-brand{font-size:10px;font-weight:700;letter-spacing:.12em;color:#fff;}
 .sim-lcd-box{background:#C7D5A0;border:1px solid #7C8F5C;border-radius:3px;padding:6px 8px;
