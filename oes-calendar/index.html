@@ -377,11 +377,13 @@ input:focus,select:focus,textarea:focus{border-color:var(--blue);box-shadow:0 0 
 /* ---------- レポートの見方（インストールレポートのナビゲーション） ----------
    実機が印字するレポートの桁位置をそのまま再現するため、印字例は等幅フォント＋
    white-space:pre で描く（桁がずれると「どの位置が何の値か」が分からなくなるため）。 */
-.rg-nav{display:flex;flex-wrap:wrap;gap:6px;margin-top:9px;}
-.rg-chip{border:1px solid var(--line);border-radius:999px;background:var(--white);
-  padding:7px 13px;font-size:12.5px;font-weight:700;color:var(--blue-d);cursor:pointer;
-  min-height:34px;font-family:inherit;}
-.rg-chip.on{background:var(--sky);border-color:var(--sky);color:#fff;}
+/* レポートは章で分けず1本の縦長で出す。どの固まりを見ているかだけ分かるように、
+   印字例の中に控えめな見出しを挟む（レポートそのものの桁は動かさない） */
+.rg-blk{font-size:10.5px;font-weight:700;color:var(--muted);letter-spacing:.04em;
+  margin:14px 0 4px;padding-bottom:3px;border-bottom:1px dashed var(--line);}
+.rg-blk:first-child{margin-top:0;}
+.rg-d-blk{display:inline-block;background:var(--blue-l);color:var(--blue-d);font-size:10.5px;
+  font-weight:700;border-radius:4px;padding:2px 8px;margin-bottom:6px;}
 /* 狭い画面では「説明」を印字例より上に出し、画面の上端に貼り付ける
    （印字例が長いので、値をタップしたときに説明が画面外だと読めないため）。
    .rg-side は display:contents で中身を1列に流し込み、広い画面では右の列に戻す。 */
@@ -1027,27 +1029,16 @@ input:focus,select:focus,textarea:focus{border-color:var(--blue);box-shadow:0 0 
     </div>
   </section>
 
-  <!-- ============ 画面5: レポートの見方（インストールレポートのナビゲーション） ============ -->
+  <!-- ============ 画面5: レポートの見方（インストールレポートをそのまま縦に表示） ============ -->
   <section id="pane-rep" class="hidden">
     <div class="card">
       <div class="card-head">
         <div class="card-title" id="rep-title">レポートの見方</div>
       </div>
-      <div class="card-body">
-        <div class="hint" id="rep-lead"></div>
-        <div class="rg-nav" id="rep-nav"></div>
-      </div>
-    </div>
-
-    <div class="card">
-      <div class="card-head">
-        <div class="card-title" id="rep-sec-name">…</div>
-      </div>
       <div class="card-body rg-body">
         <div class="rg-left">
-          <div class="rg-sub">レポートの印字例（行や値にマウスを乗せる・タップする）</div>
+          <div class="hint" id="rep-lead"></div>
           <div class="rg-sample" id="rep-sample"></div>
-          <div class="rg-notes" id="rep-notes"></div>
         </div>
         <div class="rg-side">
           <div class="rg-detail-wrap">
@@ -1055,6 +1046,7 @@ input:focus,select:focus,textarea:focus{border-color:var(--blue);box-shadow:0 0 
             <div class="rg-detail" id="rep-detail"></div>
           </div>
           <div class="rg-fields-wrap">
+            <div class="rg-notes" id="rep-notes"></div>
             <div class="rg-fields" id="rep-fields"></div>
           </div>
         </div>
@@ -4188,7 +4180,6 @@ var REPORT_GUIDE = {
   ]
 };
 
-var repSecId = 'inst';   /* いま開いている章（共有設定には入れない） */
 
 /* 全角は2桁ぶんとして数える（実機のレポートが等幅の桁で並ぶため） */
 function repWidth(s){
@@ -4206,45 +4197,38 @@ function repWidth(s){
 }
 function repSpaces(n){ var s = ''; for(var i = 0; i < n; i++) s += ' '; return s; }
 
-function findRepSection(id){
-  for(var i = 0; i < REPORT_GUIDE.sections.length; i++){
-    if(REPORT_GUIDE.sections[i].id === id) return REPORT_GUIDE.sections[i];
-  }
-  return REPORT_GUIDE.sections[0];
+/* レポートは章で分けず、実機の印字どおり1本の縦長で出す（利用者の指定：
+   「項目ごとに分けるのではなく、レポートの一覧をそのまま表示して」「レポートは縦にそのまま表示」）。
+   そのため、全章の行を1つの配列（repFlat）に平らに並べてから描画する。
+   各要素は {si:章番号, line:行} か {si, blk:章名（見出しの目印）} か {si, gap:1（空行）}。 */
+var repFlat = [];
+var repCurSi = -1;     /* いま説明を出している章（項目一覧の出し分けに使う） */
+
+function repBuildFlat(){
+  repFlat = [];
+  REPORT_GUIDE.sections.forEach(function(sec, si){
+    if(si > 0) repFlat.push({ si: si, gap: 1 });
+    repFlat.push({ si: si, blk: sec.name });
+    sec.lines.forEach(function(ln){ repFlat.push({ si: si, line: ln }); });
+  });
 }
 
 function openRepTab(){
   if($('rep-title')) $('rep-title').textContent = REPORT_GUIDE.title;
   if($('rep-lead')) $('rep-lead').innerHTML = REPORT_GUIDE.lead;
-  renderRepNav();
-  renderRepSection();
-}
-function renderRepNav(){
-  var host = $('rep-nav');
-  if(!host) return;
-  var html = '';
-  REPORT_GUIDE.sections.forEach(function(s){
-    html += '<button type="button" class="rg-chip' + (s.id === repSecId ? ' on' : '') + '"'
-         +  ' onclick="selectRepSection(\'' + s.id + '\')">' + esc(s.name) + '</button>';
-  });
-  host.innerHTML = html;
-}
-function selectRepSection(id){
-  repSecId = id;
-  renderRepNav();
-  renderRepSection();
+  repBuildFlat();
+  renderRepAll();
 }
 
 /* 印字例の1行分。桁位置（tok.p）どおりに空白を入れて並べる */
-function repLineHtml(line, li){
-  if(line.gap) return '<div class="rg-gap"></div>';
+function repLineHtml(line, fi){
   var html = '', cur = 0;
   (line.toks || []).forEach(function(tk, ti){
     var p = (typeof tk.p === 'number') ? tk.p : cur;
     if(p > cur){ html += esc(repSpaces(p - cur)); cur = p; }
     var hot = tk.k || tk.d || tk.pick;
     if(hot){
-      html += '<span class="rg-tok pick" data-li="' + li + '" data-ti="' + ti + '"'
+      html += '<span class="rg-tok pick" data-li="' + fi + '" data-ti="' + ti + '"'
            +  (tk.k ? ' data-k="' + esc(tk.k) + '"' : '') + '>'
            +  (tk.k ? '<b class="rg-key">' + esc(tk.k) + '</b>' : '')
            +  esc(tk.t) + '</span>';
@@ -4253,56 +4237,31 @@ function repLineHtml(line, li){
     }
     cur += repWidth(tk.t);
   });
-  return '<div class="rg-line hoverable' + (line.head ? ' head' : '') + '" data-li="' + li + '">' + html + '</div>';
+  return '<div class="rg-line hoverable' + (line.head ? ' head' : '') + '" data-li="' + fi + '">' + html + '</div>';
 }
 
-function renderRepSection(){
-  var sec = findRepSection(repSecId);
-  if($('rep-sec-name')) $('rep-sec-name').textContent = sec.name;
-
+function renderRepAll(){
   var host = $('rep-sample');
-  if(host){
-    var html = '';
-    sec.lines.forEach(function(ln, li){ html += repLineHtml(ln, li); });
-    host.innerHTML = html;
-  }
-
-  var fh = $('rep-fields');
-  if(fh){
-    if(sec.fields && sec.fields.length){
-      var fhtml = '<div class="rg-sub" style="margin:14px 0 6px;">項目一覧（記号と中身）</div>';
-      sec.fields.forEach(function(f){
-        fhtml += '<div class="rg-f-row" data-fk="' + esc(f.k) + '">'
-              +  '<span class="rg-f-key">' + esc(f.k) + '</span>'
-              +  '<span class="rg-f-name">' + esc(f.n).replace(/\n/g, '<br>') + '</span></div>';
-      });
-      if(sec.sample){
-        fhtml += '<div class="rg-sub" style="margin:14px 0 6px;">' + esc(sec.sample.title) + '</div>';
-        sec.sample.rows.forEach(function(r){
-          fhtml += '<div class="rg-f-row" data-fk="' + esc(r[0]) + '">'
-                +  '<span class="rg-f-key">' + esc(r[0]) + '</span>'
-                +  '<span class="rg-f-name">' + esc(r[1]) + '</span></div>';
-        });
-      }
-      fh.innerHTML = fhtml;
-    }else{
-      fh.innerHTML = '';
-    }
-  }
-
-  var nh = $('rep-notes');
-  if(nh){
-    nh.innerHTML = (sec.notes || []).map(function(n){
-      return '<div class="rg-note">📌 ' + esc(n) + '</div>';
-    }).join('');
-  }
+  if(!host) return;
+  var html = '';
+  repFlat.forEach(function(row, fi){
+    if(row.gap){ html += '<div class="rg-gap"></div>'; return; }
+    if(row.blk){ html += '<div class="rg-blk">' + esc(row.blk) + '</div>'; return; }
+    if(row.line.gap){ html += '<div class="rg-gap"></div>'; return; }
+    html += repLineHtml(row.line, fi);
+  });
+  host.innerHTML = html;
   repShowDefault();
 }
 
-/* 説明パネル。何も指していないときは章全体の説明を出す */
+/* 説明パネル。何も指していないときは全体の案内を出す */
 function repShowDefault(){
-  var sec = findRepSection(repSecId);
-  repSetDetail('<b>' + esc(sec.name) + '</b><span class="rg-d-sub">' + esc(sec.note) + '</span>');
+  repCurSi = -1;
+  repSetDetail('<b>レポートの読み方</b><span class="rg-d-sub">'
+    + '行にマウスを乗せる（スマホはタップ）とその行の説明、値に乗せるとその項目だけの'
+    + '詳しい説明がここに出ます。</span>');
+  if($('rep-fields')) $('rep-fields').innerHTML = '';
+  if($('rep-notes')) $('rep-notes').innerHTML = '';
   repClearHl();
 }
 function repSetDetail(html){
@@ -4312,9 +4271,13 @@ function repClearHl(){
   Array.prototype.forEach.call(document.querySelectorAll('#pane-rep .rg-line.on, #pane-rep .rg-tok.on, #pane-rep .rg-f-row.on'),
     function(el){ el.classList.remove('on'); });
 }
-function repHlKey(k){
+/* 同じ章の中だけで記号を連動させる（章をまたいで同じ記号が光らないようにする） */
+function repHlKey(si, k){
+  var lis = {};
+  repFlat.forEach(function(row, fi){ if(row.si === si && row.line) lis[fi] = 1; });
   Array.prototype.forEach.call(document.querySelectorAll('#pane-rep .rg-tok[data-k]'), function(el){
-    el.classList.toggle('on', el.getAttribute('data-k') === k);
+    var same = lis[el.getAttribute('data-li')] && el.getAttribute('data-k') === k;
+    el.classList.toggle('on', !!same);
   });
   Array.prototype.forEach.call(document.querySelectorAll('#pane-rep .rg-f-row'), function(el){
     el.classList.toggle('on', el.getAttribute('data-fk') === k);
@@ -4325,33 +4288,69 @@ function repFieldName(sec, k){
   for(var i = 0; i < list.length; i++){ if(list[i].k === k) return list[i].n; }
   return '';
 }
-/* 行（desc）→ ゆるい説明、値（tok）→ その項目だけの詳しい説明 */
-function repShowLine(li){
-  var sec = findRepSection(repSecId);
-  var ln = sec.lines[li];
-  if(!ln || ln.gap) return;
+/* いま見ている章の「項目一覧」と注意書きを右側に出す（章が変わったときだけ描き直す） */
+function repShowSideFor(si){
+  if(repCurSi === si) return;
+  repCurSi = si;
+  var sec = REPORT_GUIDE.sections[si];
+  var fh = $('rep-fields');
+  if(fh){
+    var fhtml = '';
+    if(sec.fields && sec.fields.length){
+      fhtml += '<div class="rg-sub" style="margin:14px 0 6px;">' + esc(sec.name) + ' の項目一覧（記号と中身）</div>';
+      sec.fields.forEach(function(f){
+        fhtml += '<div class="rg-f-row" data-fk="' + esc(f.k) + '" data-si="' + si + '">'
+              +  '<span class="rg-f-key">' + esc(f.k) + '</span>'
+              +  '<span class="rg-f-name">' + esc(f.n).replace(/\n/g, '<br>') + '</span></div>';
+      });
+      if(sec.sample){
+        fhtml += '<div class="rg-sub" style="margin:14px 0 6px;">' + esc(sec.sample.title) + '</div>';
+        sec.sample.rows.forEach(function(r){
+          fhtml += '<div class="rg-f-row" data-fk="' + esc(r[0]) + '" data-si="' + si + '">'
+                +  '<span class="rg-f-key">' + esc(r[0]) + '</span>'
+                +  '<span class="rg-f-name">' + esc(r[1]) + '</span></div>';
+        });
+      }
+    }
+    fh.innerHTML = fhtml;
+  }
+  var nh = $('rep-notes');
+  if(nh){
+    nh.innerHTML = (sec.notes || []).map(function(n){
+      return '<div class="rg-note">📌 ' + esc(n) + '</div>';
+    }).join('');
+  }
+}
+/* 行（desc）→ その行の説明、値（tok）→ その項目だけの詳しい説明 */
+function repShowLine(fi){
+  var row = repFlat[fi];
+  if(!row || !row.line) return;
+  var ln = row.line;
   repClearHl();
-  var el = document.querySelector('#pane-rep .rg-line[data-li="' + li + '"]');
+  repShowSideFor(row.si);
+  var el = document.querySelector('#pane-rep .rg-line[data-li="' + fi + '"]');
   if(el) el.classList.add('on');
-  var html = '<b>この行の説明</b><span class="rg-d-sub">' + esc(ln.desc || '') + '</span>';
+  var html = '<span class="rg-d-blk">' + esc(REPORT_GUIDE.sections[row.si].name) + '</span>'
+           + '<b>この行の説明</b><span class="rg-d-sub">' + esc(ln.desc || '') + '</span>';
   if(ln.code) html += '<span class="rg-d-code">' + esc(ln.code) + '</span>';
   repSetDetail(html);
 }
-function repShowTok(li, ti){
-  var sec = findRepSection(repSecId);
-  var ln = sec.lines[li];
-  if(!ln) return;
-  var tk = (ln.toks || [])[ti];
+function repShowTok(fi, ti){
+  var row = repFlat[fi];
+  if(!row || !row.line) return;
+  var tk = (row.line.toks || [])[ti];
   if(!tk) return;
+  var sec = REPORT_GUIDE.sections[row.si];
   repClearHl();
-  var html = '';
+  repShowSideFor(row.si);
+  var html = '<span class="rg-d-blk">' + esc(sec.name) + '</span>';
   if(tk.k){
     html += '<span class="rg-d-key">' + esc(tk.k) + '</span><b>' + esc(tk.t) + '</b>'
          +  '<span class="rg-d-sub">' + esc(repFieldName(sec, tk.k) || tk.d || '').replace(/\n/g, '<br>') + '</span>';
-    repHlKey(tk.k);
+    repHlKey(row.si, tk.k);
   }else{
-    html += '<b>' + esc(tk.t) + '</b><span class="rg-d-sub">' + esc(tk.d || ln.desc || '') + '</span>';
-    var el = document.querySelector('#pane-rep .rg-tok[data-li="' + li + '"][data-ti="' + ti + '"]');
+    html += '<b>' + esc(tk.t) + '</b><span class="rg-d-sub">' + esc(tk.d || row.line.desc || '') + '</span>';
+    var el = document.querySelector('#pane-rep .rg-tok[data-li="' + fi + '"][data-ti="' + ti + '"]');
     if(el) el.classList.add('on');
   }
   if(tk.code) html += '<span class="rg-d-code">' + esc(tk.code) + '</span>';
@@ -4371,12 +4370,13 @@ function wireRepEvents(){
     }
     var frow = e.target.closest ? e.target.closest('.rg-f-row') : null;
     if(frow){
+      var si = +frow.getAttribute('data-si');
       var k = frow.getAttribute('data-fk');
-      var sec = findRepSection(repSecId);
       repClearHl();
-      repHlKey(k);
-      repSetDetail('<span class="rg-d-key">' + esc(k) + '</span>'
-        + '<span class="rg-d-sub">' + esc(repFieldName(sec, k) || '').replace(/\n/g, '<br>') + '</span>');
+      repHlKey(si, k);
+      repSetDetail('<span class="rg-d-blk">' + esc(REPORT_GUIDE.sections[si].name) + '</span>'
+        + '<span class="rg-d-key">' + esc(k) + '</span>'
+        + '<span class="rg-d-sub">' + esc(repFieldName(REPORT_GUIDE.sections[si], k) || '').replace(/\n/g, '<br>') + '</span>');
       return;
     }
     var line = e.target.closest ? e.target.closest('.rg-line') : null;
@@ -4384,7 +4384,6 @@ function wireRepEvents(){
   };
   pane.addEventListener('mouseover', handler);
   pane.addEventListener('click', handler);
-  pane.addEventListener('mouseleave', repShowDefault);
 }
 
 /* =========================================================================
