@@ -400,11 +400,16 @@ input:focus,select:focus,textarea:focus{border-color:var(--blue);box-shadow:0 0 
 .rg-detail-wrap{order:-1;position:sticky;top:0;z-index:3;background:var(--white);padding-bottom:6px;}
 .rg-fields-wrap{order:1;min-width:0;}
 @media (min-width:860px){
-  .rg-body{flex-direction:row;gap:18px;align-items:flex-start;}
+  .rg-body{flex-direction:row;gap:18px;}
   .rg-left{flex:1 1 auto;}
   /* .rg-side自体をstickyにすると、項目一覧が長い操作（MPRなど）で.rg-sideの高さが
      画面より高くなり、スクロール中に途中で追従が外れる不具合が起きた。説明だけを
-     stickyにし、長くなりうる項目一覧（.rg-fields-wrap）は普通に流れるようにする。 */
+     stickyにし、長くなりうる項目一覧（.rg-fields-wrap）は普通に流れるようにする。
+     さらに、.rg-body に align-items:flex-start を付けると .rg-side の高さが自分の
+     中身（説明＋項目一覧）だけになり、印字例（.rg-left）より短いと、そこから下は
+     .rg-side自体が画面外に流れてしまい、中のstickyな説明も一緒に見えなくなる不具合が
+     あった。align-itemsは既定のstretchのままにし、.rg-sideの高さを印字例と同じ高さまで
+     伸ばすことで、印字例をどこまでスクロールしても説明が追従できるようにする。 */
   .rg-side{display:block;flex:0 0 340px;min-width:0;}
   .rg-detail-wrap{order:0;position:sticky;top:8px;padding-bottom:0;}
 }
@@ -434,14 +439,14 @@ input:focus,select:focus,textarea:focus{border-color:var(--blue);box-shadow:0 0 
   background:#FFF29A;border-bottom:1px solid var(--sky);box-shadow:0 0 0 1px #FFF29A;color:#111;}
 .rg-key{position:absolute;top:-9px;left:0;font-size:9px;font-weight:700;color:var(--sky);
   letter-spacing:0;font-family:inherit;}
-/* 説明パネル */
-.rg-detail{border:1px solid var(--line);border-left:4px solid var(--sky);border-radius:var(--r-s);
-  background:var(--blue-l2);padding:10px 12px;font-size:13px;line-height:1.65;color:var(--ink);
-  font-weight:600;min-height:88px;}
-.rg-detail b{color:var(--blue-d);}
-.rg-detail .rg-d-key{display:inline-block;background:var(--sky);color:#fff;font-size:11px;
-  font-weight:700;border-radius:4px;padding:1px 7px;margin-right:6px;}
-.rg-detail .rg-d-sub{display:block;margin-top:7px;font-size:12px;font-weight:600;color:#5A5E63;}
+/* 説明パネル。広い画面でも一目で分かるよう、影を付けてはっきり浮かせる */
+.rg-detail{border:1px solid var(--line);border-left:5px solid var(--sky);border-radius:var(--r-s);
+  background:var(--blue-l2);padding:12px 14px;font-size:14px;line-height:1.7;color:var(--ink);
+  font-weight:600;min-height:96px;box-shadow:0 2px 8px rgba(0,0,0,.10);}
+.rg-detail b{color:var(--blue-d);font-size:15px;}
+.rg-detail .rg-d-key{display:inline-block;background:var(--sky);color:#fff;font-size:12px;
+  font-weight:700;border-radius:4px;padding:2px 8px;margin-right:6px;}
+.rg-detail .rg-d-sub{display:block;margin-top:7px;font-size:13px;font-weight:600;color:#5A5E63;}
 .rg-detail .rg-d-code{display:block;margin-top:7px;font-family:'SFMono-Regular',Menlo,Consolas,monospace;
   font-size:11.5px;background:var(--white);border:1px solid var(--line-w);border-radius:4px;
   padding:6px 8px;white-space:pre-wrap;word-break:break-all;color:#3A3D40;}
@@ -4222,7 +4227,11 @@ function repBuildFlat(){
   repFlat = [];
   REPORT_GUIDE.sections.forEach(function(sec, si){
     if(si > 0) repFlat.push({ si: si, gap: 1 });
-    repFlat.push({ si: si, blk: sec.name });
+    /* ■を敷き詰めた見出し（repBannerHtml）は実機の写真どおり先頭（インストール情報）だけに
+       使う。システム情報の見出しはExcel上も装飾なしの平文（lines[0]のhead行）としてすでに
+       印字されており、ECT/MST/MPR/MD/HT設定にはそもそも見出し行が印字されていないため、
+       ここで章の見出しを追加で挟まない（実機の印字にそのまま合わせる）。 */
+    if(si === 0) repFlat.push({ si: si, blk: sec.name });
     sec.lines.forEach(function(ln){ repFlat.push({ si: si, line: ln }); });
   });
 }
