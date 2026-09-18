@@ -462,6 +462,19 @@ input:focus,select:focus,textarea:focus{border-color:var(--blue);box-shadow:0 0 
 .rg-notes{margin-top:10px;display:flex;flex-direction:column;gap:5px;}
 .rg-note{font-size:11.5px;line-height:1.55;color:#7A5A16;background:#FCF3E3;border-radius:5px;
   padding:6px 9px;font-weight:600;}
+/* レポート画面から直接、管理者パスワードで追記できる「注意事項」（利用者の指定：
+   設定タブではなく、インストールレポートの画面自体から追加できるようにしてほしい） */
+.rg-usernotes{margin:0 0 14px;padding:12px 14px;background:#FCF3E3;border:1px solid #F0DDB0;
+  border-radius:var(--r-s);}
+.rg-usernotes-head{display:flex;align-items:center;justify-content:space-between;gap:8px;}
+.rg-usernotes-title{font-size:13px;font-weight:700;color:#7A5A16;}
+.rg-usernotes-list{display:flex;flex-direction:column;gap:5px;margin-top:8px;}
+.rg-note-user{display:flex;align-items:flex-start;gap:6px;}
+.rg-note-user span{flex:1 1 auto;}
+.rg-note-del{flex:0 0 auto;border:none;background:none;color:#B23A3A;cursor:pointer;
+  font-size:13px;line-height:1.4;padding:0 2px;}
+.rg-usernotes-unlock,.rg-usernotes-add{display:flex;gap:6px;margin-top:8px;}
+.rg-usernotes-unlock input,.rg-usernotes-add input{flex:1 1 auto;min-width:0;}
 /* 設定画面のコマンド編集 */
 .cs-list{display:flex;flex-direction:column;gap:6px;}
 .cs-row{display:flex;flex-wrap:wrap;gap:5px;align-items:center;border:1px solid var(--line-w);
@@ -987,11 +1000,11 @@ input:focus,select:focus,textarea:focus{border-color:var(--blue);box-shadow:0 0 
         <div class="sim-panel">
           <div class="sim-top">
             <div class="sim-leds">
-              <div class="sim-led on" id="led-power"><i></i>電源</div>
-              <div class="sim-led on"><i></i>オンライン</div>
-              <div class="sim-led"><i></i>通信中</div>
-              <div class="sim-led"><i></i>エラー</div>
-              <div class="sim-led"><i></i>コントローラ</div>
+              <div class="sim-led" id="led-power"><i></i>電源</div>
+              <div class="sim-led" id="led-online"><i></i>オンライン</div>
+              <div class="sim-led" id="led-comm"><i></i>通信中</div>
+              <div class="sim-led" id="led-error"><i></i>エラー</div>
+              <div class="sim-led" id="led-ctrl"><i></i>コントローラ</div>
             </div>
             <div class="sim-screen">
               <div class="sim-brand">SEIKO</div>
@@ -1057,6 +1070,21 @@ input:focus,select:focus,textarea:focus{border-color:var(--blue);box-shadow:0 0 
       <div class="card-body rg-body">
         <div class="rg-left">
           <div class="hint" id="rep-lead"></div>
+          <div class="rg-usernotes">
+            <div class="rg-usernotes-head">
+              <span class="rg-usernotes-title">📌 注意事項</span>
+              <button type="button" class="btn btn-ghost btn-sm" id="rep-lock-btn" onclick="toggleRepUnlock()">🔒 追加する</button>
+            </div>
+            <div class="rg-usernotes-list" id="rep-usernotes-list"></div>
+            <div class="rg-usernotes-unlock hidden" id="rep-usernotes-unlock">
+              <input type="password" id="rep-admin-pw" placeholder="管理者パスワード" onkeydown="if(event.key==='Enter')unlockFromRep()">
+              <button type="button" class="btn btn-primary btn-sm" onclick="unlockFromRep()">解除</button>
+            </div>
+            <div class="rg-usernotes-add hidden" id="rep-usernotes-add">
+              <input type="text" id="rep-note-input" placeholder="例: この店舗ではPOSの初期化前に必ずバックアップを取る" maxlength="200" onkeydown="if(event.key==='Enter')addReportNote()">
+              <button type="button" class="btn btn-primary btn-sm" onclick="addReportNote()">追加</button>
+            </div>
+          </div>
           <div class="rg-sample-wrap"><div class="rg-sample" id="rep-sample"></div></div>
         </div>
         <div class="rg-side">
@@ -1488,6 +1516,7 @@ function defaultSettings(){
     ],
     entryNotes: DEFAULT_ENTRY_NOTES.map(function(t){ return { id: uid('en'), text: t }; }),
     midNotes: DEFAULT_MID_NOTES.map(function(t){ return { id: uid('mn'), text: t }; }),
+    reportNotes: [],
     commands: defaultCommands(),
     idleScreens: defaultIdleScreens(),
     calendarApiUrl: '',
@@ -1681,6 +1710,7 @@ function normalizeSettings(o){
     phrases: [],
     entryNotes: [],
     midNotes: [],
+    reportNotes: [],
     commands: [],
     gyotai: []
   };
@@ -1709,6 +1739,12 @@ function normalizeSettings(o){
       if(txt) s.midNotes.push({ id: (mn && mn.id) ? mn.id : uid('mn'), text: txt });
     });
   }
+  /* レポートの見方タブの「注意事項」。既定は無し（利用者がインストールレポート画面から
+     管理者パスワードを入れて追記していく運用のため、あらかじめ何か入れておく性質のものではない） */
+  (o.reportNotes || []).forEach(function(rn){
+    var txt = (typeof rn === 'string') ? rn : (rn && typeof rn.text === 'string' ? rn.text : '');
+    if(txt) s.reportNotes.push({ id: (rn && rn.id) ? rn.id : uid('rn'), text: txt });
+  });
   s.commands = (o.commands === undefined) ? defaultCommands() : normalizeCommands(o.commands);
   if(o.idleScreens === undefined){
     /* 旧バージョン（待機画面が1つだけ、simIdleL1/simIdleL2）からの移行 */
@@ -3553,11 +3589,18 @@ function renderPwrSwitch(){
   });
   updatePwrSwitchVisual();
 }
+/* ディスプレイのLED表示（電源・オンライン・通信中・エラー・コントローラ）は、
+   電源オフのとき以外はすべて緑点灯にする（利用者の指定）。個別の状態は再現しない。 */
+var SIM_LED_IDS = ['led-power', 'led-online', 'led-comm', 'led-error', 'led-ctrl'];
 function updatePwrSwitchVisual(){
-  var onEl = simKeyEl('PWRSW_ON'), offEl = simKeyEl('PWRSW_OFF'), led = $('led-power');
+  var onEl = simKeyEl('PWRSW_ON'), offEl = simKeyEl('PWRSW_OFF');
   if(onEl) onEl.classList.toggle('sw-active', simPwrSwitchPos === 'on');
   if(offEl) offEl.classList.toggle('sw-active', simPwrSwitchPos === 'off');
-  if(led) led.classList.toggle('on', simPwrSwitchPos === 'on');
+  var isOn = simPwrSwitchPos === 'on';
+  SIM_LED_IDS.forEach(function(id){
+    var el = $(id);
+    if(el) el.classList.toggle('on', isOn);
+  });
 }
 var simDown = {};        /* いま押されているキー */
 var simGroup = [];       /* 1回のひと続きの操作（途中で押しままの次へ進んでも切れない）で押されたキー */
@@ -4256,6 +4299,67 @@ function openRepTab(){
   if($('rep-lead')) $('rep-lead').innerHTML = REPORT_GUIDE.lead;
   repBuildFlat();
   renderRepAll();
+  renderRepUserNotes();
+}
+
+/* レポートの見方タブから直接、管理者パスワードで追記できる「注意事項」（settings.reportNotes）。
+   設定タブの他のメモ（entryNotes/midNotes）と違い、設定タブを経由せずこの画面自体から
+   ロック解除〜追加ができるようにしている（利用者の指定）。閲覧はロックの有無にかかわらず誰でもできる。 */
+var repUnlockOpen = false;
+function renderRepUserNotes(){
+  var host = $('rep-usernotes-list');
+  if(!host) return;
+  var unlocked = isAdminUnlocked();
+  var notes = settings.reportNotes || [];
+  var html = '';
+  if(!notes.length){
+    html = '<div class="empty" style="padding:4px 0;">まだ注意事項はありません。</div>';
+  }else{
+    notes.forEach(function(n, i){
+      html += '<div class="rg-note rg-note-user"><span>📌 ' + esc(n.text) + '</span>'
+        + (unlocked ? '<button type="button" class="rg-note-del" onclick="removeReportNote(' + i + ')" aria-label="削除">✕</button>' : '')
+        + '</div>';
+    });
+  }
+  host.innerHTML = html;
+  var lockBtn = $('rep-lock-btn'), unlockWrap = $('rep-usernotes-unlock'), addWrap = $('rep-usernotes-add');
+  if(lockBtn) lockBtn.classList.toggle('hidden', unlocked);
+  if(unlockWrap) unlockWrap.classList.toggle('hidden', unlocked || !repUnlockOpen);
+  if(addWrap) addWrap.classList.toggle('hidden', !unlocked);
+}
+function toggleRepUnlock(){
+  if(isAdminUnlocked()) return;
+  repUnlockOpen = !repUnlockOpen;
+  renderRepUserNotes();
+  if(repUnlockOpen) setTimeout(function(){ var el = $('rep-admin-pw'); if(el) el.focus(); }, 0);
+}
+function unlockFromRep(){
+  var el = $('rep-admin-pw');
+  var v = el ? el.value : '';
+  doAdminUnlock(v, function(){
+    if(el) el.value = '';
+    repUnlockOpen = false;
+    applyLockState();      /* 設定タブ側の表示も一緒に更新しておく（同じ管理者セッションのため） */
+    renderRepUserNotes();
+    toast('注意事項を追加できるようになりました');
+  });
+}
+function addReportNote(){
+  if(!requireAdmin()) return;
+  var el = $('rep-note-input');
+  var v = el ? el.value.trim() : '';
+  if(!v){ toast('注意事項を入力してください'); return; }
+  settings.reportNotes = settings.reportNotes || [];
+  settings.reportNotes.push({ id: uid('rn'), text: v });
+  if(el) el.value = '';
+  afterSettingsChange(false);
+}
+function removeReportNote(i){
+  if(!requireAdmin()) return;
+  if(!settings.reportNotes || !settings.reportNotes[i]) return;
+  if(!confirm('この注意事項を削除します。よろしいですか？')) return;
+  settings.reportNotes.splice(i, 1);
+  afterSettingsChange(false);
 }
 
 /* 印字例の1行分。桁位置（tok.p）どおりに空白を入れて並べる */
@@ -5372,6 +5476,7 @@ function afterSettingsChange(rerenderSettingsPane){
   renderEntryNoteRow();
   renderMidNoteRow();
   if(!$('pane-cmd').classList.contains('hidden')){ renderIdleSelect(); renderCmdSelect(true); }
+  if(!$('pane-rep').classList.contains('hidden')) renderRepUserNotes();
   if(rerenderSettingsPane) renderSettings();
 }
 function syncEntriesWithSettings(){
@@ -5518,14 +5623,21 @@ function applyLockState(){
   if(bl) bl.classList.toggle('hidden', !open);
   if(blb) blb.classList.toggle('hidden', !open);
 }
-function unlockSettings(){
-  var el = $('admin-pw');
-  var v = el ? el.value : '';
+/* パスワード確認〜ロック解除の共通処理。設定タブ（unlockSettings）と、
+   レポートの見方タブから直接解除する場合（unlockFromRep）の両方から使う。 */
+function doAdminUnlock(v, onDone){
   if(!v){ toast('管理者パスワードを入力してください'); return; }
   verifyAdminPassword(v, function(ok){
     if(!ok){ toast('パスワードが違います'); return; }
     try{ sessionStorage.setItem(ADMIN_KEY, '1'); sessionStorage.setItem(ADMIN_PW_KEY, v); }catch(e){}
     adminPw = v;
+    if(onDone) onDone();
+  });
+}
+function unlockSettings(){
+  var el = $('admin-pw');
+  var v = el ? el.value : '';
+  doAdminUnlock(v, function(){
     if(el) el.value = '';
     applyLockState();
     toast('設定を編集できるようになりました');
