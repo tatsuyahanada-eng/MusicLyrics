@@ -1024,8 +1024,8 @@ input:focus,select:focus,textarea:focus{border-color:var(--blue);box-shadow:0 0 
               <label for="cmd-play-speed">「順番に再生」次に進むまでの秒数</label>
               <select id="cmd-play-speed" onchange="setCmdPlaySpeed(this.value)">
                 <option value="0.8">0.8秒（速い）</option>
-                <option value="1.2" selected>1.2秒（標準）</option>
-                <option value="1.5">1.5秒</option>
+                <option value="1.2">1.2秒</option>
+                <option value="1.5" selected>1.5秒（標準）</option>
                 <option value="2">2秒（ゆっくり）</option>
                 <option value="3">3秒（とてもゆっくり）</option>
               </select>
@@ -3560,25 +3560,35 @@ function updatePwrSwitchVisual(){
   if(led) led.classList.toggle('on', simPwrSwitchPos === 'on');
 }
 var simDown = {};        /* いま押されているキー */
-var simGroup = [];       /* 1回の操作でまとめて押されたキー（同時押しの判定用） */
+var simGroup = [];       /* 1回のひと続きの操作（途中で押しままの次へ進んでも切れない）で押されたキー */
 var simGroupStart = 0;
 var simHoldTimer = null;
 var simInput = [];       /* 押した操作の履歴（登録済みコマンドとの照合用） */
-var simStayMatched = false; /* 「押しまま」ですでに次のステップへ進んだか（離したときに二重で進めないように） */
+/* 「押しまま」ですでに次のステップへ渡した（消費済みの）キー。
+   例えば「実行を押したまま電源オンにする」のような手順では、実行キーを離さずに
+   電源スイッチを押すことになる。この場合、実行はすでに1つ目のステップとして消費済みなので、
+   その後の判定（電源スイッチだけの2つ目のステップ）は実行を除いた「まだ消費していないキー」
+   だけで行う必要がある。これをやらずに押されているキー全部で照合すると、実行を押したまま
+   だと２つ目のステップの組み合わせが一致せず、判定が合わなくなる。 */
+var simCarry = {};
+var simLiveStart = 0;    /* 「まだ消費していないキー」の組み合わせが今の形になった時刻（長押し判定用） */
 
 /* キーパッド（#sim-keys）だけでなく、枠外の電源スイッチ（.sw-cell）も data-key で探す */
 function simKeyEl(id){ return document.querySelector('[data-key="' + id + '"]'); }
+/* 押されているキーのうち、まだ「押しまま」で消費していないもの（＝今の判定に使うキー） */
+function simLiveKeys(){ return simGroup.filter(function(k){ return !simCarry[k]; }); }
 function simDownKey(id){
   if(simDown[id]) return;
   if(!simGroup.length){
     simGroupStart = Date.now();
-    simStayMatched = false;
+    simCarry = {};
     simHoldTimer = setTimeout(function(){
       simHoldTimer = null;
       simGroup.forEach(function(k){ var el = simKeyEl(k); if(el) el.classList.add('hold'); });
       simSetMsg('長押し中…');
     }, SIM_HOLD_MS);
   }
+  if(!simLiveKeys().length) simLiveStart = Date.now();
   simDown[id] = 1;
   if(simGroup.indexOf(id) < 0) simGroup.push(id);
   var el = simKeyEl(id); if(el) el.classList.add('press');
@@ -3588,31 +3598,35 @@ function simDownKey(id){
   checkStayDownMatch();
 }
 /* 案内中のステップが「押しまま」なら、離すのを待たずに押した時点で次へ進む
-   （F を押したまま次のボタンを押す、のような操作を離さずに続けられるようにするため） */
+   （F を押したまま次のボタンを押す、のような操作を離さずに続けられるようにするため）。
+   一致に使ったキーは simCarry に記録して「消費済み」にし、以降はそれを除いたキーだけで
+   次のステップを判定する（実行を押したまま電源オンにする、のような手順に対応するため）。 */
 function checkStayDownMatch(){
-  if(simStayMatched) return;
   if(!(cmdSeq && cmdIdx >= 0 && cmdIdx < cmdSeq.steps.length)) return;
   var st = cmdSeq.steps[cmdIdx];
   if(!st.stayDown) return;
-  var ka = simGroup.slice().sort().join(','), kb = (st.keys || []).slice().sort().join(',');
+  var live = simLiveKeys();
+  var ka = live.slice().sort().join(','), kb = (st.keys || []).slice().sort().join(',');
   if(!ka || ka !== kb) return;
-  simStayMatched = true;
+  live.forEach(function(k){ simCarry[k] = 1; });
   if(simHoldTimer){ clearTimeout(simHoldTimer); simHoldTimer = null; }
-  cmdTryAdvance({ keys: simGroup.slice(), hold: false });
+  cmdTryAdvance({ keys: live, hold: false });
 }
 function simUpKey(id){
   if(!simDown[id]) return;
   delete simDown[id];
   var el = simKeyEl(id); if(el) el.classList.remove('press');
-  for(var k in simDown){ if(simDown.hasOwnProperty(k)) return; }   /* まだ他のキーが押されている */
-  var held = (Date.now() - simGroupStart) >= SIM_HOLD_MS;
+  /* まだ「消費していない」キーが他に押されていれば、そちらが離れるまで待つ
+     （すでに押しままで消費済みのキーが押されたままでも、それだけでは待たない） */
+  for(var k in simDown){ if(simDown.hasOwnProperty(k) && !simCarry[k]) return; }
+  var held = (Date.now() - simLiveStart) >= SIM_HOLD_MS;
   if(simHoldTimer){ clearTimeout(simHoldTimer); simHoldTimer = null; }
-  var wasStayMatch = simStayMatched;
-  var step = { keys: simGroup.slice(), hold: held };
+  var live = simLiveKeys();
+  var step = { keys: live, hold: held };
   simGroup.forEach(function(kk){ var e2 = simKeyEl(kk); if(e2) e2.classList.remove('hold','press','stay-mode'); });
   simGroup = [];
-  simStayMatched = false;
-  if(wasStayMatch) return;   /* 押しままで既に進んでいるので、離したときは何もしない */
+  simCarry = {};
+  if(!live.length) return;   /* 押しままで既に消費済み（次のステップへ渡し済み）なので、離したときは何もしない */
   simEmit(step);
 }
 /* 1回ぶんの操作が確定したときの処理 */
@@ -3850,10 +3864,11 @@ function cmdReset(){
   simSetMsg(cmdSeq ? 'この手順どおりにボタンを押すか、「順番に再生」を押してください' : '');
 }
 /* 「順番に再生」で通常の手順1つに使う秒数。ボタン（#cmd-play-speed）で変更できる。
-   共有設定には入れない（見る人ごとの好みなので）。既定の1.2秒を基準に、長押し・押しまま・
-   連続押しの間隔も同じ比率で伸び縮みする。 */
-var cmdPlayStepSec = 1.2;
-function setCmdPlaySpeed(v){ cmdPlayStepSec = parseFloat(v) || 1.2; }
+   共有設定には入れない（見る人ごとの好みなので）。既定は1.5秒。長押し・押しまま・
+   連続押しの間隔は、もともとの基準値だった1.2秒を1倍として同じ比率で伸び縮みする
+   （下のcmdPlayIntervals()の1200は速度の基準値であって既定値ではないので変えないこと）。 */
+var cmdPlayStepSec = 1.5;
+function setCmdPlaySpeed(v){ cmdPlayStepSec = parseFloat(v) || 1.5; }
 function cmdPlayIntervals(){
   var normal = cmdPlayStepSec * 1000;
   var mul = normal / 1200;
