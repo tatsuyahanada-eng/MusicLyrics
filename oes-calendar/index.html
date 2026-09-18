@@ -379,9 +379,16 @@ input:focus,select:focus,textarea:focus{border-color:var(--blue);box-shadow:0 0 
    white-space:pre で描く（桁がずれると「どの位置が何の値か」が分からなくなるため）。 */
 /* レポートは章で分けず1本の縦長で出す。どの固まりを見ているかだけ分かるように、
    印字例の中に控えめな見出しを挟む（レポートそのものの桁は動かさない） */
-.rg-blk{font-size:10.5px;font-weight:700;color:var(--muted);letter-spacing:.04em;
-  margin:14px 0 4px;padding-bottom:3px;border-bottom:1px dashed var(--line);}
-.rg-blk:first-child{margin-top:0;}
+/* インストール情報の見出しは、利用者が添付した実機印字の写真（■を並べた飾り＋中央の見出し文字）
+   をそのまま再現する。■の行はcssのグラデーションで敷き詰め、幅が変わっても崩れないようにする
+   （利用者の指定：「TOPはこのイメージを採用して」）。 */
+.rg-banner{margin:18px 0 10px;}
+.rg-banner:first-child{margin-top:0;}
+.rg-banner-row{height:9px;background-image:repeating-linear-gradient(90deg,#000 0,#000 7px,transparent 7px,transparent 10px);}
+.rg-banner-mid{display:flex;align-items:center;gap:7px;padding:3px 0;}
+.rg-banner-mid .rg-fill{flex:1 1 auto;height:9px;background-image:repeating-linear-gradient(90deg,#000 0,#000 7px,transparent 7px,transparent 10px);}
+.rg-banner-mid .rg-btitle{flex:0 0 auto;font-family:'SFMono-Regular',Menlo,Consolas,'Courier New',monospace;
+  font-size:17px;font-weight:700;letter-spacing:.3em;color:#000;white-space:nowrap;padding:0 2px;}
 .rg-d-blk{display:inline-block;background:var(--blue-l);color:var(--blue-d);font-size:10.5px;
   font-weight:700;border-radius:4px;padding:2px 8px;margin-bottom:6px;}
 /* 狭い画面では「説明」を印字例より上に出し、画面の上端に貼り付ける
@@ -395,31 +402,38 @@ input:focus,select:focus,textarea:focus{border-color:var(--blue);box-shadow:0 0 
 @media (min-width:860px){
   .rg-body{flex-direction:row;gap:18px;align-items:flex-start;}
   .rg-left{flex:1 1 auto;}
-  .rg-side{display:block;flex:0 0 340px;min-width:0;position:sticky;top:8px;}
-  .rg-detail-wrap{order:0;position:static;padding-bottom:0;}
+  /* .rg-side自体をstickyにすると、項目一覧が長い操作（MPRなど）で.rg-sideの高さが
+     画面より高くなり、スクロール中に途中で追従が外れる不具合が起きた。説明だけを
+     stickyにし、長くなりうる項目一覧（.rg-fields-wrap）は普通に流れるようにする。 */
+  .rg-side{display:block;flex:0 0 340px;min-width:0;}
+  .rg-detail-wrap{order:0;position:sticky;top:8px;padding-bottom:0;}
 }
 .rg-sub{font-size:12px;font-weight:700;color:var(--muted);margin-bottom:6px;}
-.rg-sample{background:#F7F4F4;border:1px solid var(--line-w);border-radius:var(--r-s);
-  padding:10px 11px;overflow-x:auto;}
+/* 「キッチンプリンターのレシート」の見た目にする（利用者の指定：デジタルな画面ではなく印刷物の
+   イメージで）。地色は薄いグレーの台紙、その上に白いレシート用紙が乗っている構図にし、
+   文字は白黒（色は使わない）。 */
+.rg-sample-wrap{background:#E4E2DD;border-radius:var(--r-s);padding:14px 8px;}
+.rg-sample{background:#fff;max-width:560px;margin:0 auto;overflow-x:auto;
+  padding:16px 14px 20px;box-shadow:0 2px 10px rgba(0,0,0,.18);border-radius:2px;}
 .rg-line{font-family:'SFMono-Regular',Menlo,Consolas,'Courier New',monospace;
-  font-size:12.5px;line-height:1.45;white-space:pre;color:var(--ink);
-  padding:9px 4px 2px;border-radius:4px;cursor:default;}
+  font-size:12.5px;line-height:1.5;white-space:pre;color:#111;font-weight:400;
+  padding:2px 3px;cursor:default;}
 .rg-line.hoverable{cursor:pointer;}
-.rg-line.on{background:var(--blue-l2);}
+.rg-line.on{background:#F2F0E4;}
 .rg-line.head{font-weight:700;}
 .rg-gap{height:7px;}
-/* 値（トークン）。キー記号（A・B…）は値の上に小さく出す */
-.rg-tok{position:relative;border-radius:3px;padding:1px 0;}
-.rg-tok.pick{cursor:pointer;background:#EFE7E6;box-shadow:0 0 0 1px var(--line);}
-/* 実機のレポートは項目どうしが隙間なく並ぶ場所があるため（例：最終接続日時と
-   現メニューバージョン）、1つおきに濃さを変えて区切りが分かるようにする */
-.rg-tok.pick:nth-of-type(even){background:#E2D6D5;}
-/* 1つおきの濃淡（.rg-tok.pick:nth-of-type(even)）よりセレクタを詳しくしないと、
-   連動ハイライトの色が濃淡に負けて付かないので .pick を必ず付けること */
-.rg-tok.pick:hover,.rg-tok.pick.on,.rg-tok.on{background:var(--sky);color:#fff;box-shadow:0 0 0 1px var(--sky);}
+/* 値（トークン）。キー記号（A・B…）は値の上に小さく出す。
+   紙に印刷された文字そのものは白黒のまま、押せる場所だと分かる程度の薄い下線だけ付ける。
+   1つおきの下線の太さを変えて、隣り合う値の境目が分かるようにする
+   （実機のレポートは項目どうしが隙間なく並ぶ場所があるため）。 */
+.rg-tok{position:relative;padding:1px 0;}
+.rg-tok.pick{cursor:pointer;border-bottom:1px dotted #999;}
+.rg-tok.pick:nth-of-type(even){border-bottom-style:solid;}
+/* ハイライトは「蛍光ペンで印刷物にマークした」見た目にする（黒背景で塗るのは避け、印字物らしさを保つ） */
+.rg-tok.pick:hover,.rg-tok.pick.on,.rg-tok.on{
+  background:#FFF29A;border-bottom:1px solid var(--sky);box-shadow:0 0 0 1px #FFF29A;color:#111;}
 .rg-key{position:absolute;top:-9px;left:0;font-size:9px;font-weight:700;color:var(--sky);
   letter-spacing:0;font-family:inherit;}
-.rg-tok.on .rg-key,.rg-tok.pick:hover .rg-key{color:var(--blue-d);}
 /* 説明パネル */
 .rg-detail{border:1px solid var(--line);border-left:4px solid var(--sky);border-radius:var(--r-s);
   background:var(--blue-l2);padding:10px 12px;font-size:13px;line-height:1.65;color:var(--ink);
@@ -1038,7 +1052,7 @@ input:focus,select:focus,textarea:focus{border-color:var(--blue);box-shadow:0 0 
       <div class="card-body rg-body">
         <div class="rg-left">
           <div class="hint" id="rep-lead"></div>
-          <div class="rg-sample" id="rep-sample"></div>
+          <div class="rg-sample-wrap"><div class="rg-sample" id="rep-sample"></div></div>
         </div>
         <div class="rg-side">
           <div class="rg-detail-wrap">
@@ -4240,13 +4254,23 @@ function repLineHtml(line, fi){
   return '<div class="rg-line hoverable' + (line.head ? ' head' : '') + '" data-li="' + fi + '">' + html + '</div>';
 }
 
+/* 実機の印字（利用者添付の写真）を再現した見出し：■を敷き詰めた行 → ■で挟んだ見出し文字 → ■の行 */
+function repBannerHtml(name){
+  return '<div class="rg-banner">'
+    +    '<div class="rg-banner-row"></div>'
+    +    '<div class="rg-banner-mid"><span class="rg-fill"></span>'
+    +      '<span class="rg-btitle">' + esc(name) + '</span>'
+    +      '<span class="rg-fill"></span></div>'
+    +    '<div class="rg-banner-row"></div>'
+    +  '</div>';
+}
 function renderRepAll(){
   var host = $('rep-sample');
   if(!host) return;
   var html = '';
   repFlat.forEach(function(row, fi){
     if(row.gap){ html += '<div class="rg-gap"></div>'; return; }
-    if(row.blk){ html += '<div class="rg-blk">' + esc(row.blk) + '</div>'; return; }
+    if(row.blk){ html += repBannerHtml(row.blk); return; }
     if(row.line.gap){ html += '<div class="rg-gap"></div>'; return; }
     html += repLineHtml(row.line, fi);
   });
