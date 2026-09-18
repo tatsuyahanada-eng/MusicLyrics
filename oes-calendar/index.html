@@ -262,8 +262,11 @@ input:focus,select:focus,textarea:focus{border-color:var(--blue);box-shadow:0 0 
 .sim-panel{background:#E9E9E9;border:1px solid #9A9A9A;border-radius:4px;padding:4px;display:flex;flex-direction:column;gap:7px;}
 /* 参考写真（黒枠＋緑がかった液晶）に合わせて、LED・画面をひとつの黒いベゼルにまとめる。
    狭い画面でも表示部（250px固定）と衝突して横スクロールが出ないよう、枠の余白は最小限にする。 */
+/* 表示部の右側にゆったりした黒の余白ができるよう、右側のpaddingだけ広くする
+   （利用者の指定：「ディスプレイの右側の黒の余白が狭すぎる。黒の余白増やしてほしい」）。
+   その分.sim-screenの固定幅を縮めて、横スクロールが再発しないようにしている。 */
 .sim-top{display:flex;gap:5px;align-items:stretch;background:#141414;border:1px solid #000;
-  border-radius:4px;padding:3px;}
+  border-radius:4px;padding:3px 16px 3px 3px;}
 .sim-leds{display:flex;flex-direction:column;gap:4px;justify-content:center;flex-shrink:0;}
 .sim-led{display:flex;align-items:center;gap:3px;font-size:8px;font-weight:700;color:#4CAF6B;white-space:nowrap;}
 .sim-led i{width:8px;height:8px;border:1px solid #2E5C3E;background:#1F3327;border-radius:2px;display:block;flex-shrink:0;}
@@ -271,7 +274,7 @@ input:focus,select:focus,textarea:focus{border-color:var(--blue);box-shadow:0 0 
 .sim-led.on i{background:#3ADC5C;border-color:#3ADC5C;box-shadow:0 0 4px 1px rgba(58,220,92,.6);}
 /* 表示部（.sim-lcd-box）は内容に関係なく常に同じ大きさにする。長い文字はJS（fitLcdLine）で
    自動的に文字サイズを縮めて枠内に収め、折り返しはしない（実機のLCDは1行=1段のため）。 */
-.sim-screen{flex:0 0 224px;width:224px;background:transparent;border:none;
+.sim-screen{flex:0 0 211px;width:211px;background:transparent;border:none;
   padding:0;position:relative;display:flex;flex-direction:column;gap:4px;}
 .sim-brand{font-size:10px;font-weight:700;letter-spacing:.12em;color:#fff;}
 .sim-lcd-box{background:#C7D5A0;border:1px solid #7C8F5C;border-radius:3px;padding:6px 8px;
@@ -910,12 +913,6 @@ input:focus,select:focus,textarea:focus{border-color:var(--blue);box-shadow:0 0 
           <div class="sim-keys" id="sim-keys"></div>
         </div>
         </div>
-        <div class="sim-msg" id="sim-msg"></div>
-        <div class="sim-note" id="sim-note"></div>
-        <div class="hint">
-          実機と同じようにボタンを押せます（<b>長押し</b>・<b>2つ同時押し</b>にも対応）。
-          登録された手順どおりに押すと、その画面が表示されます。
-        </div>
         <div class="field" style="max-width:280px;margin-top:16px;">
           <label for="cmd-select">調べたい操作</label>
           <select id="cmd-select" onchange="onCmdSelect()"></select>
@@ -945,6 +942,12 @@ input:focus,select:focus,textarea:focus{border-color:var(--blue);box-shadow:0 0 
           <div class="cmd-guide-right">
             <div class="cmd-textlist-title">進行状況</div>
             <div class="cmd-steps" id="cmd-steps"></div>
+            <div class="sim-msg" id="sim-msg"></div>
+            <div class="sim-note" id="sim-note"></div>
+            <div class="hint">
+              実機と同じようにボタンを押せます（<b>長押し</b>・<b>2つ同時押し</b>にも対応）。
+              登録された手順どおりに押すと、その画面が表示されます。
+            </div>
           </div>
         </div>
       </div>
