@@ -84,9 +84,12 @@ body{
 }
 .card-body{padding:10px 11px;}
 .hint{font-size:11px;color:var(--muted);line-height:1.55;}
-/* 「こんな時に使う操作か」を、それ以外の説明（.hint）よりも目立つ場所に強調して出す */
-.cmd-usage{font-size:12px;font-weight:700;color:#7A5A16;background:#FCF3E3;border-radius:6px;
-  padding:6px 9px;line-height:1.5;margin-top:6px;}
+/* 「こんな時に使う操作か」を、それ以外の説明（.hint）よりも強調して出す
+   （利用者の指定でさらに強調：文字を大きく、左に太いアクセント線、背景も少し濃くした） */
+.cmd-usage{font-size:13.5px;font-weight:700;color:#5C4009;background:#FCEFD6;
+  border-left:4px solid #C98A1B;border-radius:6px;padding:9px 12px;line-height:1.6;
+  margin-top:8px;box-shadow:0 1px 3px rgba(0,0,0,.08);}
+.cmd-usage b{color:#8A5500;}
 .cmd-usage:empty{display:none;}
 .field{display:flex;flex-direction:column;gap:4px;min-width:0;}
 .field > label{font-size:11px;font-weight:600;color:#3A3D40;}
@@ -233,15 +236,17 @@ input:focus,select:focus,textarea:focus{border-color:var(--blue);box-shadow:0 0 
 /* 電源スイッチ（画面の枠外・本体側面のイメージ）。上＝ON・下＝OFF。
    キーパッドのキーと同じ.simkeyクラスを使い、ハイライト（グロー・点滅など）の見た目を共有する。
    .active は「いま実際にどちらへ入っているか」の位置表示で、ガイドのハイライト（.on）とは別物。 */
-/* 狭い画面ではスイッチを画面の上に、広い画面（760px以上、.sim-panel が横並びになる基準と同じ）では
-   横に並べる（横に並べると.sim-topの固定幅270pxの画面と衝突して横スクロールが出てしまうため）。 */
-.sim-with-switch{display:flex;flex-direction:column;gap:8px;align-items:flex-start;}
+/* スイッチは常にシミュレーター画面の左に横並びにする（利用者の指定：スマホでもスペースを
+   考えて横に並べる。画面の上に縦積みにすると、スイッチの高さぶんだけ縦に無駄な余白ができ、
+   「変な位置」に見えるため）。狭い画面でも固定幅250pxの画面と衝突して横スクロールが出ないよう、
+   .sim-top・.sim-panelの余白は最小限にしてある。広い画面（760px以上）では隙間を少し広げる。 */
+.sim-with-switch{display:flex;flex-direction:row;gap:5px;align-items:flex-start;}
 @media (min-width:760px){
-  .sim-with-switch{flex-direction:row;align-items:flex-start;gap:12px;}
+  .sim-with-switch{gap:12px;}
 }
 .sim-pwrsw{display:flex;flex-direction:column;align-items:center;gap:5px;flex-shrink:0;padding-top:4px;}
 .sw-cap{font-size:9px;font-weight:700;color:var(--muted);text-align:center;line-height:1.25;}
-.sw-rocker{display:flex;flex-direction:column;width:36px;border:2px solid #8C8C8C;border-radius:8px;
+.sw-rocker{display:flex;flex-direction:column;width:34px;border:1px solid #8C8C8C;border-radius:8px;
   overflow:hidden;background:#D8D8D8;}
 .sw-cell{min-height:26px;border:none;border-radius:0;font-size:9.5px;letter-spacing:0;
   background:transparent;color:#666;}
@@ -249,9 +254,9 @@ input:focus,select:focus,textarea:focus{border-color:var(--blue);box-shadow:0 0 
 .sw-cell.sw-off.sw-active{background:#2B2B2B;color:#fff;}
 .sim-panel{background:#E9E9E9;border:2px solid #9A9A9A;border-radius:10px;padding:6px;display:flex;flex-direction:column;gap:7px;min-width:0;}
 /* 参考写真（黒枠＋緑がかった液晶）に合わせて、LED・画面をひとつの黒いベゼルにまとめる。
-   狭い画面でも表示部（270px固定）と衝突して横スクロールが出ないよう、枠の余白は最小限にする。 */
-.sim-top{display:flex;gap:6px;align-items:stretch;background:#141414;border:1px solid #000;
-  border-radius:6px;padding:4px 5px;}
+   狭い画面でも表示部（250px固定）と衝突して横スクロールが出ないよう、枠の余白は最小限にする。 */
+.sim-top{display:flex;gap:5px;align-items:stretch;background:#141414;border:1px solid #000;
+  border-radius:6px;padding:3px 4px;}
 .sim-leds{display:flex;flex-direction:column;gap:4px;justify-content:center;flex-shrink:0;}
 .sim-led{display:flex;align-items:center;gap:3px;font-size:8px;font-weight:700;color:#4CAF6B;white-space:nowrap;}
 .sim-led i{width:8px;height:8px;border:1px solid #2E5C3E;background:#1F3327;border-radius:2px;display:block;flex-shrink:0;}
@@ -259,16 +264,16 @@ input:focus,select:focus,textarea:focus{border-color:var(--blue);box-shadow:0 0 
 .sim-led.on i{background:#3ADC5C;border-color:#3ADC5C;box-shadow:0 0 4px 1px rgba(58,220,92,.6);}
 /* 表示部（.sim-lcd-box）は内容に関係なく常に同じ大きさにする。長い文字はJS（fitLcdLine）で
    自動的に文字サイズを縮めて枠内に収め、折り返しはしない（実機のLCDは1行=1段のため）。 */
-.sim-screen{flex:0 0 270px;width:270px;background:transparent;border:none;
+.sim-screen{flex:0 0 250px;width:250px;background:transparent;border:none;
   padding:0;position:relative;display:flex;flex-direction:column;gap:4px;}
 .sim-brand{font-size:10px;font-weight:700;letter-spacing:.12em;color:#fff;}
-.sim-lcd-box{background:#C7D5A0;border:1px solid #7C8F5C;border-radius:3px;padding:5px 7px;
-  width:100%;height:54px;box-sizing:border-box;overflow:hidden;display:flex;flex-direction:column;justify-content:center;gap:2px;
+.sim-lcd-box{background:#C7D5A0;border:1px solid #7C8F5C;border-radius:3px;padding:6px 8px;
+  width:100%;height:64px;box-sizing:border-box;overflow:hidden;display:flex;flex-direction:column;justify-content:center;gap:3px;
   box-shadow:inset 0 0 6px rgba(0,0,0,.25);}
 .sim-model{text-align:right;font-size:8px;color:#DADADA;line-height:1.35;}
 .sim-model span{font-size:7.5px;color:#B7B7B7;}
 .sim-lcd{font-family:'SFMono-Regular',Menlo,Consolas,monospace;width:100%;}
-.lcd-l1,.lcd-l2{font-size:15px;font-weight:700;color:#16240C;line-height:1.3;white-space:nowrap;
+.lcd-l1,.lcd-l2{font-size:17px;font-weight:700;color:#16240C;line-height:1.3;white-space:nowrap;
   overflow:hidden;letter-spacing:0;width:100%;}
 .sim-keys{display:grid;grid-template-columns:repeat(7,1fr);gap:4px;}
 .simkey{position:relative;min-height:38px;border:1px solid #9A9A9A;border-radius:5px;background:#FDFDFD;
@@ -912,8 +917,7 @@ input:focus,select:focus,textarea:focus{border-color:var(--blue);box-shadow:0 0 
         <div class="hint" id="cmd-note" style="margin-top:6px;"></div>
         <div class="cmd-guide-body">
           <div class="cmd-guide-left">
-            <div class="cmd-steps" id="cmd-steps"></div>
-            <div class="row-btns" style="margin-top:11px;">
+            <div class="row-btns">
               <button class="btn btn-primary btn-sm" id="btn-cmd-play" onclick="cmdPlayToggle()">順番に再生</button>
               <button class="btn btn-sub btn-sm" onclick="cmdNext()">1つ進む</button>
               <button class="btn btn-ghost btn-sm" onclick="cmdReset()">最初から</button>
@@ -928,10 +932,12 @@ input:focus,select:focus,textarea:focus{border-color:var(--blue);box-shadow:0 0 
                 <option value="3">3秒（とてもゆっくり）</option>
               </select>
             </div>
+            <div class="cmd-textlist-title" style="margin-top:14px;">簡易手順</div>
+            <ol class="cmd-textlist" id="cmd-textlist"></ol>
           </div>
           <div class="cmd-guide-right">
-            <div class="cmd-textlist-title">簡易手順</div>
-            <ol class="cmd-textlist" id="cmd-textlist"></ol>
+            <div class="cmd-textlist-title">進行状況</div>
+            <div class="cmd-steps" id="cmd-steps"></div>
           </div>
         </div>
       </div>
@@ -948,7 +954,7 @@ input:focus,select:focus,textarea:focus{border-color:var(--blue);box-shadow:0 0 
           </div>
           <input type="password" id="admin-pw" placeholder="管理者パスワード" onkeydown="if(event.key==='Enter')unlockSettings()">
           <button class="btn btn-primary btn-sm" id="btn-unlock" onclick="unlockSettings()">解除</button>
-          <button class="btn btn-ghost btn-sm hidden" id="btn-lock" onclick="lockSettings()">ロックする</button>
+          <button class="btn btn-ghost btn-sm hidden" id="btn-lock" onclick="lockSettings()">保存してロック</button>
         </div>
         <div class="row-btns" style="margin-top:9px;">
           <button class="btn btn-sub btn-sm" onclick="reloadSharedSettings()">共有設定を再読み込み</button>
@@ -1194,6 +1200,7 @@ input:focus,select:focus,textarea:focus{border-color:var(--blue);box-shadow:0 0 
           <button class="btn btn-primary btn-sm" onclick="saveSharedSettings()">共有設定を保存（settings.json）</button>
           <button class="btn btn-sub btn-sm" onclick="document.getElementById('import-file').click()">ファイルから読み込む</button>
           <button class="btn btn-danger btn-sm" onclick="resetSettings()">初期設定に戻す</button>
+          <button class="btn btn-ghost btn-sm hidden" id="btn-lock-bottom" onclick="lockSettings()">保存してロック</button>
         </div>
         <input type="file" id="import-file" accept="application/json,.json" class="hidden" onchange="importSettings(this)">
         <div class="hint" id="save-status" style="margin-top:7px;"></div>
@@ -3334,7 +3341,7 @@ function expandPhysicalSteps(cmd){
 function nowHHMM(){ var d = new Date(); return pad(d.getHours()) + '：' + pad(d.getMinutes()); }
 /* 待機中の画面文字列の {time} だけを現在時刻に置き換える（書かなければ時刻は出ない） */
 function applyIdleTokens(s){ return (s || '').replace(/\{time\}/g, nowHHMM()); }
-var LCD_FONT_MAX = 15, LCD_FONT_MIN = 8;
+var LCD_FONT_MAX = 17, LCD_FONT_MIN = 8;
 /* 表示部の大きさは常に固定なので、長い文字は折り返さずに文字サイズだけを縮めて枠内に収める */
 function fitLcdLine(el){
   if(!el) return;
@@ -3581,7 +3588,7 @@ function onCmdSelect(){
   simDefaultScreen();
   simSetMsg(cmdSeq ? 'この手順どおりにボタンを押すか、「順番に再生」を押してください' : '');
   if($('cmd-note')) $('cmd-note').textContent = cmdSeq ? (cmdSeq.note || '') : '';
-  if($('cmd-usage')) $('cmd-usage').innerHTML = (cmdSeq && cmdSeq.usage) ? ('💡 ' + esc(cmdSeq.usage)) : '';
+  if($('cmd-usage')) $('cmd-usage').innerHTML = (cmdSeq && cmdSeq.usage) ? ('💡 <b>この操作の使いどころ：</b>' + esc(cmdSeq.usage)) : '';
 }
 /* チップの色分け用クラス（長押し＝オレンジ／連続で何回か押す＝青／それ以外＝既定の赤） */
 function stepModeClass(st){
@@ -4847,7 +4854,7 @@ function applyLockState(){
   if(!pane) return;
   var open = isAdminUnlocked();
   pane.classList.toggle('locked', !open);
-  var msg = $('lock-msg'), pw = $('admin-pw'), bu = $('btn-unlock'), bl = $('btn-lock');
+  var msg = $('lock-msg'), pw = $('admin-pw'), bu = $('btn-unlock'), bl = $('btn-lock'), blb = $('btn-lock-bottom');
   if(msg){
     msg.innerHTML = open
       ? '🔓 管理者として編集できます'
@@ -4858,6 +4865,7 @@ function applyLockState(){
   if(pw) pw.classList.toggle('hidden', open);
   if(bu) bu.classList.toggle('hidden', open);
   if(bl) bl.classList.toggle('hidden', !open);
+  if(blb) blb.classList.toggle('hidden', !open);
 }
 function unlockSettings(){
   var el = $('admin-pw');
@@ -4872,11 +4880,15 @@ function unlockSettings(){
     toast('設定を編集できるようになりました');
   });
 }
+/* ボタン名が「保存してロック」のとおり、ロックする前に必ず共有設定を保存する
+   （変更したまま忘れてロックしてしまう事故を防ぐため。saveSharedSettingsは
+   adminPwやsessionStorageをまだ消していない状態で呼ぶ必要がある） */
 function lockSettings(){
+  saveSharedSettings();
   adminPw = '';
   try{ sessionStorage.removeItem(ADMIN_KEY); sessionStorage.removeItem(ADMIN_PW_KEY); }catch(e){}
   applyLockState();
-  toast('設定をロックしました');
+  toast('設定を保存してロックしました');
 }
 /* ロック解除状態のまま画面を開き直しても（PWAの再起動など）パスワードを聞き直さないための復元。
    isAdminUnlocked()がtrueのときだけ、同じタブ内のsessionStorageから平文を戻す
