@@ -233,7 +233,12 @@ input:focus,select:focus,textarea:focus{border-color:var(--blue);box-shadow:0 0 
 /* 電源スイッチ（画面の枠外・本体側面のイメージ）。上＝ON・下＝OFF。
    キーパッドのキーと同じ.simkeyクラスを使い、ハイライト（グロー・点滅など）の見た目を共有する。
    .active は「いま実際にどちらへ入っているか」の位置表示で、ガイドのハイライト（.on）とは別物。 */
-.sim-with-switch{display:flex;gap:12px;align-items:flex-start;}
+/* 狭い画面ではスイッチを画面の上に、広い画面（760px以上、.sim-panel が横並びになる基準と同じ）では
+   横に並べる（横に並べると.sim-topの固定幅270pxの画面と衝突して横スクロールが出てしまうため）。 */
+.sim-with-switch{display:flex;flex-direction:column;gap:8px;align-items:flex-start;}
+@media (min-width:760px){
+  .sim-with-switch{flex-direction:row;align-items:flex-start;gap:12px;}
+}
 .sim-pwrsw{display:flex;flex-direction:column;align-items:center;gap:5px;flex-shrink:0;padding-top:4px;}
 .sw-cap{font-size:9px;font-weight:700;color:var(--muted);text-align:center;line-height:1.25;}
 .sw-rocker{display:flex;flex-direction:column;width:36px;border:2px solid #8C8C8C;border-radius:8px;
@@ -242,23 +247,28 @@ input:focus,select:focus,textarea:focus{border-color:var(--blue);box-shadow:0 0 
   background:transparent;color:#666;}
 .sw-cell.sw-on.sw-active{background:var(--sky);color:#fff;}
 .sw-cell.sw-off.sw-active{background:#2B2B2B;color:#fff;}
-.sim-panel{background:#E9E9E9;border:2px solid #9A9A9A;border-radius:10px;padding:9px;display:flex;flex-direction:column;gap:9px;min-width:0;}
-.sim-top{display:flex;gap:9px;align-items:stretch;}
-.sim-leds{display:flex;flex-direction:column;gap:5px;justify-content:center;flex-shrink:0;}
-.sim-led{display:flex;align-items:center;gap:4px;font-size:9px;color:#333;white-space:nowrap;}
-.sim-led i{width:8px;height:8px;border:1px solid #8C8C8C;background:#D8D8D8;border-radius:2px;display:block;flex-shrink:0;}
-.sim-led.on i{background:var(--sky);border-color:var(--sky);}
+.sim-panel{background:#E9E9E9;border:2px solid #9A9A9A;border-radius:10px;padding:6px;display:flex;flex-direction:column;gap:7px;min-width:0;}
+/* 参考写真（黒枠＋緑がかった液晶）に合わせて、LED・画面をひとつの黒いベゼルにまとめる。
+   狭い画面でも表示部（270px固定）と衝突して横スクロールが出ないよう、枠の余白は最小限にする。 */
+.sim-top{display:flex;gap:6px;align-items:stretch;background:#141414;border:1px solid #000;
+  border-radius:6px;padding:4px 5px;}
+.sim-leds{display:flex;flex-direction:column;gap:4px;justify-content:center;flex-shrink:0;}
+.sim-led{display:flex;align-items:center;gap:3px;font-size:8px;font-weight:700;color:#4CAF6B;white-space:nowrap;}
+.sim-led i{width:8px;height:8px;border:1px solid #2E5C3E;background:#1F3327;border-radius:2px;display:block;flex-shrink:0;}
+.sim-led.on{color:#7CFC8C;}
+.sim-led.on i{background:#3ADC5C;border-color:#3ADC5C;box-shadow:0 0 4px 1px rgba(58,220,92,.6);}
 /* 表示部（.sim-lcd-box）は内容に関係なく常に同じ大きさにする。長い文字はJS（fitLcdLine）で
    自動的に文字サイズを縮めて枠内に収め、折り返しはしない（実機のLCDは1行=1段のため）。 */
-.sim-screen{flex:0 0 270px;width:270px;background:#DCDCDC;border:1px solid #9A9A9A;border-radius:4px;
-  padding:6px 9px;position:relative;display:flex;flex-direction:column;gap:3px;}
-.sim-brand{font-size:10px;font-weight:700;letter-spacing:.1em;color:#333;}
-.sim-lcd-box{background:#fff;border:1px solid #BDBDBD;border-radius:3px;padding:5px 7px;
-  width:100%;height:54px;box-sizing:border-box;overflow:hidden;display:flex;flex-direction:column;justify-content:center;gap:2px;}
-.sim-model{text-align:right;font-size:8px;color:#555;line-height:1.35;}
-.sim-model span{font-size:7.5px;}
+.sim-screen{flex:0 0 270px;width:270px;background:transparent;border:none;
+  padding:0;position:relative;display:flex;flex-direction:column;gap:4px;}
+.sim-brand{font-size:10px;font-weight:700;letter-spacing:.12em;color:#fff;}
+.sim-lcd-box{background:#C7D5A0;border:1px solid #7C8F5C;border-radius:3px;padding:5px 7px;
+  width:100%;height:54px;box-sizing:border-box;overflow:hidden;display:flex;flex-direction:column;justify-content:center;gap:2px;
+  box-shadow:inset 0 0 6px rgba(0,0,0,.25);}
+.sim-model{text-align:right;font-size:8px;color:#DADADA;line-height:1.35;}
+.sim-model span{font-size:7.5px;color:#B7B7B7;}
 .sim-lcd{font-family:'SFMono-Regular',Menlo,Consolas,monospace;width:100%;}
-.lcd-l1,.lcd-l2{font-size:15px;font-weight:700;color:#111;line-height:1.3;white-space:nowrap;
+.lcd-l1,.lcd-l2{font-size:15px;font-weight:700;color:#16240C;line-height:1.3;white-space:nowrap;
   overflow:hidden;letter-spacing:0;width:100%;}
 .sim-keys{display:grid;grid-template-columns:repeat(7,1fr);gap:4px;}
 .simkey{position:relative;min-height:38px;border:1px solid #9A9A9A;border-radius:5px;background:#FDFDFD;
@@ -329,7 +339,7 @@ input:focus,select:focus,textarea:focus{border-color:var(--blue);box-shadow:0 0 
 .cmd-fin.on{background:var(--green);border-color:var(--green);color:#fff;border-style:solid;}
 /* 「操作を選んで手順を見る」を左右2列に（左＝実機シミュレーターと同じ操作、右＝文章の簡易手順）。
    画面が狭いときは折り返して縦に並ぶ。 */
-.cmd-guide-body{display:flex;flex-wrap:wrap;gap:18px;}
+.cmd-guide-body{display:flex;flex-wrap:wrap;gap:18px;margin-top:12px;}
 .cmd-guide-left{flex:1 1 260px;min-width:0;}
 .cmd-guide-right{flex:1 1 200px;min-width:0;border-top:1px solid var(--line-w);padding-top:12px;}
 @media (min-width:640px){
@@ -849,7 +859,8 @@ input:focus,select:focus,textarea:focus{border-color:var(--blue);box-shadow:0 0 
   <section id="pane-cmd" class="hidden">
     <div class="card">
       <div class="card-head">
-        <div class="card-title"><span class="step">1</span>機器の画面（シミュレーター）</div>
+        <div class="card-title">Monstera/Relier シミュレーター</div>
+        <button class="btn btn-ghost btn-sm" onclick="showTab('set')">手順を追加・編集</button>
       </div>
       <div class="card-body">
         <div class="sim-idle-row">
@@ -893,42 +904,35 @@ input:focus,select:focus,textarea:focus{border-color:var(--blue);box-shadow:0 0 
           実機と同じようにボタンを押せます（<b>長押し</b>・<b>2つ同時押し</b>にも対応）。
           登録された手順どおりに押すと、その画面が表示されます。
         </div>
-      </div>
-    </div>
-
-    <div class="card">
-      <div class="card-head">
-        <div class="card-title"><span class="step">2</span>操作を選んで手順を見る</div>
-        <button class="btn btn-ghost btn-sm" onclick="showTab('set')">手順を追加・編集</button>
-      </div>
-      <div class="card-body cmd-guide-body">
-        <div class="cmd-guide-left">
-          <div class="field" style="max-width:280px;">
-            <label for="cmd-select">調べたい操作</label>
-            <select id="cmd-select" onchange="onCmdSelect()"></select>
-          </div>
-          <div class="cmd-usage" id="cmd-usage"></div>
-          <div class="hint" id="cmd-note" style="margin-top:6px;"></div>
-          <div class="cmd-steps" id="cmd-steps"></div>
-          <div class="row-btns" style="margin-top:11px;">
-            <button class="btn btn-primary btn-sm" id="btn-cmd-play" onclick="cmdPlayToggle()">順番に再生</button>
-            <button class="btn btn-sub btn-sm" onclick="cmdNext()">1つ進む</button>
-            <button class="btn btn-ghost btn-sm" onclick="cmdReset()">最初から</button>
-          </div>
-          <div class="field" style="max-width:220px;margin-top:9px;">
-            <label for="cmd-play-speed">「順番に再生」次に進むまでの秒数</label>
-            <select id="cmd-play-speed" onchange="setCmdPlaySpeed(this.value)">
-              <option value="0.8">0.8秒（速い）</option>
-              <option value="1.2" selected>1.2秒（標準）</option>
-              <option value="1.5">1.5秒</option>
-              <option value="2">2秒（ゆっくり）</option>
-              <option value="3">3秒（とてもゆっくり）</option>
-            </select>
-          </div>
+        <div class="field" style="max-width:280px;margin-top:16px;">
+          <label for="cmd-select">調べたい操作</label>
+          <select id="cmd-select" onchange="onCmdSelect()"></select>
         </div>
-        <div class="cmd-guide-right">
-          <div class="cmd-textlist-title">簡易手順</div>
-          <ol class="cmd-textlist" id="cmd-textlist"></ol>
+        <div class="cmd-usage" id="cmd-usage"></div>
+        <div class="hint" id="cmd-note" style="margin-top:6px;"></div>
+        <div class="cmd-guide-body">
+          <div class="cmd-guide-left">
+            <div class="cmd-steps" id="cmd-steps"></div>
+            <div class="row-btns" style="margin-top:11px;">
+              <button class="btn btn-primary btn-sm" id="btn-cmd-play" onclick="cmdPlayToggle()">順番に再生</button>
+              <button class="btn btn-sub btn-sm" onclick="cmdNext()">1つ進む</button>
+              <button class="btn btn-ghost btn-sm" onclick="cmdReset()">最初から</button>
+            </div>
+            <div class="field" style="max-width:220px;margin-top:9px;">
+              <label for="cmd-play-speed">「順番に再生」次に進むまでの秒数</label>
+              <select id="cmd-play-speed" onchange="setCmdPlaySpeed(this.value)">
+                <option value="0.8">0.8秒（速い）</option>
+                <option value="1.2" selected>1.2秒（標準）</option>
+                <option value="1.5">1.5秒</option>
+                <option value="2">2秒（ゆっくり）</option>
+                <option value="3">3秒（とてもゆっくり）</option>
+              </select>
+            </div>
+          </div>
+          <div class="cmd-guide-right">
+            <div class="cmd-textlist-title">簡易手順</div>
+            <ol class="cmd-textlist" id="cmd-textlist"></ol>
+          </div>
         </div>
       </div>
     </div>
