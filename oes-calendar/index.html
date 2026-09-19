@@ -243,11 +243,9 @@ input:focus,select:focus,textarea:focus{border-color:var(--blue);box-shadow:0 0 
 .sim-idle-row label{font-size:11.5px;font-weight:600;color:#3A3D40;}
 .sim-idle-row select{flex:0 1 220px;min-width:0;}
 /* シミュレーターの実際のボタン操作を記録して、そのままコマンド一覧に登録する機能
-   （利用者の指定：「シミュレーターの上に『コマンド記録開始』というボタンを用意し…」） */
-.cmd-record-bar{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:6px;}
-.cmd-record-status{font-size:12px;font-weight:700;color:#B23A3A;}
-.cmd-record-list{margin:0 0 10px;padding:8px 10px;background:#FFF4F4;border:1px solid #F3C9C9;
-  border-radius:var(--r-s);font-size:12px;line-height:1.6;color:#3A3D40;max-height:140px;overflow-y:auto;}
+   （利用者の指定：「待機中の画面のプルダウンの右側に配置してほしい」）。記録中の一覧は
+   専用の箱を別に作らず、右側の「進行状況」欄（#cmd-steps / #sim-msg）をそのまま使う。 */
+.cmd-record-status{font-size:11.5px;font-weight:700;color:#B23A3A;white-space:nowrap;}
 /* 電源スイッチ（画面の枠外・本体側面のイメージ）。上＝ON・下＝OFF。
    キーパッドのキーと同じ.simkeyクラスを使い、ハイライト（グロー・点滅など）の見た目を共有する。
    .active は「いま実際にどちらへ入っているか」の位置表示で、ガイドのハイライト（.on）とは別物。 */
@@ -995,14 +993,11 @@ input:focus,select:focus,textarea:focus{border-color:var(--blue);box-shadow:0 0 
         <button class="btn btn-ghost btn-sm" onclick="showTab('set')">手順を追加・編集</button>
       </div>
       <div class="card-body">
-        <div class="cmd-record-bar">
-          <button type="button" class="btn btn-primary btn-sm" id="btn-cmd-record" onclick="toggleCmdRecord()">🔴 コマンド記録開始</button>
-          <span class="cmd-record-status hidden" id="cmd-record-status">記録中…　<b id="cmd-record-count">0</b>件</span>
-        </div>
-        <div class="cmd-record-list hidden" id="cmd-record-list"></div>
         <div class="sim-idle-row">
           <label for="sim-idle-view">待機中の画面（練習用に切り替え）</label>
           <select id="sim-idle-view" onchange="onIdleSelect(this.value)"></select>
+          <button type="button" class="btn btn-primary btn-sm" id="btn-cmd-record" onclick="toggleCmdRecord()">🔴 コマンド記録開始</button>
+          <span class="cmd-record-status hidden" id="cmd-record-status">記録中…　<b id="cmd-record-count">0</b>件</span>
         </div>
         <div class="sim-with-switch">
           <div class="sim-pwrsw" title="電源スイッチ（本体側面などにあるイメージ。画面の枠外の操作）">
@@ -3795,9 +3790,13 @@ function onCmdSelect(){
 }
 
 /* ---------- 実際のボタン操作を記録して、そのままコマンド一覧に登録する ----------
-   利用者の依頼：「シミュレーターの上に『コマンド記録開始』というボタンを用意し、押した後は
-   画面操作を1,2,3…という順で覚えていき、『記録停止』を押せばそこまでがコマンド一覧として
-   記録される」。画面表示（l1/l2）や名前・使いどころは記録できない（このシミュレーターは
+   利用者の依頼：「実際のシミュレーターのボタン操作を記録させて、その文言を後から修正できる
+   ように…押した後は画面操作を1,2,3…という順で覚えていき、『記録停止』を押せばそこまでが
+   コマンド一覧として記録される」→「コマンド記録開始は、待機中の画面のプルダウンの右側に
+   配置してほしい」「記録の履歴は、進行状況の欄を使ってメモを残すようにしてほしい」。
+   ボタンは待機中の画面（`#sim-idle-view`）と同じ`.sim-idle-row`に置き、記録中の一覧は
+   専用の箱を新設せず、右側「進行状況」の手順チップ欄（`#cmd-steps`、`renderCmdRecordUI()`）に
+   そのまま出す。画面表示（l1/l2）や名前・使いどころは記録できない（このシミュレーターは
    登録済みの手順を再生するだけで、未登録の操作の結果画面までは分からないため）ので、
    記録後は「手順を追加・編集」から文言を書き足す前提。 */
 var cmdRecording = false;
@@ -3819,6 +3818,7 @@ function stopCmdRecord(){
   if(!cmdRecordSteps.length){
     toast('何も記録されませんでした');
     renderCmdRecordUI();
+    renderCmdSteps();   /* 記録中に出していた進行状況のチップを元（未選択）に戻す */
     simSetMsg('');
     return;
   }
@@ -3843,8 +3843,12 @@ function recordCmdStep(step){
   renderCmdRecordUI();
   simSetMsg('🔴 記録中（' + cmdRecordSteps.length + '件目）：<b>' + esc(simStepLabel(step)) + '</b> を記録しました');
 }
+/* 記録中の一覧は専用の箱を作らず、右側「進行状況」の手順チップ欄（#cmd-steps）に
+   そのまま出す（利用者の指定：「進行状況の欄を使ってメモを残すようにしてほしい。
+   それを記録として保存してほしい」）。記録を止めれば、この並びがそのまま新しいコマンドの
+   steps として保存される。記録中でなければ、通常どおり renderCmdSteps() に描画を任せる。 */
 function renderCmdRecordUI(){
-  var btn = $('btn-cmd-record'), status = $('cmd-record-status'), cnt = $('cmd-record-count'), list = $('cmd-record-list');
+  var btn = $('btn-cmd-record'), status = $('cmd-record-status'), cnt = $('cmd-record-count');
   if(btn){
     btn.textContent = cmdRecording ? '⏹ 記録停止' : '🔴 コマンド記録開始';
     btn.classList.toggle('btn-danger', cmdRecording);
@@ -3852,13 +3856,22 @@ function renderCmdRecordUI(){
   }
   if(status) status.classList.toggle('hidden', !cmdRecording);
   if(cnt) cnt.textContent = cmdRecordSteps.length;
-  if(list){
-    list.classList.toggle('hidden', !cmdRecording || !cmdRecordSteps.length);
-    list.innerHTML = cmdRecordSteps.map(function(s, i){
-      return '<div>' + (i + 1) + '. ' + esc(simStepLabel(s)) + '</div>';
-    }).join('');
-    list.scrollTop = list.scrollHeight;
-  }
+  if(!cmdRecording) return;
+  var host = $('cmd-steps');
+  if(!host) return;
+  var html = '';
+  cmdRecordSteps.forEach(function(s, i){
+    if(i > 0) html += '<span class="cmd-arrow">→</span>';
+    var isLast = (i === cmdRecordSteps.length - 1);
+    html += '<span class="cmd-step' + (isLast ? ' on' : ' done') + '">'
+      + esc(simStepLabel(s).replace(/（長押し）|（押しまま）|（\d+回）/, ''))
+      + (s.hold ? '<span class="cs-tag">長押し</span>' : '')
+      + ((s.keys || []).length > 1 ? '<span class="cs-tag">同時</span>' : '')
+      + '</span>';
+  });
+  if(cmdRecordSteps.length) html += '<span class="cmd-arrow">→</span>';
+  html += '<span class="cmd-fin">🔴 記録中</span>';
+  host.innerHTML = html;
 }
 /* チップの色分け用クラス（長押し＝オレンジ／連続で何回か押す＝青／それ以外＝既定の赤） */
 function stepModeClass(st){
