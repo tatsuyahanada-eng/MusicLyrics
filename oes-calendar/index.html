@@ -238,6 +238,12 @@ input:focus,select:focus,textarea:focus{border-color:var(--blue);box-shadow:0 0 
 .sim-idle-row{display:flex;align-items:center;gap:7px;margin-bottom:8px;flex-wrap:wrap;}
 .sim-idle-row label{font-size:11.5px;font-weight:600;color:#3A3D40;}
 .sim-idle-row select{flex:0 1 220px;min-width:0;}
+/* シミュレーターの実際のボタン操作を記録して、そのままコマンド一覧に登録する機能
+   （利用者の指定：「シミュレーターの上に『コマンド記録開始』というボタンを用意し…」） */
+.cmd-record-bar{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:6px;}
+.cmd-record-status{font-size:12px;font-weight:700;color:#B23A3A;}
+.cmd-record-list{margin:0 0 10px;padding:8px 10px;background:#FFF4F4;border:1px solid #F3C9C9;
+  border-radius:var(--r-s);font-size:12px;line-height:1.6;color:#3A3D40;max-height:140px;overflow-y:auto;}
 /* 電源スイッチ（画面の枠外・本体側面のイメージ）。上＝ON・下＝OFF。
    キーパッドのキーと同じ.simkeyクラスを使い、ハイライト（グロー・点滅など）の見た目を共有する。
    .active は「いま実際にどちらへ入っているか」の位置表示で、ガイドのハイライト（.on）とは別物。 */
@@ -985,6 +991,11 @@ input:focus,select:focus,textarea:focus{border-color:var(--blue);box-shadow:0 0 
         <button class="btn btn-ghost btn-sm" onclick="showTab('set')">手順を追加・編集</button>
       </div>
       <div class="card-body">
+        <div class="cmd-record-bar">
+          <button type="button" class="btn btn-primary btn-sm" id="btn-cmd-record" onclick="toggleCmdRecord()">🔴 コマンド記録開始</button>
+          <span class="cmd-record-status hidden" id="cmd-record-status">記録中…　<b id="cmd-record-count">0</b>件</span>
+        </div>
+        <div class="cmd-record-list hidden" id="cmd-record-list"></div>
         <div class="sim-idle-row">
           <label for="sim-idle-view">待機中の画面（練習用に切り替え）</label>
           <select id="sim-idle-view" onchange="onIdleSelect(this.value)"></select>
@@ -3675,6 +3686,9 @@ function simUpKey(id){
 /* 1回ぶんの操作が確定したときの処理 */
 function simEmit(step){
   cmdStop();
+  /* コマンド記録中は、練習中の手順との照合はせず、押した操作をそのまま記録する
+     （記録開始時にcmdSeqを外しているので、押しまま等の途中一致もここへ流れてくる） */
+  if(cmdRecording){ recordCmdStep(step); return; }
   /* ①手順を選んでいる最中なら、次に押すべきボタンと合っているかを見る（同じボタンを連続で
         何回か押す手順なら、規定の回数に達するまでは同じ手順にとどまる） */
   if(cmdSeq && cmdIdx >= 0 && cmdIdx < cmdSeq.steps.length && cmdTryAdvance(step)) return;
@@ -3776,6 +3790,73 @@ function onCmdSelect(){
   simSetMsg(cmdSeq ? 'この手順どおりにボタンを押すか、「順番に再生」を押してください' : '');
   if($('cmd-note')) $('cmd-note').textContent = cmdSeq ? (cmdSeq.note || '') : '';
   if($('cmd-usage')) $('cmd-usage').innerHTML = (cmdSeq && cmdSeq.usage) ? ('💡 <b>この操作の使いどころ：</b>' + esc(cmdSeq.usage)) : '';
+}
+
+/* ---------- 実際のボタン操作を記録して、そのままコマンド一覧に登録する ----------
+   利用者の依頼：「シミュレーターの上に『コマンド記録開始』というボタンを用意し、押した後は
+   画面操作を1,2,3…という順で覚えていき、『記録停止』を押せばそこまでがコマンド一覧として
+   記録される」。画面表示（l1/l2）や名前・使いどころは記録できない（このシミュレーターは
+   登録済みの手順を再生するだけで、未登録の操作の結果画面までは分からないため）ので、
+   記録後は「手順を追加・編集」から文言を書き足す前提。 */
+var cmdRecording = false;
+var cmdRecordSteps = [];
+function toggleCmdRecord(){ if(cmdRecording) stopCmdRecord(); else startCmdRecord(); }
+function startCmdRecord(){
+  if(!requireAdmin()) return;
+  cmdStop();
+  cmdRecording = true;
+  cmdRecordSteps = [];
+  var sel = $('cmd-select');
+  if(sel) sel.value = '';
+  onCmdSelect();   /* 練習中の手順があれば外し、案内をまっさらにする */
+  renderCmdRecordUI();
+  simSetMsg('🔴 記録中です。シミュレーターのボタンを操作すると、押した順番のまま記録されます。');
+}
+function stopCmdRecord(){
+  cmdRecording = false;
+  if(!cmdRecordSteps.length){
+    toast('何も記録されませんでした');
+    renderCmdRecordUI();
+    simSetMsg('');
+    return;
+  }
+  var cmd = {
+    id: uid('cmd'),
+    name: '記録した操作',
+    note: '', usage: '', idleScreen: '',
+    steps: cmdRecordSteps.map(function(s){
+      return { id: uid('cs'), keys: s.keys, hold: s.hold, stayDown: false, repeat: 1, l1: '', l2: '', memo: '' };
+    })
+  };
+  settings.commands.push(cmd);
+  afterSettingsChange(false);
+  renderCmdSelect(false);
+  var sel = $('cmd-select');
+  if(sel){ sel.value = cmd.id; onCmdSelect(); }
+  renderCmdRecordUI();
+  toast(cmdRecordSteps.length + '件の操作を記録しました。「手順を追加・編集」から名前や画面の文言を直してください');
+}
+function recordCmdStep(step){
+  cmdRecordSteps.push({ keys: (step.keys || []).slice(), hold: !!step.hold });
+  renderCmdRecordUI();
+  simSetMsg('🔴 記録中（' + cmdRecordSteps.length + '件目）：<b>' + esc(simStepLabel(step)) + '</b> を記録しました');
+}
+function renderCmdRecordUI(){
+  var btn = $('btn-cmd-record'), status = $('cmd-record-status'), cnt = $('cmd-record-count'), list = $('cmd-record-list');
+  if(btn){
+    btn.textContent = cmdRecording ? '⏹ 記録停止' : '🔴 コマンド記録開始';
+    btn.classList.toggle('btn-danger', cmdRecording);
+    btn.classList.toggle('btn-primary', !cmdRecording);
+  }
+  if(status) status.classList.toggle('hidden', !cmdRecording);
+  if(cnt) cnt.textContent = cmdRecordSteps.length;
+  if(list){
+    list.classList.toggle('hidden', !cmdRecording || !cmdRecordSteps.length);
+    list.innerHTML = cmdRecordSteps.map(function(s, i){
+      return '<div>' + (i + 1) + '. ' + esc(simStepLabel(s)) + '</div>';
+    }).join('');
+    list.scrollTop = list.scrollHeight;
+  }
 }
 /* チップの色分け用クラス（長押し＝オレンジ／連続で何回か押す＝青／それ以外＝既定の赤） */
 function stepModeClass(st){
@@ -3969,6 +4050,7 @@ function openCmdTab(){
   renderIdleSelect();
   simDefaultScreen();
   renderCmdSelect(true);
+  renderCmdRecordUI();
 }
 
 /* =========================================================================
