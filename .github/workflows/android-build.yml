@@ -31,8 +31,16 @@ jobs:
           distribution: temurin
           java-version: "17"
 
+      # No `with:` here used to mean "accept every default", but this
+      # action's pinned @v3 tag still defaults to installing the legacy
+      # "tools" package (retired from the SDK repository), which now makes
+      # the whole step fail outright — main already changed the default to
+      # platform-tools, that fix just never got backported to the v3 tag.
+      # AGP's own SDK auto-download handles compileSdk/build-tools from here.
       - name: Set up Android SDK
         uses: android-actions/setup-android@v3
+        with:
+          packages: "platform-tools"
 
       # cache-read-only defaults to true on every branch except the
       # repository's default one, and this workflow only ever runs on the
