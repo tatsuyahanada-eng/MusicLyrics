@@ -24,6 +24,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.ArrowDropDown
+import androidx.compose.material.icons.filled.ArrowDropUp
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.Delete
@@ -60,7 +61,9 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.TextRange
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -431,13 +434,39 @@ fun TemplateSettingsPane(
                         }
                     }
                     Spacer(Modifier.height(4.dp))
-                    c.templates.forEach { t ->
+                    c.templates.forEachIndexed { index, t ->
                         Row(
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .padding(vertical = 2.dp),
                             verticalAlignment = Alignment.CenterVertically,
                         ) {
+                            // 並び替え（上へ／下へ）
+                            Column {
+                                IconButton(
+                                    onClick = { viewModel.moveTemplate(c.id, t.id, -1) },
+                                    enabled = index > 0,
+                                    modifier = Modifier.size(28.dp),
+                                ) {
+                                    Icon(
+                                        Icons.Filled.ArrowDropUp,
+                                        contentDescription = "上へ移動",
+                                        tint = if (index > 0) AccentBlueDeep else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f),
+                                    )
+                                }
+                                IconButton(
+                                    onClick = { viewModel.moveTemplate(c.id, t.id, 1) },
+                                    enabled = index < c.templates.lastIndex,
+                                    modifier = Modifier.size(28.dp),
+                                ) {
+                                    Icon(
+                                        Icons.Filled.ArrowDropDown,
+                                        contentDescription = "下へ移動",
+                                        tint = if (index < c.templates.lastIndex) AccentBlueDeep else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f),
+                                    )
+                                }
+                            }
+                            Spacer(Modifier.width(4.dp))
                             Text(t.name, modifier = Modifier.weight(1f))
                             IconButton(onClick = { editorTarget = c.id to t }) {
                                 Icon(Icons.Filled.Edit, contentDescription = "編集")
@@ -508,7 +537,21 @@ private fun TemplateEditorDialog(
     onSave: (name: String, body: String) -> Unit,
 ) {
     var name by remember { mutableStateOf(existing?.name ?: "") }
-    var body by remember { mutableStateOf(existing?.body ?: "") }
+    // カーソル（選択範囲）の位置を保持し、差し込み項目はそこへ挿入する
+    var body by remember {
+        mutableStateOf(
+            TextFieldValue(existing?.body ?: "", selection = TextRange((existing?.body ?: "").length)),
+        )
+    }
+
+    fun insertTokenAtCursor(token: String) {
+        val text = body.text
+        val start = body.selection.start.coerceIn(0, text.length)
+        val end = body.selection.end.coerceIn(0, text.length)
+        val newText = text.substring(0, start) + token + text.substring(end)
+        val newCursor = start + token.length
+        body = TextFieldValue(newText, selection = TextRange(newCursor))
+    }
 
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -534,18 +577,22 @@ private fun TemplateEditorDialog(
                     colors = accentTextFieldColors(),
                 )
                 Spacer(Modifier.height(8.dp))
-                Text("タップで差し込み項目を挿入:", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text(
+                    "タップでカーソル位置に挿入:",
+                    fontSize = 12.sp,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
                 Spacer(Modifier.height(4.dp))
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     TemplateTokens.all.forEach { token ->
-                        SelectChip(text = token, selected = false, onClick = { body += token })
+                        SelectChip(text = token, selected = false, onClick = { insertTokenAtCursor(token) })
                     }
                 }
             }
         },
         confirmButton = {
             TextButton(
-                onClick = { onSave(name, body) },
+                onClick = { onSave(name, body.text) },
                 enabled = name.isNotBlank(),
             ) { Text("保存") }
         },

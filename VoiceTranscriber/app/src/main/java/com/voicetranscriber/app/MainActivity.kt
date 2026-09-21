@@ -79,6 +79,7 @@ import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
@@ -213,16 +214,14 @@ private fun accentNavColors() = androidx.compose.material3.NavigationBarItemDefa
 @Composable
 private fun BrandTitle(showSubtitle: Boolean = false) {
     Row(verticalAlignment = Alignment.CenterVertically) {
+        // アイコン画像自体がフルブリードの完成デザインなので、そのまま丸角で表示する
         Image(
-            painter = painterResource(R.mipmap.ic_launcher_foreground),
+            painter = painterResource(R.mipmap.ic_launcher_background),
             contentDescription = null,
+            contentScale = ContentScale.Crop,
             modifier = Modifier
                 .size(34.dp)
-                .clip(RoundedCornerShape(10.dp))
-                .background(
-                    Brush.linearGradient(listOf(AccentBlue, AccentBlueDeep)),
-                )
-                .padding(3.dp),
+                .clip(RoundedCornerShape(10.dp)),
         )
         Spacer(Modifier.width(8.dp))
         Column {

@@ -101,6 +101,22 @@ class TemplateViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
+    /** フォルダ内で定型文を1つ前後に移動して並び替える。 */
+    fun moveTemplate(categoryId: String, templateId: String, delta: Int) {
+        update { store ->
+            store.copy(categories = store.categories.map { c ->
+                if (c.id != categoryId) return@map c
+                val fromIndex = c.templates.indexOfFirst { it.id == templateId }
+                val toIndex = fromIndex + delta
+                if (fromIndex < 0 || toIndex < 0 || toIndex >= c.templates.size) return@map c
+                val reordered = c.templates.toMutableList()
+                val moved = reordered.removeAt(fromIndex)
+                reordered.add(toIndex, moved)
+                c.copy(templates = reordered)
+            })
+        }
+    }
+
     private companion object {
         const val KEY = "store_json"
         const val KEY_SEEDED = "seeded"
