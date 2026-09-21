@@ -31,7 +31,6 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
@@ -261,14 +260,15 @@ private fun accentNavColors(accent: Color) =
 @Composable
 private fun BrandTitle(showSubtitle: Boolean = false) {
     Row(verticalAlignment = Alignment.CenterVertically) {
-        // 丸型に収まるようにデザインしたランチャーアイコンをそのままバッジとして使う
+        // タイトルバーのバッジ用に、背景＋前景を合成した通常のラスター画像を使う。
+        // R.mipmap.ic_launcher_round は API26+ では mipmap-anydpi-v26 の
+        // <adaptive-icon> XML に解決され、painterResource() は <vector> しか
+        // 読めないため起動直後にクラッシュしていた。専用の drawable に分離する。
         Image(
-            painter = painterResource(R.mipmap.ic_launcher_round),
+            painter = painterResource(R.drawable.app_badge),
             contentDescription = null,
-            contentScale = ContentScale.Crop,
-            modifier = Modifier
-                .size(34.dp)
-                .clip(CircleShape),
+            contentScale = ContentScale.Fit,
+            modifier = Modifier.size(34.dp),
         )
         Spacer(Modifier.width(8.dp))
         Column {
