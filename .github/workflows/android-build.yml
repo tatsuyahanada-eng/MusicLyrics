@@ -35,13 +35,21 @@ jobs:
           build-root-directory: VoiceTranscriber
           cache-read-only: false
 
-      - name: Set up Android SDK
-        uses: android-actions/setup-android@v3
-
+      # ランナーにプリインストール済みの Android SDK を使う（外部アクションに依存しない）。
       - name: Install required SDK packages
         run: |
-          yes | sdkmanager --licenses >/dev/null || true
-          sdkmanager "platform-tools" "platforms;android-35" "build-tools;35.0.0"
+          SDK="${ANDROID_SDK_ROOT:-${ANDROID_HOME:-$HOME/Android/Sdk}}"
+          echo "ANDROID_SDK_ROOT=$SDK" >> "$GITHUB_ENV"
+          if command -v sdkmanager >/dev/null 2>&1; then
+            SM=sdkmanager
+          elif [ -x "$SDK/cmdline-tools/latest/bin/sdkmanager" ]; then
+            SM="$SDK/cmdline-tools/latest/bin/sdkmanager"
+          else
+            SM="$(find "$SDK/cmdline-tools" -name sdkmanager -type f 2>/dev/null | head -1)"
+          fi
+          echo "Using sdkmanager: $SM"
+          yes | "$SM" --sdk_root="$SDK" --licenses >/dev/null 2>&1 || true
+          "$SM" --sdk_root="$SDK" "platform-tools" "platforms;android-35" "build-tools;35.0.0"
 
       - name: Grant execute permission for gradlew
         run: chmod +x gradlew
