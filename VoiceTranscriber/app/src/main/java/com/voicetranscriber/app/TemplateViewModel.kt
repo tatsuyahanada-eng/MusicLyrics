@@ -26,13 +26,15 @@ class TemplateViewModel(app: Application) : AndroidViewModel(app) {
         return if (raw.isNullOrBlank()) {
             if (hasSeeded) TemplateStore() else defaultTemplateStore().also { save(it) }
         } else {
-            runCatching { json.decodeFromString<TemplateStore>(raw) }.getOrDefault(TemplateStore())
+            runCatching {
+                json.decodeFromString(TemplateStore.serializer(), raw)
+            }.getOrDefault(TemplateStore())
         }
     }
 
     private fun save(store: TemplateStore) {
         prefs.edit()
-            .putString(KEY, json.encodeToString(store))
+            .putString(KEY, json.encodeToString(TemplateStore.serializer(), store))
             .putBoolean(KEY_SEEDED, true)
             .apply()
     }

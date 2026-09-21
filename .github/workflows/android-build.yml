@@ -32,7 +32,6 @@ jobs:
       - name: Set up Gradle (with dependency/build cache)
         uses: gradle/actions/setup-gradle@v4
         with:
-          build-root-directory: VoiceTranscriber
           cache-read-only: false
 
       # ランナーにプリインストール済みの Android SDK を使う（外部アクションに依存しない）。
