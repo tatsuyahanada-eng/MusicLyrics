@@ -4,12 +4,12 @@
    予定データの同期（sync.php）は常に通信を行い、キャッシュしない。
    ============================================================ */
 
-const CACHE = 'task-scheduler-v44';
+const CACHE = 'task-scheduler-v45';
 
 const ASSETS = [
   './schedule.html',
-  './schedule.css?v=44',
-  './schedule.js?v=44',
+  './schedule.css?v=45',
+  './schedule.js?v=45',
   './manifest.webmanifest',
   './icons/icon-192.png',
   './icons/icon-512.png',

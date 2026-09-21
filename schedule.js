@@ -1228,7 +1228,7 @@ function monthDayKeys() {
 
 /** 一覧の対象名（見出し・集計に使う） */
 const LIST_TARGET_NAMES = {
-  off: '休み希望日', available: '稼働可能日', empty: '未定の日',
+  off: '休み希望日', available: '稼働可能日', empty: '未定の日', all: '予定のある日',
   confirmed: '確定した稼働日', tentative: '仮出勤の日',
 };
 
@@ -1431,6 +1431,11 @@ function listedDayKeys() {
       (j.status || 'confirmed') === wantStatus && (!project || j.title === project)));
   }
 
+  if (target === 'all') {
+    // 確定・仮出勤を問わず、その月に予定が入っている日をすべて対象にする
+    return monthDayKeys().filter((key) => jobsOn(key).some((j) => !project || j.title === project));
+  }
+
   if (target === 'empty') {
     const today = todayKey();
     // 稼働可でも休み希望でもなく、予定も無い、今日以降のまだ決めていない日（集計の「未定」と同じ定義）
@@ -1451,7 +1456,7 @@ function buildListText() {
   const target = $('listTarget').value;
   const format = $('exportFormat').value;
   const project = $('projectFilter').value;
-  const isProject = (target === 'confirmed' || target === 'tentative') && project;
+  const isProject = (target === 'confirmed' || target === 'tentative' || target === 'all') && project;
   const name = isProject ? `${project} の${LIST_TARGET_NAMES[target]}` : LIST_TARGET_NAMES[target];
   const title = `${view.year}年${view.month + 1}月`;
 
@@ -1474,7 +1479,7 @@ function buildListText() {
 
 function renderExport() {
   const target = $('listTarget').value;
-  const isJobTarget = target === 'confirmed' || target === 'tentative';
+  const isJobTarget = target === 'confirmed' || target === 'tentative' || target === 'all';
   // 「予定が入っている日は除く」は稼働可能日のときだけ、案件の絞り込みは確定・仮出勤のときだけ意味がある
   $('excludeBookedWrap').hidden = target !== 'available';
   $('projectFilterWrap').hidden = !isJobTarget;
