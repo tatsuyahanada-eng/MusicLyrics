@@ -16,8 +16,9 @@ if ($method === 'GET') {
 
     // sql/upgrade.sql をまだ流していないサーバーでも一覧が出るように、
     // 後から足した列は「あれば読む・無ければ既定値」で扱う
-    $seriesCol = lp_has_column('lp_items', 'series') ? 'series' : "'' AS series";
-    $bumpCol   = lp_has_column('lp_updates', 'bump_type') ? 'u.bump_type' : "'minor' AS bump_type";
+    $seriesCol   = lp_has_column('lp_items', 'series') ? 'series' : "'' AS series";
+    $bumpCol     = lp_has_column('lp_updates', 'bump_type') ? 'u.bump_type' : "'minor' AS bump_type";
+    $overrideCol = lp_has_column('lp_updates', 'version_override') ? 'u.version_override' : "NULL AS version_override";
     $hasFileCols = lp_has_column('lp_updates', 'file_path');
     $fileCols = $hasFileCols
         ? 'u.file_path, u.file_name, u.file_size, u.file_mime'
@@ -34,7 +35,7 @@ if ($method === 'GET') {
 
     $updates = db()->query(
         "SELECT u.update_id, u.item_id, u.updated_on, u.updated_time, u.author, u.update_kind,
-                {$bumpCol}, u.summary, u.target_feature, u.ticket_no, {$fileCols}
+                {$bumpCol}, {$overrideCol}, u.summary, u.target_feature, u.ticket_no, {$fileCols}
            FROM lp_updates u
            JOIN lp_items i ON i.item_id = u.item_id AND i.is_active = 1
           ORDER BY u.updated_on DESC, u.updated_time DESC, u.update_id DESC"
@@ -62,6 +63,7 @@ if ($method === 'GET') {
             'author'  => $u['author'],
             'kind'    => $u['update_kind'],
             'bump'    => in_array($u['bump_type'] ?? 'minor', ['revision', 'major'], true) ? $u['bump_type'] : 'minor',
+            'versionOverride' => (string)($u['version_override'] ?? ''),
             'summary' => $u['summary'],
             'target'  => $u['target_feature'],
             'files'   => $filesByUpdate[(int)$u['update_id']] ?? [],
@@ -79,7 +81,10 @@ if ($method === 'GET') {
     // $historyByItem は新しい順なので、古い順に数えてから戻す。
     foreach ($historyByItem as $itemId => $hist) {
         $oldestFirst = array_reverse($hist);
-        $labels = lp_version_series(array_column($oldestFirst, 'bump'));
+        $labels = lp_version_series(array_map(
+            fn($h) => ['bump' => $h['bump'], 'override' => $h['versionOverride']],
+            $oldestFirst
+        ));
         foreach ($oldestFirst as $i => $_) {
             $oldestFirst[$i]['version'] = $labels[$i];
         }

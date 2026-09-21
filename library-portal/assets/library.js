@@ -17,6 +17,7 @@ const API = LP_CFG ? LP_CFG.apiBase : null;
 // フォーム側で選べないようにして、「保存したのに反映されない」を防ぐ
 const DB_MISSING = (LP_CFG && LP_CFG.dbMissing) || [];
 const DB_HAS_BUMP   = !DB_MISSING.includes('lp_updates.bump_type');
+const DB_HAS_OVERRIDE = !DB_MISSING.includes('lp_updates.version_override');
 const DB_HAS_SERIES = !DB_MISSING.includes('lp_items.series');
 const DB_HAS_FILES  = !DB_MISSING.includes('lp_updates.file_path');
 
@@ -364,11 +365,20 @@ function normalizeBump(v) {
   return v === 'revision' || v === 'major' ? v : 'minor';
 }
 
+/** 「2.5」「1.11」のような版数の文字列から、続きを自動採番するための major・minor・rev を読み取る。
+ *  読み取れない自由な書式は、メジャーバージョンが一つ上がったものとして扱う（includes/helpers.php と同じ規則）。 */
+function parseVersionForContinuation(version, prevMajor) {
+  const m = String(version).trim().match(/^(\d+)\.(\d)(\d)?$/);
+  if (m) return { major: Number(m[1]), minor: Number(m[2]), rev: m[3] ? Number(m[3]) : 0 };
+  return { major: prevMajor + 1, minor: 0, rev: 0 };
+}
+
 /* 版数の決まり：アイテムの登録時点を 1.00 とし、最初の更新から毎回バージョンアップ
    として数える（通常の更新で 1.1・1.2…、微修正で 1.01・1.02…、
    大幅な変更（メジャーアップ）は次のメジャー番号へ：1.4 → 2.00）。
-   桁があふれたら繰り上げる（1.9 の次は 2.00）ので、同じ表記は二度出ない。
-   本番では api/items.php が同じ規則で数えている（includes/helpers.php）。 */
+   版数を直接指定した更新があれば、その入力をそのまま使い、以降の自動採番は
+   その続きから数え直す。桁があふれたら繰り上げる（1.9 の次は 2.00）ので、
+   同じ表記は二度出ない。本番では api/items.php が同じ規則で数えている（includes/helpers.php）。 */
 function numberVersions(it) {
   let major = 1, minor = 0, rev = 0;
   const label = () => (minor === 0 && rev === 0)
@@ -376,6 +386,12 @@ function numberVersions(it) {
     : (rev === 0 ? `${major}.${minor}` : `${major}.${minor}${rev}`);
 
   [...it.history].reverse().forEach((e) => {         // 古い順に数える
+    const override = (e.versionOverride || '').trim();
+    if (override) {
+      ({ major, minor, rev } = parseVersionForContinuation(override, major));
+      e.version = override;
+      return;
+    }
     const bump = normalizeBump(e.bump);
     if (bump === 'revision') {
       rev++;
@@ -1201,6 +1217,8 @@ function openUpdateModal(itemId, uid) {
     $('fFiles').value = normFiles(entry)
       .map((f) => (f.note ? `${f.path} : ${f.note}` : f.path)).join('\n');
     $('fUrl').value = '';
+    $('fVersionOverrideToggle').checked = !!(entry.versionOverride || '').trim();
+    $('fVersionOverride').value = entry.versionOverride || '';
   } else {
     form.reset();
     if (itemId) $('fItem').value = itemId;
@@ -1208,12 +1226,18 @@ function openUpdateModal(itemId, uid) {
     const pad = (n) => String(n).padStart(2, '0');
     $('fDate').value = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`;
     $('fTime').value = `${pad(now.getHours())}:${pad(now.getMinutes())}`;
+    $('fVersionOverrideToggle').checked = false;
+    $('fVersionOverride').value = '';
   }
 
   // 列がまだ無いサーバーでは、選んでも保存されない項目を触らせない
-  $('fBump').disabled = !DB_HAS_BUMP;
   if (!DB_HAS_BUMP) { $('fBump').value = 'minor'; }
   $('fBumpNote').hidden = DB_HAS_BUMP;
+  if (!DB_HAS_OVERRIDE) { $('fVersionOverrideToggle').checked = false; $('fVersionOverride').value = ''; }
+  $('fVersionOverride').hidden = !$('fVersionOverrideToggle').checked;
+  $('fBump').disabled = (!DB_HAS_BUMP) || $('fVersionOverrideToggle').checked;
+  $('fVersionOverrideToggle').disabled = !DB_HAS_OVERRIDE;
+  $('fVersionOverrideNote').hidden = DB_HAS_OVERRIDE;
 
   // 添付ファイル：一覧から呼ばれた時点でどれもクリアしておく（file input は値を再設定できないため）
   $('fAttachment').value = '';
@@ -1237,7 +1261,7 @@ const UPLOAD_ALLOWED_EXT = ['jpg', 'jpeg', 'png', 'gif', 'webp', 'pdf', 'zip'];
  * 実際の採番は includes/helpers.php（サーバー側）が行うが、規則は numberVersions() と同じなので
  * ここでは同じ規則をその項目の履歴に当てはめて先読みするだけ（保存はしない）。
  */
-function previewNextVersion(itemId, uid, date, time, bump) {
+function previewNextVersion(itemId, uid, date, time, bump, versionOverride) {
   const it = items.find((x) => x.id === itemId);
   if (!it) return null;
   const hist = it.history.map((h) => ({ ...h }));
@@ -1250,8 +1274,9 @@ function previewNextVersion(itemId, uid, date, time, bump) {
     target.date = date;
     target.time = time;
     target.bump = bump;
+    target.versionOverride = versionOverride || '';
   } else {
-    hist.push({ uid: marker, date, time, bump });
+    hist.push({ uid: marker, date, time, bump, versionOverride: versionOverride || '' });
   }
   // 保存後の並び（updated_on/updated_time DESC, update_id DESC）に合わせて並べる。
   // 日時が同じ場合は id が大きい（＝あとから登録された）ほうを新しいとして扱う
@@ -1286,10 +1311,17 @@ async function submitUpdate(ev) {
     }
   }
 
+  const versionOverrideOn = $('fVersionOverrideToggle').checked;
+  const versionOverride = versionOverrideOn ? $('fVersionOverride').value.trim() : '';
+  if (versionOverrideOn && !versionOverride) {
+    formError('updateError', '版数を直接指定する場合は、版数を入力してください。');
+    return;
+  }
+
   // 「間違った項目・版数のまま登録してしまう」ことを防ぐため、保存前に版数を確認してもらう
   if (it) {
     const previewVer = previewNextVersion(
-      itemId, edit ? form.dataset.uid : null, $('fDate').value, $('fTime').value, $('fBump').value
+      itemId, edit ? form.dataset.uid : null, $('fDate').value, $('fTime').value, $('fBump').value, versionOverride
     );
     if (previewVer) {
       const verb = edit ? '修正すると' : 'この内容で登録すると';
@@ -1305,6 +1337,7 @@ async function submitUpdate(ev) {
   fd.append('author', $('fAuthor').value.trim());
   fd.append('kind', $('fKind').value);
   fd.append('bump', $('fBump').value);
+  fd.append('versionOverride', versionOverride);
   fd.append('summary', $('fSummary').value.trim());
   fd.append('target', $('fTarget').value.trim());
   fd.append('ticket', $('fTicket').value.trim());
@@ -1446,6 +1479,7 @@ function buildUpdateFormFrom(entry, itemId) {
   fd.append('author', entry.author);
   fd.append('kind', entry.kind);
   fd.append('bump', normalizeBump(entry.bump));
+  fd.append('versionOverride', entry.versionOverride || '');
   fd.append('summary', entry.summary);
   fd.append('target', entry.target);
   fd.append('ticket', entry.ticket || '');
@@ -1724,6 +1758,13 @@ async function init() {
   // 資料を選ばずにモーダルを開いた場合、あとから選んだ資料に合わせて最新ファイルの表示を更新する
   bind('fItem', 'change', () => {
     if ($('updateForm').dataset.mode !== 'edit') refreshLatestFileHint($('fItem').value);
+  });
+  // 「版数を直接指定する」を切り替えたら、テキスト欄の表示と選択式の使用可否を合わせる
+  bind('fVersionOverrideToggle', 'change', () => {
+    const on = $('fVersionOverrideToggle').checked;
+    $('fVersionOverride').hidden = !on;
+    $('fBump').disabled = on || !DB_HAS_BUMP;
+    if (on) $('fVersionOverride').focus();
   });
   bind('btnNewItem', 'click', () => openItemModal());
   bind('btnCloseModal', 'click', requestHideModals);

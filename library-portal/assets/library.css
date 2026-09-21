@@ -1996,6 +1996,11 @@
 .lp-attach-remove { display: inline-flex; align-items: center; gap: 5px; color: var(--lp-danger); cursor: pointer; }
 input[type="file"].lp-input { padding: 6px 10px; }
 input[type="file"].lp-input:disabled { opacity: .55; cursor: not-allowed; }
+.lp-checkopt {
+  display: inline-flex; align-items: center; gap: 5px; margin-top: 7px;
+  font-size: .78rem; color: var(--lp-ink-soft); cursor: pointer;
+}
+.lp-checkopt input { margin: 0; }
 
 /* 更新の年表の並び順（新しい順・古い順）。見出し内の他のボタンに合わせて小さめにする */
 .lp-chr-orderswitch {

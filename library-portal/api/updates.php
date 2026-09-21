@@ -74,6 +74,7 @@ $time    = s($b, 'time', 5);
 $author  = s($b, 'author', 60);
 $kind    = s($b, 'kind', 20);
 $bump    = in_array(s($b, 'bump', 10), ['revision', 'major'], true) ? s($b, 'bump', 10) : 'minor';
+$versionOverride = s($b, 'versionOverride', 20);
 $summary = s($b, 'summary', 500);
 $target  = s($b, 'target', 200);
 $ticket  = s($b, 'ticket', 30);
@@ -138,40 +139,39 @@ $deleteAfterCommit = null; // コミット後に削除する「もう使われ�
 try {
     $pdo->beginTransaction();
 
-    // bump_type はデータベースの更新（sql/upgrade.sql）で足す列。まだ無ければ書かず、
-    // 版数はすべて「通常の更新」として数えられる（あとから流せばそのまま反映される）
-    $hasBump = lp_has_column('lp_updates', 'bump_type');
+    // bump_type・version_override はデータベースの更新（sql/upgrade.sql）で足す列。
+    // まだ無ければ書かず、版数はすべて「通常の更新」の自動採番として数えられる
+    // （あとから sql/upgrade.sql を流せば、そのまま使えるようになる）
+    $hasBump     = lp_has_column('lp_updates', 'bump_type');
+    $hasOverride = lp_has_column('lp_updates', 'version_override');
 
     if ($isEdit) {
-        $st = $pdo->prepare($hasBump
-            ? 'UPDATE lp_updates
-                  SET item_id = ?, updated_on = ?, updated_time = ?, author = ?, update_kind = ?,
-                      bump_type = ?, summary = ?, target_feature = ?, ticket_no = ?
-                WHERE update_id = ?'
-            : 'UPDATE lp_updates
-                  SET item_id = ?, updated_on = ?, updated_time = ?, author = ?, update_kind = ?,
-                      summary = ?, target_feature = ?, ticket_no = ?
-                WHERE update_id = ?');
-        $args = [$itemId, $date, $time . ':00', $author, $kind];
-        if ($hasBump) { $args[] = $bump; }
-        array_push($args, $summary, $target, $ticket !== '' ? $ticket : null, $uid);
+        $setCols = ['item_id = ?', 'updated_on = ?', 'updated_time = ?', 'author = ?', 'update_kind = ?'];
+        $args    = [$itemId, $date, $time . ':00', $author, $kind];
+        if ($hasBump)     { $setCols[] = 'bump_type = ?';        $args[] = $bump; }
+        if ($hasOverride) { $setCols[] = 'version_override = ?'; $args[] = $versionOverride !== '' ? $versionOverride : null; }
+        $setCols[] = 'summary = ?';        $args[] = $summary;
+        $setCols[] = 'target_feature = ?'; $args[] = $target;
+        $setCols[] = 'ticket_no = ?';      $args[] = $ticket !== '' ? $ticket : null;
+        $args[] = $uid;
+
+        $st = $pdo->prepare('UPDATE lp_updates SET ' . implode(', ', $setCols) . ' WHERE update_id = ?');
         $st->execute($args);
         $updateId = $uid;
         // 修正したファイル（実際に直したプログラム）は入れ替える（残したまま足すと重複するため）
         $pdo->prepare('DELETE FROM lp_update_files WHERE update_id = ?')->execute([$updateId]);
     } else {
-        $st = $pdo->prepare($hasBump
-            ? 'INSERT INTO lp_updates
-                 (item_id, updated_on, updated_time, author, author_user_id, update_kind, bump_type, summary, target_feature, ticket_no)
-               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
-            : 'INSERT INTO lp_updates
-                 (item_id, updated_on, updated_time, author, author_user_id, update_kind, summary, target_feature, ticket_no)
-               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)');
-        $st->execute($hasBump
-            ? [$itemId, $date, $time . ':00', $author, $user['user_id'], $kind,
-               $bump, $summary, $target, $ticket !== '' ? $ticket : null]
-            : [$itemId, $date, $time . ':00', $author, $user['user_id'], $kind,
-               $summary, $target, $ticket !== '' ? $ticket : null]);
+        $insertCols = ['item_id', 'updated_on', 'updated_time', 'author', 'author_user_id', 'update_kind'];
+        $args       = [$itemId, $date, $time . ':00', $author, $user['user_id'], $kind];
+        if ($hasBump)     { $insertCols[] = 'bump_type';        $args[] = $bump; }
+        if ($hasOverride) { $insertCols[] = 'version_override'; $args[] = $versionOverride !== '' ? $versionOverride : null; }
+        $insertCols[] = 'summary';        $args[] = $summary;
+        $insertCols[] = 'target_feature'; $args[] = $target;
+        $insertCols[] = 'ticket_no';      $args[] = $ticket !== '' ? $ticket : null;
+
+        $placeholders = implode(', ', array_fill(0, count($insertCols), '?'));
+        $st = $pdo->prepare('INSERT INTO lp_updates (' . implode(', ', $insertCols) . ') VALUES (' . $placeholders . ')');
+        $st->execute($args);
         $updateId = (int)$pdo->lastInsertId();
     }
 

@@ -29,7 +29,7 @@ $dbMissing = $canEdit ? lp_missing_columns() : [];
   <link rel="apple-touch-icon" href="assets/icon-192.png?v=6">
   <link rel="manifest" href="manifest.webmanifest">
   <meta name="theme-color" content="#007a33">
-  <link rel="stylesheet" href="assets/library.css?v=38">
+  <link rel="stylesheet" href="assets/library.css?v=39">
 </head>
 <body class="lp-body">
 
@@ -161,6 +161,15 @@ $dbMissing = $canEdit ? lp_missing_columns() : [];
           </select>
           <span class="lp-field-hint lp-field-hint-warn" id="fBumpNote" hidden>
             データベースの更新（sql/upgrade.sql）がまだのため、ここを選んでも反映されません。
+          </span>
+          <label class="lp-checkopt">
+            <input type="checkbox" id="fVersionOverrideToggle">
+            <span>版数を直接指定する</span>
+          </label>
+          <input id="fVersionOverride" class="lp-input" type="text" placeholder="例）2.5"
+                 maxlength="20" hidden>
+          <span class="lp-field-hint lp-field-hint-warn" id="fVersionOverrideNote" hidden>
+            データベースの更新（sql/upgrade.sql）がまだのため、ここに入力しても保存されません。
           </span></label>
         <label class="lp-field"><span class="lp-field-label">管理番号</span>
           <input id="fTicket" class="lp-input" type="text" placeholder="WLS-1234"></label>
@@ -199,7 +208,8 @@ $dbMissing = $canEdit ? lp_missing_columns() : [];
       <label class="lp-field"><span class="lp-field-label">URL（変更がある場合のみ）</span>
         <input id="fUrl" class="lp-input" type="url" placeholder="https://share.example.co.jp/..."></label>
       <p class="lp-field-hint">版数は登録順から自動で決まります（アイテム登録時点が Ver1.00、最初の更新から 1.1・1.2…、微修正は 1.01・1.02…、
-        大幅な変更は次のメジャー番号へ切り上がります：2.00・3.00…）。</p>
+        大幅な変更は次のメジャー番号へ切り上がります：2.00・3.00…）。「版数を直接指定する」を選ぶと、その版数を自由に入力でき、
+        以降の自動採番はその続きから数えます。</p>
       <p class="lp-form-error" id="updateError" hidden></p>
       <div class="lp-form-actions">
         <button type="button" id="btnCancel" class="lp-btn lp-btn-ghost">キャンセル</button>
@@ -310,7 +320,7 @@ $dbMissing = $canEdit ? lp_missing_columns() : [];
       uploadMaxBytes: <?= (int)lp_upload_max_bytes() ?>
     };
   </script>
-  <script src="assets/library.js?v=44"></script>
+  <script src="assets/library.js?v=45"></script>
   <script src="assets/pwa.js?v=2"></script>
   <script>
     // インストール導線：すぐに実行できる端末ではその場で、それ以外は案内ページへ

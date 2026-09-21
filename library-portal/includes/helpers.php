@@ -142,23 +142,48 @@ function lp_version_label(int $major, int $minor, int $rev): string
 }
 
 /**
+ * 「2.5」「1.11」のような版数の文字列から、続きを自動採番するための
+ * major・minor・rev を読み取る。読み取れない自由な書式（「2025.1」「vNext」等）
+ * のときは、それをメジャーバージョンが一つ上がったものとして扱い、
+ * 次の自動採番が「（直前のメジャー+1）.1」のように続けられるようにする。
+ */
+function lp_parse_version_for_continuation(string $version, int $prevMajor): array
+{
+    if (preg_match('/^(\d+)\.(\d)(\d)?$/', trim($version), $m)) {
+        return [(int)$m[1], (int)$m[2], isset($m[3]) ? (int)$m[3] : 0];
+    }
+    return [$prevMajor + 1, 0, 0];
+}
+
+/**
  * 更新履歴（古い順）から、各更新時点の版数を順に求める。
  *
  * アイテムの登録時点を Ver1.00 とし、そこから最初の更新も含めて毎回
  * バージョンアップとして数える（1回目の更新で 1.1、微修正なら 1.01、
  * 大幅な変更（メジャーアップ）なら次のメジャー番号に切り上げ：1.4 → 2.00）。
+ * 版数を直接指定した更新があれば、その入力値をそのまま表示に使い、
+ * それ以降の自動採番はその値の続きから数え直す。
  *
- * @param array $bumps 各更新の 'minor'（通常）・'revision'（微修正）・'major'（大幅な変更）
- * @return string[]    古い順の版数
+ * @param array $entries 古い順の配列。各要素は
+ *                       ['bump' => 'minor'|'revision'|'major', 'override' => string|null]
+ * @return string[]      古い順の版数
  */
-function lp_version_series(array $bumps): array
+function lp_version_series(array $entries): array
 {
     $major = 1;
     $minor = 0;
     $rev   = 0;
     $out   = [];
 
-    foreach ($bumps as $bump) {
+    foreach ($entries as $entry) {
+        $override = trim((string)($entry['override'] ?? ''));
+        if ($override !== '') {
+            [$major, $minor, $rev] = lp_parse_version_for_continuation($override, $major);
+            $out[] = $override;
+            continue;
+        }
+
+        $bump = $entry['bump'] ?? 'minor';
         if ($bump === 'revision') {
             $rev++;
             if ($rev > 9) { $rev = 0; $minor++; }        // 1.19 の次は 1.2

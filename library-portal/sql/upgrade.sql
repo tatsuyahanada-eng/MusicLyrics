@@ -26,10 +26,11 @@
 --  以前に一部だけ実行していても、これを流せば大丈夫です。
 --
 --  追加される項目：
---    lp_items.series      … シリーズ（関連する資料をまとめる名前）
---    lp_updates.bump_type … 更新の大きさ（通常の更新 / 微修正）。版数の自動採番に使います
---    lp_updates.file_*    … 更新ごとに添付できるファイル（画像・PDF・ZIP）の情報
---    lp_categories        … カテゴリ（種別）の管理テーブル。設定画面から追加・削除できます
+--    lp_items.series             … シリーズ（関連する資料をまとめる名前）
+--    lp_updates.bump_type        … 更新の大きさ（通常の更新 / 微修正 / 大幅な変更）。版数の自動採番に使います
+--    lp_updates.file_*           … 更新ごとに添付できるファイル（画像・PDF・ZIP）の情報
+--    lp_categories               … カテゴリ（種別）の管理テーブル。設定画面から追加・削除できます
+--    lp_updates.version_override … 版数を自動採番せず直接指定する場合の値
 --
 --  ※ さくらのレンタルサーバの契約・バージョンによっては、
 --       #1044 ...への アクセスは拒否されました（information_schema 関連）
@@ -146,3 +147,30 @@ ON DUPLICATE KEY UPDATE label = VALUES(label);
 -- 確認（1行表示されれば完了です）
 SHOW TABLES LIKE 'lp_categories';
 SELECT code, label, color, icon, sort_no FROM lp_categories ORDER BY sort_no;
+
+
+-- ============================================================
+--  追記（3回目）：版数を直接入力できるようにする
+--
+--  これまで版数（Ver番号）は「更新の大きさ」の選択から自動で決まる
+--  だけでしたが、大きく飛んだ番号を付けたい場合などのために、
+--  更新ごとに版数を直接指定できるようにします（空なら今まで通り自動）。
+-- ============================================================
+DROP PROCEDURE IF EXISTS lp_upgrade_20260921;
+
+DELIMITER $$
+CREATE PROCEDURE lp_upgrade_20260921()
+BEGIN
+  DECLARE CONTINUE HANDLER FOR 1060, 1061 BEGIN END;
+
+  ALTER TABLE lp_updates
+    ADD COLUMN version_override VARCHAR(20) NULL
+    COMMENT '版数を自動採番せず直接指定する場合の値（空なら自動採番）' AFTER bump_type;
+END$$
+DELIMITER ;
+
+CALL lp_upgrade_20260921();
+DROP PROCEDURE lp_upgrade_20260921;
+
+-- 確認（1行表示されれば完了です）
+SHOW COLUMNS FROM lp_updates LIKE 'version_override';
