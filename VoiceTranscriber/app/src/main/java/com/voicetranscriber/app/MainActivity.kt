@@ -33,6 +33,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.Delete
@@ -40,6 +41,7 @@ import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.GraphicEq
 import androidx.compose.material.icons.filled.Mic
 import androidx.compose.material.icons.filled.Save
+import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -49,7 +51,10 @@ import androidx.compose.material3.CenterAlignedTopAppBar
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.NavigationBar
+import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
@@ -114,18 +119,118 @@ class MainActivity : ComponentActivity() {
         enableEdgeToEdge()
         setContent {
             VoiceTranscriberTheme {
-                TranscriberScreen()
+                AppRoot()
             }
         }
     }
 }
 
+private enum class AppScreen { VOICE, TEMPLATES, SETTINGS }
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun TranscriberScreen(viewModel: TranscriptionViewModel = viewModel()) {
+private fun AppRoot() {
+    val snackbarHostState = remember { SnackbarHostState() }
+    var screen by remember { mutableStateOf(AppScreen.VOICE) }
+
+    Scaffold(
+        containerColor = MaterialTheme.colorScheme.background,
+        topBar = {
+            CenterAlignedTopAppBar(
+                navigationIcon = {
+                    if (screen == AppScreen.SETTINGS) {
+                        IconButton(onClick = { screen = AppScreen.TEMPLATES }) {
+                            Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "戻る")
+                        }
+                    }
+                },
+                title = {
+                    if (screen == AppScreen.SETTINGS) {
+                        Text("定型文の設定", fontWeight = FontWeight.Bold, fontSize = 20.sp)
+                    } else {
+                        BrandTitle()
+                    }
+                },
+                actions = {
+                    if (screen != AppScreen.SETTINGS) {
+                        IconButton(onClick = { screen = AppScreen.SETTINGS }) {
+                            Icon(Icons.Filled.Settings, contentDescription = "設定")
+                        }
+                    }
+                },
+                colors = TopAppBarDefaults.centerAlignedTopAppBarColors(
+                    containerColor = MaterialTheme.colorScheme.background,
+                ),
+            )
+        },
+        bottomBar = {
+            if (screen != AppScreen.SETTINGS) {
+                NavigationBar(containerColor = MaterialTheme.colorScheme.surface) {
+                    NavigationBarItem(
+                        selected = screen == AppScreen.VOICE,
+                        onClick = { screen = AppScreen.VOICE },
+                        icon = { Icon(Icons.Filled.Mic, contentDescription = null) },
+                        label = { Text("音声入力") },
+                    )
+                    NavigationBarItem(
+                        selected = screen == AppScreen.TEMPLATES,
+                        onClick = { screen = AppScreen.TEMPLATES },
+                        icon = { Icon(Icons.Filled.ContentCopy, contentDescription = null) },
+                        label = { Text("定型文") },
+                    )
+                }
+            }
+        },
+        snackbarHost = { SnackbarHost(snackbarHostState) },
+    ) { innerPadding ->
+        when (screen) {
+            AppScreen.VOICE -> VoicePane(innerPadding, snackbarHostState)
+            AppScreen.TEMPLATES -> TemplatesPane(innerPadding, snackbarHostState)
+            AppScreen.SETTINGS -> TemplateSettingsPane(innerPadding)
+        }
+    }
+}
+
+/** アプリのロゴ的タイトル（バッジ＋2トーンのワードマーク）。 */
+@Composable
+private fun BrandTitle() {
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        Box(
+            contentAlignment = Alignment.Center,
+            modifier = Modifier
+                .size(30.dp)
+                .clip(RoundedCornerShape(9.dp))
+                .background(Brush.verticalGradient(listOf(HoldButtonColor, ContinuousButtonColor))),
+        ) {
+            Icon(
+                Icons.Filled.GraphicEq,
+                contentDescription = null,
+                tint = Color.White,
+                modifier = Modifier.size(18.dp),
+            )
+        }
+        Spacer(Modifier.width(8.dp))
+        val nameColor = MaterialTheme.colorScheme.onSurface
+        Text(
+            buildAnnotatedString {
+                withStyle(SpanStyle(color = nameColor)) { append("Voice") }
+                withStyle(SpanStyle(color = BrandAccentColor)) { append(" & Copy Paste") }
+            },
+            fontWeight = FontWeight.SemiBold,
+            fontSize = 18.sp,
+            letterSpacing = 0.3.sp,
+        )
+    }
+}
+
+@Composable
+private fun VoicePane(
+    innerPadding: PaddingValues,
+    snackbarHostState: SnackbarHostState,
+    viewModel: TranscriptionViewModel = viewModel(),
+) {
     val context = LocalContext.current
     val state by viewModel.state.collectAsStateWithLifecycle()
-    val snackbarHostState = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
 
     var hasMicPermission by remember {
@@ -228,70 +333,23 @@ private fun TranscriberScreen(viewModel: TranscriptionViewModel = viewModel()) {
         }
     }
 
-    Scaffold(
-        containerColor = MaterialTheme.colorScheme.background,
-        topBar = {
-            CenterAlignedTopAppBar(
-                title = {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Box(
-                            contentAlignment = Alignment.Center,
-                            modifier = Modifier
-                                .size(36.dp)
-                                .clip(RoundedCornerShape(11.dp))
-                                .background(
-                                    Brush.verticalGradient(
-                                        listOf(HoldButtonColor, ContinuousButtonColor),
-                                    ),
-                                ),
-                        ) {
-                            Icon(
-                                Icons.Filled.GraphicEq,
-                                contentDescription = null,
-                                tint = Color.White,
-                                modifier = Modifier.size(20.dp),
-                            )
-                        }
-                        Spacer(Modifier.width(10.dp))
-                        // 色は composable 文脈で先に取り出しておく（annotatedString 内では読めない）
-                        val voiceColor = MaterialTheme.colorScheme.onSurface
-                        Text(
-                            buildAnnotatedString {
-                                // フォント（太さ）は統一し、色だけ2トーンにする
-                                withStyle(SpanStyle(color = voiceColor)) { append("Voice") }
-                                withStyle(SpanStyle(color = BrandAccentColor)) { append(" Transcription") }
-                            },
-                            fontWeight = FontWeight.SemiBold,
-                            fontSize = 22.sp,
-                            letterSpacing = 0.5.sp,
-                        )
-                    }
-                },
-                colors = TopAppBarDefaults.centerAlignedTopAppBarColors(
-                    containerColor = MaterialTheme.colorScheme.background,
-                ),
-            )
+    Content(
+        innerPadding = innerPadding,
+        state = state,
+        recognitionAvailable = viewModel.isRecognitionAvailable,
+        onHoldStart = { requireMicThen { viewModel.startHold() } },
+        onHoldStop = { viewModel.stopHold() },
+        onToggleContinuous = { requireMicThen { viewModel.toggleContinuous() } },
+        onTranscriptChange = viewModel::updateTranscript,
+        onClear = viewModel::clearTranscript,
+        onCopy = {
+            copyToClipboard(context, fullText(state))
+            scope.launch { snackbarHostState.showSnackbar("コピーしました") }
         },
-        snackbarHost = { SnackbarHost(snackbarHostState) },
-    ) { innerPadding ->
-        Content(
-            innerPadding = innerPadding,
-            state = state,
-            recognitionAvailable = viewModel.isRecognitionAvailable,
-            onHoldStart = { requireMicThen { viewModel.startHold() } },
-            onHoldStop = { viewModel.stopHold() },
-            onToggleContinuous = { requireMicThen { viewModel.toggleContinuous() } },
-            onTranscriptChange = viewModel::updateTranscript,
-            onClear = viewModel::clearTranscript,
-            onCopy = {
-                copyToClipboard(context, fullText(state))
-                scope.launch { snackbarHostState.showSnackbar("コピーしました") }
-            },
-            onSave = {
-                saveLauncher.launch("transcription_${System.currentTimeMillis()}.txt")
-            },
-        )
-    }
+        onSave = {
+            saveLauncher.launch("transcription_${System.currentTimeMillis()}.txt")
+        },
+    )
 }
 
 @Composable
