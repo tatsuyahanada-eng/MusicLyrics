@@ -92,8 +92,9 @@ interface MediaDao {
     @Query("SELECT COUNT(*) FROM media_items WHERE videoId = :videoId AND kind = :kind")
     suspend fun countFor(videoId: String, kind: String): Int
 
-    @Query("SELECT * FROM media_items WHERE videoId = :videoId AND kind = :kind LIMIT 1")
-    suspend fun findByVideo(videoId: String, kind: String): MediaItemEntity?
+    /** Scoped to one folder — the same video can sit in several as separate copies. */
+    @Query("SELECT * FROM media_items WHERE videoId = :videoId AND kind = :kind AND categoryId = :categoryId LIMIT 1")
+    suspend fun findByVideo(videoId: String, kind: String, categoryId: Long): MediaItemEntity?
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insert(item: MediaItemEntity): Long

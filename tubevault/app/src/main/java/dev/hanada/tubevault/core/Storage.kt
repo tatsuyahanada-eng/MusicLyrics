@@ -95,6 +95,21 @@ object Storage {
         true
     }.getOrDefault(false)
 
+    /** Copies every file named after [videoId] into [target], source left untouched. */
+    fun copyFilesFor(source: File, target: File, videoId: String): File? {
+        target.mkdirs()
+        var copiedMedia: File? = null
+        val files = source.listFiles()?.filter { it.isFile && it.name.startsWith("$videoId.") }.orEmpty()
+        for (file in files) {
+            val destination = File(target, file.name)
+            val ok = runCatching { file.copyTo(destination, overwrite = true) }.isSuccess
+            if (ok && destination.extension.lowercase() !in THUMB_EXTENSIONS) {
+                copiedMedia = destination
+            }
+        }
+        return copiedMedia
+    }
+
     /**
      * Relocates a whole folder tree — a category's directory, subfolders and
      * all — to live under a new parent. `renameTo` alone handles this in one

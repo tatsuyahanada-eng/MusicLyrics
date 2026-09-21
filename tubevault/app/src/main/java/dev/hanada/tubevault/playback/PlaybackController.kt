@@ -64,12 +64,17 @@ class PlaybackController(
     private val _expanded = MutableStateFlow(false)
     val expanded: StateFlow<Boolean> = _expanded.asStateFlow()
 
-    private val _shuffleEnabled = MutableStateFlow(false)
+    private val _shuffleEnabled = MutableStateFlow(true)
     val shuffleEnabled: StateFlow<Boolean> = _shuffleEnabled.asStateFlow()
 
     /** One of [Player]'s `REPEAT_MODE_*` constants. */
-    private val _repeatMode = MutableStateFlow(Player.REPEAT_MODE_OFF)
+    private val _repeatMode = MutableStateFlow(Player.REPEAT_MODE_ALL)
     val repeatMode: StateFlow<Int> = _repeatMode.asStateFlow()
+
+    // Applied once, to the first controller this process ever connects to —
+    // a later reconnect (screen rotation, the activity being recreated) must
+    // never stomp back over a toggle the user made mid-session.
+    private var defaultModesApplied = false
 
     private val listener = object : Player.Listener {
         override fun onIsPlayingChanged(isPlaying: Boolean) {
@@ -115,6 +120,11 @@ class PlaybackController(
                         controller.addListener(listener)
                         _player.value = controller
                         _isPlaying.value = controller.isPlaying
+                        if (!defaultModesApplied) {
+                            defaultModesApplied = true
+                            controller.shuffleModeEnabled = _shuffleEnabled.value
+                            controller.repeatMode = _repeatMode.value
+                        }
                         _shuffleEnabled.value = controller.shuffleModeEnabled
                         _repeatMode.value = controller.repeatMode
                     }
@@ -137,26 +147,32 @@ class PlaybackController(
     /**
      * Playing a whole folder is what turns a category into a playlist.
      *
-     * With [shuffle] on, the starting track is picked at random too — leaving
-     * it at index 0 would make every shuffled run open with the same track,
-     * which reads as "not actually shuffled" however random the rest is.
+     * [shuffle] left null leaves shuffle mode exactly as it already was —
+     * tapping one specific track must never fight the shuffle toggle by
+     * silently turning it off. Only "shuffle folder" ever passes true
+     * outright, which is also what picks the starting track at random too:
+     * leaving it at index 0 would make every shuffled run open with the same
+     * track, which reads as "not actually shuffled" however random the rest
+     * of the queue is.
      */
-    fun playQueue(items: List<MediaItemEntity>, startIndex: Int, shuffle: Boolean = false) {
+    fun playQueue(items: List<MediaItemEntity>, startIndex: Int, shuffle: Boolean? = null) {
         if (items.isEmpty()) return
-        val index = if (shuffle) items.indices.random() else startIndex.coerceIn(0, items.lastIndex)
+        val index = if (shuffle == true) items.indices.random() else startIndex.coerceIn(0, items.lastIndex)
         connect()
         _currentItem.value = items[index]
         _expanded.value = true
 
         scope.launch {
             val controller = awaitController() ?: return@launch
-            controller.shuffleModeEnabled = shuffle
-            _shuffleEnabled.value = shuffle
+            if (shuffle != null) {
+                controller.shuffleModeEnabled = shuffle
+                _shuffleEnabled.value = shuffle
+            }
             controller.setMediaItems(items.map(::toMediaItem), index, C.TIME_UNSET)
             controller.prepare()
             // Resuming mid-track fights the point of a shuffled run.
             val resumeFrom = items[index].playbackPosMs
-            if (!shuffle && resumeFrom > RESUME_THRESHOLD_MS) controller.seekTo(resumeFrom)
+            if (shuffle != true && resumeFrom > RESUME_THRESHOLD_MS) controller.seekTo(resumeFrom)
             controller.play()
             library.markPlayed(items[index].id)
         }

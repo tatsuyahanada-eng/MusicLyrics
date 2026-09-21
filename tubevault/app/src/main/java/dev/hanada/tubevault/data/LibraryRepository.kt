@@ -250,6 +250,42 @@ class LibraryRepository(
     }
 
     /**
+     * Duplicates a download into another folder — its own row, its own files
+     * on disk — leaving the original exactly where it was. Copying into a
+     * folder that already holds this video just refreshes that folder's copy
+     * in place, the same as a re-download would.
+     */
+    suspend fun copyItem(itemId: Long, targetCategoryId: Long) {
+        val item = mediaDao.getById(itemId) ?: return
+        if (item.categoryId == targetCategoryId) return
+        val target = categoryDao.getById(targetCategoryId) ?: return
+        val existing = mediaDao.findByVideo(item.videoId, item.kind, targetCategoryId)
+
+        withContext(Dispatchers.IO) {
+            val sourceDir = File(item.filePath).parentFile
+            val targetDir = categoryDirFor(target)
+            val copiedMedia = if (sourceDir != null) {
+                Storage.copyFilesFor(sourceDir, targetDir, item.videoId)
+            } else {
+                null
+            }
+            val thumb = Storage.findThumbnailFile(targetDir, item.videoId)
+            mediaDao.insert(
+                item.copy(
+                    id = existing?.id ?: 0L,
+                    categoryId = targetCategoryId,
+                    filePath = copiedMedia?.absolutePath ?: item.filePath,
+                    thumbPath = thumb?.absolutePath ?: item.thumbPath,
+                    // A copy is a fresh entry in its new folder, not a
+                    // continuation of playback progress from the original.
+                    lastPlayedAt = null,
+                    playbackPosMs = 0L,
+                ),
+            )
+        }
+    }
+
+    /**
      * Marks an item as having been played at all, which is what the "New"
      * badge keys off. Called the moment a track starts rather than waiting for
      * [recordPlayback], which only fires once a position is worth saving —
@@ -269,12 +305,13 @@ class LibraryRepository(
     }
 
     /**
-     * Stores a finished download. Re-downloading something that already exists
-     * replaces the row in place and removes the stale file if it landed in a
-     * different folder this time.
+     * Stores a finished download. Re-downloading into the same folder it
+     * already sits in replaces the row in place and removes the stale file
+     * if the path changed; downloading into a different folder leaves any
+     * existing copy alone and simply adds another, the same as [copyItem].
      */
     suspend fun addDownloaded(item: MediaItemEntity): Long {
-        val existing = mediaDao.findByVideo(item.videoId, item.kind)
+        val existing = mediaDao.findByVideo(item.videoId, item.kind, item.categoryId)
         if (existing != null && existing.filePath != item.filePath) {
             withContext(Dispatchers.IO) {
                 File(existing.filePath).parentFile?.let { Storage.deleteFilesFor(it, existing.videoId) }

@@ -13,6 +13,7 @@ import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -40,6 +41,8 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.FastForward
+import androidx.compose.material.icons.filled.FastRewind
 import androidx.compose.material.icons.filled.Forward30
 import androidx.compose.material.icons.filled.Fullscreen
 import androidx.compose.material.icons.filled.FullscreenExit
@@ -77,7 +80,9 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -326,7 +331,7 @@ private fun PortraitPlayer(
                     .padding(horizontal = 20.dp, vertical = 12.dp),
                 contentAlignment = Alignment.Center,
             ) {
-                Stage(current = current, player = player)
+                Stage(current = current, player = player, onSkip = controller::skipBy)
             }
 
             // Takes whatever the picture above and the controls below leave
@@ -368,7 +373,7 @@ private fun PortraitPlayer(
  * first and stays inside the space it was given.
  */
 @Composable
-private fun Stage(current: MediaItemEntity, player: Player?) {
+private fun Stage(current: MediaItemEntity, player: Player?, onSkip: (Long) -> Unit) {
     if (current.mediaKind == MediaKind.VIDEO) {
         Surface(
             modifier = Modifier.aspectRatio(16f / 9f),
@@ -376,7 +381,7 @@ private fun Stage(current: MediaItemEntity, player: Player?) {
             color = Color.Black,
             shadowElevation = 12.dp,
         ) {
-            VideoSurface(player = player, modifier = Modifier.fillMaxSize())
+            VideoSurfaceWithSkipGesture(player = player, onSkip = onSkip, modifier = Modifier.fillMaxSize())
         }
     } else {
         Surface(
@@ -413,6 +418,87 @@ private fun VideoSurface(player: Player?, modifier: Modifier = Modifier) {
     )
 }
 
+/**
+ * A decisive horizontal swipe over the video skips ±15 seconds — a plain
+ * button was the other option, but Material's icon set jumps from 10 to 30
+ * seconds with no "15" glyph to pair with it, and the gesture needs no
+ * screen space of its own. A tap alone (no real horizontal movement) is left
+ * to whatever click handler sits on the surface underneath, such as
+ * fullscreen's tap-to-toggle-controls.
+ */
+@Composable
+private fun VideoSurfaceWithSkipGesture(
+    player: Player?,
+    onSkip: (Long) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    var feedbackMs by remember { mutableStateOf<Long?>(null) }
+    val density = LocalDensity.current
+
+    LaunchedEffect(feedbackMs) {
+        if (feedbackMs != null) {
+            delay(SKIP_FEEDBACK_MS)
+            feedbackMs = null
+        }
+    }
+
+    Box(
+        modifier = modifier.pointerInput(Unit) {
+            val thresholdPx = with(density) { SWIPE_THRESHOLD_DP.dp.toPx() }
+            var totalDrag = 0f
+            detectHorizontalDragGestures(
+                onDragStart = { totalDrag = 0f },
+                onHorizontalDrag = { change, dragAmount ->
+                    change.consume()
+                    totalDrag += dragAmount
+                },
+                onDragEnd = {
+                    val delta = when {
+                        totalDrag > thresholdPx -> SKIP_GESTURE_MS
+                        totalDrag < -thresholdPx -> -SKIP_GESTURE_MS
+                        else -> null
+                    }
+                    if (delta != null) {
+                        onSkip(delta)
+                        feedbackMs = delta
+                    }
+                },
+            )
+        },
+    ) {
+        VideoSurface(player = player, modifier = Modifier.fillMaxSize())
+
+        AnimatedVisibility(
+            visible = feedbackMs != null,
+            enter = fadeIn(),
+            exit = fadeOut(),
+            modifier = Modifier.align(Alignment.Center),
+        ) {
+            val delta = feedbackMs
+            if (delta != null) {
+                Surface(shape = CircleShape, color = Color.Black.copy(alpha = 0.55f)) {
+                    Row(
+                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 10.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(6.dp),
+                    ) {
+                        Icon(
+                            imageVector = if (delta > 0) Icons.Default.FastForward else Icons.Default.FastRewind,
+                            contentDescription = null,
+                            tint = Color.White,
+                        )
+                        Text(
+                            text = "15秒",
+                            color = Color.White,
+                            style = MaterialTheme.typography.titleMedium,
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
 // ------------------------------------------------------------- fullscreen --
 
 @Composable
@@ -447,7 +533,11 @@ private fun ImmersivePlayer(
             ) { controlsVisible = !controlsVisible },
     ) {
         if (current.mediaKind == MediaKind.VIDEO) {
-            VideoSurface(player = player, modifier = Modifier.fillMaxSize())
+            VideoSurfaceWithSkipGesture(
+                player = player,
+                onSkip = controller::skipBy,
+                modifier = Modifier.fillMaxSize(),
+            )
         } else {
             Thumbnail(
                 model = current.thumbPath?.let { File(it) },
@@ -920,3 +1010,6 @@ private fun progressFraction(positionMs: Long, durationMs: Long): Float =
     (positionMs.toFloat() / durationMs.coerceAtLeast(1L)).coerceIn(0f, 1f)
 
 private const val CONTROLS_TIMEOUT_MS = 3_500L
+private const val SKIP_GESTURE_MS = 15_000L
+private const val SKIP_FEEDBACK_MS = 600L
+private const val SWIPE_THRESHOLD_DP = 56

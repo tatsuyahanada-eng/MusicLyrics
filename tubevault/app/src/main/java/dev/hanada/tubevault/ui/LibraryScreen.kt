@@ -35,6 +35,7 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Audiotrack
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.CreateNewFolder
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.DriveFileMove
@@ -141,6 +142,8 @@ fun LibraryScreen(
                 onMove = viewModel::moveItem,
                 onDelete = viewModel::deleteItem,
                 onMoveMany = viewModel::moveItems,
+                onCopy = viewModel::copyItem,
+                onCopyMany = viewModel::copyItems,
                 onDeleteMany = viewModel::deleteItems,
                 onOpenSub = viewModel::open,
                 onCreateSub = viewModel::createSubfolder,
@@ -383,6 +386,8 @@ private fun CategoryDetail(
     onMove: (Long, Long) -> Unit,
     onDelete: (Long) -> Unit,
     onMoveMany: (Set<Long>, Long) -> Unit,
+    onCopy: (Long, Long) -> Unit,
+    onCopyMany: (Set<Long>, Long) -> Unit,
     onDeleteMany: (Set<Long>) -> Unit,
     onOpenSub: (Long) -> Unit,
     onCreateSub: (String) -> Unit,
@@ -402,6 +407,7 @@ private fun CategoryDetail(
     ) { uris -> onImport(uris) }
 
     var moving by remember { mutableStateOf<MediaItemEntity?>(null) }
+    var copying by remember { mutableStateOf<MediaItemEntity?>(null) }
     var deleting by remember { mutableStateOf<MediaItemEntity?>(null) }
     var showCreateSub by remember { mutableStateOf(false) }
     var renamingSub by remember { mutableStateOf<CategoryWithStats?>(null) }
@@ -412,6 +418,7 @@ private fun CategoryDetail(
     // and clearing it drops straight back to normal browsing.
     var selection by remember(category.category.id) { mutableStateOf(emptySet<Long>()) }
     var movingSelection by remember { mutableStateOf(false) }
+    var copyingSelection by remember { mutableStateOf(false) }
     var deletingSelection by remember { mutableStateOf(false) }
 
     val selecting = selection.isNotEmpty()
@@ -432,6 +439,7 @@ private fun CategoryDetail(
                 onClear = { selection = emptySet() },
                 onSelectAll = { selection = presentIds },
                 onMove = { movingSelection = true },
+                onCopy = { copyingSelection = true },
                 onDelete = { deletingSelection = true },
             )
         } else {
@@ -524,6 +532,7 @@ private fun CategoryDetail(
                         },
                         onLongClick = { selection = selection + item.id },
                         onMove = { moving = item },
+                        onCopy = { copying = item },
                         onDelete = { deleting = item },
                     )
                 }
@@ -543,6 +552,18 @@ private fun CategoryDetail(
         )
     }
 
+    copying?.let { item ->
+        MoveTargetDialog(
+            title = "コピー先を選択",
+            categories = allCategories.filter { it.category.id != item.categoryId },
+            onDismiss = { copying = null },
+            onConfirm = { target ->
+                onCopy(item.id, target)
+                copying = null
+            },
+        )
+    }
+
     if (movingSelection) {
         MoveTargetDialog(
             title = "${selection.size} 件の移動先",
@@ -551,6 +572,19 @@ private fun CategoryDetail(
             onConfirm = { target ->
                 onMoveMany(selection, target)
                 movingSelection = false
+                selection = emptySet()
+            },
+        )
+    }
+
+    if (copyingSelection) {
+        MoveTargetDialog(
+            title = "${selection.size} 件のコピー先",
+            categories = allCategories.filter { it.category.id != category.category.id },
+            onDismiss = { copyingSelection = false },
+            onConfirm = { target ->
+                onCopyMany(selection, target)
+                copyingSelection = false
                 selection = emptySet()
             },
         )
@@ -796,6 +830,7 @@ private fun SelectionBar(
     onClear: () -> Unit,
     onSelectAll: () -> Unit,
     onMove: () -> Unit,
+    onCopy: () -> Unit,
     onDelete: () -> Unit,
 ) {
     Surface(color = MaterialTheme.colorScheme.primaryContainer) {
@@ -817,6 +852,9 @@ private fun SelectionBar(
             IconButton(onClick = onMove) {
                 Icon(Icons.Default.DriveFileMove, contentDescription = "まとめて移動")
             }
+            IconButton(onClick = onCopy) {
+                Icon(Icons.Default.ContentCopy, contentDescription = "まとめてコピー")
+            }
             IconButton(onClick = onDelete) {
                 Icon(Icons.Default.Delete, contentDescription = "まとめて削除")
             }
@@ -834,6 +872,7 @@ private fun MediaRow(
     onClick: () -> Unit,
     onLongClick: () -> Unit,
     onMove: () -> Unit,
+    onCopy: () -> Unit,
     onDelete: () -> Unit,
 ) {
     var menuOpen by remember { mutableStateOf(false) }
@@ -954,6 +993,14 @@ private fun MediaRow(
                             onClick = {
                                 menuOpen = false
                                 onMove()
+                            },
+                        )
+                        DropdownMenuItem(
+                            text = { Text("フォルダにコピー") },
+                            leadingIcon = { Icon(Icons.Default.ContentCopy, contentDescription = null) },
+                            onClick = {
+                                menuOpen = false
+                                onCopy()
                             },
                         )
                         DropdownMenuItem(

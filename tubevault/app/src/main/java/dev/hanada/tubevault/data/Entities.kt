@@ -33,15 +33,16 @@ data class CategoryEntity(
 )
 
 /**
- * One downloaded file. The unique index on (videoId, kind) is what makes
- * "already downloaded" checks cheap and stops the same video being fetched
- * twice as the same media type.
+ * One downloaded file. The unique index on (categoryId, videoId, kind) is
+ * what lets the same video sit in more than one folder as independent copies
+ * — each folder's own row and file — while still stopping the same video
+ * being downloaded twice into the *same* folder as the same media type.
  */
 @Entity(
     tableName = "media_items",
     indices = [
         Index(value = ["categoryId"]),
-        Index(value = ["videoId", "kind"], unique = true),
+        Index(value = ["categoryId", "videoId", "kind"], unique = true),
     ],
 )
 data class MediaItemEntity(

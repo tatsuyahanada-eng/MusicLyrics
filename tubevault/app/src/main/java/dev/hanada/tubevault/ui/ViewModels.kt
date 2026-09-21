@@ -304,6 +304,10 @@ class LibraryViewModel(private val container: AppContainer) : ViewModel() {
         viewModelScope.launch { container.library.moveItem(itemId, targetCategoryId) }
     }
 
+    fun copyItem(itemId: Long, targetCategoryId: Long) {
+        viewModelScope.launch { container.library.copyItem(itemId, targetCategoryId) }
+    }
+
     fun deleteItem(itemId: Long) {
         viewModelScope.launch {
             container.playback.stopIfPlaying(itemId)
@@ -319,6 +323,12 @@ class LibraryViewModel(private val container: AppContainer) : ViewModel() {
     fun moveItems(itemIds: Collection<Long>, targetCategoryId: Long) {
         viewModelScope.launch {
             itemIds.forEach { container.library.moveItem(it, targetCategoryId) }
+        }
+    }
+
+    fun copyItems(itemIds: Collection<Long>, targetCategoryId: Long) {
+        viewModelScope.launch {
+            itemIds.forEach { container.library.copyItem(it, targetCategoryId) }
         }
     }
 

@@ -42,6 +42,7 @@ import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -49,9 +50,9 @@ import dev.hanada.tubevault.AppContainer
 import dev.hanada.tubevault.R
 
 private enum class Tab(val label: String, val icon: ImageVector) {
+    LIBRARY("ライブラリ", Icons.Default.Folder),
     SEARCH("検索", Icons.Default.Search),
     BROWSE("ホーム", Icons.Default.Home),
-    LIBRARY("ライブラリ", Icons.Default.Folder),
     DOWNLOADS("取得中", Icons.Default.Download),
     SETTINGS("設定", Icons.Default.Settings),
 }
@@ -93,7 +94,14 @@ fun AppRoot(container: AppContainer) {
                                 selected = tab == entry,
                                 onClick = { tab = entry },
                                 icon = { Icon(entry.icon, contentDescription = entry.label) },
-                                label = { Text(label) },
+                                label = {
+                                    Text(
+                                        text = label,
+                                        style = MaterialTheme.typography.labelSmall,
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis,
+                                    )
+                                },
                             )
                         }
                     }
