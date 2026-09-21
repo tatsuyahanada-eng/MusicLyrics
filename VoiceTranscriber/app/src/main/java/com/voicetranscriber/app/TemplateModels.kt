@@ -4,23 +4,29 @@ import kotlinx.serialization.Serializable
 import java.util.UUID
 
 /**
+ * 定型文の種類。コピー用とメール用は文章がまったく別物なので、
+ * フォルダ・定型文・共通項目をそれぞれ独立して持つ。
+ */
+enum class TemplateKind { COPY, MAIL }
+
+/**
  * 定型文（コピペ／メール送信用テンプレート）のデータモデル。
  *
  * 本文 [body]・件名 [subject] には差し込み用のトークンを埋め込む:
  *   {日付} {時間1} {時間2} {氏名}
  * 使用時にこれらを実際の値へ置き換えて、コピーまたはメール送信する。
  *
- * [email] [subject] は後から追加したフィールドなので既定値を持たせてある。
- * 既存の保存データ（これらを含まない JSON）もそのまま読み込める。
+ * [email] [subject] はメール用の定型文でのみ使う。
+ * 既定値を持たせてあるので、これらを含まない古い保存データも読み込める。
  */
 @Serializable
 data class Template(
     val id: String = UUID.randomUUID().toString(),
     val name: String,
     val body: String,
-    /** メール送信タブで使う既定の宛先。空なら送信時に手入力する。 */
+    /** メール用：既定の宛先。空なら送信時に手入力する。 */
     val email: String = "",
-    /** メール送信タブで使う既定の件名。トークンの差し込みに対応。 */
+    /** メール用：既定の件名。トークンの差し込みに対応。 */
     val subject: String = "",
 )
 
@@ -32,15 +38,26 @@ data class TemplateCategory(
     val templates: List<Template> = emptyList(),
 )
 
+/**
+ * 保存データ全体。
+ * [categories] / [commonInsert] がコピー用、[mailCategories] / [mailCommonInsert] がメール用。
+ * メール用は後から追加したので、既定値つきで後方互換を保っている。
+ */
 @Serializable
 data class TemplateStore(
     val categories: List<TemplateCategory> = emptyList(),
-    /**
-     * 複数の定型文を1つに組み合わせるときに、間へ差し込む共通の文言。
-     * {日付}{時間1}{時間2}{氏名} のトークンにも対応。空なら単なる改行区切り。
-     */
     val commonInsert: String = "",
+    val mailCategories: List<TemplateCategory> = emptyList(),
+    val mailCommonInsert: String = "",
 )
+
+/** 種類に応じたフォルダ一覧。 */
+fun TemplateStore.categoriesOf(kind: TemplateKind): List<TemplateCategory> =
+    if (kind == TemplateKind.MAIL) mailCategories else categories
+
+/** 種類に応じた共通項目。 */
+fun TemplateStore.commonInsertOf(kind: TemplateKind): String =
+    if (kind == TemplateKind.MAIL) mailCommonInsert else commonInsert
 
 /** 本文に埋め込む差し込みトークン。 */
 object TemplateTokens {
@@ -72,4 +89,4 @@ fun Template.usesToken(token: String): Boolean =
     TemplateTokens.contains(body, token) || TemplateTokens.contains(subject, token)
 
 /** 初回起動時の状態。サンプルは入れず空のフォルダ一覧から始める。 */
-fun defaultTemplateStore(): TemplateStore = TemplateStore(categories = emptyList())
+fun defaultTemplateStore(): TemplateStore = TemplateStore()

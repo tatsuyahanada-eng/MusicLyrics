@@ -11,6 +11,9 @@ import kotlinx.serialization.json.Json
 /**
  * 定型文の保存・読み込み・編集を担う ViewModel。
  * データは SharedPreferences に JSON で永続化する。
+ *
+ * コピー用（[TemplateKind.COPY]）とメール用（[TemplateKind.MAIL]）は
+ * 別々のフォルダ一覧として持つので、すべての操作が kind を受け取る。
  */
 class TemplateViewModel(app: Application) : AndroidViewModel(app) {
 
@@ -45,29 +48,57 @@ class TemplateViewModel(app: Application) : AndroidViewModel(app) {
         save(next)
     }
 
-    // ----- カテゴリ -----
-
-    fun addCategory(name: String) {
-        if (name.isBlank()) return
-        update { it.copy(categories = it.categories + TemplateCategory(name = name.trim())) }
-    }
-
-    fun renameCategory(categoryId: String, name: String) {
-        if (name.isBlank()) return
-        update { store ->
-            store.copy(categories = store.categories.map {
-                if (it.id == categoryId) it.copy(name = name.trim()) else it
-            })
+    /** 種類に対応するフォルダ一覧だけを差し替える。 */
+    private fun updateCategories(
+        kind: TemplateKind,
+        transform: (List<TemplateCategory>) -> List<TemplateCategory>,
+    ) {
+        update { s ->
+            if (kind == TemplateKind.MAIL) {
+                s.copy(mailCategories = transform(s.mailCategories))
+            } else {
+                s.copy(categories = transform(s.categories))
+            }
         }
     }
 
-    fun deleteCategory(categoryId: String) {
-        update { it.copy(categories = it.categories.filterNot { c -> c.id == categoryId }) }
+    // ----- フォルダ -----
+
+    fun addCategory(kind: TemplateKind, name: String) {
+        if (name.isBlank()) return
+        updateCategories(kind) { it + TemplateCategory(name = name.trim()) }
+    }
+
+    fun renameCategory(kind: TemplateKind, categoryId: String, name: String) {
+        if (name.isBlank()) return
+        updateCategories(kind) { cats ->
+            cats.map { if (it.id == categoryId) it.copy(name = name.trim()) else it }
+        }
+    }
+
+    fun deleteCategory(kind: TemplateKind, categoryId: String) {
+        updateCategories(kind) { cats -> cats.filterNot { it.id == categoryId } }
+    }
+
+    /** フォルダを1つ前後に動かす。実際に動いたら true。 */
+    fun moveCategory(kind: TemplateKind, categoryId: String, delta: Int): Boolean {
+        var moved = false
+        updateCategories(kind) { cats ->
+            val from = cats.indexOfFirst { it.id == categoryId }
+            val to = from + delta
+            if (from < 0 || to < 0 || to >= cats.size) return@updateCategories cats
+            val list = cats.toMutableList()
+            list.add(to, list.removeAt(from))
+            moved = true
+            list
+        }
+        return moved
     }
 
     // ----- 定型文 -----
 
     fun addTemplate(
+        kind: TemplateKind,
         categoryId: String,
         name: String,
         body: String,
@@ -75,8 +106,8 @@ class TemplateViewModel(app: Application) : AndroidViewModel(app) {
         subject: String = "",
     ) {
         if (name.isBlank()) return
-        update { store ->
-            store.copy(categories = store.categories.map { c ->
+        updateCategories(kind) { cats ->
+            cats.map { c ->
                 if (c.id == categoryId) {
                     c.copy(
                         templates = c.templates + Template(
@@ -87,11 +118,12 @@ class TemplateViewModel(app: Application) : AndroidViewModel(app) {
                         ),
                     )
                 } else c
-            })
+            }
         }
     }
 
     fun updateTemplate(
+        kind: TemplateKind,
         categoryId: String,
         templateId: String,
         name: String,
@@ -100,8 +132,8 @@ class TemplateViewModel(app: Application) : AndroidViewModel(app) {
         subject: String = "",
     ) {
         if (name.isBlank()) return
-        update { store ->
-            store.copy(categories = store.categories.map { c ->
+        updateCategories(kind) { cats ->
+            cats.map { c ->
                 if (c.id == categoryId) {
                     c.copy(templates = c.templates.map { t ->
                         if (t.id == templateId) {
@@ -114,38 +146,52 @@ class TemplateViewModel(app: Application) : AndroidViewModel(app) {
                         } else t
                     })
                 } else c
-            })
+            }
         }
     }
 
-    fun deleteTemplate(categoryId: String, templateId: String) {
-        update { store ->
-            store.copy(categories = store.categories.map { c ->
+    fun deleteTemplate(kind: TemplateKind, categoryId: String, templateId: String) {
+        updateCategories(kind) { cats ->
+            cats.map { c ->
                 if (c.id == categoryId) {
                     c.copy(templates = c.templates.filterNot { it.id == templateId })
                 } else c
-            })
+            }
         }
     }
 
-    /** 複数の定型文を1つに組み合わせるときに間へ差し込む共通の文言を更新する。 */
-    fun setCommonInsert(text: String) {
-        update { it.copy(commonInsert = text) }
+    /**
+     * フォルダ内で定型文を1つ前後に移動して並び替える。実際に動いたら true。
+     * 長押しドラッグでの並び替えから、1行ぶんまたぐたびに呼ばれる。
+     */
+    fun moveTemplate(
+        kind: TemplateKind,
+        categoryId: String,
+        templateId: String,
+        delta: Int,
+    ): Boolean {
+        var moved = false
+        updateCategories(kind) { cats ->
+            cats.map { c ->
+                if (c.id != categoryId) return@map c
+                val from = c.templates.indexOfFirst { it.id == templateId }
+                val to = from + delta
+                if (from < 0 || to < 0 || to >= c.templates.size) return@map c
+                val list = c.templates.toMutableList()
+                list.add(to, list.removeAt(from))
+                moved = true
+                c.copy(templates = list)
+            }
+        }
+        return moved
     }
 
-    /** フォルダ内で定型文を1つ前後に移動して並び替える。 */
-    fun moveTemplate(categoryId: String, templateId: String, delta: Int) {
-        update { store ->
-            store.copy(categories = store.categories.map { c ->
-                if (c.id != categoryId) return@map c
-                val fromIndex = c.templates.indexOfFirst { it.id == templateId }
-                val toIndex = fromIndex + delta
-                if (fromIndex < 0 || toIndex < 0 || toIndex >= c.templates.size) return@map c
-                val reordered = c.templates.toMutableList()
-                val moved = reordered.removeAt(fromIndex)
-                reordered.add(toIndex, moved)
-                c.copy(templates = reordered)
-            })
+    // ----- 共通項目 -----
+
+    /** 複数の定型文をまとめるときに間へ差し込む共通の文言を更新する。 */
+    fun setCommonInsert(kind: TemplateKind, text: String) {
+        update { s ->
+            if (kind == TemplateKind.MAIL) s.copy(mailCommonInsert = text) else s.copy(commonInsert = text)
         }
     }
 

@@ -98,37 +98,37 @@ import kotlinx.coroutines.launch
 import java.io.OutputStreamWriter
 
 // ---------------------------------------------------------------------------
-// ブランドカラー：新しいアイコン（フェニックス・サンズ配色）に合わせた
-//   ディープパープル × サンオレンジ。
-// TemplateScreens.kt からも参照するため private にしない。
+// ブランドカラー：ブルー＋オレンジの2色を基調にする。
+// 定型文／メール／音声入力ですべて同じ配色を使い、タブごとに色は変えない。
+// TemplateScreens.kt / TemplateSettings.kt からも参照するため private にしない。
 // ---------------------------------------------------------------------------
-internal val BrandBlue = Color(0xFF35107A)       // ディープパープル（アイコン背景）
-internal val BrandBlueDeep = Color(0xFF230A56)   // さらに濃いパープル
-internal val BrandCyan = Color(0xFFFFC940)       // ライトゴールド（差し色・強調）
-internal val BrandMagenta = Color(0xFFE0862A)    // サンオレンジ寄りの赤み（メール用グラデ始点）
-internal val BrandRed = Color(0xFFFF9E1F)        // サンオレンジ（メール送信のアクセント）
-internal val BrandRedDeep = Color(0xFFE07A00)    // ディープオレンジ
+internal val BrandBlue = Color(0xFF1B72E8)       // メインのブルー
+internal val BrandBlueDeep = Color(0xFF0B3FA8)   // 濃いブルー（見出し・文字）
+internal val BrandBlueBright = Color(0xFF3D9BFF) // 明るいブルー（録音中などの強調）
+internal val BrandOrange = Color(0xFFFF9E1F)     // アクセントのオレンジ
+internal val BrandOrangeDeep = Color(0xFFE07600) // 濃いオレンジ（文字・アイコン）
 
 internal val BlueGradient = Brush.horizontalGradient(listOf(BrandBlue, BrandBlueDeep))
-internal val MailGradient = Brush.horizontalGradient(listOf(BrandMagenta, BrandRed))
+internal val OrangeGradient = Brush.horizontalGradient(listOf(BrandOrange, BrandOrangeDeep))
 
-// 音声ボタン：ブランドのパープル×オレンジでまとめつつ、ボタンごとにはっきり区別する。
-private val HoldButtonColor = Color(0xFF3A1680)        // 押す＝ディープパープル
-private val HoldTextColor = Color(0xFFFFC940)          //   文字＝サンオレンジのゴールド（はっきり）
-private val ContinuousButtonColor = Color(0xFF7A3D0A)  // 連続＝ディープオレンジブラウン
-private val ContinuousTextColor = Color(0xFFFFD98F)    //   文字＝ライトゴールド（はっきり）
-private val StopButtonColor = Color(0xFFFF9E1F)        // 録音中／停止＝サンオレンジ（目立つ）
-private val StopTextColor = Color(0xFF2A0A5E)          //   文字＝ディープパープル
+// 音声ボタン：同じブルー＋オレンジの中で、押している間＝ブルー／連続＝オレンジに分ける。
+private val HoldButtonColor = Color(0xFF14479E)        // 押す＝ディープブルー
+private val HoldTextColor = Color(0xFFFFFFFF)          //   文字＝ホワイト
+private val HoldActiveColor = BrandBlueBright          // 録音中＝明るいブルー
+private val ContinuousButtonColor = Color(0xFFD97A00)  // 連続＝ディープオレンジ
+private val ContinuousTextColor = Color(0xFFFFFFFF)    //   文字＝ホワイト
+private val ContinuousActiveColor = Color(0xFFFFB020)  // 連続中＝明るいオレンジ
+private val ActiveTextColor = Color(0xFF0A2A5E)        // 明るい地のときの文字＝濃紺
 
 // 文字起こし吹き出しの優しいパステル配色（ライト/ダークで切替え・文字は読みやすく）
-private val HoldBubbleBgLight = Color(0xFFEAE0FA)
-private val HoldBubbleFgLight = Color(0xFF3A1680)
-private val HoldBubbleBgDark = Color(0xFF3A2668)
-private val HoldBubbleFgDark = Color(0xFFE8DFFF)
-private val ContBubbleBgLight = Color(0xFFFFEAD1)
-private val ContBubbleFgLight = Color(0xFF8A4A0C)
-private val ContBubbleBgDark = Color(0xFF4E3113)
-private val ContBubbleFgDark = Color(0xFFFFDFAE)
+private val HoldBubbleBgLight = Color(0xFFDDEAFD)
+private val HoldBubbleFgLight = Color(0xFF0E3B8C)
+private val HoldBubbleBgDark = Color(0xFF16305C)
+private val HoldBubbleFgDark = Color(0xFFD6E5FF)
+private val ContBubbleBgLight = Color(0xFFFFEBD2)
+private val ContBubbleFgLight = Color(0xFF8A4B00)
+private val ContBubbleBgDark = Color(0xFF4A3110)
+private val ContBubbleFgDark = Color(0xFFFFE0B5)
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -149,16 +149,16 @@ class MainActivity : ComponentActivity() {
  */
 private enum class AppScreen { TEMPLATES, MAIL, VOICE, SETTINGS }
 
-/** タブごとのアクセント色。定型文・音声入力は青、メールは赤（アイコンの配色に合わせる）。 */
-private fun accentOf(screen: AppScreen): Color =
-    if (screen == AppScreen.MAIL) BrandRed else BrandBlue
-
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun AppRoot() {
     val snackbarHostState = remember { SnackbarHostState() }
     // 定型文をデフォルト表示にする
     var screen by remember { mutableStateOf(AppScreen.TEMPLATES) }
+    // 設定画面で開く対象（定型文 / メール）。開いたタブに合わせて切り替わる。
+    var settingsKind by remember { mutableStateOf(TemplateKind.COPY) }
+    // 設定から戻るときの戻り先
+    var settingsBack by remember { mutableStateOf(AppScreen.TEMPLATES) }
 
     Scaffold(
         containerColor = MaterialTheme.colorScheme.background,
@@ -166,7 +166,7 @@ private fun AppRoot() {
             CenterAlignedTopAppBar(
                 navigationIcon = {
                     if (screen == AppScreen.SETTINGS) {
-                        IconButton(onClick = { screen = AppScreen.TEMPLATES }) {
+                        IconButton(onClick = { screen = settingsBack }) {
                             Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "戻る")
                         }
                     } else {
@@ -177,11 +177,18 @@ private fun AppRoot() {
                 title = { BrandTitle(showSubtitle = screen == AppScreen.SETTINGS) },
                 actions = {
                     if (screen != AppScreen.SETTINGS) {
-                        IconButton(onClick = { screen = AppScreen.SETTINGS }) {
+                        IconButton(
+                            onClick = {
+                                settingsKind =
+                                    if (screen == AppScreen.MAIL) TemplateKind.MAIL else TemplateKind.COPY
+                                settingsBack = screen
+                                screen = AppScreen.SETTINGS
+                            },
+                        ) {
                             Icon(
                                 Icons.Filled.Settings,
                                 contentDescription = "設定",
-                                tint = accentOf(screen),
+                                tint = BrandBlueDeep,
                             )
                         }
                     }
@@ -201,32 +208,32 @@ private fun AppRoot() {
                             .height(3.dp)
                             .background(
                                 Brush.horizontalGradient(
-                                    listOf(BrandBlue, BrandBlueDeep, BrandMagenta, BrandRed),
+                                    listOf(BrandBlue, BrandBlueDeep, BrandOrangeDeep, BrandOrange),
                                 ),
                             ),
                     )
                     NavigationBar(containerColor = MaterialTheme.colorScheme.surface) {
-                        // 定型文を左（既定）、メール送信、音声入力の順に配置
+                        // 定型文を左（既定）、メール送信、音声入力の順に配置（配色は共通）
                         NavigationBarItem(
                             selected = screen == AppScreen.TEMPLATES,
                             onClick = { screen = AppScreen.TEMPLATES },
                             icon = { Icon(Icons.Filled.ContentCopy, contentDescription = null) },
                             label = { Text("定型文") },
-                            colors = accentNavColors(BrandBlue),
+                            colors = accentNavColors(),
                         )
                         NavigationBarItem(
                             selected = screen == AppScreen.MAIL,
                             onClick = { screen = AppScreen.MAIL },
                             icon = { Icon(Icons.Filled.Email, contentDescription = null) },
                             label = { Text("メール") },
-                            colors = accentNavColors(BrandRed),
+                            colors = accentNavColors(),
                         )
                         NavigationBarItem(
                             selected = screen == AppScreen.VOICE,
                             onClick = { screen = AppScreen.VOICE },
                             icon = { Icon(Icons.Filled.Mic, contentDescription = null) },
                             label = { Text("音声入力") },
-                            colors = accentNavColors(BrandBlue),
+                            colors = accentNavColors(),
                         )
                     }
                 }
@@ -238,17 +245,21 @@ private fun AppRoot() {
             AppScreen.TEMPLATES -> TemplatesPane(innerPadding, snackbarHostState)
             AppScreen.MAIL -> MailPane(innerPadding, snackbarHostState)
             AppScreen.VOICE -> VoicePane(innerPadding, snackbarHostState)
-            AppScreen.SETTINGS -> TemplateSettingsPane(innerPadding)
+            AppScreen.SETTINGS -> TemplateSettingsPane(
+                innerPadding = innerPadding,
+                kind = settingsKind,
+                onKindChange = { settingsKind = it },
+            )
         }
     }
 }
 
 @Composable
-private fun accentNavColors(accent: Color) =
+private fun accentNavColors() =
     androidx.compose.material3.NavigationBarItemDefaults.colors(
         selectedIconColor = Color.White,
-        indicatorColor = accent,
-        selectedTextColor = accent,
+        indicatorColor = BrandBlue,
+        selectedTextColor = BrandBlueDeep,
         unselectedIconColor = MaterialTheme.colorScheme.onSurfaceVariant,
         unselectedTextColor = MaterialTheme.colorScheme.onSurfaceVariant,
     )
@@ -277,7 +288,7 @@ private fun BrandTitle(showSubtitle: Boolean = false) {
                 buildAnnotatedString {
                     withStyle(SpanStyle(color = nameColor)) { append("Voice") }
                     withStyle(SpanStyle(color = BrandBlueDeep)) { append(" & Copy") }
-                    withStyle(SpanStyle(color = BrandRed)) { append(" Paste") }
+                    withStyle(SpanStyle(color = BrandOrangeDeep)) { append(" Paste") }
                 },
                 fontWeight = FontWeight.SemiBold,
                 fontSize = 18.sp,
@@ -678,11 +689,11 @@ private fun TranscriptBubble(text: String, mode: Mode, alpha: Float) {
 private fun StatusBanner(state: TranscriptionState) {
     val (label, color) = when {
         state.isListening && state.mode == Mode.CONTINUOUS ->
-            "● 連続文字起こし中…" to MaterialTheme.colorScheme.secondary
+            "● 連続文字起こし中…" to BrandOrangeDeep
         state.isListening && state.mode == Mode.HOLD ->
             "● 録音中（ボタンを離すと停止）" to BrandBlueDeep
         state.mode == Mode.CONTINUOUS ->
-            "連続モード起動中…" to MaterialTheme.colorScheme.secondary
+            "連続モード起動中…" to BrandOrangeDeep
         else -> "待機中" to MaterialTheme.colorScheme.onSurfaceVariant
     }
     Row(verticalAlignment = Alignment.CenterVertically) {
@@ -690,7 +701,7 @@ private fun StatusBanner(state: TranscriptionState) {
             modifier = Modifier
                 .size(width = 4.dp, height = 16.dp)
                 .clip(RoundedCornerShape(2.dp))
-                .background(if (state.isListening) BrandCyan else color.copy(alpha = 0.4f)),
+                .background(if (state.isListening) BrandOrange else color.copy(alpha = 0.4f)),
         )
         Spacer(Modifier.width(8.dp))
         Text(label, color = color, fontWeight = FontWeight.Bold, fontSize = 16.sp)
@@ -707,9 +718,10 @@ private fun ModeButtons(
 ) {
     val continuousActive = state.mode == Mode.CONTINUOUS
     val holdInteractive = enabled && state.mode != Mode.CONTINUOUS
-    val holdColor = if (state.mode == Mode.HOLD) StopButtonColor else HoldButtonColor
-    val holdTextColor = if (state.mode == Mode.HOLD) StopTextColor else HoldTextColor
-    val continuousTextColor = if (continuousActive) StopTextColor else ContinuousTextColor
+    val holdActive = state.mode == Mode.HOLD
+    val holdColor = if (holdActive) HoldActiveColor else HoldButtonColor
+    val holdTextColor = if (holdActive) ActiveTextColor else HoldTextColor
+    val continuousTextColor = if (continuousActive) ActiveTextColor else ContinuousTextColor
 
     // 左右に並べる：左＝押している間だけ / 右＝連続
     Row(
@@ -765,7 +777,7 @@ private fun ModeButtons(
                 .weight(1f)
                 .height(104.dp),
             colors = ButtonDefaults.buttonColors(
-                containerColor = if (continuousActive) StopButtonColor else ContinuousButtonColor,
+                containerColor = if (continuousActive) ContinuousActiveColor else ContinuousButtonColor,
                 contentColor = continuousTextColor,
             ),
         ) {
