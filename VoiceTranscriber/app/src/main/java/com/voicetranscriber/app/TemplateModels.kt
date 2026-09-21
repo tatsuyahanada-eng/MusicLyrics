@@ -4,17 +4,24 @@ import kotlinx.serialization.Serializable
 import java.util.UUID
 
 /**
- * 定型文（コピペ用テンプレート）のデータモデル。
+ * 定型文（コピペ／メール送信用テンプレート）のデータモデル。
  *
- * 本文 [body] には差し込み用のトークンを埋め込む:
+ * 本文 [body]・件名 [subject] には差し込み用のトークンを埋め込む:
  *   {日付} {時間1} {時間2} {氏名}
- * 使用時にこれらを実際の値へ置き換えてコピーする。
+ * 使用時にこれらを実際の値へ置き換えて、コピーまたはメール送信する。
+ *
+ * [email] [subject] は後から追加したフィールドなので既定値を持たせてある。
+ * 既存の保存データ（これらを含まない JSON）もそのまま読み込める。
  */
 @Serializable
 data class Template(
     val id: String = UUID.randomUUID().toString(),
     val name: String,
     val body: String,
+    /** メール送信タブで使う既定の宛先。空なら送信時に手入力する。 */
+    val email: String = "",
+    /** メール送信タブで使う既定の件名。トークンの差し込みに対応。 */
+    val subject: String = "",
 )
 
 /** フォルダ（メイン項目）。中に複数の定型文を持つ。 */
@@ -38,11 +45,11 @@ object TemplateTokens {
     const val NAME = "{氏名}"
     val all = listOf(DATE, TIME1, TIME2, NAME)
 
-    /** 本文にそのトークンが含まれているか。 */
+    /** そのテキストにトークンが含まれているか。 */
     fun contains(body: String, token: String): Boolean = body.contains(token)
 }
 
-/** 本文のトークンを実際の値で置き換える。 */
+/** 本文・件名のトークンを実際の値で置き換える。 */
 fun fillTemplate(
     body: String,
     date: String,
@@ -54,6 +61,10 @@ fun fillTemplate(
     .replace(TemplateTokens.TIME1, time1)
     .replace(TemplateTokens.TIME2, time2)
     .replace(TemplateTokens.NAME, name)
+
+/** 本文と件名を合わせて、そのトークンが使われているか判定する。 */
+fun Template.usesToken(token: String): Boolean =
+    TemplateTokens.contains(body, token) || TemplateTokens.contains(subject, token)
 
 /** 初回起動時の状態。サンプルは入れず空のフォルダ一覧から始める。 */
 fun defaultTemplateStore(): TemplateStore = TemplateStore(categories = emptyList())

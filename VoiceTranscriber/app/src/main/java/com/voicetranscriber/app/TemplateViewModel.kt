@@ -67,24 +67,51 @@ class TemplateViewModel(app: Application) : AndroidViewModel(app) {
 
     // ----- 定型文 -----
 
-    fun addTemplate(categoryId: String, name: String, body: String) {
+    fun addTemplate(
+        categoryId: String,
+        name: String,
+        body: String,
+        email: String = "",
+        subject: String = "",
+    ) {
         if (name.isBlank()) return
         update { store ->
             store.copy(categories = store.categories.map { c ->
                 if (c.id == categoryId) {
-                    c.copy(templates = c.templates + Template(name = name.trim(), body = body))
+                    c.copy(
+                        templates = c.templates + Template(
+                            name = name.trim(),
+                            body = body,
+                            email = email.trim(),
+                            subject = subject.trim(),
+                        ),
+                    )
                 } else c
             })
         }
     }
 
-    fun updateTemplate(categoryId: String, templateId: String, name: String, body: String) {
+    fun updateTemplate(
+        categoryId: String,
+        templateId: String,
+        name: String,
+        body: String,
+        email: String = "",
+        subject: String = "",
+    ) {
         if (name.isBlank()) return
         update { store ->
             store.copy(categories = store.categories.map { c ->
                 if (c.id == categoryId) {
                     c.copy(templates = c.templates.map { t ->
-                        if (t.id == templateId) t.copy(name = name.trim(), body = body) else t
+                        if (t.id == templateId) {
+                            t.copy(
+                                name = name.trim(),
+                                body = body,
+                                email = email.trim(),
+                                subject = subject.trim(),
+                            )
+                        } else t
                     })
                 } else c
             })

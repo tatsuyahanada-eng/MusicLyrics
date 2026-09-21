@@ -6,10 +6,15 @@
     <!-- アプリ内アップデート（ダウンロードした APK のインストール）に必要 -->
     <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
 
-    <!-- Needed on Android 11+ so the app can resolve the system speech service. -->
+    <!-- Needed on Android 11+ so the app can resolve the system speech service
+         and the installed mail apps (メール送信タブ). -->
     <queries>
         <intent>
             <action android:name="android.speech.RecognitionService" />
+        </intent>
+        <intent>
+            <action android:name="android.intent.action.SENDTO" />
+            <data android:scheme="mailto" />
         </intent>
     </queries>
 

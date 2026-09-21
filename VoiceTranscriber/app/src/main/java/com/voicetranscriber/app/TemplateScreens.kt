@@ -1,8 +1,11 @@
 package com.voicetranscriber.app
 
+import android.content.ActivityNotFoundException
 import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Context
+import android.content.Intent
+import android.net.Uri
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -22,7 +25,9 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.Send
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.AlternateEmail
 import androidx.compose.material.icons.filled.ArrowDropDown
 import androidx.compose.material.icons.filled.ArrowDropUp
 import androidx.compose.material.icons.filled.CheckCircle
@@ -50,6 +55,7 @@ import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -58,6 +64,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
@@ -75,14 +82,34 @@ import java.util.Locale
 
 // ---------------------------------------------------------------------------
 // 定型文：使用画面
-// フォルダ（開閉リスト）→ 中の定型文を選ぶ → 差し込み項目を入力 → コピー
+// フォルダ（開閉リスト）→ 中の定型文を選ぶ → 差し込み項目を入力 →
+//   コピー（定型文タブ） / メール送信（メールタブ）
+// 2つのタブは同じ流れなので、仕上げの動作だけを [TemplateAction] で切り替える。
 // ---------------------------------------------------------------------------
+
+/** 定型文を組み立てたあとに何をするか。 */
+enum class TemplateAction { COPY, MAIL }
 
 @Composable
 fun TemplatesPane(
     innerPadding: PaddingValues,
     snackbarHostState: SnackbarHostState,
     viewModel: TemplateViewModel = viewModel(),
+) = TemplateWorkPane(innerPadding, snackbarHostState, TemplateAction.COPY, viewModel)
+
+@Composable
+fun MailPane(
+    innerPadding: PaddingValues,
+    snackbarHostState: SnackbarHostState,
+    viewModel: TemplateViewModel = viewModel(),
+) = TemplateWorkPane(innerPadding, snackbarHostState, TemplateAction.MAIL, viewModel)
+
+@Composable
+private fun TemplateWorkPane(
+    innerPadding: PaddingValues,
+    snackbarHostState: SnackbarHostState,
+    action: TemplateAction,
+    viewModel: TemplateViewModel,
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
@@ -94,29 +121,49 @@ fun TemplatesPane(
     var time1 by remember { mutableStateOf("") }
     var time2 by remember { mutableStateOf("") }
     var name by remember { mutableStateOf("") }
+    // メールタブ専用：宛先と件名は定型文の既定値を初期値にして、その場で直せる
+    var mailTo by remember { mutableStateOf("") }
+    var mailSubject by remember { mutableStateOf("") }
 
     val selectedTemplate = store.categories
         .flatMap { it.templates }
         .firstOrNull { it.id == selectedTemplateId }
 
+    // 定型文を選び直したら、宛先・件名をその定型文の既定値に戻す
+    LaunchedEffect(selectedTemplateId) {
+        mailTo = selectedTemplate?.email.orEmpty()
+        mailSubject = selectedTemplate?.subject.orEmpty()
+    }
+
+    val accent = if (action == TemplateAction.MAIL) BrandRed else BrandBlue
+    val accentDeep = if (action == TemplateAction.MAIL) BrandRedDeep else BrandBlueDeep
+    val actionGradient = if (action == TemplateAction.MAIL) MailGradient else BlueGradient
+
     Column(
         modifier = Modifier
             .fillMaxSize()
+            .background(surfaceWashBrush(accent))
             .padding(innerPadding)
             .verticalScroll(rememberScrollState())
             .padding(horizontal = 16.dp, vertical = 12.dp),
     ) {
+        HeroHeader(
+            title = if (action == TemplateAction.MAIL) "メール送信" else "定型文コピー",
+            subtitle = if (action == TemplateAction.MAIL) {
+                "定型文から宛先・件名・本文を組み立てて送信します"
+            } else {
+                "フォルダから選んで、差し込み項目を入れてコピー"
+            },
+            gradient = actionGradient,
+        )
+        Spacer(Modifier.height(16.dp))
+
         if (store.categories.isEmpty()) {
             EmptyFoldersHint()
             return@Column
         }
 
-        Text(
-            "フォルダ",
-            fontWeight = FontWeight.Bold,
-            style = MaterialTheme.typography.titleSmall,
-            color = MaterialTheme.colorScheme.onSurface,
-        )
+        SectionLabel("フォルダ", accentDeep)
         Spacer(Modifier.height(8.dp))
 
         store.categories.forEach { folder ->
@@ -130,26 +177,26 @@ fun TemplatesPane(
                 },
                 selectedTemplateId = selectedTemplateId,
                 onSelectTemplate = { selectedTemplateId = it },
+                accent = accent,
+                accentDeep = accentDeep,
+                gradient = actionGradient,
             )
             Spacer(Modifier.height(10.dp))
         }
 
-        // 差し込みフィールド＋プレビュー＋コピー
+        // 差し込みフィールド＋プレビュー＋実行ボタン
         if (selectedTemplate != null) {
             Spacer(Modifier.height(8.dp))
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .clip(RoundedCornerShape(18.dp))
+                    .clip(RoundedCornerShape(20.dp))
                     .background(
                         Brush.verticalGradient(
-                            listOf(
-                                AccentBlue.copy(alpha = 0.10f),
-                                AccentBlue.copy(alpha = 0.02f),
-                            ),
+                            listOf(accent.copy(alpha = 0.12f), accent.copy(alpha = 0.02f)),
                         ),
                     )
-                    .border(1.dp, AccentBlue.copy(alpha = 0.35f), RoundedCornerShape(18.dp))
+                    .border(1.dp, accent.copy(alpha = 0.35f), RoundedCornerShape(20.dp))
                     .padding(14.dp),
             ) {
                 Column {
@@ -157,75 +204,124 @@ fun TemplatesPane(
                         selectedTemplate.name,
                         fontWeight = FontWeight.Bold,
                         fontSize = 15.sp,
-                        color = AccentBlueDeep,
+                        color = accentDeep,
                     )
                     Spacer(Modifier.height(10.dp))
 
-                    val body = selectedTemplate.body
-                    if (TemplateTokens.contains(body, TemplateTokens.DATE)) {
-                        DropdownField("日付", dateOptions(), date) { date = it }
+                    if (selectedTemplate.usesToken(TemplateTokens.DATE)) {
+                        DropdownField("日付", dateOptions(), date, accent, accentDeep) { date = it }
                         Spacer(Modifier.height(10.dp))
                     }
-                    if (TemplateTokens.contains(body, TemplateTokens.TIME1)) {
-                        DropdownField("時間1", timeOptions(), time1) { time1 = it }
+                    if (selectedTemplate.usesToken(TemplateTokens.TIME1)) {
+                        DropdownField("時間1", timeOptions(), time1, accent, accentDeep) { time1 = it }
                         Spacer(Modifier.height(10.dp))
                     }
-                    if (TemplateTokens.contains(body, TemplateTokens.TIME2)) {
-                        DropdownField("時間2", timeOptions(), time2) { time2 = it }
+                    if (selectedTemplate.usesToken(TemplateTokens.TIME2)) {
+                        DropdownField("時間2", timeOptions(), time2, accent, accentDeep) { time2 = it }
                         Spacer(Modifier.height(10.dp))
                     }
-                    if (TemplateTokens.contains(body, TemplateTokens.NAME)) {
+                    if (selectedTemplate.usesToken(TemplateTokens.NAME)) {
                         OutlinedTextField(
                             value = name,
                             onValueChange = { name = it },
                             label = { Text("氏名") },
                             singleLine = true,
                             modifier = Modifier.fillMaxWidth(),
-                            colors = accentTextFieldColors(),
+                            colors = accentTextFieldColors(accentDeep),
                         )
                         Spacer(Modifier.height(10.dp))
                     }
 
-                    val filled = fillTemplate(body, date, time1, time2, name)
-                    Text(
-                        "プレビュー",
-                        fontWeight = FontWeight.Bold,
-                        style = MaterialTheme.typography.titleSmall,
-                    )
+                    val filledBody = fillTemplate(selectedTemplate.body, date, time1, time2, name)
+                    val filledSubject = fillTemplate(mailSubject, date, time1, time2, name)
+
+                    if (action == TemplateAction.MAIL) {
+                        OutlinedTextField(
+                            value = mailTo,
+                            onValueChange = { mailTo = it },
+                            label = { Text("宛先メールアドレス") },
+                            singleLine = true,
+                            modifier = Modifier.fillMaxWidth(),
+                            colors = accentTextFieldColors(accentDeep),
+                        )
+                        Spacer(Modifier.height(10.dp))
+                        OutlinedTextField(
+                            value = mailSubject,
+                            onValueChange = { mailSubject = it },
+                            label = { Text("件名") },
+                            singleLine = true,
+                            modifier = Modifier.fillMaxWidth(),
+                            colors = accentTextFieldColors(accentDeep),
+                        )
+                        Spacer(Modifier.height(10.dp))
+                    }
+
+                    SectionLabel("プレビュー", accentDeep)
                     Spacer(Modifier.height(6.dp))
                     Card(
                         modifier = Modifier.fillMaxWidth(),
-                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                        shape = RoundedCornerShape(14.dp),
+                        colors = CardDefaults.cardColors(
+                            containerColor = MaterialTheme.colorScheme.surface,
+                        ),
                     ) {
-                        Text(
-                            filled,
-                            modifier = Modifier.padding(14.dp),
-                            fontSize = 18.sp,
-                            lineHeight = 26.sp,
-                        )
+                        Column(modifier = Modifier.padding(14.dp)) {
+                            if (action == TemplateAction.MAIL && filledSubject.isNotBlank()) {
+                                Text(
+                                    filledSubject,
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 16.sp,
+                                    color = accentDeep,
+                                )
+                                Spacer(Modifier.height(8.dp))
+                            }
+                            Text(filledBody, fontSize = 18.sp, lineHeight = 26.sp)
+                        }
                     }
                     Spacer(Modifier.height(14.dp))
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.Center,
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(52.dp)
-                            .clip(RoundedCornerShape(50))
-                            .background(Brush.horizontalGradient(listOf(AccentBlue, AccentBlueDeep)))
-                            .clickable {
-                                copyText(context, filled)
-                                scope.launch { snackbarHostState.showSnackbar("コピーしました") }
+
+                    if (action == TemplateAction.MAIL) {
+                        GradientActionButton(
+                            text = "メールを作成して送信",
+                            icon = Icons.AutoMirrored.Filled.Send,
+                            gradient = actionGradient,
+                            enabled = mailTo.isNotBlank(),
+                        ) {
+                            val ok = sendMail(context, mailTo, filledSubject, filledBody)
+                            scope.launch {
+                                snackbarHostState.showSnackbar(
+                                    if (ok) "メールアプリを開きました" else "メールアプリが見つかりません",
+                                )
+                            }
+                        }
+                        Spacer(Modifier.height(8.dp))
+                        OutlinedButton(
+                            onClick = {
+                                copyText(context, filledBody)
+                                scope.launch { snackbarHostState.showSnackbar("本文をコピーしました") }
                             },
-                    ) {
-                        Icon(
-                            Icons.Filled.ContentCopy,
-                            contentDescription = null,
-                            tint = Color.White,
-                            modifier = Modifier.width(20.dp),
-                        )
-                        Spacer(Modifier.width(8.dp))
-                        Text("コピー", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 16.sp)
+                            shape = RoundedCornerShape(50),
+                            modifier = Modifier.fillMaxWidth(),
+                            colors = ButtonDefaults.outlinedButtonColors(contentColor = accentDeep),
+                        ) {
+                            Icon(
+                                Icons.Filled.ContentCopy,
+                                contentDescription = null,
+                                modifier = Modifier.size(18.dp),
+                            )
+                            Spacer(Modifier.width(6.dp))
+                            Text("本文だけコピー")
+                        }
+                    } else {
+                        GradientActionButton(
+                            text = "コピー",
+                            icon = Icons.Filled.ContentCopy,
+                            gradient = actionGradient,
+                            enabled = true,
+                        ) {
+                            copyText(context, filledBody)
+                            scope.launch { snackbarHostState.showSnackbar("コピーしました") }
+                        }
                     }
                 }
             }
@@ -235,16 +331,82 @@ fun TemplatesPane(
     }
 }
 
+/** 画面上部のグラデーション見出し。全体がのっぺりしないようにアクセントを置く。 */
+@Composable
+private fun HeroHeader(title: String, subtitle: String, gradient: Brush) {
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(20.dp))
+            .background(gradient)
+            .padding(horizontal = 18.dp, vertical = 16.dp),
+    ) {
+        Column {
+            Text(title, color = Color.White, fontWeight = FontWeight.Bold, fontSize = 19.sp)
+            Spacer(Modifier.height(4.dp))
+            Text(
+                subtitle,
+                color = Color.White.copy(alpha = 0.85f),
+                fontSize = 13.sp,
+                lineHeight = 18.sp,
+            )
+        }
+    }
+}
+
+@Composable
+private fun SectionLabel(text: String, color: Color) {
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        Box(
+            modifier = Modifier
+                .size(width = 4.dp, height = 16.dp)
+                .clip(RoundedCornerShape(2.dp))
+                .background(color),
+        )
+        Spacer(Modifier.width(8.dp))
+        Text(text, fontWeight = FontWeight.Bold, style = MaterialTheme.typography.titleSmall)
+    }
+}
+
+@Composable
+private fun GradientActionButton(
+    text: String,
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    gradient: Brush,
+    enabled: Boolean,
+    onClick: () -> Unit,
+) {
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.Center,
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(52.dp)
+            .clip(RoundedCornerShape(50))
+            .background(gradient)
+            .then(if (enabled) Modifier.clickable { onClick() } else Modifier)
+            .then(
+                if (enabled) Modifier
+                else Modifier.background(MaterialTheme.colorScheme.onSurface.copy(alpha = 0.35f)),
+            ),
+    ) {
+        Icon(icon, contentDescription = null, tint = Color.White, modifier = Modifier.size(20.dp))
+        Spacer(Modifier.width(8.dp))
+        Text(text, color = Color.White, fontWeight = FontWeight.Bold, fontSize = 16.sp)
+    }
+}
+
 @Composable
 private fun EmptyFoldersHint() {
     Column(
         modifier = Modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(16.dp))
-            .background(AccentBlue.copy(alpha = 0.08f))
+            .background(BrandBlue.copy(alpha = 0.08f))
+            .border(1.dp, BrandBlue.copy(alpha = 0.25f), RoundedCornerShape(16.dp))
             .padding(20.dp),
     ) {
-        Icon(Icons.Filled.Folder, contentDescription = null, tint = AccentBlueDeep)
+        Icon(Icons.Filled.Folder, contentDescription = null, tint = BrandBlueDeep)
         Spacer(Modifier.height(8.dp))
         Text(
             "フォルダがまだありません。\n右上の設定（⚙）からフォルダと定型文を追加してください。",
@@ -263,10 +425,14 @@ private fun FolderCard(
     onToggle: () -> Unit,
     selectedTemplateId: String?,
     onSelectTemplate: (String) -> Unit,
+    accent: Color,
+    accentDeep: Color,
+    gradient: Brush,
 ) {
     Card(
         modifier = Modifier.fillMaxWidth(),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
         shape = RoundedCornerShape(16.dp),
     ) {
         Column {
@@ -281,10 +447,15 @@ private fun FolderCard(
                     contentAlignment = Alignment.Center,
                     modifier = Modifier
                         .size(34.dp)
-                        .clip(RoundedCornerShape(10.dp))
-                        .background(Brush.linearGradient(listOf(AccentBlue, AccentBlueDeep))),
+                        .clip(RoundedCornerShape(11.dp))
+                        .background(gradient),
                 ) {
-                    Icon(Icons.Filled.Folder, contentDescription = null, tint = Color.White, modifier = Modifier.width(18.dp))
+                    Icon(
+                        Icons.Filled.Folder,
+                        contentDescription = null,
+                        tint = Color.White,
+                        modifier = Modifier.size(18.dp),
+                    )
                 }
                 Spacer(Modifier.width(10.dp))
                 Column(modifier = Modifier.weight(1f)) {
@@ -298,7 +469,7 @@ private fun FolderCard(
                 Icon(
                     if (expanded) Icons.Filled.ExpandLess else Icons.Filled.ExpandMore,
                     contentDescription = null,
-                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                    tint = accentDeep,
                 )
             }
 
@@ -319,7 +490,7 @@ private fun FolderCard(
                                     .fillMaxWidth()
                                     .clip(RoundedCornerShape(10.dp))
                                     .background(
-                                        if (isSel) AccentBlue.copy(alpha = 0.14f) else Color.Transparent,
+                                        if (isSel) accent.copy(alpha = 0.14f) else Color.Transparent,
                                     )
                                     .clickable { onSelectTemplate(t.id) }
                                     .padding(horizontal = 10.dp, vertical = 10.dp),
@@ -328,15 +499,24 @@ private fun FolderCard(
                                 Icon(
                                     if (isSel) Icons.Filled.CheckCircle else Icons.Filled.RadioButtonUnchecked,
                                     contentDescription = null,
-                                    tint = if (isSel) AccentBlueDeep else MaterialTheme.colorScheme.onSurfaceVariant,
-                                    modifier = Modifier.width(20.dp),
+                                    tint = if (isSel) accentDeep else MaterialTheme.colorScheme.onSurfaceVariant,
+                                    modifier = Modifier.size(20.dp),
                                 )
                                 Spacer(Modifier.width(10.dp))
                                 Text(
                                     t.name,
+                                    modifier = Modifier.weight(1f),
                                     fontWeight = if (isSel) FontWeight.Bold else FontWeight.Normal,
-                                    color = if (isSel) AccentBlueDeep else MaterialTheme.colorScheme.onSurface,
+                                    color = if (isSel) accentDeep else MaterialTheme.colorScheme.onSurface,
                                 )
+                                if (t.email.isNotBlank()) {
+                                    Icon(
+                                        Icons.Filled.AlternateEmail,
+                                        contentDescription = "メール宛先あり",
+                                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        modifier = Modifier.size(16.dp),
+                                    )
+                                }
                             }
                         }
                     }
@@ -365,12 +545,21 @@ fun TemplateSettingsPane(
     Column(
         modifier = Modifier
             .fillMaxSize()
+            .background(surfaceWashBrush(BrandBlue))
             .padding(innerPadding)
             .verticalScroll(rememberScrollState())
             .padding(16.dp),
     ) {
+        HeroHeader(
+            title = "定型文の設定",
+            subtitle = "フォルダごとに定型文・宛先・件名を登録できます",
+            gradient = BlueGradient,
+        )
+        Spacer(Modifier.height(14.dp))
+
         Text(
-            "フォルダごとに複数の定型文を登録できます。\n本文には {日付}{時間1}{時間2}{氏名} を挿入してください。",
+            "本文と件名には {日付}{時間1}{時間2}{氏名} を挿入できます。\n" +
+                "宛先メールアドレスを登録しておくと、メールタブからそのまま送信できます。",
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             fontSize = 13.sp,
             lineHeight = 19.sp,
@@ -385,7 +574,7 @@ fun TemplateSettingsPane(
                 label = { Text("新しいフォルダ名") },
                 singleLine = true,
                 modifier = Modifier.weight(1f),
-                colors = accentTextFieldColors(),
+                colors = accentTextFieldColors(BrandBlueDeep),
             )
             Spacer(Modifier.width(8.dp))
             Button(
@@ -394,9 +583,10 @@ fun TemplateSettingsPane(
                     newCategory = ""
                 },
                 enabled = newCategory.isNotBlank(),
-                colors = ButtonDefaults.buttonColors(containerColor = AccentBlueDeep),
+                shape = RoundedCornerShape(14.dp),
+                colors = ButtonDefaults.buttonColors(containerColor = BrandBlueDeep),
             ) {
-                Icon(Icons.Filled.Add, contentDescription = null, modifier = Modifier.width(18.dp))
+                Icon(Icons.Filled.Add, contentDescription = null, modifier = Modifier.size(18.dp))
                 Text("追加")
             }
         }
@@ -408,16 +598,26 @@ fun TemplateSettingsPane(
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(bottom = 12.dp),
-                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
+                shape = RoundedCornerShape(16.dp),
+                elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
             ) {
                 Column(modifier = Modifier.padding(12.dp)) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        Icon(
-                            Icons.Filled.Folder,
-                            contentDescription = null,
-                            tint = AccentBlueDeep,
-                            modifier = Modifier.width(20.dp),
-                        )
+                        Box(
+                            contentAlignment = Alignment.Center,
+                            modifier = Modifier
+                                .size(30.dp)
+                                .clip(RoundedCornerShape(10.dp))
+                                .background(BlueGradient),
+                        ) {
+                            Icon(
+                                Icons.Filled.Folder,
+                                contentDescription = null,
+                                tint = Color.White,
+                                modifier = Modifier.size(16.dp),
+                            )
+                        }
                         Spacer(Modifier.width(8.dp))
                         Text(
                             c.name,
@@ -451,7 +651,8 @@ fun TemplateSettingsPane(
                                     Icon(
                                         Icons.Filled.ArrowDropUp,
                                         contentDescription = "上へ移動",
-                                        tint = if (index > 0) AccentBlueDeep else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f),
+                                        tint = if (index > 0) BrandBlueDeep
+                                        else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f),
                                     )
                                 }
                                 IconButton(
@@ -462,14 +663,24 @@ fun TemplateSettingsPane(
                                     Icon(
                                         Icons.Filled.ArrowDropDown,
                                         contentDescription = "下へ移動",
-                                        tint = if (index < c.templates.lastIndex) AccentBlueDeep else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f),
+                                        tint = if (index < c.templates.lastIndex) BrandBlueDeep
+                                        else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f),
                                     )
                                 }
                             }
                             Spacer(Modifier.width(4.dp))
-                            Text(t.name, modifier = Modifier.weight(1f))
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(t.name)
+                                if (t.email.isNotBlank()) {
+                                    Text(
+                                        t.email,
+                                        fontSize = 11.sp,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    )
+                                }
+                            }
                             IconButton(onClick = { editorTarget = c.id to t }) {
-                                Icon(Icons.Filled.Edit, contentDescription = "編集")
+                                Icon(Icons.Filled.Edit, contentDescription = "編集", tint = BrandBlueDeep)
                             }
                             IconButton(onClick = { viewModel.deleteTemplate(c.id, t.id) }) {
                                 Icon(
@@ -483,11 +694,10 @@ fun TemplateSettingsPane(
                     Spacer(Modifier.height(4.dp))
                     OutlinedButton(
                         onClick = { editorTarget = c.id to null },
-                        colors = ButtonDefaults.outlinedButtonColors(
-                            contentColor = AccentBlueDeep,
-                        ),
+                        shape = RoundedCornerShape(14.dp),
+                        colors = ButtonDefaults.outlinedButtonColors(contentColor = BrandBlueDeep),
                     ) {
-                        Icon(Icons.Filled.Add, contentDescription = null, modifier = Modifier.width(18.dp))
+                        Icon(Icons.Filled.Add, contentDescription = null, modifier = Modifier.size(18.dp))
                         Spacer(Modifier.width(4.dp))
                         Text("定型文を追加")
                     }
@@ -503,9 +713,12 @@ fun TemplateSettingsPane(
         TemplateEditorDialog(
             existing = existing,
             onDismiss = { editorTarget = null },
-            onSave = { nm, body ->
-                if (existing == null) viewModel.addTemplate(categoryId, nm, body)
-                else viewModel.updateTemplate(categoryId, existing.id, nm, body)
+            onSave = { nm, body, email, subject ->
+                if (existing == null) {
+                    viewModel.addTemplate(categoryId, nm, body, email, subject)
+                } else {
+                    viewModel.updateTemplate(categoryId, existing.id, nm, body, email, subject)
+                }
                 editorTarget = null
             },
         )
@@ -530,27 +743,41 @@ fun TemplateSettingsPane(
     }
 }
 
+/** 差し込みトークンを挿入する対象。直前にフォーカスしていた欄へ入れる。 */
+private enum class EditorField { SUBJECT, BODY }
+
 @Composable
 private fun TemplateEditorDialog(
     existing: Template?,
     onDismiss: () -> Unit,
-    onSave: (name: String, body: String) -> Unit,
+    onSave: (name: String, body: String, email: String, subject: String) -> Unit,
 ) {
     var name by remember { mutableStateOf(existing?.name ?: "") }
+    var email by remember { mutableStateOf(existing?.email ?: "") }
     // カーソル（選択範囲）の位置を保持し、差し込み項目はそこへ挿入する
+    var subject by remember {
+        mutableStateOf(
+            TextFieldValue(
+                existing?.subject ?: "",
+                selection = TextRange((existing?.subject ?: "").length),
+            ),
+        )
+    }
     var body by remember {
         mutableStateOf(
             TextFieldValue(existing?.body ?: "", selection = TextRange((existing?.body ?: "").length)),
         )
     }
+    var focused by remember { mutableStateOf(EditorField.BODY) }
 
-    fun insertTokenAtCursor(token: String) {
-        val text = body.text
-        val start = body.selection.start.coerceIn(0, text.length)
-        val end = body.selection.end.coerceIn(0, text.length)
-        val newText = text.substring(0, start) + token + text.substring(end)
-        val newCursor = start + token.length
-        body = TextFieldValue(newText, selection = TextRange(newCursor))
+    fun insertAtCursor(current: TextFieldValue, token: String): TextFieldValue {
+        val text = current.text
+        val start = current.selection.start.coerceIn(0, text.length)
+        val end = current.selection.end.coerceIn(0, text.length)
+        return TextFieldValue(
+            text.substring(0, start) + token + text.substring(end),
+            selection = TextRange(start + token.length),
+        )
     }
 
     AlertDialog(
@@ -564,7 +791,27 @@ private fun TemplateEditorDialog(
                     label = { Text("定型文の名前") },
                     singleLine = true,
                     modifier = Modifier.fillMaxWidth(),
-                    colors = accentTextFieldColors(),
+                    colors = accentTextFieldColors(BrandBlueDeep),
+                )
+                Spacer(Modifier.height(10.dp))
+                OutlinedTextField(
+                    value = email,
+                    onValueChange = { email = it },
+                    label = { Text("宛先メールアドレス（任意）") },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = accentTextFieldColors(BrandRedDeep),
+                )
+                Spacer(Modifier.height(10.dp))
+                OutlinedTextField(
+                    value = subject,
+                    onValueChange = { subject = it },
+                    label = { Text("件名（任意）") },
+                    singleLine = true,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .onFocusChanged { if (it.isFocused) focused = EditorField.SUBJECT },
+                    colors = accentTextFieldColors(BrandRedDeep),
                 )
                 Spacer(Modifier.height(10.dp))
                 OutlinedTextField(
@@ -573,26 +820,37 @@ private fun TemplateEditorDialog(
                     label = { Text("本文") },
                     modifier = Modifier
                         .fillMaxWidth()
-                        .height(160.dp),
-                    colors = accentTextFieldColors(),
+                        .height(160.dp)
+                        .onFocusChanged { if (it.isFocused) focused = EditorField.BODY },
+                    colors = accentTextFieldColors(BrandBlueDeep),
                 )
                 Spacer(Modifier.height(8.dp))
                 Text(
-                    "タップでカーソル位置に挿入:",
+                    if (focused == EditorField.SUBJECT) {
+                        "タップで「件名」のカーソル位置に挿入:"
+                    } else {
+                        "タップで「本文」のカーソル位置に挿入:"
+                    },
                     fontSize = 12.sp,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
                 Spacer(Modifier.height(4.dp))
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     TemplateTokens.all.forEach { token ->
-                        SelectChip(text = token, selected = false, onClick = { insertTokenAtCursor(token) })
+                        SelectChip(text = token) {
+                            if (focused == EditorField.SUBJECT) {
+                                subject = insertAtCursor(subject, token)
+                            } else {
+                                body = insertAtCursor(body, token)
+                            }
+                        }
                     }
                 }
             }
         },
         confirmButton = {
             TextButton(
-                onClick = { onSave(name, body.text) },
+                onClick = { onSave(name, body.text, email, subject.text) },
                 enabled = name.isNotBlank(),
             ) { Text("保存") }
         },
@@ -606,25 +864,33 @@ private fun TemplateEditorDialog(
 // 共通パーツ
 // ---------------------------------------------------------------------------
 
+/** 背景にうっすらブランドカラーを敷いて、白一色ののっぺり感をなくす。 */
 @Composable
-private fun accentTextFieldColors() = OutlinedTextFieldDefaults.colors(
-    focusedBorderColor = AccentBlueDeep,
-    focusedLabelColor = AccentBlueDeep,
-    cursorColor = AccentBlueDeep,
+private fun surfaceWashBrush(accent: Color): Brush = Brush.verticalGradient(
+    listOf(
+        accent.copy(alpha = 0.07f),
+        MaterialTheme.colorScheme.background,
+    ),
 )
 
 @Composable
-private fun SelectChip(text: String, selected: Boolean, onClick: () -> Unit) {
-    val bg = if (selected) AccentBlueDeep else MaterialTheme.colorScheme.surfaceVariant
-    val fg = if (selected) Color.White else MaterialTheme.colorScheme.onSurface
+private fun accentTextFieldColors(accent: Color) = OutlinedTextFieldDefaults.colors(
+    focusedBorderColor = accent,
+    focusedLabelColor = accent,
+    cursorColor = accent,
+)
+
+@Composable
+private fun SelectChip(text: String, onClick: () -> Unit) {
     Box(
         modifier = Modifier
             .clip(RoundedCornerShape(20.dp))
-            .background(bg)
+            .background(BrandBlue.copy(alpha = 0.12f))
+            .border(1.dp, BrandBlue.copy(alpha = 0.35f), RoundedCornerShape(20.dp))
             .clickable { onClick() }
-            .padding(horizontal = 14.dp, vertical = 8.dp),
+            .padding(horizontal = 12.dp, vertical = 8.dp),
     ) {
-        Text(text, color = fg, fontSize = 14.sp, fontWeight = FontWeight.Medium)
+        Text(text, color = BrandBlueDeep, fontSize = 13.sp, fontWeight = FontWeight.Medium)
     }
 }
 
@@ -633,6 +899,8 @@ private fun DropdownField(
     label: String,
     options: List<String>,
     selected: String,
+    accent: Color,
+    accentDeep: Color,
     onSelect: (String) -> Unit,
 ) {
     var expanded by remember { mutableStateOf(false) }
@@ -642,10 +910,12 @@ private fun DropdownField(
         Box {
             OutlinedButton(
                 onClick = { expanded = true },
+                shape = RoundedCornerShape(12.dp),
                 colors = ButtonDefaults.outlinedButtonColors(
                     contentColor = MaterialTheme.colorScheme.onSurface,
+                    containerColor = MaterialTheme.colorScheme.surface,
                 ),
-                border = androidx.compose.foundation.BorderStroke(1.dp, AccentBlue.copy(alpha = 0.5f)),
+                border = androidx.compose.foundation.BorderStroke(1.dp, accent.copy(alpha = 0.5f)),
                 modifier = Modifier.fillMaxWidth(),
             ) {
                 Text(
@@ -654,7 +924,7 @@ private fun DropdownField(
                     color = if (selected.isBlank()) MaterialTheme.colorScheme.onSurfaceVariant
                     else MaterialTheme.colorScheme.onSurface,
                 )
-                Icon(Icons.Filled.ArrowDropDown, contentDescription = null, tint = AccentBlueDeep)
+                Icon(Icons.Filled.ArrowDropDown, contentDescription = null, tint = accentDeep)
             }
             DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
                 options.forEach { opt ->
@@ -688,4 +958,20 @@ private fun timeOptions(): List<String> {
 private fun copyText(context: Context, text: String) {
     val cb = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
     cb.setPrimaryClip(ClipData.newPlainText("定型文", text))
+}
+
+/** 端末のメールアプリを宛先・件名・本文つきで開く。 */
+private fun sendMail(context: Context, to: String, subject: String, body: String): Boolean {
+    val intent = Intent(Intent.ACTION_SENDTO).apply {
+        data = Uri.parse("mailto:")
+        putExtra(Intent.EXTRA_EMAIL, arrayOf(to.trim()))
+        putExtra(Intent.EXTRA_SUBJECT, subject)
+        putExtra(Intent.EXTRA_TEXT, body)
+    }
+    return try {
+        context.startActivity(Intent.createChooser(intent, "メールアプリを選択"))
+        true
+    } catch (e: ActivityNotFoundException) {
+        false
+    }
 }

@@ -1,12 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!--
-  この画像はもともと角丸正方形いっぱいに塗られたフルブリードのデザイン
-  （余白のない色付きアイコン）なので、透過グリフを前景に置く方式ではなく、
-  画像そのものを背景レイヤーとしてキャンバス全面に敷き、前景は透明にする。
-  これにより円形/角丸四角など、どのマスク形状でも縁が欠けたり
-  余白が大きく見えたりしない。
--->
 <adaptive-icon xmlns:android="http://schemas.android.com/apk/res/android">
     <background android:drawable="@mipmap/ic_launcher_background" />
-    <foreground android:drawable="@android:color/transparent" />
+    <foreground android:drawable="@mipmap/ic_launcher_foreground" />
 </adaptive-icon>
