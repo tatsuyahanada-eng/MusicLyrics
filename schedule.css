@@ -40,6 +40,12 @@
   --sc-sat: #1d4ed8;
   /* 今日 */
   --sc-today-bg: #dce6fb;
+
+  /* ToDo：仕事＝青系、個人＝紫系 */
+  --sc-todo-work: #1e40af;
+  --sc-todo-work-bg: #e6ebf9;
+  --sc-todo-personal: #7c3aed;
+  --sc-todo-personal-bg: #efe9fc;
 }
 
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
@@ -640,6 +646,8 @@ textarea.sc-input { resize: vertical; line-height: 1.5; min-height: 2.6em; }
 .sc-stat-tentative .sc-stat-value { color: #92400e; }
 .sc-stat-empty { background: var(--sc-empty-bg); border-color: var(--sc-empty-border); }
 .sc-stat-empty .sc-stat-value { color: #57606f; }
+.sc-stat-todo { background: var(--sc-todo-personal-bg); border-color: #d6c6f5; }
+.sc-stat-todo .sc-stat-value { color: var(--sc-todo-personal); }
 
 /* ---- サイドパネル ---- */
 .sc-side {
@@ -949,7 +957,7 @@ textarea.sc-input { resize: vertical; line-height: 1.5; min-height: 2.6em; }
 .sc-section-count { font-size: 0.78rem; color: var(--sc-muted); font-weight: 600; }
 
 .sc-filter-tabs { display: flex; gap: 4px; margin-left: auto; }
-.sc-filter-tab {
+.sc-filter-tab, .sc-todo-filter-tab {
   background: #fff;
   border: 1px solid var(--sc-border);
   border-radius: 999px;
@@ -960,8 +968,8 @@ textarea.sc-input { resize: vertical; line-height: 1.5; min-height: 2.6em; }
   font-family: inherit;
   cursor: pointer;
 }
-.sc-filter-tab:hover { background: var(--sc-surface-2); }
-.sc-filter-tab.active { background: var(--sc-primary); border-color: var(--sc-primary); color: #fff; }
+.sc-filter-tab:hover, .sc-todo-filter-tab:hover { background: var(--sc-surface-2); }
+.sc-filter-tab.active, .sc-todo-filter-tab.active { background: var(--sc-primary); border-color: var(--sc-primary); color: #fff; }
 
 .sc-export-opts {
   display: flex;
@@ -1025,6 +1033,47 @@ textarea.sc-input { resize: vertical; line-height: 1.5; min-height: 2.6em; }
 .sc-joblist-title { font-weight: 700; }
 .sc-joblist-meta { color: var(--sc-muted); font-size: 0.76rem; }
 .sc-joblist-warn { color: #b91c1c; font-size: 0.76rem; font-weight: 800; }
+
+/* ToDoリスト */
+.sc-todolist { display: flex; flex-direction: column; gap: 6px; }
+
+.sc-todo-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  background: #fff;
+  border: 1px solid var(--sc-border);
+  border-radius: 8px;
+  padding: 8px 10px;
+}
+.sc-todo-row-overdue { border-color: var(--sc-conflict); background: var(--sc-conflict-bg); }
+.sc-todo-row-done { opacity: 0.6; }
+.sc-todo-row-done .sc-todo-title { text-decoration: line-through; }
+
+.sc-todo-check { flex: 0 0 auto; padding-top: 2px; }
+.sc-todo-check input { width: 18px; height: 18px; accent-color: var(--sc-primary); cursor: pointer; }
+
+.sc-todo-body { flex: 1 1 auto; min-width: 0; }
+.sc-todo-top { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.sc-todo-title { font-weight: 700; font-size: 0.86rem; }
+.sc-todo-note { color: var(--sc-muted); font-size: 0.78rem; margin-top: 3px; white-space: pre-wrap; }
+
+.sc-todo-badge {
+  font-size: 0.68rem;
+  font-weight: 800;
+  border-radius: 4px;
+  padding: 1px 7px;
+  flex-shrink: 0;
+}
+.sc-todo-badge-work { background: var(--sc-todo-work-bg); color: var(--sc-todo-work); }
+.sc-todo-badge-personal { background: var(--sc-todo-personal-bg); color: var(--sc-todo-personal); }
+
+.sc-todo-due { font-size: 0.74rem; color: var(--sc-muted); font-weight: 600; }
+.sc-todo-due-overdue { color: #b91c1c; font-weight: 800; }
+
+.sc-todo-actions { display: flex; gap: 6px; flex: 0 0 auto; }
+
+.sc-todo-form { margin-top: 10px; padding-top: 10px; border-top: 1px solid var(--sc-border); }
 
 /* 業務内容別の内訳 */
 .sc-worktype-summary { margin-top: 10px; }
@@ -1280,7 +1329,7 @@ textarea.sc-input { resize: vertical; line-height: 1.5; min-height: 2.6em; }
   .sc-form-row { grid-template-columns: 1fr; }
   .sc-joblist-date { min-width: 5.5em; }
   .sc-filter-tabs { margin-left: 0; width: 100%; }
-  .sc-filter-tab { flex: 1; }
+  .sc-filter-tab, .sc-todo-filter-tab { flex: 1; }
 }
 
 /* 印刷／PDF出力のときだけ出す見出し（画面上は非表示） */

@@ -13,7 +13,7 @@
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="default">
   <meta name="apple-mobile-web-app-title" content="VertiCale">
-  <link rel="stylesheet" href="schedule.css?v=45">
+  <link rel="stylesheet" href="schedule.css?v=46">
 </head>
 <body class="sc-body">
 
@@ -28,6 +28,7 @@
         <button class="sc-menu-item" data-jump="calendar" type="button">カレンダー</button>
         <button class="sc-menu-item" data-jump="mail" type="button">日付をコピー</button>
         <button class="sc-menu-item" data-jump="list" type="button">予定一覧</button>
+        <button class="sc-menu-item" data-jump="todo" type="button">ToDo</button>
         <button class="sc-menu-item" data-jump="settings" type="button">設定</button>
       </nav>
 
@@ -177,6 +178,25 @@
       <div class="sc-export-actions">
         <button id="copyJobs" class="sc-btn sc-btn-outline sc-btn-sm">📋 予定一覧をコピー</button>
       </div>
+    </div>
+  </section>
+
+  <!-- ToDoリスト -->
+  <section class="sc-section">
+    <div class="sc-section-inner">
+      <div class="sc-section-head">
+        <h3 class="sc-section-title" id="sec-todo">✅ ToDoリスト</h3>
+        <span id="todoCount" class="sc-section-count"></span>
+        <div class="sc-filter-tabs" role="group" aria-label="ToDoの絞り込み">
+          <button class="sc-todo-filter-tab active" data-todofilter="open" type="button">未完了</button>
+          <button class="sc-todo-filter-tab" data-todofilter="all" type="button">すべて</button>
+        </div>
+      </div>
+      <div id="todoList" class="sc-todolist"></div>
+      <div class="sc-export-actions">
+        <button id="addTodoBtn" class="sc-btn sc-btn-sm" type="button">＋ ToDoを追加</button>
+      </div>
+      <div id="todoFormWrap" hidden></div>
     </div>
   </section>
 
@@ -468,6 +488,6 @@ Require valid-user</pre>
     </div>
   </div>
 
-  <script src="schedule.js?v=45"></script>
+  <script src="schedule.js?v=46"></script>
 </body>
 </html>

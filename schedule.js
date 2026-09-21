@@ -344,6 +344,8 @@ function defaultState() {
     wishMeta: {},    // 'YYYY-MM-DD' → 更新時刻（未定に戻した日も記録する）
     jobs: [],        // { id, date, allDay, start, end, title, workType, ..., updatedAt }
     tombstones: [],  // [{ id, updatedAt }] 削除した予定の記録
+    todos: [],       // { id, title, note, category: 'work'|'personal', dueDate, dueTime, done, createdAt, updatedAt }
+    todoTombstones: [],  // [{ id, updatedAt }] 削除したToDoの記録
   };
 }
 
@@ -365,6 +367,9 @@ const view = {
   ack: false,              // 「重複を承知で登録する」
   form: null,              // 入力途中の値を保持
   autoNoteText: null,      // 業態の上書きテンプレートを自動で入れたメモの内容（手で書き換えたら追従をやめる）
+  todoFilter: 'open',      // ToDoの絞り込み（open=未完了のみ / all=すべて）
+  todoFormOpen: false,     // ToDoの追加・編集フォームを開いているか
+  todoEditingId: null,     // 編集中のToDoのID（新規追加のときはnull）
 };
 
 let painting = false;
@@ -415,6 +420,22 @@ function normalizeState(parsed) {
     .map((t) => ({ id: t.id, updatedAt: t.updatedAt || EPOCH0 }))
     .filter((t) => t.updatedAt >= limit);
 
+  const todos = (Array.isArray(parsed.todos) ? parsed.todos : []).filter(isValidTodo).map((t) => {
+    const todo = Object.assign({}, t);
+    if (!todo.updatedAt) todo.updatedAt = todo.createdAt || EPOCH0;
+    if (typeof todo.done !== 'boolean') todo.done = false;
+    if (todo.category !== 'personal') todo.category = 'work';
+    if (typeof todo.note !== 'string') todo.note = '';
+    if (typeof todo.dueDate !== 'string') todo.dueDate = '';
+    if (typeof todo.dueTime !== 'string' || !todo.dueDate) todo.dueTime = '';
+    return todo;
+  });
+
+  const todoTombstones = (Array.isArray(parsed.todoTombstones) ? parsed.todoTombstones : [])
+    .filter((t) => t && typeof t.id === 'string')
+    .map((t) => ({ id: t.id, updatedAt: t.updatedAt || EPOCH0 }))
+    .filter((t) => t.updatedAt >= limit);
+
   return {
     version: 2,
     settings: Object.assign(base.settings, plainMap(parsed.settings)),
@@ -423,6 +444,8 @@ function normalizeState(parsed) {
     wishMeta: wishMeta,
     jobs: jobs,
     tombstones: tombstones,
+    todos: todos,
+    todoTombstones: todoTombstones,
   };
 }
 
@@ -498,6 +521,28 @@ function mergeStates(a, b) {
   out.jobs = Array.from(jobs.values());
   out.tombstones = Array.from(tombs.values());
 
+  /* ---- ToDo（予定と同じく、同じIDは更新時刻が新しいほうを採用） ---- */
+  const todoTombs = new Map();
+  left.todoTombstones.concat(right.todoTombstones).forEach((t) => {
+    const cur = todoTombs.get(t.id);
+    if (!cur || t.updatedAt > cur.updatedAt) todoTombs.set(t.id, t);
+  });
+
+  const todos = new Map();
+  left.todos.concat(right.todos).forEach((t) => {
+    const cur = todos.get(t.id);
+    if (!cur || t.updatedAt > cur.updatedAt) todos.set(t.id, t);
+  });
+
+  todoTombs.forEach((t, id) => {
+    const todo = todos.get(id);
+    if (todo && todo.updatedAt > t.updatedAt) todoTombs.delete(id);
+    else todos.delete(id);
+  });
+
+  out.todos = Array.from(todos.values());
+  out.todoTombstones = Array.from(todoTombs.values());
+
   /* ---- 希望（未定に戻した記録も含めて突き合わせる） ---- */
   const dates = new Set(Object.keys(left.wishMeta).concat(Object.keys(right.wishMeta)));
   dates.forEach((d) => {
@@ -528,6 +573,10 @@ function mergeStates(a, b) {
 function isValidJob(j) {
   return j && typeof j === 'object' && typeof j.id === 'string'
     && typeof j.date === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(j.date);
+}
+
+function isValidTodo(t) {
+  return t && typeof t === 'object' && typeof t.id === 'string' && typeof t.title === 'string';
 }
 
 function saveState(skipSync) {
@@ -651,6 +700,7 @@ function renderAll() {
   renderExport();
   renderJobList();
   renderIcsPreview();
+  renderTodos();
 }
 
 function renderMonthNav() {
@@ -1110,9 +1160,12 @@ function renderStats() {
     `<div class="sc-stat${cls ? ' ' + cls : ''}"><span class="sc-stat-label">${label}</span>` +
     `<span class="sc-stat-value">${value}<span class="sc-stat-unit">${unit}</span></span></div>`;
 
+  const todoOpen = state.todos.filter((t) => !t.done).length;
+
   elStats.innerHTML =
     stat('確定', confirmed, '件', 'sc-stat-confirmed') +
     stat('仮出勤', tentative, '件', 'sc-stat-tentative') +
+    stat('ToDo', todoOpen, '件', 'sc-stat-todo') +
     stat('確定の稼働日', confirmedDays, '日') +
     stat('稼働可能', avail, '日') +
     stat('休み希望', off, '日') +
@@ -1590,6 +1643,8 @@ function syncPayload() {
     wishMeta: state.wishMeta,
     jobs: state.jobs,
     tombstones: state.tombstones,
+    todos: state.todos,
+    todoTombstones: state.todoTombstones,
   };
 }
 
@@ -1607,7 +1662,9 @@ function syncFingerprint(data) {
   const wishes = (data && data.wishes && !Array.isArray(data.wishes)) ? data.wishes : {};
   const jobs = (Array.isArray(data && data.jobs) ? data.jobs : []).slice()
     .sort((a, b) => String(a && a.id).localeCompare(String(b && b.id)));
-  return stableStringify({ wishes, jobs, settings: (data && data.settings) || {} });
+  const todos = (Array.isArray(data && data.todos) ? data.todos : []).slice()
+    .sort((a, b) => String(a && a.id).localeCompare(String(b && b.id)));
+  return stableStringify({ wishes, jobs, todos, settings: (data && data.settings) || {} });
 }
 
 function applySyncedData(data) {
@@ -1657,6 +1714,7 @@ async function syncNow(silent, attempt) {
       settings: merged.settings, settingsAt: merged.settingsAt,
       wishes: merged.wishes, wishMeta: merged.wishMeta,
       jobs: merged.jobs, tombstones: merged.tombstones,
+      todos: merged.todos, todoTombstones: merged.todoTombstones,
     };
 
     // この端末に足りない分があれば取り込む（確認は不要。消えるものはない）
@@ -2549,6 +2607,171 @@ function deleteJob(id) {
 }
 
 /* ------------------------------------------------------------
+   ToDoリスト
+   ------------------------------------------------------------ */
+
+const TODO_CATEGORY_NAMES = { work: '仕事', personal: '個人' };
+
+/** 期限（あれば時刻まで）を表示用の文字列にする */
+function todoDueLabel(t) {
+  if (!t.dueDate) return '';
+  return t.dueTime ? `${formatDate(t.dueDate)} ${t.dueTime}まで` : `${formatDate(t.dueDate)}まで`;
+}
+
+/** 期限を過ぎているか（完了済み・期限なしは対象外） */
+function isTodoOverdue(t) {
+  if (t.done || !t.dueDate) return false;
+  const due = new Date(`${t.dueDate}T${t.dueTime || '23:59'}:00`);
+  return due.getTime() < Date.now();
+}
+
+function addTodo(data) {
+  state.todos.push({
+    id: newId(),
+    title: data.title.trim(),
+    note: (data.note || '').trim(),
+    category: data.category === 'personal' ? 'personal' : 'work',
+    dueDate: data.dueDate || '',
+    dueTime: data.dueDate ? (data.dueTime || '') : '',
+    done: false,
+    createdAt: nowIso(),
+    updatedAt: nowIso(),
+  });
+  saveState();
+  toast('ToDoを追加しました');
+}
+
+function updateTodo(id, data) {
+  const t = state.todos.find((x) => x.id === id);
+  if (!t) return;
+  t.title = data.title.trim();
+  t.note = (data.note || '').trim();
+  t.category = data.category === 'personal' ? 'personal' : 'work';
+  t.dueDate = data.dueDate || '';
+  t.dueTime = t.dueDate ? (data.dueTime || '') : '';
+  t.updatedAt = nowIso();
+  saveState();
+  toast('ToDoを更新しました');
+}
+
+function toggleTodoDone(id) {
+  const t = state.todos.find((x) => x.id === id);
+  if (!t) return;
+  t.done = !t.done;
+  t.updatedAt = nowIso();
+  saveState();
+  renderAll();
+}
+
+/** ToDoを消す。他の端末にも削除が伝わるよう記録を残す */
+function deleteTodo(id) {
+  const t = state.todos.find((x) => x.id === id);
+  if (!t) return;
+  if (!confirm(`「${t.title || '(無題)'}」を削除します。よろしいですか？`)) return;
+  const at = nowIso();
+  state.todos = state.todos.filter((x) => x.id !== id);
+  state.todoTombstones = state.todoTombstones.filter((x) => x.id !== id);
+  state.todoTombstones.push({ id, updatedAt: at });
+  if (view.todoEditingId === id) { view.todoFormOpen = false; view.todoEditingId = null; }
+  saveState();
+  renderAll();
+  renderTodoForm();
+  toast('ToDoを削除しました');
+}
+
+function todoFormHtml(t) {
+  const f = t || { title: '', note: '', category: 'work', dueDate: '', dueTime: '' };
+  const editing = !!(t && t.id);
+  return `<form id="todoForm" class="sc-form sc-todo-form">
+    <label class="sc-field">
+      <span class="sc-field-label">項目名 <span aria-hidden="true">*</span></span>
+      <input id="tdTitle" class="sc-input" type="text" value="${escapeHtml(f.title)}" placeholder="例）見積書を送る" autocomplete="off">
+    </label>
+    <label class="sc-field">
+      <span class="sc-field-label">内容</span>
+      <textarea id="tdNote" class="sc-input" rows="3">${escapeHtml(f.note)}</textarea>
+    </label>
+    <label class="sc-field">
+      <span class="sc-field-label">区分</span>
+      <select id="tdCategory" class="sc-input">
+        <option value="work" ${f.category !== 'personal' ? 'selected' : ''}>仕事</option>
+        <option value="personal" ${f.category === 'personal' ? 'selected' : ''}>個人</option>
+      </select>
+    </label>
+    <div class="sc-form-row">
+      <label class="sc-field">
+        <span class="sc-field-label">期限（任意）</span>
+        <input id="tdDueDate" class="sc-input" type="date" value="${escapeHtml(f.dueDate)}">
+      </label>
+      <label class="sc-field">
+        <span class="sc-field-label">何時まで（任意）</span>
+        <input id="tdDueTime" class="sc-input" type="time" value="${escapeHtml(f.dueTime)}">
+      </label>
+    </div>
+    <div class="sc-form-actions">
+      <button type="submit" id="tdSubmit" class="sc-btn">${editing ? '更新する' : '登録する'}</button>
+      <button type="button" id="tdCancel" class="sc-btn sc-btn-outline">中止</button>
+    </div>
+  </form>`;
+}
+
+function renderTodoForm() {
+  const wrap = $('todoFormWrap');
+  if (!wrap) return;
+  if (!view.todoFormOpen) { wrap.hidden = true; wrap.innerHTML = ''; return; }
+  const editing = view.todoEditingId ? state.todos.find((t) => t.id === view.todoEditingId) : null;
+  wrap.hidden = false;
+  wrap.innerHTML = todoFormHtml(editing);
+}
+
+function renderTodos() {
+  const openCount = state.todos.filter((t) => !t.done).length;
+  const elCount = $('todoCount');
+  if (elCount) elCount.textContent = state.todos.length ? `未完了${openCount}件 / 全${state.todos.length}件` : '';
+
+  const sorted = state.todos.slice().sort((a, b) => {
+    // 期限が近い順（期限なしは後ろ）、次に登録順
+    const da = a.dueDate ? `${a.dueDate}T${a.dueTime || '23:59'}` : '9999-99-99';
+    const db = b.dueDate ? `${b.dueDate}T${b.dueTime || '23:59'}` : '9999-99-99';
+    if (da !== db) return da < db ? -1 : 1;
+    return (a.createdAt || '') < (b.createdAt || '') ? -1 : 1;
+  });
+  const list = view.todoFilter === 'open' ? sorted.filter((t) => !t.done) : sorted;
+
+  const elList = $('todoList');
+  if (!elList) return;
+  if (!list.length) {
+    elList.innerHTML = `<p class="sc-empty-note">${view.todoFilter === 'open' ? '未完了のToDoはありません。' : 'ToDoはまだ登録されていません。'}</p>`;
+    return;
+  }
+
+  elList.innerHTML = list.map((t) => {
+    const overdue = isTodoOverdue(t);
+    const cls = ['sc-todo-row'];
+    if (t.done) cls.push('sc-todo-row-done');
+    if (overdue) cls.push('sc-todo-row-overdue');
+    const dueLabel = todoDueLabel(t);
+    return `<div class="${cls.join(' ')}">
+      <label class="sc-todo-check">
+        <input type="checkbox" data-todo-toggle="${t.id}" ${t.done ? 'checked' : ''} aria-label="完了にする">
+      </label>
+      <div class="sc-todo-body">
+        <div class="sc-todo-top">
+          <span class="sc-todo-badge sc-todo-badge-${t.category}">${TODO_CATEGORY_NAMES[t.category] || '仕事'}</span>
+          <span class="sc-todo-title">${escapeHtml(t.title || '(無題)')}</span>
+          ${dueLabel ? `<span class="sc-todo-due${overdue ? ' sc-todo-due-overdue' : ''}">${overdue ? '⚠' : '⏰'} ${escapeHtml(dueLabel)}</span>` : ''}
+        </div>
+        ${t.note ? `<p class="sc-todo-note">${escapeHtml(t.note)}</p>` : ''}
+      </div>
+      <div class="sc-todo-actions">
+        <button type="button" class="sc-btn sc-btn-sm sc-btn-outline" data-todo-edit="${t.id}">編集</button>
+        <button type="button" class="sc-btn sc-btn-sm sc-btn-outline sc-btn-danger" data-todo-del="${t.id}">削除</button>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+/* ------------------------------------------------------------
    希望日の設定
    ------------------------------------------------------------ */
 
@@ -2678,12 +2901,15 @@ function importJson(file) {
       if (!parsed || typeof parsed !== 'object') throw new Error('形式が不正です');
       const jobs = Array.isArray(parsed.jobs) ? parsed.jobs.filter(isValidJob) : [];
       const wishes = parsed.wishes && typeof parsed.wishes === 'object' ? parsed.wishes : {};
-      if (!confirm(`現在のデータを置き換えます。\n予定 ${jobs.length}件 / 希望 ${Object.keys(wishes).length}日\nよろしいですか？`)) return;
+      const todos = Array.isArray(parsed.todos) ? parsed.todos.filter(isValidTodo) : [];
+      if (!confirm(`現在のデータを置き換えます。\n予定 ${jobs.length}件 / 希望 ${Object.keys(wishes).length}日 / ToDo ${todos.length}件\nよろしいですか？`)) return;
       state = {
         version: 1,
         settings: Object.assign(defaultState().settings, parsed.settings || {}),
         wishes,
         jobs,
+        todos,
+        todoTombstones: [],
       };
       view.editingId = null;
       view.confirming = false;
@@ -3253,6 +3479,72 @@ function bindEvents() {
     });
   });
 
+  // ToDoリスト
+  $('addTodoBtn').addEventListener('click', () => {
+    view.todoEditingId = null;
+    view.todoFormOpen = true;
+    renderTodoForm();
+    const el = $('tdTitle');
+    if (el) el.focus();
+  });
+
+  document.querySelectorAll('.sc-todo-filter-tab').forEach((tab) => {
+    tab.addEventListener('click', () => {
+      document.querySelectorAll('.sc-todo-filter-tab').forEach((t) => t.classList.remove('active'));
+      tab.classList.add('active');
+      view.todoFilter = tab.dataset.todofilter;
+      renderTodos();
+    });
+  });
+
+  $('todoList').addEventListener('click', (ev) => {
+    const editBtn = ev.target.closest('[data-todo-edit]');
+    if (editBtn) {
+      view.todoEditingId = editBtn.dataset.todoEdit;
+      view.todoFormOpen = true;
+      renderTodoForm();
+      const el = $('tdTitle');
+      if (el) el.focus();
+      return;
+    }
+    const delBtn = ev.target.closest('[data-todo-del]');
+    if (delBtn) { deleteTodo(delBtn.dataset.todoDel); return; }
+  });
+
+  $('todoList').addEventListener('change', (ev) => {
+    const cb = ev.target.closest('[data-todo-toggle]');
+    if (cb) toggleTodoDone(cb.dataset.todoToggle);
+  });
+
+  $('todoFormWrap').addEventListener('submit', (ev) => {
+    if (ev.target.id !== 'todoForm') return;
+    ev.preventDefault();
+    const title = $('tdTitle').value.trim();
+    if (!title) { toast('項目名を入力してください', true); $('tdTitle').focus(); return; }
+    const data = {
+      title,
+      note: $('tdNote').value,
+      category: $('tdCategory').value,
+      dueDate: $('tdDueDate').value,
+      dueTime: $('tdDueTime').value,
+    };
+    if (view.todoEditingId) updateTodo(view.todoEditingId, data);
+    else addTodo(data);
+    view.todoFormOpen = false;
+    view.todoEditingId = null;
+    renderTodos();
+    renderStats();
+    renderTodoForm();
+  });
+
+  $('todoFormWrap').addEventListener('click', (ev) => {
+    if (ev.target.id === 'tdCancel') {
+      view.todoFormOpen = false;
+      view.todoEditingId = null;
+      renderTodoForm();
+    }
+  });
+
   // 日付の一覧
   ['listTarget', 'exportFormat', 'excludeBooked', 'projectFilter'].forEach((id) => {
     $(id).addEventListener('change', renderExport);
@@ -3429,7 +3721,7 @@ function bindEvents() {
   });
 
   // メニューバー
-  const SECTIONS = ['calendar', 'mail', 'list', 'settings'];
+  const SECTIONS = ['calendar', 'mail', 'list', 'todo', 'settings'];
   let menuLock = 0;   // 押した直後は、スクロール中の判定で上書きしない
 
   const setActiveMenu = (name) => {
