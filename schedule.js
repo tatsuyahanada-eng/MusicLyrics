@@ -1504,12 +1504,49 @@ function listedDayKeys() {
   });
 }
 
+/** 「その月のすべての予定」は、案件ごとに件数・日付をまとめて示す */
+function buildAllJobsGroupedText(format) {
+  const keys = monthDayKeys();
+  const project = $('projectFilter').value;
+  const jobs = state.jobs.filter((j) => keys.includes(j.date) && (!project || j.title === project));
+  const title = `${view.year}年${view.month + 1}月`;
+
+  if (!jobs.length) {
+    const howTo = project ? '案件名や対象の月をご確認ください。' : 'カレンダーで予定を登録すると、ここに表示されます。';
+    return `${title} ${LIST_TARGET_NAMES.all}は登録されていません。\n${howTo}`;
+  }
+
+  const groups = new Map();
+  jobs.forEach((j) => {
+    const name = j.title || '(無題)';
+    if (!groups.has(name)) groups.set(name, []);
+    groups.get(name).push(j.date);
+  });
+  const names = Array.from(groups.keys()).sort((a, b) => {
+    const diff = groups.get(b).length - groups.get(a).length;
+    return diff !== 0 ? diff : a.localeCompare(b, 'ja');
+  });
+
+  const lines = names.map((name) => {
+    const dates = groups.get(name).slice().sort();
+    if (format === 'inline') return `${name}（${dates.length}件）：${dates.map((k) => formatDate(k)).join('、')}`;
+    if (format === 'dayonly') return `${name}（${dates.length}件）：${dates.map((k) => Number(k.slice(8))).join('、')}日`;
+    return `${name}（${dates.length}件）\n` + dates.map((k) => '・' + formatDate(k)).join('\n');
+  });
+
+  const header = `${title} ${LIST_TARGET_NAMES.all}（全${jobs.length}件 / ${names.length}案件）`;
+  return format === 'bullet' ? [header].concat(lines).join('\n\n') : lines.join('\n');
+}
+
 function buildListText() {
-  const keys = listedDayKeys();
   const target = $('listTarget').value;
   const format = $('exportFormat').value;
+
+  if (target === 'all') return buildAllJobsGroupedText(format);
+
+  const keys = listedDayKeys();
   const project = $('projectFilter').value;
-  const isProject = (target === 'confirmed' || target === 'tentative' || target === 'all') && project;
+  const isProject = (target === 'confirmed' || target === 'tentative') && project;
   const name = isProject ? `${project} の${LIST_TARGET_NAMES[target]}` : LIST_TARGET_NAMES[target];
   const title = `${view.year}年${view.month + 1}月`;
 
