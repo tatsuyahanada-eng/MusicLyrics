@@ -17,7 +17,7 @@ data class Template(
     val body: String,
 )
 
-/** メインの項目（カテゴリ）。中に複数の定型文を持つ。 */
+/** フォルダ（メイン項目）。中に複数の定型文を持つ。 */
 @Serializable
 data class TemplateCategory(
     val id: String = UUID.randomUUID().toString(),
@@ -55,30 +55,5 @@ fun fillTemplate(
     .replace(TemplateTokens.TIME2, time2)
     .replace(TemplateTokens.NAME, name)
 
-/** 初回起動時のサンプルデータ。 */
-fun defaultTemplateStore(): TemplateStore = TemplateStore(
-    categories = listOf(
-        TemplateCategory(
-            name = "予約確認",
-            templates = listOf(
-                Template(
-                    name = "来店予約の確認",
-                    body = "{氏名} 様\n\nいつもありがとうございます。\n{日付} {時間1}〜{時間2} のご予約を承りました。\nお気をつけてお越しください。",
-                ),
-                Template(
-                    name = "変更のご連絡",
-                    body = "{氏名} 様\n\nご予約日時を {日付} {時間1} に変更いたしました。\nご確認のほどよろしくお願いいたします。",
-                ),
-            ),
-        ),
-        TemplateCategory(
-            name = "業務報告",
-            templates = listOf(
-                Template(
-                    name = "訪問報告",
-                    body = "{日付} {時間1}〜{時間2}\n担当: {氏名}\n\n本日の訪問業務を完了しました。",
-                ),
-            ),
-        ),
-    ),
-)
+/** 初回起動時の状態。サンプルは入れず空のフォルダ一覧から始める。 */
+fun defaultTemplateStore(): TemplateStore = TemplateStore(categories = emptyList())

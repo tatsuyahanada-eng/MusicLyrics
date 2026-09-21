@@ -12,6 +12,7 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.isSystemInDarkTheme
@@ -38,7 +39,6 @@ import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
-import androidx.compose.material.icons.filled.GraphicEq
 import androidx.compose.material.icons.filled.Mic
 import androidx.compose.material.icons.filled.Save
 import androidx.compose.material.icons.filled.Settings
@@ -80,6 +80,7 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
@@ -101,7 +102,11 @@ private val ContinuousButtonColor = Color(0xFF3D6E5B) // 連続＝ディープ�
 private val ContinuousTextColor = Color(0xFF8EE8BE)   //   文字＝ミント（はっきり）
 private val StopButtonColor = Color(0xFF22B5D6)        // 録音中／停止＝明るいアクア（水色・目立つ）
 private val StopTextColor = Color(0xFFFFFFFF)          //   文字＝ホワイト
-private val BrandAccentColor = Color(0xFF8C7A5B)       // タイトルのアクセント（真鍮）
+
+// 部分的なハイライト用の青のグラデーション（2つの青を混ぜてアクセントに使う）
+// TemplateScreens.kt からも参照するため private にしない
+internal val AccentBlue = Color(0xFF2E8FE0)      // 明るいブルー
+internal val AccentBlueDeep = Color(0xFF1D5FC4)  // 深いブルー
 
 // 文字起こし吹き出しの優しいパステル配色（ライト/ダークで切替え・文字は読みやすく）
 private val HoldBubbleBgLight = Color(0xFFE7EAF8)
@@ -125,13 +130,14 @@ class MainActivity : ComponentActivity() {
     }
 }
 
-private enum class AppScreen { VOICE, TEMPLATES, SETTINGS }
+private enum class AppScreen { TEMPLATES, VOICE, SETTINGS }
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun AppRoot() {
     val snackbarHostState = remember { SnackbarHostState() }
-    var screen by remember { mutableStateOf(AppScreen.VOICE) }
+    // 定型文をデフォルト表示にする
+    var screen by remember { mutableStateOf(AppScreen.TEMPLATES) }
 
     Scaffold(
         containerColor = MaterialTheme.colorScheme.background,
@@ -142,15 +148,12 @@ private fun AppRoot() {
                         IconButton(onClick = { screen = AppScreen.TEMPLATES }) {
                             Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "戻る")
                         }
-                    }
-                },
-                title = {
-                    if (screen == AppScreen.SETTINGS) {
-                        Text("定型文の設定", fontWeight = FontWeight.Bold, fontSize = 20.sp)
                     } else {
-                        BrandTitle()
+                        Spacer(Modifier.width(4.dp))
                     }
                 },
+                // アイコンはどの画面でも常に表示する
+                title = { BrandTitle(showSubtitle = screen == AppScreen.SETTINGS) },
                 actions = {
                     if (screen != AppScreen.SETTINGS) {
                         IconButton(onClick = { screen = AppScreen.SETTINGS }) {
@@ -166,17 +169,20 @@ private fun AppRoot() {
         bottomBar = {
             if (screen != AppScreen.SETTINGS) {
                 NavigationBar(containerColor = MaterialTheme.colorScheme.surface) {
-                    NavigationBarItem(
-                        selected = screen == AppScreen.VOICE,
-                        onClick = { screen = AppScreen.VOICE },
-                        icon = { Icon(Icons.Filled.Mic, contentDescription = null) },
-                        label = { Text("音声入力") },
-                    )
+                    // 定型文を左に、音声入力を右に配置
                     NavigationBarItem(
                         selected = screen == AppScreen.TEMPLATES,
                         onClick = { screen = AppScreen.TEMPLATES },
                         icon = { Icon(Icons.Filled.ContentCopy, contentDescription = null) },
                         label = { Text("定型文") },
+                        colors = accentNavColors(),
+                    )
+                    NavigationBarItem(
+                        selected = screen == AppScreen.VOICE,
+                        onClick = { screen = AppScreen.VOICE },
+                        icon = { Icon(Icons.Filled.Mic, contentDescription = null) },
+                        label = { Text("音声入力") },
+                        colors = accentNavColors(),
                     )
                 }
             }
@@ -184,42 +190,60 @@ private fun AppRoot() {
         snackbarHost = { SnackbarHost(snackbarHostState) },
     ) { innerPadding ->
         when (screen) {
-            AppScreen.VOICE -> VoicePane(innerPadding, snackbarHostState)
             AppScreen.TEMPLATES -> TemplatesPane(innerPadding, snackbarHostState)
+            AppScreen.VOICE -> VoicePane(innerPadding, snackbarHostState)
             AppScreen.SETTINGS -> TemplateSettingsPane(innerPadding)
         }
     }
 }
 
-/** アプリのロゴ的タイトル（バッジ＋2トーンのワードマーク）。 */
 @Composable
-private fun BrandTitle() {
+private fun accentNavColors() = androidx.compose.material3.NavigationBarItemDefaults.colors(
+    selectedIconColor = Color.White,
+    indicatorColor = AccentBlue,
+    selectedTextColor = AccentBlue,
+    unselectedIconColor = MaterialTheme.colorScheme.onSurfaceVariant,
+    unselectedTextColor = MaterialTheme.colorScheme.onSurfaceVariant,
+)
+
+/**
+ * アプリのロゴ的タイトル（アイコン＋2トーンのワードマーク）。
+ * どの画面でも常にこのバッジを表示する。設定画面では下にサブタイトルも添える。
+ */
+@Composable
+private fun BrandTitle(showSubtitle: Boolean = false) {
     Row(verticalAlignment = Alignment.CenterVertically) {
-        Box(
-            contentAlignment = Alignment.Center,
+        Image(
+            painter = painterResource(R.mipmap.ic_launcher_foreground),
+            contentDescription = null,
             modifier = Modifier
-                .size(30.dp)
-                .clip(RoundedCornerShape(9.dp))
-                .background(Brush.verticalGradient(listOf(HoldButtonColor, ContinuousButtonColor))),
-        ) {
-            Icon(
-                Icons.Filled.GraphicEq,
-                contentDescription = null,
-                tint = Color.White,
-                modifier = Modifier.size(18.dp),
-            )
-        }
-        Spacer(Modifier.width(8.dp))
-        val nameColor = MaterialTheme.colorScheme.onSurface
-        Text(
-            buildAnnotatedString {
-                withStyle(SpanStyle(color = nameColor)) { append("Voice") }
-                withStyle(SpanStyle(color = BrandAccentColor)) { append(" & Copy Paste") }
-            },
-            fontWeight = FontWeight.SemiBold,
-            fontSize = 18.sp,
-            letterSpacing = 0.3.sp,
+                .size(34.dp)
+                .clip(RoundedCornerShape(10.dp))
+                .background(
+                    Brush.linearGradient(listOf(AccentBlue, AccentBlueDeep)),
+                )
+                .padding(3.dp),
         )
+        Spacer(Modifier.width(8.dp))
+        Column {
+            val nameColor = MaterialTheme.colorScheme.onSurface
+            Text(
+                buildAnnotatedString {
+                    withStyle(SpanStyle(color = nameColor)) { append("Voice") }
+                    withStyle(SpanStyle(color = AccentBlueDeep)) { append(" & Copy Paste") }
+                },
+                fontWeight = FontWeight.SemiBold,
+                fontSize = 18.sp,
+                letterSpacing = 0.3.sp,
+            )
+            if (showSubtitle) {
+                Text(
+                    "定型文の設定",
+                    fontSize = 12.sp,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+        }
     }
 }
 
