@@ -30,7 +30,10 @@ import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.AlternateEmail
 import androidx.compose.material.icons.filled.ArrowDropDown
 import androidx.compose.material.icons.filled.ArrowDropUp
+import androidx.compose.material.icons.filled.CheckBox
+import androidx.compose.material.icons.filled.CheckBoxOutlineBlank
 import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
@@ -38,6 +41,7 @@ import androidx.compose.material.icons.filled.ExpandLess
 import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.material.icons.filled.Folder
 import androidx.compose.material.icons.filled.RadioButtonUnchecked
+import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -52,6 +56,8 @@ import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.SnackbarHostState
+import androidx.compose.material3.Switch
+import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -82,7 +88,8 @@ import java.util.Locale
 
 // ---------------------------------------------------------------------------
 // 定型文：使用画面
-// フォルダ（開閉リスト）→ 中の定型文を選ぶ → 差し込み項目を入力 →
+// フォルダ（開閉リスト）→ 定型文を選ぶ（まとめてモードなら複数選択可）→
+//   差し込み項目を入力 → プレビューはその場で自由に編集できる →
 //   コピー（定型文タブ） / メール送信（メールタブ）
 // 2つのタブは同じ流れなので、仕上げの動作だけを [TemplateAction] で切り替える。
 // ---------------------------------------------------------------------------
@@ -114,30 +121,75 @@ private fun TemplateWorkPane(
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val store by viewModel.store.collectAsStateWithLifecycle()
+    val allTemplates = store.categories.flatMap { it.templates }
 
     var expandedFolderId by remember { mutableStateOf<String?>(null) }
-    var selectedTemplateId by remember { mutableStateOf<String?>(null) }
+    // まとめてモード：オンにすると複数の定型文を選んで1つに組み合わせられる
+    var combineMode by remember { mutableStateOf(false) }
+    // 選択した定型文の ID（選んだ順）。通常モードでは常に0〜1件。
+    var selectedIds by remember { mutableStateOf(listOf<String>()) }
     var date by remember { mutableStateOf("") }
     var time1 by remember { mutableStateOf("") }
     var time2 by remember { mutableStateOf("") }
     var name by remember { mutableStateOf("") }
-    // メールタブ専用：宛先と件名は定型文の既定値を初期値にして、その場で直せる
+    // メールタブ専用：宛先は選択中の定型文の既定値を初期値にして、その場で直せる
     var mailTo by remember { mutableStateOf("") }
-    var mailSubject by remember { mutableStateOf("") }
 
-    val selectedTemplate = store.categories
-        .flatMap { it.templates }
-        .firstOrNull { it.id == selectedTemplateId }
+    // 件名・本文のプレビュー。差し込み項目から自動生成されるが、そのままタップして
+    // 自由に手直しできる。一度手直しすると、日付などを変えても上書きされない。
+    var subjectField by remember { mutableStateOf(TextFieldValue("")) }
+    var bodyField by remember { mutableStateOf(TextFieldValue("")) }
+    var subjectEdited by remember { mutableStateOf(false) }
+    var bodyEdited by remember { mutableStateOf(false) }
 
-    // 定型文を選び直したら、宛先・件名をその定型文の既定値に戻す
-    LaunchedEffect(selectedTemplateId) {
-        mailTo = selectedTemplate?.email.orEmpty()
-        mailSubject = selectedTemplate?.subject.orEmpty()
+    val selectedTemplates = selectedIds.mapNotNull { id -> allTemplates.firstOrNull { it.id == id } }
+    val primaryTemplate = selectedTemplates.firstOrNull()
+    val isCombining = combineMode && selectedTemplates.size > 1
+
+    fun toggleTemplate(id: String) {
+        selectedIds = if (combineMode) {
+            if (id in selectedIds) selectedIds - id else selectedIds + id
+        } else {
+            if (selectedIds == listOf(id)) selectedIds else listOf(id)
+        }
+    }
+
+    fun combinedBody(): String {
+        val sep = fillTemplate(store.commonInsert, date, time1, time2, name)
+        val joiner = if (sep.isBlank()) "\n\n" else "\n\n$sep\n\n"
+        return selectedTemplates.joinToString(separator = joiner) {
+            fillTemplate(it.body, date, time1, time2, name)
+        }
+    }
+
+    fun combinedSubject(): String = fillTemplate(primaryTemplate?.subject.orEmpty(), date, time1, time2, name)
+
+    // 選択が変わったら、宛先とプレビューを選択内容から作り直す
+    LaunchedEffect(selectedIds) {
+        mailTo = primaryTemplate?.email.orEmpty()
+        subjectEdited = false
+        bodyEdited = false
+        bodyField = TextFieldValue(combinedBody())
+        subjectField = TextFieldValue(combinedSubject())
+    }
+    // 差し込み項目や共通項目が変わったら、手直し前のプレビューだけ更新する
+    LaunchedEffect(date, time1, time2, name, store.commonInsert) {
+        if (!bodyEdited) bodyField = TextFieldValue(combinedBody())
+        if (!subjectEdited) subjectField = TextFieldValue(combinedSubject())
     }
 
     val accent = if (action == TemplateAction.MAIL) BrandRed else BrandBlue
     val accentDeep = if (action == TemplateAction.MAIL) BrandRedDeep else BrandBlueDeep
     val actionGradient = if (action == TemplateAction.MAIL) MailGradient else BlueGradient
+
+    val needDate = selectedTemplates.any { it.usesToken(TemplateTokens.DATE) } ||
+        (isCombining && TemplateTokens.contains(store.commonInsert, TemplateTokens.DATE))
+    val needTime1 = selectedTemplates.any { it.usesToken(TemplateTokens.TIME1) } ||
+        (isCombining && TemplateTokens.contains(store.commonInsert, TemplateTokens.TIME1))
+    val needTime2 = selectedTemplates.any { it.usesToken(TemplateTokens.TIME2) } ||
+        (isCombining && TemplateTokens.contains(store.commonInsert, TemplateTokens.TIME2))
+    val needName = selectedTemplates.any { it.usesToken(TemplateTokens.NAME) } ||
+        (isCombining && TemplateTokens.contains(store.commonInsert, TemplateTokens.NAME))
 
     Column(
         modifier = Modifier
@@ -163,6 +215,38 @@ private fun TemplateWorkPane(
             return@Column
         }
 
+        // まとめてモードの切り替え
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(14.dp))
+                .background(MaterialTheme.colorScheme.surface)
+                .padding(horizontal = 14.dp, vertical = 10.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Column(modifier = Modifier.weight(1f)) {
+                Text("複数の定型文をまとめる", fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                Text(
+                    "オンにすると複数選べます。間には設定した共通項目が入ります。",
+                    fontSize = 11.sp,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    lineHeight = 15.sp,
+                )
+            }
+            Switch(
+                checked = combineMode,
+                onCheckedChange = { checked ->
+                    combineMode = checked
+                    if (!checked) selectedIds = selectedIds.take(1)
+                },
+                colors = SwitchDefaults.colors(
+                    checkedThumbColor = Color.White,
+                    checkedTrackColor = accent,
+                ),
+            )
+        }
+        Spacer(Modifier.height(12.dp))
+
         SectionLabel("フォルダ", accentDeep)
         Spacer(Modifier.height(8.dp))
 
@@ -175,8 +259,9 @@ private fun TemplateWorkPane(
                 onToggle = {
                     expandedFolderId = if (isExpanded) "" else folder.id
                 },
-                selectedTemplateId = selectedTemplateId,
-                onSelectTemplate = { selectedTemplateId = it },
+                selectedIds = selectedIds.toSet(),
+                combineMode = combineMode,
+                onSelectTemplate = { toggleTemplate(it) },
                 accent = accent,
                 accentDeep = accentDeep,
                 gradient = actionGradient,
@@ -184,8 +269,25 @@ private fun TemplateWorkPane(
             Spacer(Modifier.height(10.dp))
         }
 
+        // 選択中チップ（まとめてモードで2件以上のときに順番がわかるように表示）
+        if (selectedTemplates.size > 1) {
+            Spacer(Modifier.height(4.dp))
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(6.dp),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .verticalScroll(rememberScrollState()),
+            ) {
+                selectedTemplates.forEachIndexed { index, t ->
+                    SelectedChip(index = index + 1, text = t.name, accent = accent) {
+                        toggleTemplate(t.id)
+                    }
+                }
+            }
+        }
+
         // 差し込みフィールド＋プレビュー＋実行ボタン
-        if (selectedTemplate != null) {
+        if (selectedTemplates.isNotEmpty()) {
             Spacer(Modifier.height(8.dp))
             Box(
                 modifier = Modifier
@@ -201,26 +303,30 @@ private fun TemplateWorkPane(
             ) {
                 Column {
                     Text(
-                        selectedTemplate.name,
+                        if (isCombining) {
+                            "${selectedTemplates.size}件をまとめています"
+                        } else {
+                            primaryTemplate?.name.orEmpty()
+                        },
                         fontWeight = FontWeight.Bold,
                         fontSize = 15.sp,
                         color = accentDeep,
                     )
                     Spacer(Modifier.height(10.dp))
 
-                    if (selectedTemplate.usesToken(TemplateTokens.DATE)) {
+                    if (needDate) {
                         DropdownField("日付", dateOptions(), date, accent, accentDeep) { date = it }
                         Spacer(Modifier.height(10.dp))
                     }
-                    if (selectedTemplate.usesToken(TemplateTokens.TIME1)) {
+                    if (needTime1) {
                         DropdownField("時間1", timeOptions(), time1, accent, accentDeep) { time1 = it }
                         Spacer(Modifier.height(10.dp))
                     }
-                    if (selectedTemplate.usesToken(TemplateTokens.TIME2)) {
+                    if (needTime2) {
                         DropdownField("時間2", timeOptions(), time2, accent, accentDeep) { time2 = it }
                         Spacer(Modifier.height(10.dp))
                     }
-                    if (selectedTemplate.usesToken(TemplateTokens.NAME)) {
+                    if (needName) {
                         OutlinedTextField(
                             value = name,
                             onValueChange = { name = it },
@@ -232,9 +338,6 @@ private fun TemplateWorkPane(
                         Spacer(Modifier.height(10.dp))
                     }
 
-                    val filledBody = fillTemplate(selectedTemplate.body, date, time1, time2, name)
-                    val filledSubject = fillTemplate(mailSubject, date, time1, time2, name)
-
                     if (action == TemplateAction.MAIL) {
                         OutlinedTextField(
                             value = mailTo,
@@ -245,39 +348,46 @@ private fun TemplateWorkPane(
                             colors = accentTextFieldColors(accentDeep),
                         )
                         Spacer(Modifier.height(10.dp))
-                        OutlinedTextField(
-                            value = mailSubject,
-                            onValueChange = { mailSubject = it },
-                            label = { Text("件名") },
+                    }
+
+                    // 件名（メールのみ）・本文：自動生成されるが、その場で自由に編集できる
+                    if (action == TemplateAction.MAIL) {
+                        EditablePreviewField(
+                            label = "件名",
+                            value = subjectField,
                             singleLine = true,
-                            modifier = Modifier.fillMaxWidth(),
-                            colors = accentTextFieldColors(accentDeep),
+                            minHeight = 0.dp,
+                            accent = accent,
+                            accentDeep = accentDeep,
+                            showReset = subjectEdited,
+                            onReset = {
+                                subjectField = TextFieldValue(combinedSubject())
+                                subjectEdited = false
+                            },
+                            onValueChange = {
+                                subjectField = it
+                                subjectEdited = true
+                            },
                         )
                         Spacer(Modifier.height(10.dp))
                     }
-
-                    SectionLabel("プレビュー", accentDeep)
-                    Spacer(Modifier.height(6.dp))
-                    Card(
-                        modifier = Modifier.fillMaxWidth(),
-                        shape = RoundedCornerShape(14.dp),
-                        colors = CardDefaults.cardColors(
-                            containerColor = MaterialTheme.colorScheme.surface,
-                        ),
-                    ) {
-                        Column(modifier = Modifier.padding(14.dp)) {
-                            if (action == TemplateAction.MAIL && filledSubject.isNotBlank()) {
-                                Text(
-                                    filledSubject,
-                                    fontWeight = FontWeight.Bold,
-                                    fontSize = 16.sp,
-                                    color = accentDeep,
-                                )
-                                Spacer(Modifier.height(8.dp))
-                            }
-                            Text(filledBody, fontSize = 18.sp, lineHeight = 26.sp)
-                        }
-                    }
+                    EditablePreviewField(
+                        label = "本文（タップして自由に編集できます）",
+                        value = bodyField,
+                        singleLine = false,
+                        minHeight = 140.dp,
+                        accent = accent,
+                        accentDeep = accentDeep,
+                        showReset = bodyEdited,
+                        onReset = {
+                            bodyField = TextFieldValue(combinedBody())
+                            bodyEdited = false
+                        },
+                        onValueChange = {
+                            bodyField = it
+                            bodyEdited = true
+                        },
+                    )
                     Spacer(Modifier.height(14.dp))
 
                     if (action == TemplateAction.MAIL) {
@@ -287,7 +397,7 @@ private fun TemplateWorkPane(
                             gradient = actionGradient,
                             enabled = mailTo.isNotBlank(),
                         ) {
-                            val ok = sendMail(context, mailTo, filledSubject, filledBody)
+                            val ok = sendMail(context, mailTo, subjectField.text, bodyField.text)
                             scope.launch {
                                 snackbarHostState.showSnackbar(
                                     if (ok) "メールアプリを開きました" else "メールアプリが見つかりません",
@@ -297,7 +407,7 @@ private fun TemplateWorkPane(
                         Spacer(Modifier.height(8.dp))
                         OutlinedButton(
                             onClick = {
-                                copyText(context, filledBody)
+                                copyText(context, bodyField.text)
                                 scope.launch { snackbarHostState.showSnackbar("本文をコピーしました") }
                             },
                             shape = RoundedCornerShape(50),
@@ -319,7 +429,7 @@ private fun TemplateWorkPane(
                             gradient = actionGradient,
                             enabled = true,
                         ) {
-                            copyText(context, filledBody)
+                            copyText(context, bodyField.text)
                             scope.launch { snackbarHostState.showSnackbar("コピーしました") }
                         }
                     }
@@ -328,6 +438,85 @@ private fun TemplateWorkPane(
         }
 
         Spacer(Modifier.height(24.dp))
+    }
+}
+
+/** 差し込みから自動生成されるが、タップしてそのまま書き換えられるプレビュー欄。 */
+@Composable
+private fun EditablePreviewField(
+    label: String,
+    value: TextFieldValue,
+    singleLine: Boolean,
+    minHeight: androidx.compose.ui.unit.Dp,
+    accent: Color,
+    accentDeep: Color,
+    showReset: Boolean,
+    onReset: () -> Unit,
+    onValueChange: (TextFieldValue) -> Unit,
+) {
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        Text(
+            label,
+            fontSize = 12.sp,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.weight(1f),
+        )
+        if (showReset) {
+            TextButton(onClick = onReset, contentPadding = PaddingValues(horizontal = 6.dp)) {
+                Icon(
+                    Icons.Filled.Refresh,
+                    contentDescription = null,
+                    tint = accentDeep,
+                    modifier = Modifier.size(14.dp),
+                )
+                Spacer(Modifier.width(3.dp))
+                Text("自動入力に戻す", fontSize = 11.sp, color = accentDeep)
+            }
+        }
+    }
+    Spacer(Modifier.height(2.dp))
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(14.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+    ) {
+        OutlinedTextField(
+            value = value,
+            onValueChange = onValueChange,
+            singleLine = singleLine,
+            modifier = Modifier
+                .fillMaxWidth()
+                .let { if (minHeight > 0.dp) it.height(minHeight) else it },
+            textStyle = if (singleLine) {
+                MaterialTheme.typography.bodyLarge.copy(fontWeight = FontWeight.Bold)
+            } else {
+                MaterialTheme.typography.bodyLarge.copy(fontSize = 17.sp, lineHeight = 25.sp)
+            },
+            colors = OutlinedTextFieldDefaults.colors(
+                focusedBorderColor = accent,
+                cursorColor = accent,
+                focusedContainerColor = MaterialTheme.colorScheme.surface,
+                unfocusedContainerColor = MaterialTheme.colorScheme.surface,
+                unfocusedBorderColor = Color.Transparent,
+            ),
+        )
+    }
+}
+
+/** 選択中の定型文チップ（まとめてモード）。番号つきで、タップで選択解除。 */
+@Composable
+private fun SelectedChip(index: Int, text: String, accent: Color, onRemove: () -> Unit) {
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        modifier = Modifier
+            .clip(RoundedCornerShape(20.dp))
+            .background(accent.copy(alpha = 0.14f))
+            .clickable { onRemove() }
+            .padding(start = 10.dp, end = 6.dp, top = 6.dp, bottom = 6.dp),
+    ) {
+        Text("$index. $text", fontSize = 12.sp, fontWeight = FontWeight.Medium, color = accent)
+        Spacer(Modifier.width(4.dp))
+        Icon(Icons.Filled.Close, contentDescription = "選択解除", tint = accent, modifier = Modifier.size(14.dp))
     }
 }
 
@@ -423,7 +612,8 @@ private fun FolderCard(
     folder: TemplateCategory,
     expanded: Boolean,
     onToggle: () -> Unit,
-    selectedTemplateId: String?,
+    selectedIds: Set<String>,
+    combineMode: Boolean,
     onSelectTemplate: (String) -> Unit,
     accent: Color,
     accentDeep: Color,
@@ -484,7 +674,7 @@ private fun FolderCard(
                 } else {
                     Column(modifier = Modifier.padding(start = 12.dp, end = 12.dp, bottom = 10.dp)) {
                         folder.templates.forEach { t ->
-                            val isSel = t.id == selectedTemplateId
+                            val isSel = t.id in selectedIds
                             Row(
                                 modifier = Modifier
                                     .fillMaxWidth()
@@ -497,7 +687,12 @@ private fun FolderCard(
                                 verticalAlignment = Alignment.CenterVertically,
                             ) {
                                 Icon(
-                                    if (isSel) Icons.Filled.CheckCircle else Icons.Filled.RadioButtonUnchecked,
+                                    when {
+                                        combineMode && isSel -> Icons.Filled.CheckBox
+                                        combineMode -> Icons.Filled.CheckBoxOutlineBlank
+                                        isSel -> Icons.Filled.CheckCircle
+                                        else -> Icons.Filled.RadioButtonUnchecked
+                                    },
                                     contentDescription = null,
                                     tint = if (isSel) accentDeep else MaterialTheme.colorScheme.onSurfaceVariant,
                                     modifier = Modifier.size(20.dp),
@@ -527,7 +722,7 @@ private fun FolderCard(
 }
 
 // ---------------------------------------------------------------------------
-// 定型文：設定画面（フォルダ・定型文の追加/編集/削除）
+// 定型文：設定画面（フォルダ・定型文の追加/編集/削除、共通項目の設定）
 // ---------------------------------------------------------------------------
 
 @Composable
@@ -564,7 +759,10 @@ fun TemplateSettingsPane(
             fontSize = 13.sp,
             lineHeight = 19.sp,
         )
-        Spacer(Modifier.height(12.dp))
+        Spacer(Modifier.height(16.dp))
+
+        CommonInsertEditor(commonInsert = store.commonInsert, onSave = viewModel::setCommonInsert)
+        Spacer(Modifier.height(20.dp))
 
         // 新規フォルダ追加
         Row(verticalAlignment = Alignment.CenterVertically) {
@@ -740,6 +938,63 @@ fun TemplateSettingsPane(
                 TextButton(onClick = { deleteCategoryTarget = null }) { Text("キャンセル") }
             },
         )
+    }
+}
+
+/**
+ * 複数の定型文をまとめて使うときに、間へ差し込む共通の文言（署名・区切りなど）の設定欄。
+ * 入力するたびにそのまま保存される。
+ */
+@Composable
+private fun CommonInsertEditor(commonInsert: String, onSave: (String) -> Unit) {
+    var field by remember {
+        mutableStateOf(TextFieldValue(commonInsert, selection = TextRange(commonInsert.length)))
+    }
+
+    fun insertAtCursor(token: String) {
+        val text = field.text
+        val start = field.selection.start.coerceIn(0, text.length)
+        val end = field.selection.end.coerceIn(0, text.length)
+        val newText = text.substring(0, start) + token + text.substring(end)
+        field = TextFieldValue(newText, selection = TextRange(start + token.length))
+        onSave(newText)
+    }
+
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(16.dp),
+        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+    ) {
+        Column(modifier = Modifier.padding(14.dp)) {
+            Text("共通項目（複数の定型文をまとめるときに間へ挿入）", fontWeight = FontWeight.Bold, fontSize = 14.sp)
+            Spacer(Modifier.height(4.dp))
+            Text(
+                "署名や区切り線など。空のままなら改行だけで区切ります。入力するたびに自動で保存されます。",
+                fontSize = 11.sp,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                lineHeight = 15.sp,
+            )
+            Spacer(Modifier.height(8.dp))
+            OutlinedTextField(
+                value = field,
+                onValueChange = {
+                    field = it
+                    onSave(it.text)
+                },
+                placeholder = { Text("例：以上、よろしくお願いいたします。") },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(90.dp),
+                colors = accentTextFieldColors(BrandBlueDeep),
+            )
+            Spacer(Modifier.height(6.dp))
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                TemplateTokens.all.forEach { token ->
+                    SelectChip(text = token) { insertAtCursor(token) }
+                }
+            }
+        }
     }
 }
 

@@ -35,6 +35,11 @@ data class TemplateCategory(
 @Serializable
 data class TemplateStore(
     val categories: List<TemplateCategory> = emptyList(),
+    /**
+     * 複数の定型文を1つに組み合わせるときに、間へ差し込む共通の文言。
+     * {日付}{時間1}{時間2}{氏名} のトークンにも対応。空なら単なる改行区切り。
+     */
+    val commonInsert: String = "",
 )
 
 /** 本文に埋め込む差し込みトークン。 */

@@ -128,6 +128,11 @@ class TemplateViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
+    /** 複数の定型文を1つに組み合わせるときに間へ差し込む共通の文言を更新する。 */
+    fun setCommonInsert(text: String) {
+        update { it.copy(commonInsert = text) }
+    }
+
     /** フォルダ内で定型文を1つ前後に移動して並び替える。 */
     fun moveTemplate(categoryId: String, templateId: String, delta: Int) {
         update { store ->

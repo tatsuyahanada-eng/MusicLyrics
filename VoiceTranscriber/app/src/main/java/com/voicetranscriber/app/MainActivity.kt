@@ -98,37 +98,37 @@ import kotlinx.coroutines.launch
 import java.io.OutputStreamWriter
 
 // ---------------------------------------------------------------------------
-// ブランドカラー：アプリアイコンの配色をそのまま使う。
-//   ブルー → ディープブルー（定型文・音声入力）／マゼンタ → レッド（メール送信）
+// ブランドカラー：新しいアイコン（フェニックス・サンズ配色）に合わせた
+//   ディープパープル × サンオレンジ。
 // TemplateScreens.kt からも参照するため private にしない。
 // ---------------------------------------------------------------------------
-internal val BrandBlue = Color(0xFF1E7BF0)
-internal val BrandBlueDeep = Color(0xFF1139CF)
-internal val BrandCyan = Color(0xFF4FD2F7)
-internal val BrandMagenta = Color(0xFF9B2BB8)
-internal val BrandRed = Color(0xFFE0242E)
-internal val BrandRedDeep = Color(0xFFA8101C)
+internal val BrandBlue = Color(0xFF35107A)       // ディープパープル（アイコン背景）
+internal val BrandBlueDeep = Color(0xFF230A56)   // さらに濃いパープル
+internal val BrandCyan = Color(0xFFFFC940)       // ライトゴールド（差し色・強調）
+internal val BrandMagenta = Color(0xFFE0862A)    // サンオレンジ寄りの赤み（メール用グラデ始点）
+internal val BrandRed = Color(0xFFFF9E1F)        // サンオレンジ（メール送信のアクセント）
+internal val BrandRedDeep = Color(0xFFE07A00)    // ディープオレンジ
 
 internal val BlueGradient = Brush.horizontalGradient(listOf(BrandBlue, BrandBlueDeep))
 internal val MailGradient = Brush.horizontalGradient(listOf(BrandMagenta, BrandRed))
 
-// 音声ボタン：ブランドの青系でまとめつつ、ボタンごとに色相と文字色ではっきり区別する。
-private val HoldButtonColor = Color(0xFF2A3C8F)        // 押す＝インディゴブルー
-private val HoldTextColor = Color(0xFFFFD24D)          //   文字＝ゴールド（はっきり）
-private val ContinuousButtonColor = Color(0xFF0F6E62)  // 連続＝ディープ・ティール
-private val ContinuousTextColor = Color(0xFF7FE9C4)    //   文字＝ミント（はっきり）
-private val StopButtonColor = Color(0xFF17B6E0)        // 録音中／停止＝明るいアクア（水色・目立つ）
-private val StopTextColor = Color(0xFFFFFFFF)          //   文字＝ホワイト
+// 音声ボタン：ブランドのパープル×オレンジでまとめつつ、ボタンごとにはっきり区別する。
+private val HoldButtonColor = Color(0xFF3A1680)        // 押す＝ディープパープル
+private val HoldTextColor = Color(0xFFFFC940)          //   文字＝サンオレンジのゴールド（はっきり）
+private val ContinuousButtonColor = Color(0xFF7A3D0A)  // 連続＝ディープオレンジブラウン
+private val ContinuousTextColor = Color(0xFFFFD98F)    //   文字＝ライトゴールド（はっきり）
+private val StopButtonColor = Color(0xFFFF9E1F)        // 録音中／停止＝サンオレンジ（目立つ）
+private val StopTextColor = Color(0xFF2A0A5E)          //   文字＝ディープパープル
 
 // 文字起こし吹き出しの優しいパステル配色（ライト/ダークで切替え・文字は読みやすく）
-private val HoldBubbleBgLight = Color(0xFFDFE7FF)
-private val HoldBubbleFgLight = Color(0xFF17307F)
-private val HoldBubbleBgDark = Color(0xFF23315E)
-private val HoldBubbleFgDark = Color(0xFFD7E2FF)
-private val ContBubbleBgLight = Color(0xFFD5F2EB)
-private val ContBubbleFgLight = Color(0xFF0B5A50)
-private val ContBubbleBgDark = Color(0xFF12453E)
-private val ContBubbleFgDark = Color(0xFFBBEEE1)
+private val HoldBubbleBgLight = Color(0xFFEAE0FA)
+private val HoldBubbleFgLight = Color(0xFF3A1680)
+private val HoldBubbleBgDark = Color(0xFF3A2668)
+private val HoldBubbleFgDark = Color(0xFFE8DFFF)
+private val ContBubbleBgLight = Color(0xFFFFEAD1)
+private val ContBubbleFgLight = Color(0xFF8A4A0C)
+private val ContBubbleBgDark = Color(0xFF4E3113)
+private val ContBubbleFgDark = Color(0xFFFFDFAE)
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
