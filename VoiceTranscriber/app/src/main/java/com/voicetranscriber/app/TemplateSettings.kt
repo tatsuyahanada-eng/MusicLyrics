@@ -66,6 +66,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.window.DialogProperties
 import androidx.compose.ui.zIndex
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -476,6 +477,7 @@ fun TemplateSettingsPane(
             dismissButton = {
                 TextButton(onClick = { renameCategoryTarget = null }) { Text("キャンセル") }
             },
+            properties = DialogProperties(dismissOnClickOutside = false),
         )
     }
 
@@ -842,5 +844,10 @@ private fun TemplateEditorDialog(
         dismissButton = {
             TextButton(onClick = onDismiss) { Text("キャンセル") }
         },
+        // ダイアログ外（スクリム）をタップしても閉じないようにする。
+        // デフォルトの挙動だと、キーボード表示中にちょっと外側に触れただけで
+        // ダイアログが閉じ、入力中の本文がそのまま失われてしまうため。
+        // 閉じるには「キャンセル」か端末の戻るボタンを使う。
+        properties = DialogProperties(dismissOnClickOutside = false),
     )
 }

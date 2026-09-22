@@ -21,6 +21,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -86,6 +87,8 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
+import androidx.compose.ui.text.font.Font
+import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.withStyle
@@ -279,22 +282,27 @@ private fun accentNavColors() =
         unselectedTextColor = MaterialTheme.colorScheme.onSurfaceVariant,
     )
 
+// Impact 風の見出し用フォント。Impact 自体は商用フォントでアプリに同梱できないため、
+// 同じ用途向けに作られたフリー（SIL Open Font License）の Anton を使う。
+private val TitleFontFamily = FontFamily(Font(R.font.anton_regular, FontWeight.Normal))
+
 /**
- * アプリのロゴ的タイトル（アイコン＋2トーンのワードマーク）。
+ * アプリのロゴ的タイトル（アイコン＋ワードマーク）。
  * どの画面でも常にこのバッジを表示する。設定画面では下にサブタイトルも添える。
  */
 @Composable
 private fun BrandTitle(showSubtitle: Boolean = false) {
     Row(verticalAlignment = Alignment.CenterVertically) {
-        // タイトルバーのバッジ用に、背景＋前景を合成した通常のラスター画像を使う。
-        // R.mipmap.ic_launcher_round は API26+ では mipmap-anydpi-v26 の
-        // <adaptive-icon> XML に解決され、painterResource() は <vector> しか
-        // 読めないため起動直後にクラッシュしていた。専用の drawable に分離する。
+        // アイコンは円形の地色プレートをやめ、グリフだけを白フチ付きで
+        // タイトルバーのブルーに直接乗せる。プレートで囲うより、
+        // 色のコントラスト（白・オレンジ vs ブルー）でしっかり目立たせる。
         Image(
             painter = painterResource(R.drawable.app_badge),
             contentDescription = null,
             contentScale = ContentScale.Fit,
-            modifier = Modifier.size(40.dp),
+            modifier = Modifier
+                .height(42.dp)
+                .aspectRatio(198f / 229f),
         )
         Spacer(Modifier.width(10.dp))
         Column {
@@ -307,9 +315,10 @@ private fun BrandTitle(showSubtitle: Boolean = false) {
                     withStyle(SpanStyle(color = Color.White)) { append("Voice") }
                     withStyle(SpanStyle(color = BrandOrange)) { append(" & Copy Paste") }
                 },
-                fontWeight = FontWeight.Bold,
+                fontFamily = TitleFontFamily,
+                fontWeight = FontWeight.Normal,
                 fontSize = 21.sp,
-                letterSpacing = 0.3.sp,
+                letterSpacing = 0.4.sp,
             )
             if (showSubtitle) {
                 Text(

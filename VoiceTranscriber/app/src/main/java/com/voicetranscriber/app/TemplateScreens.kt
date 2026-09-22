@@ -788,6 +788,10 @@ internal fun brandTextFieldColors() = OutlinedTextFieldDefaults.colors(
     focusedBorderColor = BrandBlue,
     focusedLabelColor = BrandBlueDeep,
     cursorColor = BrandBlue,
+    // 背景の薄いグラデーション（アクセントカラーの透過オーバーレイ）が
+    // 透けてグレーっぽく見えてしまうため、常に不透明な白（surface）で塗る。
+    focusedContainerColor = MaterialTheme.colorScheme.surface,
+    unfocusedContainerColor = MaterialTheme.colorScheme.surface,
 )
 
 /** 差し込みトークンのチップ。幅が足りなければ自動で折り返す。 */
