@@ -44,6 +44,7 @@ import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.ExpandLess
 import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.material.icons.filled.Folder
+import androidx.compose.material.icons.filled.Mic
 import androidx.compose.material.icons.filled.RadioButtonUnchecked
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material3.ButtonDefaults
@@ -117,6 +118,9 @@ fun MailPane(
     viewModel: TemplateViewModel = viewModel(),
 ) = TemplateWorkPane(innerPadding, snackbarHostState, TemplateKind.MAIL, viewModel)
 
+/** まとめてモードの選択リストに差し込む「音声入力文」を表す仮想 ID。 */
+private const val VoiceSlotId = "__voice_input__"
+
 @Composable
 private fun TemplateWorkPane(
     innerPadding: PaddingValues,
@@ -132,6 +136,11 @@ private fun TemplateWorkPane(
     val amountPresets = store.amountPresetsOf(kind)
     val isMail = kind == TemplateKind.MAIL
     val allTemplates = categories.flatMap { it.templates }
+
+    // 音声入力タブと同じ ViewModel インスタンスを共有し、まとめてモードで
+    // 「ご挨拶＋音声入力文＋文末締め」のように差し込めるようにする
+    val transcriptionViewModel: TranscriptionViewModel = viewModel()
+    val transcriptionState by transcriptionViewModel.state.collectAsStateWithLifecycle()
 
     var expandedFolderId by remember(kind) { mutableStateOf<String?>(null) }
     // まとめてモード：オンにすると複数の定型文を選んで1つに組み合わせられる
@@ -155,8 +164,9 @@ private fun TemplateWorkPane(
     var bodyEdited by remember(kind) { mutableStateOf(false) }
 
     val selectedTemplates = selectedIds.mapNotNull { id -> allTemplates.firstOrNull { it.id == id } }
-    val primaryTemplate = selectedTemplates.firstOrNull()
-    val isCombining = combineMode && selectedTemplates.size > 1
+    // 件名・宛先の既定値は「実在する定型文」からのみ拾う（音声入力の枠は除く）
+    val primaryTemplate = selectedIds.firstNotNullOfOrNull { id -> allTemplates.firstOrNull { it.id == id } }
+    val isCombining = combineMode && selectedIds.size > 1
 
     fun toggleTemplate(id: String) {
         selectedIds = if (combineMode) {
@@ -171,7 +181,13 @@ private fun TemplateWorkPane(
     fun combinedBody(): String {
         val sep = tokenValues.fill(commonInsert)
         val joiner = if (sep.isBlank()) "\n\n" else "\n\n$sep\n\n"
-        return selectedTemplates.joinToString(separator = joiner) { tokenValues.fill(it.body) }
+        return selectedIds.mapNotNull { id ->
+            if (id == VoiceSlotId) {
+                transcriptionState.transcript.takeIf { it.isNotBlank() }
+            } else {
+                allTemplates.firstOrNull { it.id == id }?.let { tokenValues.fill(it.body) }
+            }
+        }.joinToString(separator = joiner)
     }
 
     fun combinedSubject(): String = tokenValues.fill(primaryTemplate?.subject.orEmpty())
@@ -184,8 +200,9 @@ private fun TemplateWorkPane(
         bodyField = TextFieldValue(combinedBody())
         subjectField = TextFieldValue(combinedSubject())
     }
-    // 差し込み項目や共通項目が変わったら、手直し前のプレビューだけ更新する
-    LaunchedEffect(date, time1, time2, amount1, amount2, name, commonInsert) {
+    // 差し込み項目や共通項目、音声入力の内容が変わったら、
+    // 手直し前のプレビューだけ更新する
+    LaunchedEffect(date, time1, time2, amount1, amount2, name, commonInsert, transcriptionState.transcript) {
         if (!bodyEdited) bodyField = TextFieldValue(combinedBody())
         if (!subjectEdited) subjectField = TextFieldValue(combinedSubject())
     }
@@ -243,13 +260,63 @@ private fun TemplateWorkPane(
                 checked = combineMode,
                 onCheckedChange = { checked ->
                     combineMode = checked
-                    if (!checked) selectedIds = selectedIds.take(1)
+                    // 通常モードに戻すときは、音声入力の枠（単体では使えない）を
+                    // 除いた最初の1件だけを残す
+                    if (!checked) selectedIds = selectedIds.filterNot { it == VoiceSlotId }.take(1)
                 },
                 colors = SwitchDefaults.colors(
                     checkedThumbColor = Color.White,
                     checkedTrackColor = BrandOrange,
                 ),
             )
+        }
+
+        // まとめてモードのときだけ、音声入力タブの内容を選択の並びに
+        // 差し込めるようにする（例：ご挨拶＋音声入力文＋文末締め）
+        if (combineMode) {
+            Spacer(Modifier.height(10.dp))
+            val voiceIncluded = VoiceSlotId in selectedIds
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(14.dp))
+                    .background(
+                        if (voiceIncluded) BrandBlue.copy(alpha = 0.14f) else MaterialTheme.colorScheme.surface,
+                    )
+                    .border(
+                        1.dp,
+                        if (voiceIncluded) BrandBlue.copy(alpha = 0.5f) else Color.Transparent,
+                        RoundedCornerShape(14.dp),
+                    )
+                    .clickable { toggleTemplate(VoiceSlotId) }
+                    .padding(horizontal = 14.dp, vertical = 12.dp),
+            ) {
+                Icon(
+                    Icons.Filled.Mic,
+                    contentDescription = null,
+                    tint = if (voiceIncluded) BrandBlueDeep else MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                Spacer(Modifier.width(10.dp))
+                Column(modifier = Modifier.weight(1f)) {
+                    Text("音声入力文を差し込む", fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                    Text(
+                        if (transcriptionState.transcript.isBlank()) {
+                            "音声入力タブでまだ何も文字起こしされていません"
+                        } else {
+                            "音声入力タブの内容がこの位置に入ります"
+                        },
+                        fontSize = 11.sp,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        lineHeight = 15.sp,
+                    )
+                }
+                Icon(
+                    if (voiceIncluded) Icons.Filled.CheckBox else Icons.Filled.CheckBoxOutlineBlank,
+                    contentDescription = null,
+                    tint = if (voiceIncluded) BrandBlueDeep else MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
         }
         Spacer(Modifier.height(12.dp))
 
@@ -272,13 +339,19 @@ private fun TemplateWorkPane(
         }
 
         // 選択中チップ（まとめてモードで2件以上のときに順番がわかるように表示）
-        if (selectedTemplates.size > 1) {
+        if (selectedIds.size > 1) {
             Spacer(Modifier.height(4.dp))
-            SelectedChips(selectedTemplates) { toggleTemplate(it) }
+            SelectedChips(
+                ids = selectedIds,
+                labelFor = { id ->
+                    if (id == VoiceSlotId) "🎤 音声入力文"
+                    else allTemplates.firstOrNull { it.id == id }?.name ?: "?"
+                },
+            ) { toggleTemplate(it) }
         }
 
         // 差し込みフィールド＋プレビュー＋実行ボタン
-        if (selectedTemplates.isNotEmpty()) {
+        if (selectedIds.isNotEmpty()) {
             Spacer(Modifier.height(10.dp))
             Box(
                 modifier = Modifier
@@ -295,7 +368,7 @@ private fun TemplateWorkPane(
                 Column {
                     Text(
                         if (isCombining) {
-                            "${selectedTemplates.size}件をまとめています"
+                            "${selectedIds.size}件をまとめています"
                         } else {
                             primaryTemplate?.name.orEmpty()
                         },
@@ -519,23 +592,23 @@ private fun EditablePreviewField(
 /** まとめてモードで選択中の定型文（番号つき）。タップで選択解除。 */
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
-private fun SelectedChips(templates: List<Template>, onRemove: (String) -> Unit) {
+private fun SelectedChips(ids: List<String>, labelFor: (String) -> String, onRemove: (String) -> Unit) {
     FlowRow(
         modifier = Modifier.fillMaxWidth(),
         horizontalArrangement = Arrangement.spacedBy(6.dp),
         verticalArrangement = Arrangement.spacedBy(6.dp),
     ) {
-        templates.forEachIndexed { index, t ->
+        ids.forEachIndexed { index, id ->
             Row(
                 verticalAlignment = Alignment.CenterVertically,
                 modifier = Modifier
                     .clip(RoundedCornerShape(20.dp))
                     .background(BrandOrange.copy(alpha = 0.18f))
-                    .clickable { onRemove(t.id) }
+                    .clickable { onRemove(id) }
                     .padding(start = 10.dp, end = 6.dp, top = 6.dp, bottom = 6.dp),
             ) {
                 Text(
-                    "${index + 1}. ${t.name}",
+                    "${index + 1}. ${labelFor(id)}",
                     fontSize = 12.sp,
                     fontWeight = FontWeight.Medium,
                     color = BrandOrangeDeep,

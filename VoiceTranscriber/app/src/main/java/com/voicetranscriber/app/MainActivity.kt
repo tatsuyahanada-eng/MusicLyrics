@@ -293,17 +293,15 @@ private val TitleFontFamily = FontFamily(Font(R.font.anton_regular, FontWeight.N
 @Composable
 private fun BrandTitle(showSubtitle: Boolean = false) {
     Row(verticalAlignment = Alignment.CenterVertically) {
-        // アイコンは円形の地色プレートをやめ、マイク＋書類1枚だけのシンプルな
-        // グリフを白フチ付きでタイトルバーのブルーに直接乗せる。縦に並べると
-        // 間延びして小さく見えるため、マイクを書類に重ねて正方形に近い
-        // コンパクトな構図にし、その分大きく表示できるようにしている。
+        // アイコンは、マイクが書類に重なる意匠のリファレンス画像をもとに
+        // 白フチ付きグリフとして再作成し、タイトルバーのブルーに直接乗せる。
         Image(
             painter = painterResource(R.drawable.app_badge),
             contentDescription = null,
             contentScale = ContentScale.Fit,
             modifier = Modifier
-                .height(46.dp)
-                .aspectRatio(267f / 330f),
+                .height(48.dp)
+                .aspectRatio(367f / 385f),
         )
         Spacer(Modifier.width(10.dp))
         Column {
@@ -318,7 +316,7 @@ private fun BrandTitle(showSubtitle: Boolean = false) {
                 },
                 fontFamily = TitleFontFamily,
                 fontWeight = FontWeight.Normal,
-                fontSize = 21.sp,
+                fontSize = 24.sp,
                 letterSpacing = 0.4.sp,
             )
             if (showSubtitle) {
@@ -830,41 +828,41 @@ private fun ExportButtons(
     onSave: () -> Unit,
     onClear: () -> Unit,
 ) {
-    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-        OutlinedButton(
+    Column(modifier = Modifier.fillMaxWidth()) {
+        // 定型文／メール画面の主要アクション（オレンジのグラデーションピル）と
+        // 見た目を揃える。コピーが一番よく使う操作なのでこちらを主役にする。
+        GradientActionButton(
+            text = "コピー",
+            icon = Icons.Filled.ContentCopy,
+            enabled = hasText,
             onClick = onCopy,
-            enabled = hasText,
-            shape = RoundedCornerShape(14.dp),
-            modifier = Modifier.weight(1f),
-            colors = ButtonDefaults.outlinedButtonColors(contentColor = BrandBlueDeep),
-        ) {
-            Icon(Icons.Filled.ContentCopy, contentDescription = null, modifier = Modifier.size(18.dp))
-            Spacer(Modifier.width(4.dp))
-            Text("コピー")
-        }
-        OutlinedButton(
-            onClick = onSave,
-            enabled = hasText,
-            shape = RoundedCornerShape(14.dp),
-            modifier = Modifier.weight(1f),
-            colors = ButtonDefaults.outlinedButtonColors(contentColor = BrandBlueDeep),
-        ) {
-            Icon(Icons.Filled.Save, contentDescription = null, modifier = Modifier.size(18.dp))
-            Spacer(Modifier.width(4.dp))
-            Text("保存")
-        }
-        OutlinedButton(
-            onClick = onClear,
-            enabled = hasText,
-            shape = RoundedCornerShape(14.dp),
-            modifier = Modifier.weight(1f),
-            colors = ButtonDefaults.outlinedButtonColors(
-                contentColor = MaterialTheme.colorScheme.error,
-            ),
-        ) {
-            Icon(Icons.Filled.Delete, contentDescription = null, modifier = Modifier.size(18.dp))
-            Spacer(Modifier.width(4.dp))
-            Text("クリア")
+        )
+        Spacer(Modifier.height(8.dp))
+        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            OutlinedButton(
+                onClick = onSave,
+                enabled = hasText,
+                shape = RoundedCornerShape(50),
+                modifier = Modifier.weight(1f),
+                colors = ButtonDefaults.outlinedButtonColors(contentColor = BrandBlueDeep),
+            ) {
+                Icon(Icons.Filled.Save, contentDescription = null, modifier = Modifier.size(18.dp))
+                Spacer(Modifier.width(4.dp))
+                Text("保存")
+            }
+            OutlinedButton(
+                onClick = onClear,
+                enabled = hasText,
+                shape = RoundedCornerShape(50),
+                modifier = Modifier.weight(1f),
+                colors = ButtonDefaults.outlinedButtonColors(
+                    contentColor = MaterialTheme.colorScheme.error,
+                ),
+            ) {
+                Icon(Icons.Filled.Delete, contentDescription = null, modifier = Modifier.size(18.dp))
+                Spacer(Modifier.width(4.dp))
+                Text("クリア")
+            }
         }
     }
 }
