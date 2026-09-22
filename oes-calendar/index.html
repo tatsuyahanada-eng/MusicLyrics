@@ -458,6 +458,11 @@ input:focus,select:focus,textarea:focus{border-color:var(--blue);box-shadow:0 0 
 .rg-detail .rg-d-code{display:block;margin-top:7px;font-family:'SFMono-Regular',Menlo,Consolas,monospace;
   font-size:11.5px;background:var(--white);border:1px solid var(--line-w);border-radius:4px;
   padding:6px 8px;white-space:pre-wrap;word-break:break-all;color:#3A3D40;}
+/* 説明パネルに出す、いま指している項目だけへのコメント（利用者の指定：「タップ、または
+   マウスクリックしたときに説明文がでるが、そこに追記コメントができるようにしたい」）。
+   注意事項（.rg-usernotes-*）と同じ入力欄の見た目を再利用する。 */
+.rg-comments{margin-top:10px;padding-top:10px;border-top:1px dashed var(--line-w);}
+.rg-comments-empty{font-size:11.5px;color:var(--muted);}
 /* 項目一覧（A: 機器名称 …） */
 .rg-fields{margin-top:12px;display:flex;flex-direction:column;gap:3px;}
 .rg-f-row{display:flex;gap:8px;align-items:flex-start;padding:5px 7px;border-radius:5px;
@@ -1099,6 +1104,18 @@ input:focus,select:focus,textarea:focus{border-color:var(--blue);box-shadow:0 0 
           <div class="rg-detail-wrap">
             <div class="rg-sub">説明</div>
             <div class="rg-detail" id="rep-detail"></div>
+            <div class="rg-comments hidden" id="rg-comments">
+              <div class="rg-usernotes-list" id="rg-comments-list"></div>
+              <div class="rg-usernotes-unlock hidden" id="rg-comments-unlock">
+                <input type="password" id="rg-comment-pw" placeholder="管理者パスワード" onkeydown="if(event.key==='Enter')unlockFromComment()">
+                <button type="button" class="btn btn-primary btn-sm" onclick="unlockFromComment()">解除</button>
+              </div>
+              <div class="rg-usernotes-add hidden" id="rg-comments-add">
+                <input type="text" id="rg-comment-input" placeholder="この項目にコメントを追記" maxlength="200" onkeydown="if(event.key==='Enter')addRepComment()">
+                <button type="button" class="btn btn-primary btn-sm" onclick="addRepComment()">追加</button>
+              </div>
+              <button type="button" class="btn btn-ghost btn-sm" id="rg-comment-lock-btn" onclick="toggleCommentUnlock()">🔒 コメントを追加</button>
+            </div>
           </div>
           <div class="rg-fields-wrap">
             <div class="rg-notes" id="rep-notes"></div>
@@ -1525,6 +1542,7 @@ function defaultSettings(){
     entryNotes: DEFAULT_ENTRY_NOTES.map(function(t){ return { id: uid('en'), text: t }; }),
     midNotes: DEFAULT_MID_NOTES.map(function(t){ return { id: uid('mn'), text: t }; }),
     reportNotes: [],
+    reportComments: {},
     commands: defaultCommands(),
     idleScreens: defaultIdleScreens(),
     calendarApiUrl: '',
@@ -1719,6 +1737,7 @@ function normalizeSettings(o){
     entryNotes: [],
     midNotes: [],
     reportNotes: [],
+    reportComments: {},
     commands: [],
     gyotai: []
   };
@@ -1752,6 +1771,19 @@ function normalizeSettings(o){
   (o.reportNotes || []).forEach(function(rn){
     var txt = (typeof rn === 'string') ? rn : (rn && typeof rn.text === 'string' ? rn.text : '');
     if(txt) s.reportNotes.push({ id: (rn && rn.id) ? rn.id : uid('rn'), text: txt });
+  });
+  /* レポートの見方タブで、行・値ごとに説明パネルへ直接追記できる「コメント」。
+     キー（例：'inst:3:0'＝章id:章内の行番号:値の番号）ごとに配列を持つ。 */
+  var rc = (o.reportComments && typeof o.reportComments === 'object') ? o.reportComments : {};
+  Object.keys(rc).forEach(function(key){
+    var arr = rc[key];
+    if(!Array.isArray(arr)) return;
+    var out = [];
+    arr.forEach(function(c){
+      var txt = (typeof c === 'string') ? c : (c && typeof c.text === 'string' ? c.text : '');
+      if(txt) out.push({ id: (c && c.id) ? c.id : uid('rc'), text: txt });
+    });
+    if(out.length) s.reportComments[key] = out;
   });
   s.commands = (o.commands === undefined) ? defaultCommands() : normalizeCommands(o.commands);
   if(o.idleScreens === undefined){
@@ -4387,7 +4419,7 @@ function repBuildFlat(){
        印字されており、ECT/MST/MPR/MD/HT設定にはそもそも見出し行が印字されていないため、
        ここで章の見出しを追加で挟まない（実機の印字にそのまま合わせる）。 */
     if(si === 0) repFlat.push({ si: si, blk: sec.name });
-    sec.lines.forEach(function(ln){ repFlat.push({ si: si, line: ln }); });
+    sec.lines.forEach(function(ln, li){ repFlat.push({ si: si, li: li, line: ln }); });
   });
 }
 
@@ -4459,6 +4491,82 @@ function removeReportNote(i){
   afterSettingsChange(false);
 }
 
+/* いま説明パネルに出している行・値だけに紐づくコメント（settings.reportComments）。
+   利用者の指定：「タップ、またはマウスクリックしたときに説明文がでるが、そこに追記
+   コメントができるようにしたい」。注意事項と同じくレポート画面から直接、管理者パスワードで
+   追記でき、閲覧はロックの有無にかかわらず誰でもできる。キーは章id・章内の行番号・値の番号
+   （repItemKey()）で、行や値を移動するたびにrepCurKeyを更新してその項目のコメントだけを出す。 */
+var repCurKey = null;
+var repCommentUnlockOpen = false;
+function repItemKey(si, li, ti){
+  var sec = REPORT_GUIDE.sections[si];
+  if(!sec || typeof li !== 'number') return null;
+  return sec.id + ':' + li + (typeof ti === 'number' ? ':' + ti : '');
+}
+function renderRepComments(){
+  var host = $('rg-comments');
+  if(!host) return;
+  if(!repCurKey){ host.classList.add('hidden'); return; }
+  host.classList.remove('hidden');
+  var unlocked = isAdminUnlocked();
+  var list = (settings.reportComments && settings.reportComments[repCurKey]) || [];
+  var listHost = $('rg-comments-list');
+  if(listHost){
+    var html = '';
+    if(!list.length){
+      html = '<div class="rg-comments-empty">まだコメントはありません。</div>';
+    }else{
+      list.forEach(function(c, i){
+        html += '<div class="rg-note rg-note-user"><span>💬 ' + esc(c.text) + '</span>'
+          + (unlocked ? '<button type="button" class="rg-note-del" onclick="removeRepComment(' + i + ')" aria-label="削除">✕</button>' : '')
+          + '</div>';
+      });
+    }
+    listHost.innerHTML = html;
+  }
+  var lockBtn = $('rg-comment-lock-btn'), unlockWrap = $('rg-comments-unlock'), addWrap = $('rg-comments-add');
+  if(lockBtn) lockBtn.classList.toggle('hidden', unlocked);
+  if(unlockWrap) unlockWrap.classList.toggle('hidden', unlocked || !repCommentUnlockOpen);
+  if(addWrap) addWrap.classList.toggle('hidden', !unlocked);
+}
+function toggleCommentUnlock(){
+  if(isAdminUnlocked()) return;
+  repCommentUnlockOpen = !repCommentUnlockOpen;
+  renderRepComments();
+  if(repCommentUnlockOpen) setTimeout(function(){ var el = $('rg-comment-pw'); if(el) el.focus(); }, 0);
+}
+function unlockFromComment(){
+  var el = $('rg-comment-pw');
+  var v = el ? el.value : '';
+  doAdminUnlock(v, function(){
+    if(el) el.value = '';
+    repCommentUnlockOpen = false;
+    applyLockState();      /* 設定タブ側の表示も一緒に更新しておく（同じ管理者セッションのため） */
+    renderRepUserNotes();  /* 注意事項カード側も一緒にロック解除表示へ */
+    renderRepComments();
+    toast('コメントを追記できるようになりました');
+  });
+}
+function addRepComment(){
+  if(!requireAdmin()) return;
+  if(!repCurKey) return;
+  var el = $('rg-comment-input');
+  var v = el ? el.value.trim() : '';
+  if(!v){ toast('コメントを入力してください'); return; }
+  settings.reportComments = settings.reportComments || {};
+  if(!settings.reportComments[repCurKey]) settings.reportComments[repCurKey] = [];
+  settings.reportComments[repCurKey].push({ id: uid('rc'), text: v });
+  if(el) el.value = '';
+  afterSettingsChange(false);
+}
+function removeRepComment(i){
+  if(!requireAdmin()) return;
+  if(!repCurKey || !settings.reportComments || !settings.reportComments[repCurKey]) return;
+  if(!confirm('このコメントを削除します。よろしいですか？')) return;
+  settings.reportComments[repCurKey].splice(i, 1);
+  afterSettingsChange(false);
+}
+
 /* 印字例の1行分。桁位置（tok.p）どおりに空白を入れて並べる */
 function repLineHtml(line, fi){
   var html = '', cur = 0;
@@ -4506,11 +4614,13 @@ function renderRepAll(){
 /* 説明パネル。何も指していないときは全体の案内を出す */
 function repShowDefault(){
   repCurSi = -1;
+  repCurKey = null;
   repSetDetail('<b>レポートの読み方</b><span class="rg-d-sub">'
     + '行にマウスを乗せる（スマホはタップ）とその行の説明、値に乗せるとその項目だけの'
     + '詳しい説明がここに出ます。</span>');
   if($('rep-fields')) $('rep-fields').innerHTML = '';
   if($('rep-notes')) $('rep-notes').innerHTML = '';
+  renderRepComments();
   repClearHl();
 }
 function repSetDetail(html){
@@ -4583,6 +4693,8 @@ function repShowLine(fi){
            + '<b>この行の説明</b><span class="rg-d-sub">' + esc(ln.desc || '') + '</span>';
   if(ln.code) html += '<span class="rg-d-code">' + esc(ln.code) + '</span>';
   repSetDetail(html);
+  repCurKey = repItemKey(row.si, row.li);
+  renderRepComments();
 }
 function repShowTok(fi, ti){
   var row = repFlat[fi];
@@ -4604,6 +4716,8 @@ function repShowTok(fi, ti){
   }
   if(tk.code) html += '<span class="rg-d-code">' + esc(tk.code) + '</span>';
   repSetDetail(html);
+  repCurKey = repItemKey(row.si, row.li, ti);
+  renderRepComments();
 }
 
 /* マウスでもタップでも同じように動かす（スマホにはhoverが無いため） */
@@ -5573,7 +5687,7 @@ function afterSettingsChange(rerenderSettingsPane){
   renderEntryNoteRow();
   renderMidNoteRow();
   if(!$('pane-cmd').classList.contains('hidden')){ renderIdleSelect(); renderCmdSelect(true); }
-  if(!$('pane-rep').classList.contains('hidden')) renderRepUserNotes();
+  if(!$('pane-rep').classList.contains('hidden')){ renderRepUserNotes(); renderRepComments(); }
   if(rerenderSettingsPane) renderSettings();
 }
 function syncEntriesWithSettings(){

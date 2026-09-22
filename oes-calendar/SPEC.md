@@ -799,6 +799,33 @@ REPORT_GUIDE = {
   （`removeReportNote()`）は確認ダイアログのあと該当の1件を配列から取り除く。どちらも
   `afterSettingsChange(false)`を通すので、他のタブの表示やダーティ状態の管理と同じ経路に乗る。
 
+### 4-3.5 説明パネルのコメント（行・値ごとに追記するメモ）
+
+説明パネル（`#rep-detail`）自体にも、**いま指している行・値だけに紐づくコメント**を注意事項と
+同じやり方で追記できる（利用者の指定：「タップ、またはマウスクリックしたときに説明文がでるが、
+そこに追記コメントができるようにしたい」）。
+
+- データは`settings.reportComments`（キー→`{id, text}`配列のオブジェクト）として**共有設定
+  `settings.json`に入れる**。キーは`repItemKey(si, li, ti)`が組み立てる文字列
+  （`"<章id>:<章内の行番号>:<値の番号>"`。行だけを指しているときは値の番号を省く）。
+  `li`は`repBuildFlat()`が`repFlat`の各行に持たせている「その章の`lines`配列の何番目か」で、
+  `REPORT_GUIDE`のデータ自体にidを振らずに済ませている（実機仕様の固定データなので、
+  通常は行の並びが変わらない前提）。
+- 画面上は`#rep-detail`の直下、`#rg-comments`に置く。**行・値を何も指していない初期状態では
+  ブロックごと隠す**（コメントを付ける対象が定まらないため）。`repShowLine()`/`repShowTok()`が
+  呼ばれるたびに`repCurKey`（今指している項目のキー）を更新し、`renderRepComments()`が
+  そのキーのコメントだけを出し直す。別の項目に移ると表示も切り替わり、同じ項目に戻れば
+  同じコメントがまた出る。
+- **閲覧は誰でもできる。追加・削除だけ管理者パスワードが必要**（`requireAdmin()`）。
+  **この場所にも専用のパスワード入力欄がある**（「🔒 コメントを追加」→`toggleCommentUnlock()`で
+  欄を開き、`unlockFromComment()`で確認。中身は注意事項と共通の`doAdminUnlock(v, onDone)`）。
+  解除すると`renderRepUserNotes()`も呼んで、注意事項カード側の表示も一緒にロック解除状態へ
+  更新する（管理者ロックはアプリ全体で1つの状態のため）。
+- 追加（`addRepComment()`）・削除（`removeRepComment()`）は注意事項と同じパターン
+  （`settings.reportComments[repCurKey]`への push / splice → `afterSettingsChange(false)`）。
+- 見た目は注意事項の入力欄（`.rg-usernotes-list` / `.rg-usernotes-unlock` / `.rg-usernotes-add` /
+  `.rg-note-user` / `.rg-note-del`）をそのまま使い回し、新しいCSSクラスは増やしていない。
+
 ## 5. 画面3: 設定
 
 設定タブは**シンプルさを優先**し、常時表示は最小限のカードのみとする。使用頻度の低い項目は

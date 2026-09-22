@@ -770,6 +770,23 @@ GoogleカレンダーへOES入替作業の予定を登録するための、単�
     アプリ全体で1つ**（`isAdminUnlocked()`は`sessionStorage`を見るだけなので、レポート画面で
     解除すれば設定タブも解除された状態になる。逆も同じ）。閲覧（一覧表示）は誰でもでき、
     追加（`addReportNote()`）・削除（`removeReportNote()`）だけ`requireAdmin()`で守る。
+  - **説明パネル（`#rep-detail`）にも、いま指している行・値だけに紐づく「コメント」を
+    同じやり方で追記できる**（利用者の指定：「タップ、またはマウスクリックしたときに説明文が
+    でるが、そこに追記コメントができるようにしたい」）。`settings.reportComments`
+    （キー→`{id, text}`配列のオブジェクト）に**共有設定`settings.json`として入れる**。
+    キーは`repItemKey(si, li, ti)`＝章id・章内の行番号（`repFlat`の`li`）・値の番号
+    （行なら`ti`省略）で組み立てる。**`REPORT_GUIDE`のデータ自体（`repFlat`のデータ構造は
+    含む）にidを振らず、コード上の位置だけで特定している**ので、`REPORT_GUIDE`の行の並びを
+    後で書き換えるとコメントが別の項目に付いて見えることがある（実機仕様の固定データなので
+    そう頻繁には変わらない前提）。
+    `repShowLine()`/`repShowTok()`が呼ばれるたびに`repCurKey`を更新し、`renderRepComments()`が
+    そのキーのコメントだけを`#rg-comments`（`#rep-detail`の直下）に出す。**行・値を何も
+    指していない初期状態では`#rg-comments`ごと隠す**（コメントを付ける対象が無いため）。
+    ロック解除は注意事項と同様にこの場所（`#rg-comment-pw`/`unlockFromComment()`）にも用意し、
+    解除したら`renderRepUserNotes()`も一緒に呼んで注意事項カード側の表示も合わせる
+    （同じ管理者セッションのため）。見た目は注意事項の入力欄（`.rg-usernotes-list`/
+    `.rg-usernotes-unlock`/`.rg-usernotes-add`/`.rg-note-user`/`.rg-note-del`）をそのまま
+    使い回し、新しいCSSクラスを増やさない。
 - **タブが5つになったので、狭い画面（600px未満）では設定タブを歯車マークだけにする**
   （`#tab-set`を`flex:0 0 auto`にして幅も内容ぶんに詰める。利用者の指定：「上部タブがスペース
   なければ設定は歯車マークでも大丈夫」）。600px以上では他のタブと同じく「⚙️ 設定」と出し、等幅に戻す。
@@ -900,6 +917,7 @@ GoogleカレンダーへOES入替作業の予定を登録するための、単�
 | `simPwrSwitchPos` / `updatePwrSwitchVisual()` / `SIM_LED_IDS` | 電源スイッチの状態（`'on'`/`'off'`、共有設定には入れない）と、見た目（`.sw-active`）・表示部の全LED（`SIM_LED_IDS`＝電源／オンライン／通信中／エラー／コントローラ、電源オフ以外は全部緑点灯）への反映 |
 | `cmdRecording` / `cmdRecordSteps` / `startCmdRecord()` / `stopCmdRecord()` / `recordCmdStep()` / `renderCmdRecordUI()` | シミュレーターの実際のボタン操作を記録し、`settings.commands`に新しいコマンドとして登録する機能。`simEmit()`の先頭で横取りするだけで、キー判定ロジックは変えていない。記録中の一覧は専用の箱を作らず、右側「進行状況」の`#cmd-steps`/`#sim-msg`をそのまま使う |
 | `settings.reportNotes` / `renderRepUserNotes()` / `unlockFromRep()` / `addReportNote()` / `removeReportNote()` | レポートの見方タブから直接、管理者パスワードで追記できる「注意事項」。閲覧は誰でも可、追加・削除は`requireAdmin()`で守る |
+| `settings.reportComments` / `repItemKey()` / `repCurKey` / `renderRepComments()` / `unlockFromComment()` / `addRepComment()` / `removeRepComment()` | 説明パネル（`#rep-detail`）に、いま指している行・値だけへ直接追記できるコメント。キーは`repItemKey(si, li, ti)`＝章id:章内の行番号:値の番号 |
 | `expandPhysicalSteps(cmd)` / `stepRepeat(st)` | 手順を「実際に押す回数ぶん」の1回押しの並びに展開する（連続押しの照合・表示用） |
 | `simEmit(step)` / `simMatchProgress()` / `simShowCommand(c)` | 1回の操作が確定したときの処理。登録済みコマンドと前方一致で照合し、途中／完了の画面を出す |
 | `simSetScreen(l1,l2)` / `simSetMsg(msg)` / `simSetNote(memo)` | シミュレーターのLCD表示（上下行、`fitLcdLine()`で自動縮小）・案内メッセージ・結果コメント欄 |
@@ -1040,6 +1058,12 @@ CSVの書き出し・読み込みが往復できること（待機画面の列�
 呼んでいる）、**ここで解除した状態は設定タブ側にもそのまま反映されること**（管理者ロックは
 アプリ全体で1つの状態）、**ロックされている状態（他の利用者）では削除ボタンも追加欄も出ないこと**を
 確認する。
+**説明パネルのコメント（`#rg-comments`）は、何も行・値を指していない初期状態では隠れていること**、
+**行や値にマウスを乗せる（タップする）と、その項目だけのコメント欄が出ること**、**別の行・値に
+移ると表示されるコメントも切り替わり、元の項目に戻ると同じコメントがまた出ること**（`repCurKey`が
+`repItemKey(si, li, ti)`で項目ごとに変わることの確認）、**「🔒 コメントを追加」でこの場所から
+直接ロック解除でき、解除すると入力欄が出て追加・削除ができること**、**タブを離れてまた戻ると
+コメント欄は未選択の状態に戻ること**を確認する。
 上部タブは、**600px未満では設定タブが歯車マークだけになり、5つのタブが横スクロールせず収まること**も確認する。
 業態ごとの手順書・資料（画像・PDF）は `php -S` 等でPHPを動かした上で、
 管理者ロック中はアップロード・削除ができないこと、画像・PDFのアップロードが一覧とサーバー上の
