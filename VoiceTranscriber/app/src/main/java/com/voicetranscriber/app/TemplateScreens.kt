@@ -126,8 +126,9 @@ private fun TemplateWorkPane(
     // 選択した定型文の ID（選んだ順）。通常モードでは常に0〜1件。
     var selectedIds by remember(kind) { mutableStateOf(listOf<String>()) }
     var date by remember { mutableStateOf("") }
-    var time1 by remember { mutableStateOf("") }
-    var time2 by remember { mutableStateOf("") }
+    // 時間1・時間2は 9:00〜10:00 が最も使われる想定なので、既定値として入れておく
+    var time1 by remember { mutableStateOf("09:00") }
+    var time2 by remember { mutableStateOf("10:00") }
     var name by remember { mutableStateOf("") }
     var mailTo by remember(kind) { mutableStateOf("") }
 
@@ -188,10 +189,12 @@ private fun TemplateWorkPane(
     ) {
         HeroHeader(
             title = if (isMail) "メール送信" else "定型文コピー",
+            // 自動折り返しに任せると「ー」などが1文字だけ孤立して見苦しいので、
+            // 読点の位置で明示的に改行する
             subtitle = if (isMail) {
-                "メール用の定型文から、宛先・件名・本文を組み立てて送信します"
+                "メール用の定型文から、\n宛先・件名・本文を組み立てて送信します"
             } else {
-                "フォルダから選んで、差し込み項目を入れてコピー"
+                "フォルダから選んで、\n差し込み項目を入れてコピー"
             },
         )
         Spacer(Modifier.height(16.dp))
@@ -291,12 +294,25 @@ private fun TemplateWorkPane(
                         DropdownField("日付", dateOptions(), date) { date = it }
                         Spacer(Modifier.height(10.dp))
                     }
-                    if (needs(TemplateTokens.TIME1)) {
-                        DropdownField("時間1", timeOptions(), time1) { time1 = it }
-                        Spacer(Modifier.height(10.dp))
-                    }
-                    if (needs(TemplateTokens.TIME2)) {
-                        DropdownField("時間2", timeOptions(), time2) { time2 = it }
+                    val showTime1 = needs(TemplateTokens.TIME1)
+                    val showTime2 = needs(TemplateTokens.TIME2)
+                    if (showTime1 || showTime2) {
+                        // 縦に積むと幅を取りすぎるので、時間1・時間2は横並びにする
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(10.dp),
+                        ) {
+                            if (showTime1) {
+                                Box(modifier = Modifier.weight(1f)) {
+                                    DropdownField("時間1", timeOptions(), time1) { time1 = it }
+                                }
+                            }
+                            if (showTime2) {
+                                Box(modifier = Modifier.weight(1f)) {
+                                    DropdownField("時間2", timeOptions(), time2) { time2 = it }
+                                }
+                            }
+                        }
                         Spacer(Modifier.height(10.dp))
                     }
                     if (needs(TemplateTokens.NAME)) {
@@ -656,6 +672,22 @@ private fun FolderCard(
 // 共通パーツ（設定画面からも使うので internal）
 // ---------------------------------------------------------------------------
 
+/**
+ * オレンジの縦アクセントバー。見出し類で繰り返し使う、アプリ共通のワンポイント。
+ * 単色ではなく明→暗のグラデーションにして、太め・角丸強めでしっかり主張させる。
+ */
+@Composable
+internal fun AccentBar(height: Dp) {
+    Box(
+        modifier = Modifier
+            .size(width = 6.dp, height = height)
+            .clip(RoundedCornerShape(3.dp))
+            .background(
+                Brush.verticalGradient(listOf(Color(0xFFFFC168), BrandOrange, BrandOrangeDeep)),
+            ),
+    )
+}
+
 /** 画面上部のグラデーション見出し。全タブ共通のブルーグラデーション。 */
 @Composable
 internal fun HeroHeader(title: String, subtitle: String) {
@@ -666,24 +698,19 @@ internal fun HeroHeader(title: String, subtitle: String) {
             .background(BlueGradient)
             .padding(horizontal = 18.dp, vertical = 16.dp),
     ) {
-        Column {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Box(
-                    modifier = Modifier
-                        .size(width = 4.dp, height = 18.dp)
-                        .clip(RoundedCornerShape(2.dp))
-                        .background(BrandOrange),
-                )
-                Spacer(Modifier.width(8.dp))
+        Row {
+            AccentBar(height = 44.dp)
+            Spacer(Modifier.width(12.dp))
+            Column {
                 Text(title, color = Color.White, fontWeight = FontWeight.Bold, fontSize = 19.sp)
+                Spacer(Modifier.height(6.dp))
+                Text(
+                    subtitle,
+                    color = Color.White.copy(alpha = 0.88f),
+                    fontSize = 13.sp,
+                    lineHeight = 19.sp,
+                )
             }
-            Spacer(Modifier.height(6.dp))
-            Text(
-                subtitle,
-                color = Color.White.copy(alpha = 0.88f),
-                fontSize = 13.sp,
-                lineHeight = 19.sp,
-            )
         }
     }
 }
@@ -691,12 +718,7 @@ internal fun HeroHeader(title: String, subtitle: String) {
 @Composable
 internal fun SectionLabel(text: String) {
     Row(verticalAlignment = Alignment.CenterVertically) {
-        Box(
-            modifier = Modifier
-                .size(width = 4.dp, height = 16.dp)
-                .clip(RoundedCornerShape(2.dp))
-                .background(BrandOrange),
-        )
+        AccentBar(height = 20.dp)
         Spacer(Modifier.width(8.dp))
         Text(text, fontWeight = FontWeight.Bold, style = MaterialTheme.typography.titleSmall)
     }

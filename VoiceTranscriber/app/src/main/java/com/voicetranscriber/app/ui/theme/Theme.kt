@@ -74,8 +74,10 @@ fun VoiceTranscriberTheme(
     if (!view.isInEditMode) {
         SideEffect {
             val window = (view.context as Activity).window
-            window.statusBarColor = colorScheme.background.toArgb()
-            WindowCompat.getInsetsController(window, view).isAppearanceLightStatusBars = !darkTheme
+            // タイトルバーが常にブルー背景（BrandBlueDeep 寄り）になったので、
+            // ステータスバーもそれに合わせ、アイコンは常に白系（ライトでない）にする。
+            window.statusBarColor = 0xFF0B3FA8.toInt()
+            WindowCompat.getInsetsController(window, view).isAppearanceLightStatusBars = false
         }
     }
     MaterialTheme(

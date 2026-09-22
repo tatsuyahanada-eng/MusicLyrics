@@ -163,40 +163,55 @@ private fun AppRoot() {
     Scaffold(
         containerColor = MaterialTheme.colorScheme.background,
         topBar = {
-            CenterAlignedTopAppBar(
-                navigationIcon = {
-                    if (screen == AppScreen.SETTINGS) {
-                        IconButton(onClick = { screen = settingsBack }) {
-                            Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "戻る")
+            Column {
+                CenterAlignedTopAppBar(
+                    navigationIcon = {
+                        if (screen == AppScreen.SETTINGS) {
+                            IconButton(onClick = { screen = settingsBack }) {
+                                Icon(
+                                    Icons.AutoMirrored.Filled.ArrowBack,
+                                    contentDescription = "戻る",
+                                    tint = Color.White,
+                                )
+                            }
+                        } else {
+                            Spacer(Modifier.width(4.dp))
                         }
-                    } else {
-                        Spacer(Modifier.width(4.dp))
-                    }
-                },
-                // アイコンはどの画面でも常に表示する
-                title = { BrandTitle(showSubtitle = screen == AppScreen.SETTINGS) },
-                actions = {
-                    if (screen != AppScreen.SETTINGS) {
-                        IconButton(
-                            onClick = {
-                                settingsKind =
-                                    if (screen == AppScreen.MAIL) TemplateKind.MAIL else TemplateKind.COPY
-                                settingsBack = screen
-                                screen = AppScreen.SETTINGS
-                            },
-                        ) {
-                            Icon(
-                                Icons.Filled.Settings,
-                                contentDescription = "設定",
-                                tint = BrandBlueDeep,
-                            )
+                    },
+                    // アイコンはどの画面でも常に表示する
+                    title = { BrandTitle(showSubtitle = screen == AppScreen.SETTINGS) },
+                    actions = {
+                        if (screen != AppScreen.SETTINGS) {
+                            IconButton(
+                                onClick = {
+                                    settingsKind =
+                                        if (screen == AppScreen.MAIL) TemplateKind.MAIL else TemplateKind.COPY
+                                    settingsBack = screen
+                                    screen = AppScreen.SETTINGS
+                                },
+                            ) {
+                                Icon(
+                                    Icons.Filled.Settings,
+                                    contentDescription = "設定",
+                                    tint = Color.White,
+                                )
+                            }
                         }
-                    }
-                },
-                colors = TopAppBarDefaults.centerAlignedTopAppBarColors(
-                    containerColor = MaterialTheme.colorScheme.background,
-                ),
-            )
+                    },
+                    colors = TopAppBarDefaults.centerAlignedTopAppBarColors(
+                        containerColor = Color.Transparent,
+                        scrolledContainerColor = Color.Transparent,
+                    ),
+                    modifier = Modifier.background(BlueGradient),
+                )
+                // ブランドカラーの締め＝オレンジのラインでタイトルバーを縁取る
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(3.dp)
+                        .background(OrangeGradient),
+                )
+            }
         },
         bottomBar = {
             if (screen != AppScreen.SETTINGS) {
@@ -283,12 +298,13 @@ private fun BrandTitle(showSubtitle: Boolean = false) {
         )
         Spacer(Modifier.width(8.dp))
         Column {
-            val nameColor = MaterialTheme.colorScheme.onSurface
+            // タイトルバーが常にブルー背景になったので、文字は白系＋オレンジで
+            // コントラストを取る（旧配色の onSurface / Deep 系は暗すぎて沈む）。
             Text(
                 buildAnnotatedString {
-                    withStyle(SpanStyle(color = nameColor)) { append("Voice") }
-                    withStyle(SpanStyle(color = BrandBlueDeep)) { append(" & Copy") }
-                    withStyle(SpanStyle(color = BrandOrangeDeep)) { append(" Paste") }
+                    withStyle(SpanStyle(color = Color.White)) { append("Voice") }
+                    withStyle(SpanStyle(color = Color(0xFFD7E6FF))) { append(" & Copy") }
+                    withStyle(SpanStyle(color = BrandOrange)) { append(" Paste") }
                 },
                 fontWeight = FontWeight.SemiBold,
                 fontSize = 18.sp,
@@ -298,7 +314,7 @@ private fun BrandTitle(showSubtitle: Boolean = false) {
                 Text(
                     "定型文の設定",
                     fontSize = 12.sp,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    color = Color.White.copy(alpha = 0.85f),
                 )
             }
         }
