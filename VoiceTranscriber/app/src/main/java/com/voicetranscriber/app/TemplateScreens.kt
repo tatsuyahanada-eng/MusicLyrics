@@ -21,9 +21,13 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
@@ -188,6 +192,9 @@ private fun TemplateWorkPane(
             .fillMaxSize()
             .background(surfaceWashBrush())
             .padding(innerPadding)
+            // キーボード表示ぶんの余白を確保し、本文欄などがキーボードに
+            // 隠れたままにならず、スクロールして引き上げられるようにする
+            .imePadding()
             .verticalScroll(rememberScrollState())
             .padding(horizontal = 16.dp, vertical = 12.dp),
     ) {
@@ -908,14 +915,29 @@ private fun DropdownField(
                 Icon(Icons.Filled.ArrowDropDown, contentDescription = null, tint = BrandBlueDeep)
             }
             DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
-                options.forEach { opt ->
-                    DropdownMenuItem(
-                        text = { Text(opt) },
-                        onClick = {
-                            onSelect(opt)
-                            expanded = false
-                        },
-                    )
+                // 開くたびに一番上からではなく、選択中の値の少し上から表示する
+                // （そのままだと毎回リストの先頭に戻ってしまい、時間欄などで
+                // 選び直すのに毎回長くスクロールする必要があった）。
+                val selectedIndex = options.indexOf(selected).coerceAtLeast(0)
+                val listState = rememberLazyListState(
+                    initialFirstVisibleItemIndex = (selectedIndex - 2).coerceAtLeast(0),
+                )
+                LazyColumn(state = listState, modifier = Modifier.heightIn(max = 320.dp)) {
+                    items(options) { opt ->
+                        DropdownMenuItem(
+                            text = {
+                                Text(
+                                    opt,
+                                    fontWeight = if (opt == selected) FontWeight.Bold else FontWeight.Normal,
+                                    color = if (opt == selected) BrandBlueDeep else Color.Unspecified,
+                                )
+                            },
+                            onClick = {
+                                onSelect(opt)
+                                expanded = false
+                            },
+                        )
+                    }
                 }
             }
         }
@@ -929,8 +951,10 @@ private fun dateOptions(): List<String> {
 }
 
 private fun timeOptions(): List<String> {
-    val list = ArrayList<String>(96)
-    for (h in 0..23) for (m in intArrayOf(0, 15, 30, 45)) {
+    // 業務利用で使うのは 7:00〜23:00 程度なので、深夜帯は省いて選びやすくする
+    val list = ArrayList<String>(65)
+    for (h in 7..23) for (m in intArrayOf(0, 15, 30, 45)) {
+        if (h == 23 && m > 0) break
         list.add(String.format(Locale.US, "%02d:%02d", h, m))
     }
     return list

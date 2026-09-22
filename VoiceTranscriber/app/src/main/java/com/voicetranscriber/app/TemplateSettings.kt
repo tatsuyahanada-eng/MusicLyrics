@@ -15,6 +15,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -129,6 +130,9 @@ fun TemplateSettingsPane(
             .fillMaxSize()
             .background(surfaceWashBrush())
             .padding(innerPadding)
+            // キーボードに入力欄が隠れたままにならないよう、その分の
+            // 余白を確保してスクロールで引き上げられるようにする
+            .imePadding()
             .verticalScroll(rememberScrollState())
             .padding(horizontal = 16.dp, vertical = 12.dp),
     ) {
@@ -769,7 +773,7 @@ private fun TemplateEditorDialog(
             )
         },
         text = {
-            Column(modifier = Modifier.verticalScroll(rememberScrollState())) {
+            Column(modifier = Modifier.verticalScroll(rememberScrollState()).imePadding()) {
                 OutlinedTextField(
                     value = name,
                     onValueChange = { name = it },
