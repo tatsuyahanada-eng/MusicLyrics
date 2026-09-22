@@ -294,20 +294,21 @@ private fun BrandTitle(showSubtitle: Boolean = false) {
             painter = painterResource(R.drawable.app_badge),
             contentDescription = null,
             contentScale = ContentScale.Fit,
-            modifier = Modifier.size(34.dp),
+            modifier = Modifier.size(40.dp),
         )
-        Spacer(Modifier.width(8.dp))
+        Spacer(Modifier.width(10.dp))
         Column {
             // タイトルバーが常にブルー背景になったので、文字は白系＋オレンジで
-            // コントラストを取る（旧配色の onSurface / Deep 系は暗すぎて沈む）。
+            // コントラストを取る。「Paste」だけを単独でオレンジにすると浮いて
+            // 見えるので、「Copy Paste」をひとまとまりでオレンジにする
+            // （Voice＝白＝音声、Copy Paste＝オレンジ＝コピー機能、で2分割）。
             Text(
                 buildAnnotatedString {
                     withStyle(SpanStyle(color = Color.White)) { append("Voice") }
-                    withStyle(SpanStyle(color = Color(0xFFD7E6FF))) { append(" & Copy") }
-                    withStyle(SpanStyle(color = BrandOrange)) { append(" Paste") }
+                    withStyle(SpanStyle(color = BrandOrange)) { append(" & Copy Paste") }
                 },
-                fontWeight = FontWeight.SemiBold,
-                fontSize = 18.sp,
+                fontWeight = FontWeight.Bold,
+                fontSize = 21.sp,
                 letterSpacing = 0.3.sp,
             )
             if (showSubtitle) {
