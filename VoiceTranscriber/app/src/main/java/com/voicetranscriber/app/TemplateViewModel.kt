@@ -195,6 +195,28 @@ class TemplateViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
+    // ----- 金額プリセット -----
+
+    /** {金額1}{金額2} でよく使う値を追加登録する。 */
+    fun addAmountPreset(kind: TemplateKind, value: String) {
+        val v = value.trim()
+        if (v.isBlank()) return
+        update { s ->
+            val current = s.amountPresetsOf(kind)
+            if (v in current) return@update s
+            val next = current + v
+            if (kind == TemplateKind.MAIL) s.copy(mailAmountPresets = next) else s.copy(amountPresets = next)
+        }
+    }
+
+    /** 登録済みの金額プリセットを削除する。 */
+    fun removeAmountPreset(kind: TemplateKind, value: String) {
+        update { s ->
+            val next = s.amountPresetsOf(kind) - value
+            if (kind == TemplateKind.MAIL) s.copy(mailAmountPresets = next) else s.copy(amountPresets = next)
+        }
+    }
+
     private companion object {
         const val KEY = "store_json"
         const val KEY_SEEDED = "seeded"

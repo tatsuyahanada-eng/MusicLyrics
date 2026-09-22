@@ -26,6 +26,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.Send
@@ -71,6 +72,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.TextRange
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
@@ -117,6 +119,7 @@ private fun TemplateWorkPane(
     val store by viewModel.store.collectAsStateWithLifecycle()
     val categories = store.categoriesOf(kind)
     val commonInsert = store.commonInsertOf(kind)
+    val amountPresets = store.amountPresetsOf(kind)
     val isMail = kind == TemplateKind.MAIL
     val allTemplates = categories.flatMap { it.templates }
 
@@ -129,6 +132,8 @@ private fun TemplateWorkPane(
     // 時間1・時間2は 9:00〜10:00 が最も使われる想定なので、既定値として入れておく
     var time1 by remember { mutableStateOf("09:00") }
     var time2 by remember { mutableStateOf("10:00") }
+    var amount1 by remember { mutableStateOf("") }
+    var amount2 by remember { mutableStateOf("") }
     var name by remember { mutableStateOf("") }
     var mailTo by remember(kind) { mutableStateOf("") }
 
@@ -151,16 +156,15 @@ private fun TemplateWorkPane(
         }
     }
 
+    val tokenValues = TokenValues(date, time1, time2, amount1, amount2, name)
+
     fun combinedBody(): String {
-        val sep = fillTemplate(commonInsert, date, time1, time2, name)
+        val sep = tokenValues.fill(commonInsert)
         val joiner = if (sep.isBlank()) "\n\n" else "\n\n$sep\n\n"
-        return selectedTemplates.joinToString(separator = joiner) {
-            fillTemplate(it.body, date, time1, time2, name)
-        }
+        return selectedTemplates.joinToString(separator = joiner) { tokenValues.fill(it.body) }
     }
 
-    fun combinedSubject(): String =
-        fillTemplate(primaryTemplate?.subject.orEmpty(), date, time1, time2, name)
+    fun combinedSubject(): String = tokenValues.fill(primaryTemplate?.subject.orEmpty())
 
     // 選択が変わったら、宛先とプレビューを選択内容から作り直す
     LaunchedEffect(selectedIds, kind) {
@@ -171,7 +175,7 @@ private fun TemplateWorkPane(
         subjectField = TextFieldValue(combinedSubject())
     }
     // 差し込み項目や共通項目が変わったら、手直し前のプレビューだけ更新する
-    LaunchedEffect(date, time1, time2, name, commonInsert) {
+    LaunchedEffect(date, time1, time2, amount1, amount2, name, commonInsert) {
         if (!bodyEdited) bodyField = TextFieldValue(combinedBody())
         if (!subjectEdited) subjectField = TextFieldValue(combinedSubject())
     }
@@ -310,6 +314,27 @@ private fun TemplateWorkPane(
                             if (showTime2) {
                                 Box(modifier = Modifier.weight(1f)) {
                                     DropdownField("時間2", timeOptions(), time2) { time2 = it }
+                                }
+                            }
+                        }
+                        Spacer(Modifier.height(10.dp))
+                    }
+                    val showAmount1 = needs(TemplateTokens.AMOUNT1)
+                    val showAmount2 = needs(TemplateTokens.AMOUNT2)
+                    if (showAmount1 || showAmount2) {
+                        // 日付・時間と同じく、金額1・金額2も横並びにする
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(10.dp),
+                        ) {
+                            if (showAmount1) {
+                                Box(modifier = Modifier.weight(1f)) {
+                                    AmountField("金額1", amount1, amountPresets) { amount1 = it }
+                                }
+                            }
+                            if (showAmount2) {
+                                Box(modifier = Modifier.weight(1f)) {
+                                    AmountField("金額2", amount2, amountPresets) { amount2 = it }
                                 }
                             }
                         }
@@ -798,6 +823,52 @@ internal fun insertTokenAt(current: TextFieldValue, token: String): TextFieldVal
         text.substring(0, start) + token + text.substring(end),
         selection = TextRange(start + token.length),
     )
+}
+
+/**
+ * 金額の入力欄。自由入力だが、設定に登録したプリセットがあれば
+ * タップで即入力できるチップを下に並べる（日付・時間のドロップダウンに近い使い方）。
+ */
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+private fun AmountField(
+    label: String,
+    value: String,
+    presets: List<String>,
+    onValueChange: (String) -> Unit,
+) {
+    Column(modifier = Modifier.fillMaxWidth()) {
+        OutlinedTextField(
+            value = value,
+            onValueChange = onValueChange,
+            label = { Text(label) },
+            singleLine = true,
+            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+            shape = RoundedCornerShape(12.dp),
+            modifier = Modifier.fillMaxWidth(),
+            colors = brandTextFieldColors(),
+        )
+        if (presets.isNotEmpty()) {
+            Spacer(Modifier.height(6.dp))
+            FlowRow(
+                horizontalArrangement = Arrangement.spacedBy(6.dp),
+                verticalArrangement = Arrangement.spacedBy(6.dp),
+            ) {
+                presets.forEach { p ->
+                    Box(
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(12.dp))
+                            .background(BrandBlue.copy(alpha = 0.10f))
+                            .border(1.dp, BrandBlue.copy(alpha = 0.30f), RoundedCornerShape(12.dp))
+                            .clickable { onValueChange(p) }
+                            .padding(horizontal = 10.dp, vertical = 6.dp),
+                    ) {
+                        Text(p, fontSize = 12.sp, color = BrandBlueDeep, maxLines = 1)
+                    }
+                }
+            }
+        }
+    }
 }
 
 @Composable

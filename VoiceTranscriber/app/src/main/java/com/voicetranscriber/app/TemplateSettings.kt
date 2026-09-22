@@ -6,6 +6,8 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectDragGesturesAfterLongPress
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -23,6 +25,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.ArrowDownward
 import androidx.compose.material.icons.filled.ArrowUpward
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.DragHandle
 import androidx.compose.material.icons.filled.Edit
@@ -147,6 +150,17 @@ fun TemplateSettingsPane(
             key = kind,
             commonInsert = store.commonInsertOf(kind),
             onSave = { viewModel.setCommonInsert(kind, it) },
+        )
+        Spacer(Modifier.height(20.dp))
+
+        // ----- 金額プリセット -----
+        SectionLabel("金額プリセット")
+        Spacer(Modifier.height(6.dp))
+        AmountPresetEditor(
+            key = kind,
+            presets = store.amountPresetsOf(kind),
+            onAdd = { viewModel.addAmountPreset(kind, it) },
+            onRemove = { viewModel.removeAmountPreset(kind, it) },
         )
         Spacer(Modifier.height(20.dp))
 
@@ -622,6 +636,90 @@ private fun CommonInsertEditor(key: TemplateKind, commonInsert: String, onSave: 
             TokenChipsRow { token ->
                 field = insertTokenAt(field, token)
                 onSave(field.text)
+            }
+        }
+    }
+}
+
+/**
+ * {金額1}{金額2} の入力でよく使う値をあらかじめ登録しておく欄。
+ * 使用画面では、ここに登録した値がタップで選べるチップとして表示される。
+ */
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+private fun AmountPresetEditor(
+    key: TemplateKind,
+    presets: List<String>,
+    onAdd: (String) -> Unit,
+    onRemove: (String) -> Unit,
+) {
+    var newValue by remember(key) { mutableStateOf("") }
+
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(16.dp),
+        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+    ) {
+        Column(modifier = Modifier.padding(14.dp)) {
+            Text(
+                "{金額1}{金額2} でよく使う値を登録しておくと、使用画面でタップして選べます。",
+                fontSize = 12.sp,
+                lineHeight = 18.sp,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            Spacer(Modifier.height(8.dp))
+            OutlinedTextField(
+                value = newValue,
+                onValueChange = { newValue = it },
+                placeholder = { Text("例：50,000円") },
+                singleLine = true,
+                shape = RoundedCornerShape(12.dp),
+                modifier = Modifier.fillMaxWidth(),
+                colors = brandTextFieldColors(),
+                trailingIcon = {
+                    IconButton(
+                        onClick = {
+                            onAdd(newValue)
+                            newValue = ""
+                        },
+                        enabled = newValue.isNotBlank(),
+                    ) {
+                        Icon(
+                            Icons.Filled.Add,
+                            contentDescription = "追加",
+                            tint = if (newValue.isNotBlank()) BrandOrangeDeep
+                            else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f),
+                        )
+                    }
+                },
+            )
+            if (presets.isNotEmpty()) {
+                Spacer(Modifier.height(10.dp))
+                FlowRow(
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    presets.forEach { p ->
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(20.dp))
+                                .background(BrandBlue.copy(alpha = 0.12f))
+                                .clickable { onRemove(p) }
+                                .padding(start = 12.dp, end = 8.dp, top = 8.dp, bottom = 8.dp),
+                        ) {
+                            Text(p, fontSize = 13.sp, fontWeight = FontWeight.Medium, color = BrandBlueDeep)
+                            Spacer(Modifier.width(4.dp))
+                            Icon(
+                                Icons.Filled.Close,
+                                contentDescription = "削除",
+                                tint = BrandBlueDeep,
+                                modifier = Modifier.size(14.dp),
+                            )
+                        }
+                    }
+                }
             }
         }
     }
