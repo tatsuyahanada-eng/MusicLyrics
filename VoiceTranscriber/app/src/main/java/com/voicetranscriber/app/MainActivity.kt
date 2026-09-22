@@ -294,15 +294,16 @@ private val TitleFontFamily = FontFamily(Font(R.font.anton_regular, FontWeight.N
 private fun BrandTitle(showSubtitle: Boolean = false) {
     Row(verticalAlignment = Alignment.CenterVertically) {
         // アイコンは円形の地色プレートをやめ、マイク＋書類1枚だけのシンプルな
-        // グリフを白フチ付きでタイトルバーのブルーに直接乗せる（矢印や
-        // クリップボードまで入れるとごちゃついて見えるため要素を絞った）。
+        // グリフを白フチ付きでタイトルバーのブルーに直接乗せる。縦に並べると
+        // 間延びして小さく見えるため、マイクを書類に重ねて正方形に近い
+        // コンパクトな構図にし、その分大きく表示できるようにしている。
         Image(
             painter = painterResource(R.drawable.app_badge),
             contentDescription = null,
             contentScale = ContentScale.Fit,
             modifier = Modifier
-                .height(42.dp)
-                .aspectRatio(207f / 340f),
+                .height(46.dp)
+                .aspectRatio(267f / 330f),
         )
         Spacer(Modifier.width(10.dp))
         Column {
