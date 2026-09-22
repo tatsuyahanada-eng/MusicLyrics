@@ -49,7 +49,6 @@ import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -57,6 +56,7 @@ import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.SnackbarHostState
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
 import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
@@ -73,15 +73,21 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.TextRange
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.IntOffset
+import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.window.Popup
+import androidx.compose.ui.window.PopupProperties
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import kotlinx.coroutines.launch
@@ -890,6 +896,8 @@ private fun DropdownField(
     onSelect: (String) -> Unit,
 ) {
     var expanded by remember { mutableStateOf(false) }
+    var anchorSize by remember { mutableStateOf(IntSize.Zero) }
+    val density = LocalDensity.current
     Column(modifier = Modifier.fillMaxWidth()) {
         Text(label, fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
         Spacer(Modifier.height(2.dp))
@@ -902,7 +910,9 @@ private fun DropdownField(
                     containerColor = MaterialTheme.colorScheme.surface,
                 ),
                 border = androidx.compose.foundation.BorderStroke(1.dp, BrandBlue.copy(alpha = 0.45f)),
-                modifier = Modifier.fillMaxWidth(),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .onSizeChanged { anchorSize = it },
             ) {
                 Text(
                     selected.ifBlank { "選択してください" },
@@ -914,29 +924,50 @@ private fun DropdownField(
                 )
                 Icon(Icons.Filled.ArrowDropDown, contentDescription = null, tint = BrandBlueDeep)
             }
-            DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
-                // 開くたびに一番上からではなく、選択中の値の少し上から表示する
-                // （そのままだと毎回リストの先頭に戻ってしまい、時間欄などで
-                // 選び直すのに毎回長くスクロールする必要があった）。
-                val selectedIndex = options.indexOf(selected).coerceAtLeast(0)
-                val listState = rememberLazyListState(
-                    initialFirstVisibleItemIndex = (selectedIndex - 2).coerceAtLeast(0),
-                )
-                LazyColumn(state = listState, modifier = Modifier.heightIn(max = 320.dp)) {
-                    items(options) { opt ->
-                        DropdownMenuItem(
-                            text = {
-                                Text(
-                                    opt,
-                                    fontWeight = if (opt == selected) FontWeight.Bold else FontWeight.Normal,
-                                    color = if (opt == selected) BrandBlueDeep else Color.Unspecified,
+            if (expanded) {
+                // Material3 の DropdownMenu は中身を verticalScroll な Column
+                // （幅は IntrinsicSize.Max で計測）で包むため、その中に
+                // LazyColumn を入れると「無限の高さ制約」や「Lazy は intrinsic
+                // 計測に非対応」でクラッシュする。開いた瞬間に選択中の値まで
+                // スクロールしておきたいので、ここでは Material3 の
+                // DropdownMenu を使わず、自前の Popup + LazyColumn で組む。
+                Popup(
+                    alignment = Alignment.TopStart,
+                    // ボタンのすぐ下（高さぶん降りたところ）にポップアップを出す
+                    offset = IntOffset(0, anchorSize.height + with(density) { 4.dp.roundToPx() }),
+                    onDismissRequest = { expanded = false },
+                    properties = PopupProperties(focusable = true),
+                ) {
+                    val selectedIndex = options.indexOf(selected).coerceAtLeast(0)
+                    val listState = rememberLazyListState(
+                        initialFirstVisibleItemIndex = (selectedIndex - 2).coerceAtLeast(0),
+                    )
+                    Surface(
+                        shape = RoundedCornerShape(12.dp),
+                        color = MaterialTheme.colorScheme.surface,
+                        tonalElevation = 3.dp,
+                        shadowElevation = 6.dp,
+                        modifier = Modifier
+                            .width(with(density) { anchorSize.width.toDp() })
+                            .heightIn(max = 320.dp),
+                    ) {
+                        LazyColumn(state = listState) {
+                            items(options) { opt ->
+                                DropdownMenuItem(
+                                    text = {
+                                        Text(
+                                            opt,
+                                            fontWeight = if (opt == selected) FontWeight.Bold else FontWeight.Normal,
+                                            color = if (opt == selected) BrandBlueDeep else Color.Unspecified,
+                                        )
+                                    },
+                                    onClick = {
+                                        onSelect(opt)
+                                        expanded = false
+                                    },
                                 )
-                            },
-                            onClick = {
-                                onSelect(opt)
-                                expanded = false
-                            },
-                        )
+                            }
+                        }
                     }
                 }
             }
