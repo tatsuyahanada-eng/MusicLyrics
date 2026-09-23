@@ -759,18 +759,45 @@ private fun TemplateEditorDialog(
         )
     }
     var focused by remember { mutableStateOf(EditorField.BODY) }
+    var showClearConfirm by remember { mutableStateOf(false) }
+    val hasInput = name.isNotBlank() || email.isNotBlank() ||
+        subject.text.isNotBlank() || body.text.isNotBlank()
 
     AlertDialog(
         onDismissRequest = onDismiss,
         title = {
-            Text(
-                when {
-                    existing == null && isMail -> "メール定型文を追加"
-                    existing == null -> "定型文を追加"
-                    isMail -> "メール定型文を編集"
-                    else -> "定型文を編集"
-                },
-            )
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    when {
+                        existing == null && isMail -> "メール定型文を追加"
+                        existing == null -> "定型文を追加"
+                        isMail -> "メール定型文を編集"
+                        else -> "定型文を編集"
+                    },
+                    modifier = Modifier.weight(1f),
+                )
+                // 作成・編集の途中で内容をやり直したいときのためのクリアボタン
+                TextButton(
+                    onClick = { showClearConfirm = true },
+                    enabled = hasInput,
+                    contentPadding = PaddingValues(horizontal = 8.dp),
+                ) {
+                    Icon(
+                        Icons.Filled.Delete,
+                        contentDescription = null,
+                        tint = if (hasInput) MaterialTheme.colorScheme.error
+                        else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f),
+                        modifier = Modifier.size(16.dp),
+                    )
+                    Spacer(Modifier.width(2.dp))
+                    Text(
+                        "クリア",
+                        fontSize = 13.sp,
+                        color = if (hasInput) MaterialTheme.colorScheme.error
+                        else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f),
+                    )
+                }
+            }
         },
         text = {
             Column(modifier = Modifier.verticalScroll(rememberScrollState()).imePadding()) {
@@ -854,4 +881,25 @@ private fun TemplateEditorDialog(
         // 閉じるには「キャンセル」か端末の戻るボタンを使う。
         properties = DialogProperties(dismissOnClickOutside = false),
     )
+
+    if (showClearConfirm) {
+        AlertDialog(
+            onDismissRequest = { showClearConfirm = false },
+            title = { Text("入力内容をクリア") },
+            text = { Text("名前・本文など、入力中の内容をすべて消去します。よろしいですか？") },
+            confirmButton = {
+                TextButton(onClick = {
+                    name = ""
+                    email = ""
+                    subject = TextFieldValue("")
+                    body = TextFieldValue("")
+                    focused = EditorField.BODY
+                    showClearConfirm = false
+                }) { Text("クリアする") }
+            },
+            dismissButton = {
+                TextButton(onClick = { showClearConfirm = false }) { Text("キャンセル") }
+            },
+        )
+    }
 }

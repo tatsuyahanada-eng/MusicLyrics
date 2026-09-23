@@ -13,8 +13,8 @@ android {
         applicationId = "com.voicetranscriber.app"
         minSdk = 26
         targetSdk = 35
-        versionCode = 22
-        versionName = "3.0"
+        versionCode = 23
+        versionName = "3.1"
     }
 
     // 固定の署名鍵。これにより毎回のビルドが同じ署名になり、
