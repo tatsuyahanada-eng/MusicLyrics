@@ -506,6 +506,31 @@ input:focus,select:focus,textarea:focus{border-color:var(--blue);box-shadow:0 0 
 .cs-ops{display:flex;gap:4px;margin-left:auto;}
 .cs-ops button{width:34px;padding:0;justify-content:center;}
 .cs-insert-top{align-self:flex-start;margin-bottom:2px;}
+/* コマンド手順を「ボタンをタップして組み立てる」ビルダー（利用者の指定：もっと直感的に登録したい） */
+.cmb-wrap{background:#F6F7F9;border:1px solid var(--line-w);border-radius:var(--r-s);
+  padding:10px 10px 12px;margin-bottom:10px;}
+.cmb-modes{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:8px;}
+.cmb-mode-btn{flex:0 0 auto;padding:6px 10px;font-size:11.5px;font-weight:700;border-radius:999px;
+  border:1px solid var(--line);background:var(--white);color:#5C6064;cursor:pointer;}
+.cmb-mode-btn.on{background:var(--sky);border-color:var(--sky);color:#fff;}
+.cmb-hint{font-size:11.5px;color:var(--muted);margin-bottom:8px;min-height:15px;}
+.cmb-hint.active{color:var(--blue-d);font-weight:700;}
+.cmb-keys{grid-template-columns:repeat(7,1fr);gap:3px;}
+.cmb-keys .simkey{min-height:30px;font-size:10.5px;}
+.cmb-switch{display:flex;gap:6px;margin-top:6px;}
+.cmb-switch button{flex:1 1 0;min-height:32px;font-size:11px;font-weight:700;border-radius:5px;
+  border:1px solid #9A9A9A;background:#FDFDFD;color:#2B2B2B;cursor:pointer;}
+.cmb-insert-mark{display:flex;align-items:center;gap:6px;padding:4px 8px;border-radius:999px;
+  background:var(--blue-l);color:var(--blue-d);font-size:11px;font-weight:700;}
+.cmb-insert-mark button{border:none;background:none;color:var(--blue-d);cursor:pointer;font-weight:700;padding:0 2px;}
+.cs-chip{display:flex;align-items:center;gap:6px;border:1px solid var(--line-w);border-radius:var(--r-s);
+  padding:7px 8px;background:var(--white);cursor:pointer;}
+.cs-chip.open{border-color:var(--sky);background:var(--blue-l2);}
+.cs-chip-label{flex:1 1 auto;min-width:0;font-size:13px;font-weight:700;color:var(--ink);}
+.cs-chip .cs-ops{margin-left:0;}
+.cs-chip-detail{border:1px solid var(--sky);border-top:none;border-radius:0 0 var(--r-s) var(--r-s);
+  padding:8px 8px 9px;background:var(--blue-l2);display:flex;flex-wrap:wrap;gap:5px;align-items:center;
+  margin-top:-6px;}
 /* 待機中の画面の編集リスト（名前＋1〜2行目） */
 .is-row{display:flex;flex-wrap:wrap;gap:5px;align-items:center;border:1px solid var(--line-w);
   border-radius:var(--r-s);padding:6px 7px;background:var(--white);margin-bottom:6px;}
@@ -5018,56 +5043,99 @@ function movePhrase(i, d){
 }
 
 /* ---------- 設定画面: コマンド一覧（保守機能の操作手順）の編集 ---------- */
-function simKeyOptions(selected, allowNone){
-  var html = allowNone
-    ? '<option value=""' + (!selected ? ' selected' : '') + '>（同時押しなし）</option>' : '';
-  html += '<optgroup label="キーパッド">';
-  SIM_KEYS.forEach(function(k){
-    if(k.id === 'BLANK') return;
-    html += '<option value="' + esc(k.id) + '"' + (k.id === selected ? ' selected' : '') + '>'
-      + esc(k.name) + '</option>';
-  });
-  html += '</optgroup><optgroup label="電源スイッチ（枠外）">';
-  SIM_SWITCH_KEYS.forEach(function(k){
-    html += '<option value="' + esc(k.id) + '"' + (k.id === selected ? ' selected' : '') + '>'
-      + esc(k.name) + '</option>';
-  });
-  html += '</optgroup>';
-  return html;
-}
-function cmdStepRowHtml(c, st, si){
-  var k1 = st.keys[0] || '', k2 = st.keys[1] || '';
+/* 手順チップ。普段は番号とキー名だけの1行で、タップすると長押し・押しまま・連続回数・
+   画面文言・結果コメントの詳細欄が開く（利用者の指定：普段はすっきりした一覧にしたい）。 */
+function cmdStepChipHtml(c, st, si){
+  var open = !!cmdStepOpenSet[st.id];
   var n = stepRepeat(st);
-  return '<div class="cs-row">'
+  var html = '<div class="cs-chip' + (open ? ' open' : '') + '" onclick="toggleCmdStepOpen(\'' + st.id + '\')">'
     + '<span class="cs-no">' + (si + 1) + '</span>'
-    + '<select onchange="setCmdStepKey(\'' + c.id + '\',\'' + st.id + '\',0,this.value)">' + simKeyOptions(k1, false) + '</select>'
-    + '<select onchange="setCmdStepKey(\'' + c.id + '\',\'' + st.id + '\',1,this.value)">' + simKeyOptions(k2, true) + '</select>'
-    + '<label class="cs-hold"><input type="checkbox"' + (st.hold ? ' checked' : '')
-    +   ' onchange="setCmdStepHold(\'' + c.id + '\',\'' + st.id + '\',this.checked)">長押し</label>'
-    + '<label class="cs-hold"><input type="checkbox"' + (st.stayDown ? ' checked' : '')
-    +   ' onchange="setCmdStepStayDown(\'' + c.id + '\',\'' + st.id + '\',this.checked)">押しまま</label>'
-    + '<label class="cs-hold cs-rep">連続<input type="number" min="1" max="20" value="' + n + '"'
-    +   ((st.hold || st.stayDown) ? ' disabled' : '') + ' onchange="setCmdStepRepeat(\'' + c.id + '\',\'' + st.id + '\',this.value)">回</label>'
-    + '<span class="cs-ops">'
+    + '<span class="cs-chip-label">' + esc(simStepLabel(st)) + '</span>'
+    + '<span class="cs-ops" onclick="event.stopPropagation()">'
     +   '<button class="btn btn-ghost btn-sm" onclick="moveCmdStep(\'' + c.id + '\',' + si + ',-1)"'
     +     (si === 0 ? ' disabled' : '') + ' aria-label="上へ">↑</button>'
     +   '<button class="btn btn-ghost btn-sm" onclick="moveCmdStep(\'' + c.id + '\',' + si + ',1)"'
     +     (si === c.steps.length - 1 ? ' disabled' : '') + ' aria-label="下へ">↓</button>'
-    +   '<button class="btn btn-ghost btn-sm" onclick="insertCmdStep(\'' + c.id + '\',' + si + ')" aria-label="この後に1つ追加" title="この後にボタンを1つ追加（入れ忘れたときに）">＋</button>'
+    +   '<button class="btn btn-ghost btn-sm" onclick="cmbArmInsert(\'' + c.id + '\',' + si + ')"'
+    +     ' aria-label="この後に挿入" title="この後に挿入（下のキーパッドで次に押した1つがここに入ります）">＋</button>'
     +   '<button class="btn btn-danger btn-sm" onclick="removeCmdStep(\'' + c.id + '\',\'' + st.id + '\')" aria-label="削除">✕</button>'
     + '</span>'
-    + '<div class="cs-lines">'
-    +   '<input type="text" class="cs-disp" value="' + esc(st.l1) + '" autocomplete="off"'
-    +     ' placeholder="画面1行目（任意）例: インストールジョウホウ"'
-    +     ' oninput="setCmdStepLine(\'' + c.id + '\',\'' + st.id + '\',1,this.value)">'
-    +   '<input type="text" class="cs-disp" value="' + esc(st.l2) + '" autocomplete="off"'
-    +     ' placeholder="画面2行目（任意）"'
-    +     ' oninput="setCmdStepLine(\'' + c.id + '\',\'' + st.id + '\',2,this.value)">'
+    + '</div>';
+  if(open){
+    html += '<div class="cs-chip-detail" onclick="event.stopPropagation()">'
+      + '<label class="cs-hold"><input type="checkbox"' + (st.hold ? ' checked' : '')
+      +   ' onchange="setCmdStepHold(\'' + c.id + '\',\'' + st.id + '\',this.checked)">長押し</label>'
+      + '<label class="cs-hold"><input type="checkbox"' + (st.stayDown ? ' checked' : '')
+      +   ' onchange="setCmdStepStayDown(\'' + c.id + '\',\'' + st.id + '\',this.checked)">押しまま（離さずに次へ）</label>'
+      + '<label class="cs-hold cs-rep">連続<input type="number" min="1" max="20" value="' + n + '"'
+      +   ((st.hold || st.stayDown) ? ' disabled' : '') + ' onchange="setCmdStepRepeat(\'' + c.id + '\',\'' + st.id + '\',this.value)">回</label>'
+      + '<div class="cs-lines">'
+      +   '<input type="text" class="cs-disp" value="' + esc(st.l1) + '" autocomplete="off"'
+      +     ' placeholder="画面1行目（任意）例: インストールジョウホウ"'
+      +     ' oninput="setCmdStepLine(\'' + c.id + '\',\'' + st.id + '\',1,this.value)">'
+      +   '<input type="text" class="cs-disp" value="' + esc(st.l2) + '" autocomplete="off"'
+      +     ' placeholder="画面2行目（任意）"'
+      +     ' oninput="setCmdStepLine(\'' + c.id + '\',\'' + st.id + '\',2,this.value)">'
+      + '</div>'
+      + '<div class="cs-memo">'
+      +   '<input type="text" class="cs-note" value="' + esc(st.memo) + '" autocomplete="off"'
+      +     ' placeholder="結果コメント（任意）画面は変わらないが実際に起こること　例: 明細票が印刷されます"'
+      +     ' oninput="setCmdStepMemo(\'' + c.id + '\',\'' + st.id + '\',this.value)">'
+      + '</div>'
+      + '</div>';
+  }
+  return html;
+}
+function cmbInsertMarkHtml(cid){
+  return '<div class="cmb-insert-mark">▼ 次に押したボタンがここに入ります'
+    + '<button type="button" onclick="cmbCancelInsert(\'' + cid + '\')" aria-label="取り消す">✕ 取り消す</button></div>';
+}
+/* 手順を組み立てるミニキーパッド（利用者の指定：「1番目のコマンド、2番目のコマンドという感じの
+   うまい方法」「基本直感的で誰でも登録しやすい仕組み」）。実機シミュレーターと同じキー配置・
+   見た目（.simkey/.sim-keys）をそのまま使い、見慣れたキーパッドをタップするだけで手順を
+   追加できるようにする。「同時押し」「長押し」「押しまま」は次の1回のタップだけに効く
+   一時的な修飾で、追加し終わると自動で通常に戻る。 */
+function cmdBuilderHtml(c){
+  var s = cmbGet(c.id);
+  var hintText, hintActive = false;
+  if(s.combo && !s.pendingKey){
+    hintText = '同時に押す1つ目のボタンをタップしてください';
+    hintActive = true;
+  }else if(s.combo && s.pendingKey){
+    hintText = '「' + simKeyLabel(s.pendingKey) + '」と同時に押す、もう1つのボタンをタップしてください';
+    hintActive = true;
+  }else if(s.mode === 'hold'){
+    hintText = '次にタップするボタンは「長押し」として追加されます';
+    hintActive = true;
+  }else if(s.mode === 'stay'){
+    hintText = '次にタップするボタンは「押しまま（離さずに次へ）」として追加されます。'
+      + '例：実行を押したまま電源オンにする → まずこれを選んで「実行」をタップし、'
+      + '続けて「電源スイッチON」をタップします。';
+    hintActive = true;
+  }else{
+    hintText = 'ボタンをタップすると、押した順番のまま手順に追加されます。'
+      + '同じボタンを続けてタップすると自動で「◯回」にまとまります。';
+  }
+  if(s.insertAt !== null) hintText += '（＋で指定した位置に挿入されます）';
+  var keysHtml = '';
+  SIM_KEYS.forEach(function(k){
+    if(k.id === 'BLANK'){ keysHtml += '<div class="simkey k-blank"></div>'; return; }
+    keysHtml += '<button type="button" class="simkey ' + k.cls
+      + (s.pendingKey === k.id ? ' on' : '') + '" onclick="cmbTapKey(\'' + c.id + '\',\'' + k.id + '\')"'
+      + ' aria-label="' + esc(k.name) + '">'
+      + (k.sub ? '<span class="sub">' + esc(k.sub) + '</span>' : '') + esc(k.label) + '</button>';
+  });
+  return '<div class="cmb-wrap">'
+    + '<div class="cmb-modes">'
+    +   '<button type="button" class="cmb-mode-btn' + (s.combo ? ' on' : '') + '" onclick="cmbToggleCombo(\'' + c.id + '\')">🤝 同時押し</button>'
+    +   '<button type="button" class="cmb-mode-btn' + (s.mode === 'hold' ? ' on' : '') + '" onclick="cmbSetMode(\'' + c.id + '\',\'hold\')">⏱ 長押し</button>'
+    +   '<button type="button" class="cmb-mode-btn' + (s.mode === 'stay' ? ' on' : '') + '" onclick="cmbSetMode(\'' + c.id + '\',\'stay\')">🔒 押しまま</button>'
     + '</div>'
-    + '<div class="cs-memo">'
-    +   '<input type="text" class="cs-note" value="' + esc(st.memo) + '" autocomplete="off"'
-    +     ' placeholder="結果コメント（任意）画面は変わらないが実際に起こること　例: 明細票が印刷されます"'
-    +     ' oninput="setCmdStepMemo(\'' + c.id + '\',\'' + st.id + '\',this.value)">'
+    + '<div class="cmb-hint' + (hintActive ? ' active' : '') + '">' + esc(hintText) + '</div>'
+    + '<div class="sim-keys cmb-keys">' + keysHtml + '</div>'
+    + '<div class="cmb-switch">'
+    +   '<button type="button" onclick="cmbTapKey(\'' + c.id + '\',\'PWRSW_ON\')">電源スイッチ ON</button>'
+    +   '<button type="button" onclick="cmbTapKey(\'' + c.id + '\',\'PWRSW_OFF\')">電源スイッチ OFF</button>'
     + '</div>'
     + '</div>';
 }
@@ -5169,18 +5237,23 @@ function renderCommandList(){
       +   '<div class="field" style="margin-bottom:9px;"><label>こんな時に使う操作か（任意）</label>'
       +     '<input type="text" value="' + esc(c.usage) + '" autocomplete="off" placeholder="例: サポートに問い合わせるときに機器のIDを伝えたい"'
       +     ' oninput="setCommandUsage(\'' + c.id + '\',this.value)"></div>'
+      +   cmdBuilderHtml(c)
       +   '<div class="cs-list">';
-    if(!c.steps.length){
-      html += '<div class="hint">まだ手順がありません。「＋ 押すボタンを追加」から順番に登録してください。</div>';
-    }else{
-      html += '<button class="btn btn-ghost btn-sm cs-insert-top" onclick="insertCmdStep(\'' + c.id + '\',-1)">＋ 先頭に追加</button>';
+    var s = cmbGet(c.id);
+    if(!c.steps.length && s.insertAt === null){
+      html += '<div class="hint">まだ手順がありません。上のキーパッドをタップして、押す順番に登録してください。</div>';
     }
-    c.steps.forEach(function(st, si){ html += cmdStepRowHtml(c, st, si); });
+    if(c.steps.length){
+      html += '<button class="btn btn-ghost btn-sm cs-insert-top" onclick="cmbArmInsert(\'' + c.id + '\',-1)">＋ 先頭に挿入</button>';
+    }
+    if(c.steps.length && s.insertAt === -1) html += cmbInsertMarkHtml(c.id);
+    c.steps.forEach(function(st, si){
+      html += cmdStepChipHtml(c, st, si);
+      if(s.insertAt === si) html += cmbInsertMarkHtml(c.id);
+    });
     html += '</div>'
-      + '<div class="hint" style="margin-top:6px;">各行の「＋」でその手順のすぐ後に、押し忘れたボタンを差し込めます。↑↓で順番も入れ替えられます。</div>'
-      + '<div class="row-btns" style="margin-top:9px;">'
-      +   '<button class="btn btn-sub btn-sm" onclick="addCmdStep(\'' + c.id + '\')">＋ 押すボタンを追加</button>'
-      + '</div>'
+      + '<div class="hint" style="margin-top:6px;">手順をタップすると、長押し・押しまま・連続回数や画面の文言を編集できます。'
+      + '「＋」でその手順のすぐ後に挿入する位置を指定できます。↑↓で順番も入れ替えられます。</div>'
       + '</div></div>';
   });
   host.innerHTML = html;
@@ -5256,18 +5329,82 @@ function setCommandIdleScreen(id, v){
   c.idleScreen = v || '';
   afterSettingsChange(false);
 }
-function addCmdStep(cid){
+/* 手順チップの展開状態（見た目だけ、settingsには入れない） */
+var cmdStepOpenSet = {};
+function toggleCmdStepOpen(sid){
+  cmdStepOpenSet[sid] = !cmdStepOpenSet[sid];
+  renderCommandList();
+}
+/* キーパッドで手順を組み立てるビルダーの一時的な状態（コマンドごと。settingsには入れない）。
+   combo: 次の1〜2タップを同時押しにする／pendingKey: 同時押しの1つ目として選んだキー／
+   mode: 'normal'|'hold'|'stay'（次の1回だけに効く）／insertAt: 次のタップをどこに挿入するか
+   （nullなら末尾に追加、-1なら先頭、nならその手順の直後） */
+var cmbState = {};
+function cmbGet(cid){
+  if(!cmbState[cid]) cmbState[cid] = { combo: false, mode: 'normal', pendingKey: null, insertAt: null };
+  return cmbState[cid];
+}
+function cmbToggleCombo(cid){
+  if(!requireAdmin()) return;
+  var s = cmbGet(cid);
+  s.combo = !s.combo;
+  s.pendingKey = null;
+  renderCommandList();
+}
+function cmbSetMode(cid, mode){
+  if(!requireAdmin()) return;
+  var s = cmbGet(cid);
+  s.mode = (s.mode === mode) ? 'normal' : mode;
+  renderCommandList();
+}
+/* 手順チップの「＋」から呼ぶ。次にキーパッドをタップしたときに、その手順の直後（afterIndex=-1なら
+   先頭）へ挿入する。もう一度同じ「＋」を押すと取り消す。 */
+function cmbArmInsert(cid, afterIndex){
+  if(!requireAdmin()) return;
+  var s = cmbGet(cid);
+  s.insertAt = (s.insertAt === afterIndex) ? null : afterIndex;
+  renderCommandList();
+}
+function cmbCancelInsert(cid){
+  var s = cmbGet(cid);
+  s.insertAt = null;
+  renderCommandList();
+}
+/* キーパッドのボタンをタップして手順を組み立てる（利用者の依頼：もっと直感的に、誰でも
+   登録しやすい仕組みにしたい）。同時押し・長押し・押しままは「次の1回だけ効く」修飾で、
+   1つ手順を追加し終わると自動で通常に戻る。同時押しモード中に同じボタンを2回続けてタップした
+   場合は、同時押しにする意味が無いので、そのキー1つだけの通常の手順として追加する。 */
+function cmbTapKey(cid, key){
   if(!requireAdmin()) return;
   var c = findCommand(cid); if(!c) return;
-  c.steps.push({ id: uid('cs'), keys: ['9'], hold: false, stayDown: false, repeat: 1, l1: '', l2: '', memo: '' });
+  var s = cmbGet(cid);
+  if(s.combo && !s.pendingKey){
+    s.pendingKey = key;
+    renderCommandList();
+    return;
+  }
+  var keys = (s.combo && s.pendingKey && s.pendingKey !== key) ? [s.pendingKey, key] : [key];
+  s.pendingKey = null;
+  s.combo = false;
+  cmbAddStep(c, s, keys);
   afterSettingsChange(true);
 }
-/* 押し忘れたボタンをあとから途中に差し込めるようにする（afterIndexの直後、-1なら先頭に入れる） */
-function insertCmdStep(cid, afterIndex){
-  if(!requireAdmin()) return;
-  var c = findCommand(cid); if(!c) return;
-  c.steps.splice(afterIndex + 1, 0, { id: uid('cs'), keys: ['9'], hold: false, stayDown: false, repeat: 1, l1: '', l2: '', memo: '' });
-  afterSettingsChange(true);
+/* 通常モードで、直前の手順が同じ1つのキーの単発（長押し・押しままではない）なら、新しい手順を
+   増やさずその「連続」回数を1増やす（同じボタンを続けてタップすると自動でまとまる）。
+   それ以外は新しい手順として追加する（挿入位置が指定されていればそこへ、なければ末尾へ）。 */
+function cmbAddStep(c, s, keys){
+  var mode = s.mode, insertAt = s.insertAt;
+  s.mode = 'normal';
+  s.insertAt = null;
+  if(insertAt === null && mode === 'normal' && keys.length === 1 && c.steps.length){
+    var last = c.steps[c.steps.length - 1];
+    if(!last.hold && !last.stayDown && last.keys.length === 1 && last.keys[0] === keys[0]){
+      last.repeat = Math.min(20, stepRepeat(last) + 1);
+      return;
+    }
+  }
+  var st = { id: uid('cs'), keys: keys, hold: mode === 'hold', stayDown: mode === 'stay', repeat: 1, l1: '', l2: '', memo: '' };
+  c.steps.splice((insertAt === null) ? c.steps.length : insertAt + 1, 0, st);
 }
 function removeCmdStep(cid, sid){
   if(!requireAdmin()) return;
@@ -5285,20 +5422,6 @@ function moveCmdStep(cid, i, d){
   var tmp = c.steps[i];
   c.steps[i] = c.steps[j];
   c.steps[j] = tmp;
-  afterSettingsChange(true);
-}
-/* pos=0が本体のキー、pos=1が同時に押すキー（空なら同時押しなし） */
-function setCmdStepKey(cid, sid, pos, v){
-  var st = findCmdStep(findCommand(cid), sid); if(!st) return;
-  var keys = st.keys.slice();
-  if(pos === 0){
-    if(!v) return;                      /* 1つ目は必須なので空にはしない */
-    keys[0] = v;
-  }else{
-    if(v) keys[1] = v; else keys.splice(1, 1);
-  }
-  if(keys[1] === keys[0]) keys.splice(1, 1);   /* 同じキーの同時押しは意味がない */
-  st.keys = keys.filter(function(k){ return !!k; });
   afterSettingsChange(true);
 }
 /* 長押しと「連続で何回か押す」は同時に成立しないので、片方を設定したらもう片方を既定に戻す */
