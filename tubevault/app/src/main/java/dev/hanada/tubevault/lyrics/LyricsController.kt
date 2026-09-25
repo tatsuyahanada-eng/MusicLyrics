@@ -34,7 +34,7 @@ data class LyricsQuery(val artist: String, val title: String)
 class LyricsController(
     private val playback: PlaybackController,
     private val library: LibraryRepository,
-    private val repository: LyricsRepository = LyricsRepository(),
+    private val repository: LyricsRepository,
 ) {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
 

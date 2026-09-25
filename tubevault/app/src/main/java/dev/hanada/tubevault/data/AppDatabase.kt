@@ -8,8 +8,8 @@ import androidx.room.migration.Migration
 import androidx.sqlite.db.SupportSQLiteDatabase
 
 @Database(
-    entities = [CategoryEntity::class, MediaItemEntity::class],
-    version = 4,
+    entities = [CategoryEntity::class, MediaItemEntity::class, LyricsCacheEntity::class],
+    version = 5,
     exportSchema = false,
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -17,6 +17,8 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun categoryDao(): CategoryDao
 
     abstract fun mediaDao(): MediaDao
+
+    abstract fun lyricsCacheDao(): LyricsCacheDao
 
     companion object {
         /** Adds folder nesting. Existing folders default to top-level (null). */
@@ -54,13 +56,39 @@ abstract class AppDatabase : RoomDatabase() {
             }
         }
 
+        /**
+         * A device-local record of lyrics that were already found once, so a
+         * flaky connection or an outage at the lyrics source never takes away
+         * something that used to display fine.
+         */
+        private val MIGRATION_4_5 = object : Migration(4, 5) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL(
+                    """
+                    CREATE TABLE IF NOT EXISTS lyrics_cache (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+                        artistKey TEXT NOT NULL,
+                        titleKey TEXT NOT NULL,
+                        synced INTEGER NOT NULL,
+                        text TEXT NOT NULL,
+                        cachedAt INTEGER NOT NULL
+                    )
+                    """.trimIndent(),
+                )
+                db.execSQL(
+                    "CREATE UNIQUE INDEX IF NOT EXISTS index_lyrics_cache_artistKey_titleKey " +
+                        "ON lyrics_cache(artistKey, titleKey)",
+                )
+            }
+        }
+
         fun build(context: Context): AppDatabase =
             Room.databaseBuilder(
                 context.applicationContext,
                 AppDatabase::class.java,
                 "tubevault.db",
             )
-                .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4)
+                .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5)
                 .build()
     }
 }

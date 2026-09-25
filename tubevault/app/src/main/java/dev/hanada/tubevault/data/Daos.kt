@@ -118,3 +118,14 @@ interface MediaDao {
     @Query("DELETE FROM media_items WHERE categoryId = :categoryId")
     suspend fun deleteByCategory(categoryId: Long)
 }
+
+@Dao
+interface LyricsCacheDao {
+
+    @Query("SELECT * FROM lyrics_cache WHERE artistKey = :artistKey AND titleKey = :titleKey LIMIT 1")
+    suspend fun find(artistKey: String, titleKey: String): LyricsCacheEntity?
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun upsert(entity: LyricsCacheEntity)
+}
+

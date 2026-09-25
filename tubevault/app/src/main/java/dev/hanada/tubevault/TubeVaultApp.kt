@@ -10,6 +10,7 @@ import dev.hanada.tubevault.data.SettingsStore
 import dev.hanada.tubevault.download.DownloadCenter
 import dev.hanada.tubevault.importer.LocalImporter
 import dev.hanada.tubevault.lyrics.LyricsController
+import dev.hanada.tubevault.lyrics.LyricsRepository
 import dev.hanada.tubevault.playback.PlaybackController
 import dev.hanada.tubevault.potoken.PoTokenProvider
 import dev.hanada.tubevault.ytdlp.YtDlpEngine
@@ -44,7 +45,9 @@ class AppContainer(private val app: Application) {
 
     val playback: PlaybackController by lazy { PlaybackController(app, library) }
 
-    val lyrics: LyricsController by lazy { LyricsController(playback, library) }
+    val lyrics: LyricsController by lazy {
+        LyricsController(playback, library, LyricsRepository(database.lyricsCacheDao()))
+    }
 
     /** A URL shared into the app from YouTube, waiting for the search screen. */
     val sharedLink = MutableStateFlow<String?>(null)

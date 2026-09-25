@@ -84,3 +84,28 @@ data class CategoryWithStats(
     val totalBytes: Long,
     val subfolderCount: Int,
 )
+
+/**
+ * A lyrics lookup this device has already seen succeed, kept so it never has
+ * to ask LRCLIB again for the same pairing — a bad connection, a rate limit,
+ * or the site simply being down can otherwise turn a song that always worked
+ * into one that suddenly doesn't. [artistKey]/[titleKey] are the lookup
+ * (trimmed, lowercased) rather than display text; a lyric never changes once
+ * found, so nothing here ever needs to expire.
+ *
+ * [synced] tells [text] apart: raw LRC (re-parsed on every read, so the
+ * parser only has to live in one place) when true, plain lyrics when false.
+ */
+@Entity(
+    tableName = "lyrics_cache",
+    indices = [Index(value = ["artistKey", "titleKey"], unique = true)],
+)
+data class LyricsCacheEntity(
+    @PrimaryKey(autoGenerate = true) val id: Long = 0,
+    val artistKey: String,
+    val titleKey: String,
+    val synced: Boolean,
+    val text: String,
+    val cachedAt: Long = System.currentTimeMillis(),
+)
+
