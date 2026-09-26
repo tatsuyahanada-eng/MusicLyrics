@@ -12,7 +12,14 @@
   <link rel="manifest" href="manifest.webmanifest">
   <link rel="icon" href="icon.svg" type="image/svg+xml">
   <link rel="apple-touch-icon" href="icon-192.png">
-  <link rel="stylesheet" href="manual.css?v=111">
+  <!-- ============================================================
+       アプリのバージョン番号：1.43
+       アップデートのたびに、ここ2箇所（?v=…）と sw.js の3箇所
+       （CACHE と ASSETS内の2つの ?v=…）を、すべて同じ番号に
+       揃えて書き換えてください（次回は例：1.44）。
+       画面下フッターの版番号（v1.43）は、ここから自動で表示されます。
+       ============================================================ -->
+  <link rel="stylesheet" href="manual.css?v=1.43">
 </head>
 <body class="tm-body">
 
@@ -1594,6 +1601,7 @@
   </dialog>
 
   <script src="vendor/xlsx.full.min.js"></script>
-  <script src="manual.js?v=128"></script>
+  <!-- バージョン番号：1.43（次回更新時はここも忘れずに） -->
+  <script src="manual.js?v=1.43"></script>
 </body>
 </html>

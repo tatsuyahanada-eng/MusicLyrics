@@ -5628,9 +5628,11 @@
   }
   // 実際に読み込まれている manual.js の版番号（?v=…）。
   // 「アップロードしたのに反映されない」を一目で切り分けられるよう、フッターに小さく出す。
+  // v1.43 から、アプリ全体で1つの版番号（例：1.43）に統一している
+  // （以前は manual.css と manual.js が別々の連番だった）。
   function appVersion() {
     const s = document.querySelector('script[src*="manual.js"]');
-    const m = s && (s.getAttribute('src') || '').match(/v=(\d+)/);
+    const m = s && (s.getAttribute('src') || '').match(/v=([\d.]+)/);
     return m ? m[1] : '?';
   }
   { const el = $('#appVer'); if (el) el.textContent = 'v' + appVersion(); }
