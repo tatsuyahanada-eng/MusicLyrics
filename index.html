@@ -142,6 +142,38 @@
     }
     .leg-total-card .ref-badge { margin-left: 0; margin-top: 4px; display: inline-block; }
 
+    /* 領収書AI読み取り */
+    .ai-panel { border-left: 4px solid #7b61ff; }
+    .ai-panel h2 { border-left-color: #7b61ff; }
+    .ai-controls { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 16px; margin: 4px 0 10px; }
+    .ai-opt { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; font-weight: 600; color: var(--text); margin: 0; }
+    .ai-opt input[type="checkbox"], .ai-review input[type="checkbox"] { width: auto; margin: 0; }
+    .ai-panel input[type="file"] { padding: 8px; background: var(--panel-2); border: 1px dashed var(--input-border); border-radius: 6px; }
+    .ai-review table { margin-top: 12px; }
+    .ai-review th { font-size: 12px; white-space: nowrap; }
+    .ai-review td { font-size: 12px; vertical-align: top; }
+    .ai-review td input, .ai-review td select { font-size: 12px; padding: 5px 6px; }
+    .ai-review select {
+      width: 100%; font-family: inherit; border: 1px solid var(--input-border);
+      border-radius: 6px; background: var(--panel-2); color: var(--text);
+    }
+    .ai-thumb { width: 56px; height: 56px; object-fit: cover; border-radius: 4px; border: 1px solid var(--line); display: block; }
+    .ai-filetag {
+      display: inline-flex; align-items: center; justify-content: center; width: 56px; height: 56px;
+      border-radius: 4px; background: #eef2f7; color: var(--muted); font-size: 11px; font-weight: 700;
+    }
+    .ai-fname { font-size: 10px; color: var(--muted); max-width: 90px; word-break: break-all; margin-top: 2px; }
+    .ai-badge { display: inline-block; font-size: 11px; font-weight: 700; padding: 2px 8px; border-radius: 10px; white-space: nowrap; }
+    .ai-badge.ok { background: #e3f6ec; color: #1a8f5f; border: 1px solid #9fd8bb; }
+    .ai-badge.warn { background: #fdecef; color: #b3203f; border: 1px solid #f0a8b6; }
+    .ai-badge.done { background: #eef2f7; color: var(--muted); border: 1px solid var(--line); }
+    .ai-reason { font-size: 11px; color: #b3203f; margin-top: 3px; line-height: 1.4; }
+    .ai-note { font-size: 11px; color: var(--muted); margin-top: 3px; line-height: 1.4; }
+    .ai-review tr.ai-warn td { background: #fff6f7; }
+    .ai-review tr.ai-done td { opacity: .55; }
+    .ai-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; align-items: center; }
+    input.ai-filled { background: #fff7d6 !important; border-color: #f0a500 !important; }
+
     /* 「会社から出発」クイックリンク */
     .quick-link {
       margin-left: 10px; font-size: 11px; padding: 2px 9px;
@@ -349,6 +381,7 @@
           <li><b>自動計算</b>：「<b>📍 住所から総移動距離を自動計算</b>」で<b>道路距離（OSRM）</b>を取得し、区間ごと・合計を表示</li>
           <li><b>地図で確認</b>：「<b>🗺️ Googleマップで表示</b>」または、自動計算後にページ内地図プレビュー（基点・訪問先1〜のラベル付き）でルートを確認できます</li>
           <li><b>有料道路・駐車場</b>：費用を入力すると請求総額に自動反映</li>
+          <li><b>領収書AI読み取り</b>：「🤖 領収書からAI自動入力」で高速・駐車場の領収書の写真を選ぶと、AIが金額や道路名・駐車場名を読み取ります。<b>内容を確認してから</b>「フォームに反映」を押してください（黄色の欄がAIで入力した箇所。サーバーに設置したページでのみ利用可）</li>
           <li><b>総移動距離</b>：自動入力後も手修正OK。Googleマップとの差が気になる場合は上書きしてください</li>
           <li><b>Excel出力</b>：右下「<b>Excelエクスポート</b>」で .xlsx をダウンロード（ファイル名・タイトルは選択した案件が反映）</li>
         </ol>
@@ -431,6 +464,19 @@
       <div id="geoStatus" class="geo-status"></div>
       <div id="legResult" class="leg-result"></div>
       <div id="routeMap" class="route-map"></div>
+    </section>
+
+    <!-- 領収書AI読み取り（サーバーの api/receipt.php 経由で Gemini を利用） -->
+    <section class="panel ai-panel">
+      <h2>🤖 領収書からAI自動入力（高速代・駐車場代）</h2>
+      <p class="hint" style="margin-top:0">高速道路・駐車場の領収書の写真（ETC利用明細のPDFも可・複数選択可）を選ぶと、AI（Gemini）が金額・道路名・駐車場名などを読み取ります。<b>読み取り結果を画像と照らして確認・修正してから</b>「フォームに反映」を押してください。</p>
+      <div class="ai-controls">
+        <label class="ai-opt"><input type="checkbox" id="aiDoubleCheck" checked> ダブルチェック（2回読み取って金額を照合・精度優先）</label>
+        <button type="button" id="aiStatusCheck" class="btn btn-outline btn-sm">🔌 接続テスト</button>
+      </div>
+      <input id="aiReceiptFiles" type="file" accept="image/*,application/pdf,.pdf" multiple>
+      <div id="aiStatus" class="geo-status"></div>
+      <div id="aiReview" class="ai-review"></div>
     </section>
 
     <!-- ルート（有料道路） -->
@@ -725,31 +771,41 @@
       window.open(buildGmapsUrl(addrs), '_blank', 'noopener');
     });
 
-    // ルート（有料道路）テーブル
+    // ルート（有料道路）テーブル（初期5行。AI反映などで不足したらExcelテンプレートの上限8行まで追加）
+    const TOLL_LEG_LABELS = ['基点→1','1→2','2→3','3→4','4→5','5→6','6→7','7→8'];
     const tollBody = document.querySelector('#tollTable tbody');
-    TOLL_LEGS.forEach(leg => {
+    function addTollRow() {
+      const n = tollBody.children.length;
+      if (n >= TOLL_LEG_LABELS.length) return null;
       const tr = document.createElement('tr');
       tr.innerHTML = `
-        <td><span class="rlabel">${leg}</span></td>
+        <td><span class="rlabel">${TOLL_LEG_LABELS[n]}</span></td>
         <td><input type="text" placeholder="例: 首都高速"></td>
         <td><input type="text" placeholder="例: 三郷IC→箱崎"></td>
         <td class="num"><input type="number" class="cost toll-cost" min="0" step="1" placeholder="0"></td>
         <td class="unit-cell">円</td>`;
       tollBody.appendChild(tr);
-    });
+      return tr;
+    }
+    TOLL_LEGS.forEach(() => addTollRow());
 
-    // 駐車場テーブル
+    // 駐車場テーブル（初期5行。不足したらExcelテンプレートの上限7行まで追加）
+    const PARK_ROWS_MAX = 7;
     const parkBody = document.querySelector('#parkTable tbody');
-    for (let i = 1; i <= PARK_ROWS; i++) {
+    function addParkRow() {
+      const n = parkBody.children.length;
+      if (n >= PARK_ROWS_MAX) return null;
       const tr = document.createElement('tr');
       tr.innerHTML = `
-        <td><span class="rlabel">訪問先${i}</span></td>
+        <td><span class="rlabel">訪問先${n + 1}</span></td>
         <td><input type="text" placeholder="（空白可）"></td>
         <td><input type="text" placeholder="パーキング名（空白可）"></td>
         <td class="num"><input type="number" class="cost park-cost" min="0" step="1" placeholder="0"></td>
         <td class="unit-cell">円</td>`;
       parkBody.appendChild(tr);
+      return tr;
     }
+    for (let i = 0; i < PARK_ROWS; i++) addParkRow();
 
     // 計算
     const yen = n => Math.round(n).toLocaleString() + ' 円';
@@ -769,6 +825,300 @@
     }
     document.addEventListener('input', recalc);
     recalc();
+
+    /* ---------- 領収書AI読み取り（サーバーの api/receipt.php 経由で Gemini を利用） ---------- */
+    const AI_ENDPOINT = 'api/receipt.php';
+    const AI_MAX_RAW_BYTES = 5 * 1024 * 1024;   // PDF・変換できない画像をそのまま送る場合の上限
+    const AI_IMAGE_MAX_PX = 2400;               // 長辺をこのサイズまで縮小してから送る
+    const AI_CATEGORY_LABEL = { toll: '高速代', parking: '駐車場代', other: '対象外' };
+    let aiItems = [];
+    let aiSeq = 0;
+
+    function aiSetStatus(msg, cls) {
+      const el = document.getElementById('aiStatus');
+      el.textContent = msg;
+      el.className = 'geo-status' + (cls ? ' ' + cls : '');
+    }
+    const fmtYen = n => (n == null ? '―' : Number(n).toLocaleString() + ' 円');
+
+    function readFileAsDataUrl(file) {
+      return new Promise((res, rej) => {
+        const r = new FileReader();
+        r.onload = () => res(r.result);
+        r.onerror = () => rej(r.error);
+        r.readAsDataURL(file);
+      });
+    }
+
+    // 画像は向きを補正して縮小しJPEG化。PDFやブラウザで開けない画像（HEIC等）はそのまま送る
+    async function prepareReceiptFile(file) {
+      const mime = (file.type || '').toLowerCase();
+      const isPdf = mime === 'application/pdf' || /\.pdf$/i.test(file.name);
+      const sendRaw = async (type) => {
+        if (file.size > AI_MAX_RAW_BYTES) throw new Error('ファイルが大きすぎます（5MBまで）');
+        const url = await readFileAsDataUrl(file);
+        return { mimeType: type, data: url.split(',')[1], thumb: null };
+      };
+      if (isPdf) return sendRaw('application/pdf');
+      try {
+        const bmp = await createImageBitmap(file);
+        const scale = Math.min(1, AI_IMAGE_MAX_PX / Math.max(bmp.width, bmp.height));
+        const w = Math.max(1, Math.round(bmp.width * scale));
+        const h = Math.max(1, Math.round(bmp.height * scale));
+        const c = document.createElement('canvas');
+        c.width = w; c.height = h;
+        const ctx = c.getContext('2d');
+        ctx.fillStyle = '#fff';
+        ctx.fillRect(0, 0, w, h);
+        ctx.drawImage(bmp, 0, 0, w, h);
+        if (bmp.close) bmp.close();
+        const url = c.toDataURL('image/jpeg', 0.9);
+        return { mimeType: 'image/jpeg', data: url.split(',')[1], thumb: url };
+      } catch (e) {
+        if (/^image\/(heic|heif|webp|png|jpeg)$/.test(mime)) return sendRaw(mime);
+        throw new Error('この形式のファイルは読み込めません');
+      }
+    }
+
+    async function aiFetchJson(url, options) {
+      let res;
+      try { res = await fetch(url, options); }
+      catch (e) { throw new Error('サーバーに接続できませんでした'); }
+      let body = null;
+      try { body = await res.json(); } catch (_) {}
+      if (!body) {
+        throw new Error(res.status === 404
+          ? 'サーバーに api/receipt.php が見つかりません'
+          : `サーバーの応答が正しくありません（HTTP ${res.status}）。サーバーでPHPが使えるか確認してください`);
+      }
+      if (!res.ok || !body.ok) throw new Error(body.error || `サーバーエラー（HTTP ${res.status}）`);
+      return body;
+    }
+
+    async function postReceipt(prep) {
+      const body = await aiFetchJson(AI_ENDPOINT, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ mimeType: prep.mimeType, data: prep.data }),
+      });
+      return Array.isArray(body.receipts) ? body.receipts : [];
+    }
+
+    // 1回目の各領収書について、2回目に「種別と金額が同じ」ものがあるかを照合する
+    function compareReceiptPasses(first, second) {
+      const used = new Set();
+      const results = first.map(r => {
+        const j = second.findIndex((s, k) => !used.has(k) && s.category === r.category && s.amount === r.amount);
+        if (j < 0) return null;
+        used.add(j);
+        return { match: true };
+      });
+      return {
+        countDiff: first.length !== second.length,
+        results: results.map((m, i) => m || { match: false, other: second[i] }),
+      };
+    }
+
+    function buildAiItems(file, prep, passes, checkFailed) {
+      const [first, second] = passes;
+      const cmp = second ? compareReceiptPasses(first, second) : null;
+      const base = {
+        fileName: file.name, thumb: prep.thumb,
+        fileTag: prep.mimeType === 'application/pdf' ? 'PDF' : '画像',
+        doubleChecked: !!second, applied: false,
+      };
+      if (!first.length) {
+        return [{ ...base, id: ++aiSeq, category: 'other', amount: null, facility: '', section: '', date: '', note: '',
+          reasons: ['領収書を検出できませんでした'], selected: false }];
+      }
+      return first.map((r, i) => {
+        const reasons = [];
+        if (checkFailed) reasons.push('ダブルチェックの片方が失敗したため照合できていません');
+        if (cmp && cmp.countDiff) reasons.push(`2回の読み取りで件数が異なります（1回目 ${first.length}件／2回目 ${second.length}件）`);
+        if (cmp && !cmp.results[i].match) {
+          const o = cmp.results[i].other;
+          if (!o) reasons.push('2回目の読み取りで該当する領収書がありません');
+          else if (o.amount === r.amount) reasons.push('2回の読み取りで種別の判定が一致しません');
+          else reasons.push(`2回の読み取りで金額が一致しません（2回目: ${fmtYen(o.amount)}）`);
+        }
+        if (r.amount == null) reasons.push('金額を読み取れませんでした');
+        if (r.category === 'other') reasons.push('高速代・駐車場代ではない可能性があります');
+        if (typeof r.confidence === 'number' && r.confidence < 0.8) reasons.push(`AIの確信度が低めです（${Math.round(r.confidence * 100)}%）`);
+        const section = r.category === 'toll' ? [r.entry, r.exit].filter(Boolean).join('→') : '';
+        return {
+          ...base, id: ++aiSeq, category: r.category, amount: r.amount,
+          facility: r.facility || '', section, date: r.date || '', note: r.note || '', reasons,
+          selected: (r.category === 'toll' || r.category === 'parking') && r.amount != null,
+        };
+      });
+    }
+
+    function renderAiReview() {
+      const box = document.getElementById('aiReview');
+      if (!aiItems.length) { box.innerHTML = ''; return; }
+      const rows = aiItems.map(it => {
+        const warn = it.reasons.length > 0;
+        const badge = it.applied ? '<span class="ai-badge done">反映済み</span>'
+          : warn ? '<span class="ai-badge warn">⚠ 要確認</span>'
+          : `<span class="ai-badge ok">✓ ${it.doubleChecked ? '2回の読み取りが一致' : '読み取りOK'}</span>`;
+        const reasons = it.applied ? '' : it.reasons.map(r => `<div class="ai-reason">・${xmlEsc(r)}</div>`).join('');
+        const note = it.note ? `<div class="ai-note">AIメモ: ${xmlEsc(it.note)}</div>` : '';
+        const dis = it.applied ? ' disabled' : '';
+        const opts = Object.entries(AI_CATEGORY_LABEL)
+          .map(([v, l]) => `<option value="${v}"${it.category === v ? ' selected' : ''}>${l}</option>`).join('');
+        const thumb = it.thumb ? `<img class="ai-thumb" src="${it.thumb}" alt="">` : `<span class="ai-filetag">${it.fileTag}</span>`;
+        return `<tr data-id="${it.id}" class="${it.applied ? 'ai-done' : (warn ? 'ai-warn' : '')}">
+          <td><input type="checkbox" class="ai-sel" aria-label="反映する"${it.selected && !it.applied ? ' checked' : ''}${dis}></td>
+          <td>${thumb}<div class="ai-fname">${xmlEsc(it.fileName)}</div></td>
+          <td><select class="ai-cat"${dis}>${opts}</select></td>
+          <td><input type="number" class="ai-amt" min="0" step="1" value="${it.amount ?? ''}"${dis}></td>
+          <td><input type="text" class="ai-fac" value="${xmlEsc(it.facility)}"${dis}></td>
+          <td><input type="text" class="ai-sec" value="${xmlEsc(it.section)}" placeholder="${it.category === 'toll' ? '入口→出口' : ''}"${dis}></td>
+          <td>${xmlEsc(it.date) || '―'}</td>
+          <td>${badge}${reasons}${note}</td>
+        </tr>`;
+      }).join('');
+      const pending = aiItems.some(it => !it.applied);
+      box.innerHTML = `<div class="table-scroll"><table>
+          <thead><tr><th style="width:30px">反映</th><th style="width:80px">領収書</th><th style="width:100px">種別</th>
+            <th style="width:100px">金額（円）</th><th>道路名／駐車場名</th><th>区間（入口→出口）</th>
+            <th style="width:90px">日付</th><th style="width:180px">判定</th></tr></thead>
+          <tbody>${rows}</tbody></table></div>
+        <div class="ai-actions">
+          <button type="button" class="btn" data-ai="apply"${pending ? '' : ' disabled'}>✅ チェックした行をフォームに反映</button>
+          <button type="button" class="btn btn-outline btn-sm" data-ai="clear">一覧をクリア</button>
+        </div>`;
+    }
+
+    function aiFindEmptyRow(body) {
+      return [...body.querySelectorAll('tr')].find(tr => [...tr.querySelectorAll('input')].every(i => i.value.trim() === ''));
+    }
+    function aiFill(input, value) {
+      input.value = value;
+      if (value !== '') input.classList.add('ai-filled');
+    }
+
+    function applyAiItems() {
+      const targets = aiItems.filter(it => it.selected && !it.applied);
+      if (!targets.length) { aiSetStatus('反映する行にチェックを入れてください', 'err'); return; }
+      if (targets.some(it => it.amount == null || !(it.amount >= 0))) {
+        aiSetStatus('金額が空の行があります。金額を入力するか、チェックを外してください', 'err'); return;
+      }
+      if (targets.some(it => it.category === 'other')) {
+        aiSetStatus('種別が「対象外」の行は反映できません。種別を変更するか、チェックを外してください', 'err'); return;
+      }
+      if (targets.some(it => it.reasons.length) &&
+          !confirm('「要確認」の行が含まれています。\n領収書の画像と金額・内容を照らし合わせて確認しましたか？\n\nOK：このまま反映する\nキャンセル：戻って確認する')) return;
+
+      let toll = 0, park = 0;
+      const overflow = [];
+      for (const it of targets) {
+        const isToll = it.category === 'toll';
+        const tr = aiFindEmptyRow(isToll ? tollBody : parkBody) || (isToll ? addTollRow() : addParkRow());
+        if (!tr) { overflow.push(it); continue; }
+        const ins = tr.querySelectorAll('input');
+        if (isToll) { aiFill(ins[0], it.facility); aiFill(ins[1], it.section); toll++; }
+        else { aiFill(ins[1], it.facility); park++; }
+        aiFill(ins[2], String(it.amount));
+        it.applied = true;
+      }
+      recalc();
+      renderAiReview();
+      let msg = `フォームに反映しました（高速代 ${toll}件・駐車場代 ${park}件）。黄色の欄がAIで入力した箇所です。`;
+      if (toll) msg += ' 有料道路は空いている行に上から入れています。ルート（基点→1 など）との対応を確認してください。';
+      if (overflow.length) msg += ` 表の空き行が足りず ${overflow.length}件は反映できませんでした（有料道路は最大8行・駐車場は最大7行）。`;
+      aiSetStatus(msg, overflow.length ? 'warn' : 'ok');
+    }
+
+    document.getElementById('aiReceiptFiles').addEventListener('change', async (e) => {
+      const files = [...e.target.files];
+      e.target.value = '';
+      if (!files.length) return;
+      if (location.protocol === 'file:') {
+        aiSetStatus('AI読み取りはサーバーに設置したページでのみ使えます（パソコン上のファイルを直接開いた状態ではPHPが動きません）。', 'err');
+        return;
+      }
+      const dbl = document.getElementById('aiDoubleCheck').checked;
+      const failed = [];
+      let found = 0;
+      for (let i = 0; i < files.length; i++) {
+        const f = files[i];
+        aiSetStatus(`AIで読み取り中… ${i + 1}/${files.length}：${f.name}${dbl ? '（ダブルチェック中）' : ''}`, '');
+        try {
+          const prep = await prepareReceiptFile(f);
+          let passes, checkFailed = false;
+          if (dbl) {
+            const [a, b] = await Promise.allSettled([postReceipt(prep), postReceipt(prep)]);
+            if (a.status === 'fulfilled' && b.status === 'fulfilled') passes = [a.value, b.value];
+            else if (a.status === 'fulfilled' || b.status === 'fulfilled') {
+              passes = [(a.status === 'fulfilled' ? a : b).value];
+              checkFailed = true;
+            } else throw a.reason;
+          } else {
+            passes = [await postReceipt(prep)];
+          }
+          const items = buildAiItems(f, prep, passes, checkFailed);
+          aiItems.push(...items);
+          found += items.length;
+        } catch (err) {
+          failed.push(`${f.name}：${err.message}`);
+        }
+        renderAiReview();
+      }
+      const warnCount = aiItems.filter(it => !it.applied && it.reasons.length).length;
+      let msg = `読み取り完了：${found}件。内容を確認して「フォームに反映」を押してください。`;
+      if (warnCount) msg += ` ⚠ 要確認 ${warnCount}件（赤い行）は画像と照らして確認してください。`;
+      if (failed.length) msg += ` 読み取り失敗：${failed.join(' ／ ')}`;
+      aiSetStatus(msg, (failed.length || warnCount) ? 'warn' : 'ok');
+    });
+
+    // 確認一覧の編集内容を保持（再描画しても消えないように）
+    const aiReviewEl = document.getElementById('aiReview');
+    function aiSyncFromRow(e) {
+      const tr = e.target.closest('tr[data-id]');
+      if (!tr) return;
+      const it = aiItems.find(x => x.id === Number(tr.dataset.id));
+      if (!it || it.applied) return;
+      const t = e.target;
+      if (t.classList.contains('ai-sel')) it.selected = t.checked;
+      else if (t.classList.contains('ai-cat')) it.category = t.value;
+      else if (t.classList.contains('ai-amt')) it.amount = t.value === '' ? null : Math.round(Number(t.value));
+      else if (t.classList.contains('ai-fac')) it.facility = t.value;
+      else if (t.classList.contains('ai-sec')) it.section = t.value;
+    }
+    aiReviewEl.addEventListener('input', aiSyncFromRow);
+    aiReviewEl.addEventListener('change', aiSyncFromRow);
+    aiReviewEl.addEventListener('click', (e) => {
+      const b = e.target.closest('button[data-ai]');
+      if (!b) return;
+      if (b.dataset.ai === 'apply') applyAiItems();
+      if (b.dataset.ai === 'clear') {
+        if (aiItems.some(it => !it.applied) && !confirm('まだフォームに反映していない読み取り結果があります。一覧をクリアしますか？')) return;
+        aiItems = [];
+        renderAiReview();
+        aiSetStatus('', '');
+      }
+    });
+
+    // AIで入力した欄は、手で修正したら黄色の強調を外す
+    document.addEventListener('input', (e) => {
+      if (e.target.classList && e.target.classList.contains('ai-filled')) e.target.classList.remove('ai-filled');
+    });
+
+    // 接続テスト（APIキー・モデルを変更したときの確認用）
+    document.getElementById('aiStatusCheck').addEventListener('click', async () => {
+      if (location.protocol === 'file:') {
+        aiSetStatus('接続テストはサーバーに設置したページでのみ使えます。', 'err');
+        return;
+      }
+      aiSetStatus('接続テスト中…', '');
+      try {
+        const body = await aiFetchJson(AI_ENDPOINT + '?action=status', { cache: 'no-store' });
+        aiSetStatus(`接続OK：モデル ${body.model}／APIキー末尾 ${body.keyTail}`, 'ok');
+      } catch (err) {
+        aiSetStatus('接続テスト失敗：' + err.message, 'err');
+      }
+    });
 
     // 稼働日のデフォルトを当日に設定
     (() => {
@@ -1299,7 +1649,7 @@
         const ins = tr.querySelectorAll('input');
         const cost = parseFloat(ins[2].value) || 0;
         if (cost) tollSum += cost;
-        return `<tr><td>${xmlEsc(TOLL_LEGS[i])}</td><td>${xmlEsc(ins[0].value)}</td><td>${xmlEsc(ins[1].value)}</td><td style="text-align:right">${cost ? cost.toLocaleString() + ' 円' : ''}</td></tr>`;
+        return `<tr><td>${xmlEsc(tr.querySelector('.rlabel').textContent)}</td><td>${xmlEsc(ins[0].value)}</td><td>${xmlEsc(ins[1].value)}</td><td style="text-align:right">${cost ? cost.toLocaleString() + ' 円' : ''}</td></tr>`;
       }).join('');
       const parkHtml = parkRows.map((tr, i) => {
         const ins = tr.querySelectorAll('input');

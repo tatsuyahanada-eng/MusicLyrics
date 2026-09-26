@@ -1,0 +1,13 @@
+# APIキーを書いた config.php（とサンプル）を外部から直接開けないようにする
+# （receipt.php はルートの .htaccess のBasic認証で保護される）
+<IfModule mod_authz_core.c>
+  <FilesMatch "^config(\.sample)?\.php$">
+    Require all denied
+  </FilesMatch>
+</IfModule>
+<IfModule !mod_authz_core.c>
+  <FilesMatch "^config(\.sample)?\.php$">
+    Order allow,deny
+    Deny from all
+  </FilesMatch>
+</IfModule>
