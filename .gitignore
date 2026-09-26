@@ -1,3 +1,4 @@
 MusicLyrics/
 *.zip
 api/config.php
+dist/

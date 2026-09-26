@@ -148,7 +148,19 @@
     .ai-controls { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 16px; margin: 4px 0 10px; }
     .ai-opt { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; font-weight: 600; color: var(--text); margin: 0; }
     .ai-opt input[type="checkbox"], .ai-review input[type="checkbox"] { width: auto; margin: 0; }
-    .ai-panel input[type="file"] { padding: 8px; background: var(--panel-2); border: 1px dashed var(--input-border); border-radius: 6px; }
+    .ai-drop {
+      border: 2px dashed #b3a6ff; border-radius: 10px; background: #f7f5ff;
+      padding: 22px 16px; text-align: center; cursor: pointer;
+      transition: background .15s, border-color .15s;
+    }
+    .ai-drop:hover, .ai-drop:focus { border-color: #7b61ff; outline: none; }
+    .ai-drop.dragover { background: #ece7ff; border-color: #7b61ff; border-style: solid; }
+    .ai-drop-icon { font-size: 30px; line-height: 1; }
+    .ai-drop-main { font-size: 15px; font-weight: 700; color: #4b3bb8; margin-top: 6px; }
+    .ai-drop-sub { font-size: 12px; color: var(--muted); margin-top: 4px; }
+    .ai-review select.cat-toll { background: #e8f0fe; color: var(--accent-d); font-weight: 700; }
+    .ai-review select.cat-parking { background: #e3f6ec; color: #1a8f5f; font-weight: 700; }
+    .ai-review select.cat-other { background: #f1f1f4; color: var(--muted); }
     .ai-review table { margin-top: 12px; }
     .ai-review th { font-size: 12px; white-space: nowrap; }
     .ai-review td { font-size: 12px; vertical-align: top; }
@@ -359,12 +371,16 @@
     .summary .total .lbl { color: var(--text); font-size: 16px; font-weight: 600; }
     .summary .total .val { color: var(--ok); font-size: 28px; font-weight: 700; }
     .hint { font-size: 12px; color: var(--muted); margin-top: 10px; }
+    .app-ver {
+      font-size: 12px; font-weight: 700; color: #fff; background: var(--accent);
+      padding: 2px 9px; border-radius: 10px; vertical-align: middle; margin-left: 6px;
+    }
   </style>
 </head>
 <body>
   <div class="wrap">
     <header>
-      <h1>車両移動経費請求書</h1>
+      <h1>車両移動経費請求書 <span class="app-ver">Ver 1.5</span></h1>
       <p>基点から各訪問先への移動経費（ガソリン代・有料道路・駐車場）を入力し、請求総額を計算します。</p>
     </header>
 
@@ -381,7 +397,7 @@
           <li><b>自動計算</b>：「<b>📍 住所から総移動距離を自動計算</b>」で<b>道路距離（OSRM）</b>を取得し、区間ごと・合計を表示</li>
           <li><b>地図で確認</b>：「<b>🗺️ Googleマップで表示</b>」または、自動計算後にページ内地図プレビュー（基点・訪問先1〜のラベル付き）でルートを確認できます</li>
           <li><b>有料道路・駐車場</b>：費用を入力すると請求総額に自動反映</li>
-          <li><b>領収書AI読み取り</b>：「🤖 領収書からAI自動入力」で高速・駐車場の領収書の写真を選ぶと、AIが金額や道路名・駐車場名を読み取ります。<b>内容を確認してから</b>「フォームに反映」を押してください（黄色の欄がAIで入力した箇所。サーバーに設置したページでのみ利用可）</li>
+          <li><b>領収書AI読み取り</b>：「🤖 領収書からAI自動入力」の枠に高速・駐車場の領収書の画像をまとめてドラッグ＆ドロップすると、AIが高速代か駐車場代かを自動で識別し、金額や道路名・駐車場名を読み取ります。<b>内容を確認してから</b>「フォームに反映」を押してください（黄色の欄がAIで入力した箇所。サーバーに設置したページでのみ利用可）</li>
           <li><b>総移動距離</b>：自動入力後も手修正OK。Googleマップとの差が気になる場合は上書きしてください</li>
           <li><b>Excel出力</b>：右下「<b>Excelエクスポート</b>」で .xlsx をダウンロード（ファイル名・タイトルは選択した案件が反映）</li>
         </ol>
@@ -469,12 +485,17 @@
     <!-- 領収書AI読み取り（サーバーの api/receipt.php 経由で Gemini を利用） -->
     <section class="panel ai-panel">
       <h2>🤖 領収書からAI自動入力（高速代・駐車場代）</h2>
-      <p class="hint" style="margin-top:0">高速道路・駐車場の領収書の写真（ETC利用明細のPDFも可・複数選択可）を選ぶと、AI（Gemini）が金額・道路名・駐車場名などを読み取ります。<b>読み取り結果を画像と照らして確認・修正してから</b>「フォームに反映」を押してください。</p>
+      <p class="hint" style="margin-top:0">高速道路・駐車場の領収書をまとめてドロップすると、AI（Gemini）が<b>高速代か駐車場代かを自動で識別</b>し、金額・道路名・駐車場名などを読み取ります。<b>読み取り結果を画像と照らして確認・修正してから</b>「フォームに反映」を押してください。</p>
       <div class="ai-controls">
         <label class="ai-opt"><input type="checkbox" id="aiDoubleCheck" checked> ダブルチェック（2回読み取って金額を照合・精度優先）</label>
         <button type="button" id="aiStatusCheck" class="btn btn-outline btn-sm">🔌 接続テスト</button>
       </div>
-      <input id="aiReceiptFiles" type="file" accept="image/*,application/pdf,.pdf" multiple>
+      <div id="aiDropZone" class="ai-drop" tabindex="0" role="button" aria-label="領収書ファイルをドラッグ＆ドロップ、またはクリックして選択">
+        <div class="ai-drop-icon">📥</div>
+        <div class="ai-drop-main">ここに領収書の画像をまとめてドラッグ＆ドロップ</div>
+        <div class="ai-drop-sub">高速・駐車場の領収書が混ざったままでOK／フォルダごとでも可／ETC利用明細のPDFも可／クリックでファイル選択</div>
+        <input id="aiReceiptFiles" type="file" accept="image/*,application/pdf,.pdf" multiple hidden>
+      </div>
       <div id="aiStatus" class="geo-status"></div>
       <div id="aiReview" class="ai-review"></div>
     </section>
@@ -827,6 +848,7 @@
     recalc();
 
     /* ---------- 領収書AI読み取り（サーバーの api/receipt.php 経由で Gemini を利用） ---------- */
+    const APP_VERSION = '1.5';   // 見出しの Ver 表記・api/receipt.php の APP_VERSION と揃えて上げる
     const AI_ENDPOINT = 'api/receipt.php';
     const AI_MAX_RAW_BYTES = 5 * 1024 * 1024;   // PDF・変換できない画像をそのまま送る場合の上限
     const AI_IMAGE_MAX_PX = 2400;               // 長辺をこのサイズまで縮小してから送る
@@ -970,7 +992,7 @@
         return `<tr data-id="${it.id}" class="${it.applied ? 'ai-done' : (warn ? 'ai-warn' : '')}">
           <td><input type="checkbox" class="ai-sel" aria-label="反映する"${it.selected && !it.applied ? ' checked' : ''}${dis}></td>
           <td>${thumb}<div class="ai-fname">${xmlEsc(it.fileName)}</div></td>
-          <td><select class="ai-cat"${dis}>${opts}</select></td>
+          <td><select class="ai-cat cat-${it.category}"${dis}>${opts}</select></td>
           <td><input type="number" class="ai-amt" min="0" step="1" value="${it.amount ?? ''}"${dis}></td>
           <td><input type="text" class="ai-fac" value="${xmlEsc(it.facility)}"${dis}></td>
           <td><input type="text" class="ai-sec" value="${xmlEsc(it.section)}" placeholder="${it.category === 'toll' ? '入口→出口' : ''}"${dis}></td>
@@ -1030,20 +1052,41 @@
       aiSetStatus(msg, overflow.length ? 'warn' : 'ok');
     }
 
-    document.getElementById('aiReceiptFiles').addEventListener('change', async (e) => {
-      const files = [...e.target.files];
-      e.target.value = '';
+    // 読み取り待ちの列。読み取り中に追加でドロップされても順番に処理する
+    const aiQueue = [];
+    const aiSkipped = [];   // 画像・PDF以外のため除外したファイル名（読み取り完了時にまとめて表示）
+    let aiRunning = false;
+    const aiIsReceiptFile = f => /^image\//i.test(f.type) || f.type === 'application/pdf'
+      || /\.(jpe?g|png|webp|heic|heif|pdf)$/i.test(f.name);
+
+    function processReceiptFiles(files) {
       if (!files.length) return;
       if (location.protocol === 'file:') {
         aiSetStatus('AI読み取りはサーバーに設置したページでのみ使えます（パソコン上のファイルを直接開いた状態ではPHPが動きません）。', 'err');
         return;
       }
-      const dbl = document.getElementById('aiDoubleCheck').checked;
+      const accepted = files.filter(aiIsReceiptFile)
+        .sort((a, b) => a.name.localeCompare(b.name, 'ja', { numeric: true }));
+      const skipped = files.filter(f => !aiIsReceiptFile(f)).map(f => f.name);
+      if (!accepted.length) {
+        aiSetStatus(`画像・PDF以外のファイルは読み取れません（${skipped.join('、')}）`, 'err');
+        return;
+      }
+      aiQueue.push(...accepted);
+      aiSkipped.push(...skipped);
+      runAiQueue();
+    }
+
+    async function runAiQueue() {
+      if (aiRunning) return;
+      aiRunning = true;
       const failed = [];
-      let found = 0;
-      for (let i = 0; i < files.length; i++) {
-        const f = files[i];
-        aiSetStatus(`AIで読み取り中… ${i + 1}/${files.length}：${f.name}${dbl ? '（ダブルチェック中）' : ''}`, '');
+      const counts = { toll: 0, parking: 0, other: 0 };
+      let done = 0;
+      while (aiQueue.length) {
+        const f = aiQueue.shift();
+        const dbl = document.getElementById('aiDoubleCheck').checked;
+        aiSetStatus(`AIで読み取り中… ${done + 1}/${done + 1 + aiQueue.length}：${f.name}${dbl ? '（ダブルチェック中）' : ''}`, '');
         try {
           const prep = await prepareReceiptFile(f);
           let passes, checkFailed = false;
@@ -1058,19 +1101,86 @@
             passes = [await postReceipt(prep)];
           }
           const items = buildAiItems(f, prep, passes, checkFailed);
+          items.forEach(it => { counts[it.category] = (counts[it.category] || 0) + 1; });
           aiItems.push(...items);
-          found += items.length;
         } catch (err) {
           failed.push(`${f.name}：${err.message}`);
         }
+        done++;
         renderAiReview();
       }
+      aiRunning = false;
       const warnCount = aiItems.filter(it => !it.applied && it.reasons.length).length;
-      let msg = `読み取り完了：${found}件。内容を確認して「フォームに反映」を押してください。`;
+      let msg = `読み取り完了（自動識別）：高速代 ${counts.toll}件・駐車場代 ${counts.parking}件`
+        + (counts.other ? `・対象外/未検出 ${counts.other}件` : '') + '。内容を確認して「フォームに反映」を押してください。';
       if (warnCount) msg += ` ⚠ 要確認 ${warnCount}件（赤い行）は画像と照らして確認してください。`;
+      if (aiSkipped.length) msg += ` 画像・PDF以外のため除外：${aiSkipped.splice(0).join('、')}`;
       if (failed.length) msg += ` 読み取り失敗：${failed.join(' ／ ')}`;
       aiSetStatus(msg, (failed.length || warnCount) ? 'warn' : 'ok');
+    }
+
+    // フォルダをドロップした場合は中のファイルをすべて取り出す
+    function aiReadEntry(entry) {
+      return new Promise(resolve => {
+        if (entry.isFile) { entry.file(f => resolve([f]), () => resolve([])); return; }
+        if (!entry.isDirectory) { resolve([]); return; }
+        const reader = entry.createReader();
+        const children = [];
+        const readBatch = () => reader.readEntries(async entries => {
+          if (!entries.length) {
+            resolve((await Promise.all(children.map(aiReadEntry))).flat());
+            return;
+          }
+          children.push(...entries);
+          readBatch();
+        }, () => resolve([]));
+        readBatch();
+      });
+    }
+
+    const aiDropZone = document.getElementById('aiDropZone');
+    const aiFileInput = document.getElementById('aiReceiptFiles');
+    aiDropZone.addEventListener('click', () => aiFileInput.click());
+    aiDropZone.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); aiFileInput.click(); }
     });
+    aiFileInput.addEventListener('click', (e) => e.stopPropagation());
+    aiFileInput.addEventListener('change', (e) => {
+      const files = [...e.target.files];
+      e.target.value = '';
+      processReceiptFiles(files);
+    });
+    ['dragenter', 'dragover'].forEach(type => aiDropZone.addEventListener(type, (e) => {
+      e.preventDefault();
+      if (e.dataTransfer) e.dataTransfer.dropEffect = 'copy';
+      aiDropZone.classList.add('dragover');
+    }));
+    aiDropZone.addEventListener('dragleave', (e) => {
+      if (!aiDropZone.contains(e.relatedTarget)) aiDropZone.classList.remove('dragover');
+    });
+    aiDropZone.addEventListener('drop', async (e) => {
+      e.preventDefault();
+      aiDropZone.classList.remove('dragover');
+      const dt = e.dataTransfer;
+      // DataTransfer の中身はイベント中にしか読めないため、await の前に取り出しておく
+      const entries = [...(dt.items || [])].filter(it => it.kind === 'file')
+        .map(it => (it.webkitGetAsEntry ? it.webkitGetAsEntry() : null));
+      const plainFiles = [...(dt.files || [])];
+      let files = plainFiles;
+      if (entries.length && entries.every(Boolean) && entries.some(en => en.isDirectory)) {
+        files = (await Promise.all(entries.map(aiReadEntry))).flat();
+      }
+      processReceiptFiles(files);
+    });
+    // 枠の外に落としてもブラウザが画像を開いて入力内容が消えないようにする
+    ['dragover', 'drop'].forEach(type => window.addEventListener(type, (e) => {
+      if (!e.dataTransfer || ![...e.dataTransfer.types].includes('Files')) return;
+      e.preventDefault();
+      if (type === 'drop' && !aiDropZone.contains(e.target)) {
+        aiSetStatus('領収書は「🤖 領収書からAI自動入力」の紫の枠の中にドロップしてください。', 'warn');
+        aiDropZone.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      }
+    }));
 
     // 確認一覧の編集内容を保持（再描画しても消えないように）
     const aiReviewEl = document.getElementById('aiReview');
@@ -1081,7 +1191,7 @@
       if (!it || it.applied) return;
       const t = e.target;
       if (t.classList.contains('ai-sel')) it.selected = t.checked;
-      else if (t.classList.contains('ai-cat')) it.category = t.value;
+      else if (t.classList.contains('ai-cat')) { it.category = t.value; t.className = 'ai-cat cat-' + t.value; }
       else if (t.classList.contains('ai-amt')) it.amount = t.value === '' ? null : Math.round(Number(t.value));
       else if (t.classList.contains('ai-fac')) it.facility = t.value;
       else if (t.classList.contains('ai-sec')) it.section = t.value;
@@ -1114,7 +1224,11 @@
       aiSetStatus('接続テスト中…', '');
       try {
         const body = await aiFetchJson(AI_ENDPOINT + '?action=status', { cache: 'no-store' });
-        aiSetStatus(`接続OK：モデル ${body.model}／APIキー末尾 ${body.keyTail}`, 'ok');
+        let msg = `接続OK：モデル ${body.model}／APIキー末尾 ${body.keyTail}／サーバー Ver ${body.version || '不明'}`;
+        if (body.version !== APP_VERSION) {
+          msg += `　⚠ 画面（Ver ${APP_VERSION}）とサーバーの api フォルダのバージョンが違います。api フォルダも同じZIPのものに更新してください。`;
+        }
+        aiSetStatus(msg, body.version === APP_VERSION ? 'ok' : 'warn');
       } catch (err) {
         aiSetStatus('接続テスト失敗：' + err.message, 'err');
       }

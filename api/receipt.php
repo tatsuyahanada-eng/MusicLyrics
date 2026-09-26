@@ -17,6 +17,7 @@ header('Content-Type: application/json; charset=utf-8');
 header('Cache-Control: no-store');
 header('X-Content-Type-Options: nosniff');
 
+const APP_VERSION = '1.5';   // index.html の APP_VERSION と揃えて上げる
 const DEFAULT_MODEL = 'gemini-3.8-flash';
 const DEFAULT_ENDPOINT = 'https://generativelanguage.googleapis.com/v1beta';
 const MAX_FILE_BYTES = 6 * 1024 * 1024;
@@ -235,7 +236,7 @@ if ($method === 'GET' && ($_GET['action'] ?? '') === 'status') {
     if ($r['status'] !== 200) {
         respond(200, ['ok' => false, 'model' => $cfg['model'], 'keyTail' => key_tail($cfg['key']), 'error' => gemini_error_message($r)]);
     }
-    respond(200, ['ok' => true, 'model' => $cfg['model'], 'keyTail' => key_tail($cfg['key'])]);
+    respond(200, ['ok' => true, 'version' => APP_VERSION, 'model' => $cfg['model'], 'keyTail' => key_tail($cfg['key'])]);
 }
 
 if ($method !== 'POST') {
