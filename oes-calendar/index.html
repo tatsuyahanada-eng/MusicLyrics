@@ -534,6 +534,9 @@ body.cm-drag-active,body.cm-drag-active *{-webkit-user-select:none;user-select:n
 .cs-chip{display:flex;align-items:center;gap:6px;border:1px solid var(--line-w);border-radius:var(--r-s);
   padding:7px 8px;background:var(--white);cursor:pointer;}
 .cs-chip.open{border-color:var(--sky);background:var(--blue-l2);}
+.cs-chip.cm-dragging{position:relative;z-index:20;box-shadow:0 8px 18px rgba(0,0,0,.22);
+  opacity:.97;background:var(--white);}
+.gy-item.cs-drag-host{overflow:visible;}
 .cs-chip-label{flex:1 1 auto;min-width:0;font-size:13px;font-weight:700;color:var(--ink);}
 .cs-chip .cs-ops{margin-left:0;}
 .cs-chip-detail{border:1px solid var(--sky);border-top:none;border-radius:0 0 var(--r-s) var(--r-s);
@@ -5382,6 +5385,8 @@ function cmdStepChipHtml(c, st, si){
   var isDisplayOnly = !(st.keys && st.keys.length);
   var preview = isDisplayOnly ? [st.l1, st.l2].filter(function(t){ return t; }).join(' / ') : '';
   var html = '<div class="cs-chip' + (open ? ' open' : '') + '" data-step-id="' + st.id + '" onclick="toggleCmdStepOpen(\'' + st.id + '\')">'
+    + '<span class="cm-drag-handle" title="長押しで並び替え" aria-label="並び替え" onclick="event.stopPropagation()"'
+    +   ' onpointerdown="cmdStepDragHandlePointerDown(event,\'' + c.id + '\',\'' + st.id + '\')">⠿</span>'
     + '<span class="cs-no">' + (si + 1) + '</span>'
     + '<span class="cs-chip-label">' + esc(simStepLabel(st))
     +   (preview ? '<span class="cs-chip-sub">' + esc(preview) + '</span>' : '')
@@ -5789,6 +5794,115 @@ function cmdDragEnd(e){
     var moving = settings.commands.splice(st.startIndex, 1)[0];
     settings.commands.splice(st.curIndex, 0, moving);
     afterSettingsChange(true);
+  }
+}
+/* 手順（ボタン）の並び替えも、コマンド本体と同じくハンドル長押し／ドラッグでできるようにする
+   （利用者の依頼：「コマンドも長押しで移動したいが、登録されているボタンも長押しで順番を変更
+   したい」）。仕組みはコマンドの並び替え（cmdDragStart等）とほぼ同じだが、対象がある特定の
+   コマンドの`c.steps`だけである点、一覧が`.gy-item`ではなく`.cs-chip`である点が異なるため、
+   別の状態（`cmdStepDragState`）を持つ専用の関数にしてある（他の一覧の move* 系関数と同じく、
+   共通化はせずコピーして対象だけ差し替える、既存のこのファイルの流儀に合わせた）。 */
+var cmdStepDragState = null;
+function cmdStepDragHandlePointerDown(e, cid, sid){
+  if(!requireAdmin()) return;
+  var handle = e.currentTarget;
+  var startX = e.clientX, startY = e.clientY, pointerId = e.pointerId;
+  var started = false;
+  try{ handle.setPointerCapture(pointerId); }catch(err){}
+  var timer = setTimeout(function(){
+    if(started) return;
+    started = true;
+    cleanup();
+    cmdStepDragStart(cid, sid, startY, pointerId);
+  }, CMD_DRAG_HOLD_MS);
+  function onMove(ev){
+    if(started || ev.pointerId !== pointerId) return;
+    if(Math.abs(ev.clientY - startY) > CMD_DRAG_MOVE_PX || Math.abs(ev.clientX - startX) > CMD_DRAG_MOVE_PX){
+      started = true;
+      clearTimeout(timer);
+      cleanup();
+      cmdStepDragStart(cid, sid, startY, pointerId);
+    }
+  }
+  function onUp(ev){
+    if(ev.pointerId !== pointerId) return;
+    clearTimeout(timer);
+    cleanup();
+  }
+  function cleanup(){
+    handle.removeEventListener('pointermove', onMove);
+    handle.removeEventListener('pointerup', onUp);
+    handle.removeEventListener('pointercancel', onUp);
+  }
+  handle.addEventListener('pointermove', onMove);
+  handle.addEventListener('pointerup', onUp);
+  handle.addEventListener('pointercancel', onUp);
+}
+function cmdStepDragStart(cid, sid, startY, pointerId){
+  if(!requireAdmin()) return;
+  var c = findCommand(cid); if(!c) return;
+  cmdStepOpenSet = {};           /* 高さを揃えるため、並び替え中は全コマンドの手順詳細をいったん閉じる */
+  renderCommandList();
+  var hostItem = document.getElementById('gy-cm-' + cid);
+  var host = hostItem ? hostItem.querySelector('.cs-list') : null;
+  var itemEl = host ? host.querySelector('.cs-chip[data-step-id="' + sid + '"]') : null;
+  if(!host || !itemEl){ return; }
+  var items = Array.prototype.filter.call(host.children, function(el){ return el.classList.contains('cs-chip'); });
+  var order = items.map(function(el){ return el.getAttribute('data-step-id'); });
+  var startIndex = order.indexOf(sid);
+  if(startIndex < 0) return;
+  var rect0 = items[startIndex].getBoundingClientRect();
+  var itemH = items.length > 1 ? Math.abs(items[1].getBoundingClientRect().top - rect0.top) : rect0.height;
+  itemEl.classList.add('cm-dragging');
+  hostItem.classList.add('cs-drag-host');
+  document.body.classList.add('cm-drag-active');
+  var freshHandle = itemEl.querySelector('.cm-drag-handle');
+  try{ if(freshHandle) freshHandle.setPointerCapture(pointerId); }catch(e){}
+  cmdStepDragState = {
+    cid: cid, pointerId: pointerId, startY: startY, itemEl: itemEl, hostItem: hostItem, items: items,
+    order: order, startIndex: startIndex, curIndex: startIndex, itemH: itemH
+  };
+  document.addEventListener('pointermove', cmdStepDragMove);
+  document.addEventListener('pointerup', cmdStepDragEnd);
+  document.addEventListener('pointercancel', cmdStepDragEnd);
+}
+function cmdStepDragMove(e){
+  var st = cmdStepDragState;
+  if(!st || e.pointerId !== st.pointerId) return;
+  e.preventDefault();
+  var dy = e.clientY - st.startY;
+  st.itemEl.style.transform = 'translateY(' + dy + 'px)';
+  var newIndex = st.startIndex + Math.round(dy / st.itemH);
+  newIndex = Math.max(0, Math.min(st.order.length - 1, newIndex));
+  if(newIndex !== st.curIndex){
+    st.items.forEach(function(el, i){
+      if(i === st.startIndex) return;
+      var shift = 0;
+      if(st.startIndex < newIndex && i > st.startIndex && i <= newIndex) shift = -st.itemH;
+      else if(st.startIndex > newIndex && i < st.startIndex && i >= newIndex) shift = st.itemH;
+      el.style.transform = shift ? 'translateY(' + shift + 'px)' : '';
+    });
+    st.curIndex = newIndex;
+  }
+}
+function cmdStepDragEnd(e){
+  var st = cmdStepDragState;
+  if(!st || (e && e.pointerId !== st.pointerId)) return;
+  document.removeEventListener('pointermove', cmdStepDragMove);
+  document.removeEventListener('pointerup', cmdStepDragEnd);
+  document.removeEventListener('pointercancel', cmdStepDragEnd);
+  cmdStepDragState = null;
+  st.itemEl.classList.remove('cm-dragging');
+  st.hostItem.classList.remove('cs-drag-host');
+  document.body.classList.remove('cm-drag-active');
+  st.items.forEach(function(el){ el.style.transform = ''; });
+  if(st.curIndex !== st.startIndex){
+    var c = findCommand(st.cid);
+    if(c){
+      var moving = c.steps.splice(st.startIndex, 1)[0];
+      c.steps.splice(st.curIndex, 0, moving);
+      afterSettingsChange(true);
+    }
   }
 }
 function setCommandName(id, v){
