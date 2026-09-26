@@ -634,12 +634,13 @@ input:focus,select:focus,textarea:focus{border-color:var(--blue);box-shadow:0 0 
 .ph-row input{flex:1;min-width:0;}
 .ph-ops{display:flex;gap:4px;flex-shrink:0;}
 .ph-ops button{width:34px;height:34px;padding:0;justify-content:center;}
-/* 退店連絡の機器台数の項目（表示名・単位） */
+/* 退店連絡の機器台数の項目（表示名・単位）。1項目＝1行に収まる程度の大きさにする */
 .eq-edit-row{display:flex;flex-wrap:wrap;gap:5px;align-items:center;border:1px solid var(--line-w);
-  border-radius:var(--r-s);padding:6px 7px;background:var(--white);margin-bottom:6px;}
-.eq-edit-code{flex:1 1 100px;min-width:60px;font-weight:700;}
-.eq-edit-unit{flex:0 1 70px;min-width:44px;}
-.eq-edit-preview{flex:1 1 100%;font-size:11px;color:var(--muted);}
+  border-radius:var(--r-s);padding:5px 7px;background:var(--white);margin-bottom:5px;}
+.eq-edit-code{flex:0 0 64px;min-width:0;font-weight:700;padding-left:6px;padding-right:6px;}
+.eq-edit-unit{flex:0 0 48px;min-width:0;padding-left:6px;padding-right:6px;}
+.eq-edit-preview{flex:1 1 auto;min-width:60px;font-size:11px;color:var(--muted);
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
 
 /* ---------- モーダル / トースト ---------- */
 .modal-bg{position:fixed;inset:0;background:rgba(12,40,70,.5);display:flex;align-items:center;justify-content:center;padding:16px;z-index:60;}
