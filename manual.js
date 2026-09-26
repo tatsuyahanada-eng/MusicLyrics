@@ -1180,15 +1180,16 @@
 
   /* ---- 交通費精算の表示条件（在庫管理と同じ扱い） ---- */
   const TRIP_PIN_ID = '__trip__'; // ピン留め用の特別ID（通常の項目IDとは別）
-  // 交通費精算を使える状態か（サーバー接続＋ログイン＋管理者がONにしている）
-  function tripAvailable() { return !!(serverMode() && session && tripOn); }
-  // “オンサイト”を含む項目がツリーに1つも無いか（無いときはTOPにタイルを出す）
-  function noOnsiteCategory() {
-    let found = false;
-    const walk = (arr) => { (arr || []).forEach((n) => { if (found) return; if (/オンサイト/.test(n.title || '')) { found = true; return; } walk(n.children); }); };
-    walk(tree);
-    return !found;
-  }
+  // 交通費精算を使える状態か（サーバー接続＋ログイン＋管理者がONにしている＋本人に利用権限がある）。
+  // 利用権限（session.tripAccess）はサーバー側で判定したものをそのまま使う：
+  //   ・管理者は常に可
+  //   ・「オンサイト」区分が1つも無い運用では、ログイン済みなら誰でも可（従来どおり）
+  //   ・「オンサイト」区分があるときは、そのいずれかを閲覧できる権限を持つ人だけ
+  // 表示側の判定を自分のツリー（権限で絞り込み済み）から推測すると、権限が無い人には
+  // 「オンサイトが見えない＝無い」と誤認されてしまうため、必ずサーバー側の判定を使う。
+  function tripAvailable() { return !!(serverMode() && session && tripOn && session.tripAccess); }
+  // “オンサイト”区分が運用上どこにも無いか（サーバー全体の判定。無いときはTOPにタイルを出す）
+  function noOnsiteCategory() { return !(session && session.onsiteExists); }
   function tripTopTileShown() { return tripAvailable() && noOnsiteCategory(); }
   // TOPの並べ替えモードに出す「交通費精算」の行
   function tripSortRow(i, n) {
@@ -3959,7 +3960,7 @@
     tripRecalc(); tripMsg('');
   }
   function openTrips() {
-    if (!tripViewEl || !session) return;
+    if (!tripViewEl || !session || !tripAvailable()) return; // 権限が無い人は開かない（実データの可否はサーバー側でも判定）
     tripReturnMode = !editView.hidden ? 'edit' : 'nav';
     tripOpen = true;
     navView.hidden = true; if (invViewEl) invViewEl.hidden = true; editView.hidden = true;
@@ -4438,6 +4439,7 @@
     tripMsg('Excelを出力しました');
   }
   { const b = $('#footerTrips'); if (b) b.addEventListener('click', () => openTrips()); }
+  { const b = $('#tripNavBtn'); if (b) b.addEventListener('click', () => openTrips()); }
   { const b = $('#backBtnTrip'); if (b) b.addEventListener('click', closeTrips); }
   { const b = $('#restartBtnTrip'); if (b) b.addEventListener('click', () => { closeTrips(); navRestart(); syncTrap(); }); }
   { const b = $('#tripHistoryBtn'); if (b) b.addEventListener('click', openTripHistory); }
@@ -5758,7 +5760,8 @@
     const ub = $('#usersBtn'); if (ub) ub.hidden = !isAdmin;
     const lo = $('#footerLogout'); if (lo) lo.hidden = !session;
     const cp = $('#footerChangePw'); if (cp) cp.hidden = !(session && session.canChangePw);
-    const ft = $('#footerTrips'); if (ft) ft.hidden = !(session && tripOn);
+    const ft = $('#footerTrips'); if (ft) ft.hidden = !tripAvailable();
+    const tnb = $('#tripNavBtn'); if (tnb) tnb.hidden = !tripAvailable(); // 画面上部の交通費精算ボタン（権限がある人だけ）
     // 上部にログイン中の名前を小さく表示
     const sn = $('#sessionName');
     if (sn) {
@@ -5778,7 +5781,7 @@
     if (tok) {
       try {
         const res = await fetch(`${API}?action=me`, { headers: { 'X-User-Token': tok }, cache: 'no-store' });
-        if (res.ok) { const d = await res.json(); if (d && d.ok !== false) session = { username: d.username, name: d.name || d.username, isAdmin: !!d.isAdmin, allowed: d.allowed, canChangePw: !!d.canChangePw }; }
+        if (res.ok) { const d = await res.json(); if (d && d.ok !== false) session = { username: d.username, name: d.name || d.username, isAdmin: !!d.isAdmin, allowed: d.allowed, tripAccess: !!d.tripAccess, onsiteExists: !!d.onsiteExists, canChangePw: !!d.canChangePw }; }
       } catch (_) { session = null; }
     }
     updateSessionUI();
@@ -5792,7 +5795,7 @@
     let d = null; try { d = await res.json(); } catch (_) {}
     if (!res.ok || !d || d.ok === false) throw new Error((d && d.error) || ('HTTP ' + res.status));
     try { sessionStorage.setItem(USER_TOKEN_KEY, d.token); } catch (_) {}
-    session = { username: d.username, name: d.name || d.username, isAdmin: !!d.isAdmin, allowed: d.allowed, canChangePw: !!d.canChangePw };
+    session = { username: d.username, name: d.name || d.username, isAdmin: !!d.isAdmin, allowed: d.allowed, tripAccess: !!d.tripAccess, onsiteExists: !!d.onsiteExists, canChangePw: !!d.canChangePw };
     updateSessionUI();
     hideAppLogin();
     try { await reloadFromServer(); } catch (e) {}

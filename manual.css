@@ -155,7 +155,7 @@
   color: var(--tm-muted);
   word-break: break-all;
 }
-.tm-header-nav { display: flex; gap: 8px; }
+.tm-header-nav { display: flex; gap: 6px; }
 
 .tm-navbtn {
   font-family: var(--tm-mono);
@@ -164,7 +164,7 @@
   color: var(--tm-muted);
   background: transparent;
   border: 1px solid var(--tm-line);
-  padding: 8px 14px;
+  padding: 8px 11px;
   cursor: pointer;
   clip-path: polygon(8px 0, 100% 0, 100% calc(100% - 8px), calc(100% - 8px) 100%, 0 100%, 0 8px);
   transition: color .15s, border-color .15s, background .15s, box-shadow .15s;
@@ -2117,6 +2117,10 @@ textarea.tm-ff-input { width: 100%; resize: vertical; min-height: 88px; }
    ============================================================ */
 .tm-searchbtn { color: var(--tm-warn); border-color: rgba(255, 207, 63, 0.45); }
 .tm-searchbtn:hover { background: rgba(255, 207, 63, 0.12); box-shadow: 0 0 12px rgba(255, 207, 63, 0.25); }
+
+/* 画面上部の「交通費」ボタン（オンサイトの利用権限がある人だけに表示。緑は交通費精算の他画面と統一） */
+.tm-tripnavbtn { color: var(--tm-green); border-color: rgba(57, 255, 20, 0.4); }
+.tm-tripnavbtn:hover { background: rgba(57, 255, 20, 0.12); box-shadow: 0 0 12px rgba(57, 255, 20, 0.28); }
 
 .tm-search-dialog { width: min(680px, 94vw); max-width: 94vw; }
 .tm-search-form { gap: 12px; }

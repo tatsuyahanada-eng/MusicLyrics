@@ -12,7 +12,7 @@
   <link rel="manifest" href="manifest.webmanifest">
   <link rel="icon" href="icon.svg" type="image/svg+xml">
   <link rel="apple-touch-icon" href="icon-192.png">
-  <link rel="stylesheet" href="manual.css?v=110">
+  <link rel="stylesheet" href="manual.css?v=111">
 </head>
 <body class="tm-body">
 
@@ -30,6 +30,9 @@
     <nav class="tm-header-nav">
       <button id="searchBtn" class="tm-navbtn tm-searchbtn" type="button" title="キーワードで検索">
         <span class="tm-navbtn-ico">&#128269;</span> <span class="tm-searchbtn-label">検索</span>
+      </button>
+      <button id="tripNavBtn" class="tm-navbtn tm-tripnavbtn" type="button" title="交通費精算（オンサイトの権限がある方のみ）" hidden>
+        <span class="tm-navbtn-ico">&#129534;</span> <span class="tm-tripnavbtn-label">交通費</span>
       </button>
       <button id="updatesBtn" class="tm-navbtn tm-updatesbtn" type="button" title="新規登録・更新の履歴">
         <span class="tm-navbtn-ico">&#128340;</span> <span class="tm-updatesbtn-label">履歴</span>
@@ -1591,6 +1594,6 @@
   </dialog>
 
   <script src="vendor/xlsx.full.min.js"></script>
-  <script src="manual.js?v=127"></script>
+  <script src="manual.js?v=128"></script>
 </body>
 </html>

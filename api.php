@@ -966,6 +966,31 @@ function cbc_onsite_users($pdo) {
   } catch (Throwable $e) {}
   return $out;
 }
+// 「オンサイト」区分が(全体で)1つでも存在するか。交通費精算のTOPタイル運用（区分が
+// 無い簡易インストールでは全員に見せる）と、個別権限による絞り込みの切り替えに使う。
+function cbc_onsite_exists($pdo) {
+  return count(cbc_onsite_root_ids($pdo)) > 0;
+}
+// このユーザーは交通費精算を使ってよいか。
+//   ・管理者は常に可
+//   ・「オンサイト」区分が1つも無いインストールでは、ログイン済みなら誰でも可
+//     （区分による絞り込みができない小規模な使い方を想定した、従来からの既定動作）
+//   ・「オンサイト」区分があるインストールでは、そのいずれかを閲覧できる権限
+//     （allowed に含まれる）を持つ人だけに絞る
+function cbc_trip_access($pdo, $isAdmin, $username) {
+  if ($isAdmin) return true;
+  $onsite = cbc_onsite_root_ids($pdo);
+  if (!$onsite) return true; // オンサイト区分が無い運用では全員に許可（従来どおり）
+  $set = array(); foreach ($onsite as $o) $set[$o] = true;
+  foreach (cbc_user_allowed($pdo, $username) as $a) { if (isset($set[$a])) return true; }
+  return false;
+}
+// require_login に加えて、交通費精算の利用権限も確認する（無ければ403）
+function require_trip_access($pdo) {
+  $s = require_login($pdo);
+  if (!cbc_trip_access($pdo, $s['is_admin'], $s['username'])) fail('交通費精算を利用する権限がありません', 403);
+  return $s;
+}
 // 履歴から在庫数と各行の残数(balance)を再計算（履歴を修正・削除したとき用）
 function cbc_inv_recalc($pdo, $itemId) {
   $q = $pdo->prepare('SELECT id, action, qty FROM inv_logs WHERE item_id = ? ORDER BY created_at ASC, id ASC');
@@ -1924,6 +1949,8 @@ switch ($action) {
       ->execute(array($token, $id, $isAdmin ? 1 : 0, now_ms(), $exp));
     ok(array('token' => $token, 'username' => $id, 'name' => cbc_display_name($pdo, $id),
       'isAdmin' => $isAdmin, 'allowed' => $isAdmin ? null : $allowed,
+      'tripAccess' => cbc_trip_access($pdo, $isAdmin, $id),
+      'onsiteExists' => cbc_onsite_exists($pdo),
       'canChangePw' => cbc_user_exists($pdo, $id)));
   }
 
@@ -1939,6 +1966,8 @@ switch ($action) {
     ok(array('username' => $s['username'], 'name' => cbc_display_name($pdo, $s['username']),
       'isAdmin' => $s['is_admin'],
       'allowed' => $s['is_admin'] ? null : cbc_user_allowed($pdo, $s['username']),
+      'tripAccess' => cbc_trip_access($pdo, $s['is_admin'], $s['username']),
+      'onsiteExists' => cbc_onsite_exists($pdo),
       'canChangePw' => cbc_user_exists($pdo, $s['username'])));
   }
 
@@ -2199,7 +2228,7 @@ switch ($action) {
 
   case 'trip_distance': {
     // 起点（TRAVEL_ORIGIN）から目的地までの車の移動距離（片道km）をGoogleマップで求める。
-    require_login($pdo);
+    require_trip_access($pdo);
     $d = body_json();
     $dest = trim((string)(isset($d['destination']) ? $d['destination'] : ''));
     if ($dest === '') fail('目的地の住所を入力してください');
@@ -2211,7 +2240,7 @@ switch ($action) {
   case 'trip_save': {
     // 交通費レコードの登録/更新。username はログインセッションから決定（なりすまし不可）。
     // 金額（ガソリン代・合計）はサーバー側で計算して確定する。
-    $s = require_login($pdo);
+    $s = require_trip_access($pdo);
     $d = body_json();
     $date = trim((string)(isset($d['trip_date']) ? $d['trip_date'] : ''));
     if ($date === '' || !preg_match('/^\d{4}-\d{2}-\d{2}$/', $date)) $date = date('Y-m-d');
@@ -2243,14 +2272,14 @@ switch ($action) {
   case 'trip_users': {
     // 交通費の絞り込み用ユーザー一覧（「オンサイト」を閲覧できるアカウント）。
     // 履歴検索を開いた時点で、記録を読み込まずに担当者リストだけを取得するために使う。
-    $s = require_login($pdo);
+    $s = require_trip_access($pdo);
     ok(array('users' => $s['is_admin'] ? cbc_onsite_users($pdo) : array(), 'is_admin' => $s['is_admin']));
   }
 
   case 'trip_list': {
     // 一覧。管理者は全員（username で絞り込み可）、一般ユーザーは自分の分のみ。
     // month（YYYY-MM）または from/to（YYYY-MM-DD）で期間を絞れる。
-    $s = require_login($pdo);
+    $s = require_trip_access($pdo);
     $d = body_json();
     $where = array(); $args = array();
     if (!$s['is_admin']) { $where[] = 'username = ?'; $args[] = $s['username']; }
@@ -2295,7 +2324,7 @@ switch ($action) {
   }
 
   case 'trip_delete': {
-    $s = require_login($pdo);
+    $s = require_trip_access($pdo);
     $d = body_json();
     $id = trim((string)(isset($d['id']) ? $d['id'] : ''));
     if ($id === '') fail('id は必須です');
