@@ -520,6 +520,7 @@ input:focus,select:focus,textarea:focus{border-color:var(--blue);box-shadow:0 0 
 .cmb-switch{display:flex;gap:6px;margin-top:6px;}
 .cmb-switch button{flex:1 1 0;min-height:32px;font-size:11px;font-weight:700;border-radius:5px;
   border:1px solid #9A9A9A;background:#FDFDFD;color:#2B2B2B;cursor:pointer;}
+.cmb-display-btn{display:block;width:100%;margin-top:6px;}
 .cmb-insert-mark{display:flex;align-items:center;gap:6px;padding:4px 8px;border-radius:999px;
   background:var(--blue-l);color:var(--blue-d);font-size:11px;font-weight:700;}
 .cmb-insert-mark button{border:none;background:none;color:var(--blue-d);cursor:pointer;font-weight:700;padding:0 2px;}
@@ -2032,14 +2033,17 @@ function normalizeCommands(raw){
         if(simKeyDef(k) && k !== 'BLANK' && keys.indexOf(k) < 0) keys.push(k);
       });
       if(keys.length > 2) keys = keys.slice(0, 2);
-      if(!keys.length) return;
-      var stayDown = !!(st && st.stayDown);
-      var hold = stayDown ? false : !!(st && st.hold);
-      var repeat = (hold || stayDown) ? 1 : clampInt(st && st.repeat, 1, 20, 1);
       var l1 = (st && typeof st.l1 === 'string') ? st.l1
              : (st && typeof st.display === 'string') ? st.display : '';
       var l2 = (st && typeof st.l2 === 'string') ? st.l2 : '';
       var memo = (st && typeof st.memo === 'string') ? st.memo : '';
+      /* ボタンも画面表示も結果コメントも無い、完全に空のステップだけを取り除く。
+         ボタンが無くても画面表示（1〜2行目）か結果コメントがあれば「表示だけの手順」として残す
+         （利用者の依頼：「ボタンは押さないが、画面の表示だけ追加したいときがある」）。 */
+      if(!keys.length && !l1 && !l2 && !memo) return;
+      var stayDown = keys.length ? !!(st && st.stayDown) : false;
+      var hold = (stayDown || !keys.length) ? false : !!(st && st.hold);
+      var repeat = (!keys.length || hold || stayDown) ? 1 : clampInt(st && st.repeat, 1, 20, 1);
       steps.push({
         id: (st && st.id) ? st.id : uid('cs'),
         keys: keys,
@@ -3712,6 +3716,7 @@ function simKeyName(id){ var k = simKeyDef(id); return k ? k.name : id; }
 function stepRepeat(st){ return Math.max(1, (st && st.repeat) || 1); }
 function simStepLabel(st){
   var names = (st.keys || []).map(function(k){ return simKeyLabel(k); }).join(' ＋ ');
+  if(!names) return '🖥️ 表示のみ（ボタン操作なし）';
   var n = stepRepeat(st);
   return names + (st.hold ? '（長押し）' : st.stayDown ? '（押しまま）' : (n > 1 ? '（' + n + '回）' : ''));
 }
@@ -4207,7 +4212,10 @@ function cmdGo(i){
     return;
   }
   highlightStep(cmdSeq.steps[i], 0);
-  simSetMsg((i + 1) + ' / ' + cmdSeq.steps.length + '　<b>' + esc(simStepLabel(cmdSeq.steps[i])) + '</b> を押してください');
+  var curSt = cmdSeq.steps[i];
+  var curSuffix = (curSt.keys && curSt.keys.length) ? ' を押してください'
+    : '。ボタン操作は無いので「1つ進む」または「順番に再生」で進めてください';
+  simSetMsg((i + 1) + ' / ' + cmdSeq.steps.length + '　<b>' + esc(simStepLabel(curSt)) + '</b>' + curSuffix);
 }
 /* 実機のキー操作が、いま案内中のステップと合っているかを見る。
    合っていれば true を返す（連続で何回か押す手順なら、規定の回数に達するまでは同じステップにとどまる）。 */
@@ -5364,9 +5372,13 @@ function movePhrase(i, d){
 function cmdStepChipHtml(c, st, si){
   var open = !!cmdStepOpenSet[st.id];
   var n = stepRepeat(st);
-  var html = '<div class="cs-chip' + (open ? ' open' : '') + '" onclick="toggleCmdStepOpen(\'' + st.id + '\')">'
+  var isDisplayOnly = !(st.keys && st.keys.length);
+  var preview = isDisplayOnly ? [st.l1, st.l2].filter(function(t){ return t; }).join(' / ') : '';
+  var html = '<div class="cs-chip' + (open ? ' open' : '') + '" data-step-id="' + st.id + '" onclick="toggleCmdStepOpen(\'' + st.id + '\')">'
     + '<span class="cs-no">' + (si + 1) + '</span>'
-    + '<span class="cs-chip-label">' + esc(simStepLabel(st)) + '</span>'
+    + '<span class="cs-chip-label">' + esc(simStepLabel(st))
+    +   (preview ? '<span class="cs-chip-sub">' + esc(preview) + '</span>' : '')
+    + '</span>'
     + '<span class="cs-ops" onclick="event.stopPropagation()">'
     +   '<button class="btn btn-ghost btn-sm" onclick="moveCmdStep(\'' + c.id + '\',' + si + ',-1)"'
     +     (si === 0 ? ' disabled' : '') + ' aria-label="上へ">↑</button>'
@@ -5379,12 +5391,15 @@ function cmdStepChipHtml(c, st, si){
     + '</div>';
   if(open){
     html += '<div class="cs-chip-detail" onclick="event.stopPropagation()">'
-      + '<label class="cs-hold"><input type="checkbox"' + (st.hold ? ' checked' : '')
-      +   ' onchange="setCmdStepHold(\'' + c.id + '\',\'' + st.id + '\',this.checked)">長押し</label>'
-      + '<label class="cs-hold"><input type="checkbox"' + (st.stayDown ? ' checked' : '')
-      +   ' onchange="setCmdStepStayDown(\'' + c.id + '\',\'' + st.id + '\',this.checked)">押しまま（離さずに次へ）</label>'
-      + '<label class="cs-hold cs-rep">連続<input type="number" min="1" max="20" value="' + n + '"'
-      +   ((st.hold || st.stayDown) ? ' disabled' : '') + ' onchange="setCmdStepRepeat(\'' + c.id + '\',\'' + st.id + '\',this.value)">回</label>'
+      + (isDisplayOnly
+        ? '<div class="hint" style="flex:1 1 100%;margin:0;">🖥️ ボタン操作の無い、表示専用のステップです。'
+          + '「1つ進む」または「順番に再生」で次へ進みます。</div>'
+        : '<label class="cs-hold"><input type="checkbox"' + (st.hold ? ' checked' : '')
+          +   ' onchange="setCmdStepHold(\'' + c.id + '\',\'' + st.id + '\',this.checked)">長押し</label>'
+          + '<label class="cs-hold"><input type="checkbox"' + (st.stayDown ? ' checked' : '')
+          +   ' onchange="setCmdStepStayDown(\'' + c.id + '\',\'' + st.id + '\',this.checked)">押しまま（離さずに次へ）</label>'
+          + '<label class="cs-hold cs-rep">連続<input type="number" min="1" max="20" value="' + n + '"'
+          +   ((st.hold || st.stayDown) ? ' disabled' : '') + ' onchange="setCmdStepRepeat(\'' + c.id + '\',\'' + st.id + '\',this.value)">回</label>')
       + '<div class="cs-lines">'
       +   '<input type="text" class="cs-disp" value="' + esc(st.l1) + '" autocomplete="off"'
       +     ' placeholder="画面1行目（任意）例: インストールジョウホウ"'
@@ -5453,6 +5468,8 @@ function cmdBuilderHtml(c){
     +   '<button type="button" onclick="cmbTapKey(\'' + c.id + '\',\'PWRSW_ON\')">電源スイッチ ON</button>'
     +   '<button type="button" onclick="cmbTapKey(\'' + c.id + '\',\'PWRSW_OFF\')">電源スイッチ OFF</button>'
     + '</div>'
+    + '<button type="button" class="btn btn-ghost btn-sm cmb-display-btn" onclick="addDisplayStep(\'' + c.id + '\')">'
+    +   '🖥️ 表示だけを追加（ボタン操作なし）</button>'
     + '</div>';
 }
 /* ---------- 設定画面: 待機中の画面の編集 ---------- */
@@ -5752,6 +5769,25 @@ function cmbAddStep(c, s, keys){
   var st = { id: uid('cs'), keys: keys, hold: mode === 'hold', stayDown: mode === 'stay', repeat: 1, l1: '', l2: '', memo: '' };
   c.steps.splice((insertAt === null) ? c.steps.length : insertAt + 1, 0, st);
 }
+/* ボタンを押さず、画面表示（1〜2行目）だけを追加する手順（利用者の依頼：「ボタンは押さないが、
+   画面の表示だけ追加したいときがある」）。keys:[] のステップは sameStep() が実際のボタン操作とは
+   絶対に一致しないよう作ってあるので、案内中にボタンで進むことはできず、「1つ進む」／
+   「順番に再生」でだけ次へ進む（cmdGo()のメッセージ・simStepLabel()が案内文を出し分ける）。
+   同時押し・長押し・押しまま・挿入位置の指定はこのボタンには関係ないので、キーパッドの
+   モード（s.mode/s.combo）はそのままにして insertAt だけ消費する。 */
+function addDisplayStep(cid){
+  if(!requireAdmin()) return;
+  var c = findCommand(cid); if(!c) return;
+  var s = cmbGet(cid);
+  var insertAt = s.insertAt;
+  s.insertAt = null;
+  var st = { id: uid('cs'), keys: [], hold: false, stayDown: false, repeat: 1, l1: '', l2: '', memo: '' };
+  c.steps.splice((insertAt === null) ? c.steps.length : insertAt + 1, 0, st);
+  cmdStepOpenSet[st.id] = true;
+  afterSettingsChange(true);
+  var box = document.querySelector('.cs-chip[data-step-id="' + st.id + '"] + .cs-chip-detail .cs-disp');
+  if(box) box.focus();
+}
 function removeCmdStep(cid, sid){
   if(!requireAdmin()) return;
   var c = findCommand(cid); if(!c) return;
@@ -5881,14 +5917,17 @@ function importCommandsCsv(text){
       byName.push(cur);
     }
     var k1 = (r[4] || '').trim(), k2 = (r[5] || '').trim();
-    if(!k1){ return; }                       /* ボタン1が無い行（コマンド名のみの空手順など）は手順として数えない */
-    if(!simKeyDef(k1) || k1 === 'BLANK'){ skipped++; return; }
-    var keys = [k1];
-    if(k2 && simKeyDef(k2) && k2 !== 'BLANK' && k2 !== k1) keys.push(k2);
-    var hold = /^(1|true|はい|○|TRUE)$/i.test((r[6] || '').trim());
-    var stayDown = !hold && /^(1|true|はい|○|TRUE)$/i.test((r[7] || '').trim());
-    var repeat = (hold || stayDown) ? 1 : clampInt(r[8], 1, 20, 1);
-    cur.steps.push({ id: uid('cs'), keys: keys, hold: hold, stayDown: stayDown, repeat: repeat, l1: r[9] || '', l2: r[10] || '', memo: r[11] || '' });
+    var l1 = r[9] || '', l2 = r[10] || '', memo = r[11] || '';
+    /* ボタンも画面表示も結果コメントも無い行（コマンド名のみの空手順など）は手順として数えない。
+       ボタン1が無くても画面表示か結果コメントがあれば「表示だけの手順」として取り込む。 */
+    if(!k1 && !l1.trim() && !l2.trim() && !memo.trim()){ return; }
+    if(k1 && (!simKeyDef(k1) || k1 === 'BLANK')){ skipped++; return; }
+    var keys = k1 ? [k1] : [];
+    if(k1 && k2 && simKeyDef(k2) && k2 !== 'BLANK' && k2 !== k1) keys.push(k2);
+    var hold = !!keys.length && /^(1|true|はい|○|TRUE)$/i.test((r[6] || '').trim());
+    var stayDown = !!keys.length && !hold && /^(1|true|はい|○|TRUE)$/i.test((r[7] || '').trim());
+    var repeat = (!keys.length || hold || stayDown) ? 1 : clampInt(r[8], 1, 20, 1);
+    cur.steps.push({ id: uid('cs'), keys: keys, hold: hold, stayDown: stayDown, repeat: repeat, l1: l1, l2: l2, memo: memo });
   });
   if(!byName.length){ toast('読み込めるコマンドがありませんでした（ボタン1の列をご確認ください）'); return; }
   if(!confirm('CSVから' + byName.length + '件のコマンドを読み込みます。今のコマンド一覧と置き換わります。よろしいですか？')) return;
