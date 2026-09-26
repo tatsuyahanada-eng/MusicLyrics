@@ -531,9 +531,9 @@ input:focus,select:focus,textarea:focus{border-color:var(--blue);box-shadow:0 0 
 .cs-chip-detail{border:1px solid var(--sky);border-top:none;border-radius:0 0 var(--r-s) var(--r-s);
   padding:8px 8px 9px;background:var(--blue-l2);display:flex;flex-wrap:wrap;gap:5px;align-items:center;
   margin-top:-6px;}
-/* 待機中の画面の編集リスト（名前＋1〜2行目） */
-.is-row{display:flex;flex-wrap:wrap;gap:5px;align-items:center;border:1px solid var(--line-w);
-  border-radius:var(--r-s);padding:6px 7px;background:var(--white);margin-bottom:6px;}
+.cs-chip-sub{display:block;font-size:11px;font-weight:400;color:var(--muted);white-space:nowrap;
+  overflow:hidden;text-overflow:ellipsis;}
+/* 待機中の画面の編集リスト（名前＋1〜2行目）。ふだんは1行のチップ表示で、タップすると編集欄が開く */
 .is-name{flex:1 1 160px;min-width:0;font-weight:700;}
 /* 設定画面のコマンド見出し（折りたたみ。名前はその場で編集できる） */
 .cm-name-inline{flex:1;min-width:80px;font-size:13px;font-weight:700;color:var(--blue-d);
@@ -989,6 +989,7 @@ input:focus,select:focus,textarea:focus{border-color:var(--blue);box-shadow:0 0 
         <div class="field msg-field">
           <label for="msg-out">③ 退店連絡</label>
           <div class="day-notes" id="day-gyotai-notes-out" hidden><span class="dn-label">📌 注意事項</span><span id="day-gyotai-notes-out-body"></span></div>
+          <div class="note-row" id="exit-note-row"></div>
           <div class="equip-row" id="equip-row"></div>
           <textarea id="msg-out" class="msg-ta" rows="9" oninput="onMsgInput('out',this.value)"></textarea>
           <div class="field" style="margin-top:9px;">
@@ -1176,34 +1177,108 @@ input:focus,select:focus,textarea:focus{border-color:var(--blue);box-shadow:0 0 
     </div>
 
     <div class="card">
-      <div class="card-head">
-        <div class="card-title">入店連絡に足す文</div>
-        <div class="row-btns">
-          <button class="btn btn-sub btn-sm" onclick="addEntryNote()">＋ 文を追加</button>
+      <div class="card-body" style="padding:0;">
+        <div class="gy-item" id="gy-calphrase">
+          <div class="gy-head" onclick="toggleGy('calphrase')">
+            <span class="caret">▶</span>
+            <span class="gy-name">🗓️ カレンダーの定型文</span>
+            <span class="gy-meta">業態ごとの説明文・時間帯（カレンダー登録のときに使う定型文）</span>
+          </div>
+          <div class="gy-body" onclick="event.stopPropagation()">
+            <div class="hint" style="margin-bottom:9px;">
+              業態ごとに時間帯（午前・午後など）と定型文を登録します。定型文では差し込み文字が使えます（タップでコピー）:
+              <div class="ph-list">
+                <span class="ph" onclick="copyPh(this)">{業態}</span>
+                <span class="ph" onclick="copyPh(this)">{店舗名}</span>
+                <span class="ph" onclick="copyPh(this)">{日付}</span>
+                <span class="ph" onclick="copyPh(this)">{開始}</span>
+                <span class="ph" onclick="copyPh(this)">{終了}</span>
+                <span class="ph" onclick="copyPh(this)">{時間帯}</span>
+              </div>
+              並び順は各業態の「↑」「↓」で入れ替えられます（カレンダー画面のプルダウンの順番になります）。
+            </div>
+            <div class="row-btns" style="margin-bottom:9px;">
+              <button class="btn btn-sub btn-sm" onclick="addGyotai()">＋ 業態を追加</button>
+            </div>
+            <div id="gy-list"></div>
+          </div>
         </div>
-      </div>
-      <div class="card-body">
-        <div class="hint" style="margin-bottom:9px;">
-          作業当日タブの「①入店連絡」の上にチェック欄として並びます。
-          チェックした文だけが入店連絡の本文に入ります（例: POSレジ清算済み、電源ケーブル流用の申し送りなど）。
-        </div>
-        <div id="entry-note-list"></div>
       </div>
     </div>
 
     <div class="card">
-      <div class="card-head">
-        <div class="card-title">中間報告に足す文</div>
-        <div class="row-btns">
-          <button class="btn btn-sub btn-sm" onclick="addMidNote()">＋ 文を追加</button>
+      <div class="card-body" style="padding:0;">
+        <div class="gy-item" id="gy-dayphrase">
+          <div class="gy-head" onclick="toggleGy('dayphrase')">
+            <span class="caret">▶</span>
+            <span class="gy-name">📋 当日の定型文</span>
+            <span class="gy-meta">入店・中間・退店連絡に足す文／よく使う文（作業当日タブで使う定型文）</span>
+          </div>
+          <div class="gy-body" onclick="event.stopPropagation()">
+            <div class="card" style="margin-bottom:10px;">
+              <div class="card-head">
+                <div class="card-title">入店連絡に足す文</div>
+                <div class="row-btns">
+                  <button class="btn btn-sub btn-sm" onclick="addEntryNote()">＋ 文を追加</button>
+                </div>
+              </div>
+              <div class="card-body">
+                <div class="hint" style="margin-bottom:9px;">
+                  作業当日タブの「①入店連絡」の上にチェック欄として並びます。
+                  チェックした文だけが入店連絡の本文に入ります（例: POSレジ清算済み、電源ケーブル流用の申し送りなど）。
+                </div>
+                <div id="entry-note-list"></div>
+              </div>
+            </div>
+
+            <div class="card" style="margin-bottom:10px;">
+              <div class="card-head">
+                <div class="card-title">中間報告に足す文</div>
+                <div class="row-btns">
+                  <button class="btn btn-sub btn-sm" onclick="addMidNote()">＋ 文を追加</button>
+                </div>
+              </div>
+              <div class="card-body">
+                <div class="hint" style="margin-bottom:9px;">
+                  作業当日タブの「②中間報告」の上にチェック欄として並びます。
+                  チェックした文だけが中間報告の本文に入ります（例: 電源ケーブル流用の申し送り、実施状況の見合わせなど）。
+                </div>
+                <div id="mid-note-list"></div>
+              </div>
+            </div>
+
+            <div class="card" style="margin-bottom:10px;">
+              <div class="card-head">
+                <div class="card-title">退店連絡に足す文</div>
+                <div class="row-btns">
+                  <button class="btn btn-sub btn-sm" onclick="addExitNote()">＋ 文を追加</button>
+                </div>
+              </div>
+              <div class="card-body">
+                <div class="hint" style="margin-bottom:9px;">
+                  作業当日タブの「③退店連絡」の上にチェック欄として並びます。
+                  チェックした文だけが退店連絡の本文に入ります（例: 動作確認済みです、など）。
+                </div>
+                <div id="exit-note-list"></div>
+              </div>
+            </div>
+
+            <div class="card">
+              <div class="card-head">
+                <div class="card-title">よく使う文（定型フレーズ）</div>
+                <div class="row-btns">
+                  <button class="btn btn-sub btn-sm" onclick="addPhrase()">＋ 文を追加</button>
+                </div>
+              </div>
+              <div class="card-body">
+                <div class="hint" style="margin-bottom:9px;">
+                  「作業当日」タブで押すだけでコピーできます。<code>{業態}</code> <code>{店舗名}</code> などの差し込み文字も使えます。
+                </div>
+                <div id="phrase-list"></div>
+              </div>
+            </div>
+          </div>
         </div>
-      </div>
-      <div class="card-body">
-        <div class="hint" style="margin-bottom:9px;">
-          作業当日タブの「②中間報告」の上にチェック欄として並びます。
-          チェックした文だけが中間報告の本文に入ります（例: 電源ケーブル流用の申し送り、実施状況の見合わせなど）。
-        </div>
-        <div id="mid-note-list"></div>
       </div>
     </div>
 
@@ -1224,45 +1299,6 @@ input:focus,select:focus,textarea:focus{border-color:var(--blue);box-shadow:0 0 
             <div id="diag-out" style="margin-top:10px;"></div>
           </div>
         </div>
-      </div>
-    </div>
-
-    <div class="card">
-      <div class="card-head">
-        <div class="card-title">業態ごとの定型文・時間帯</div>
-        <div class="row-btns">
-          <button class="btn btn-sub btn-sm" onclick="addGyotai()">＋ 業態を追加</button>
-        </div>
-      </div>
-      <div class="card-body">
-        <div class="hint" style="margin-bottom:9px;">
-          業態ごとに時間帯（午前・午後など）と定型文を登録します。定型文では差し込み文字が使えます（タップでコピー）:
-          <div class="ph-list">
-            <span class="ph" onclick="copyPh(this)">{業態}</span>
-            <span class="ph" onclick="copyPh(this)">{店舗名}</span>
-            <span class="ph" onclick="copyPh(this)">{日付}</span>
-            <span class="ph" onclick="copyPh(this)">{開始}</span>
-            <span class="ph" onclick="copyPh(this)">{終了}</span>
-            <span class="ph" onclick="copyPh(this)">{時間帯}</span>
-          </div>
-          並び順は各業態の「↑」「↓」で入れ替えられます（カレンダー画面のプルダウンの順番になります）。
-        </div>
-        <div id="gy-list"></div>
-      </div>
-    </div>
-
-    <div class="card">
-      <div class="card-head">
-        <div class="card-title">よく使う文（定型フレーズ）</div>
-        <div class="row-btns">
-          <button class="btn btn-sub btn-sm" onclick="addPhrase()">＋ 文を追加</button>
-        </div>
-      </div>
-      <div class="card-body">
-        <div class="hint" style="margin-bottom:9px;">
-          「作業当日」タブで押すだけでコピーできます。<code>{業態}</code> <code>{店舗名}</code> などの差し込み文字も使えます。
-        </div>
-        <div id="phrase-list"></div>
       </div>
     </div>
 
@@ -1497,6 +1533,9 @@ var DEFAULT_MID_NOTES = [
   '店舗名多忙の為、入替作業は状況見て実施します。'
 ];
 
+/* 退店連絡に足せる文（当日タブでチェックした文だけが退店連絡に入る） */
+var DEFAULT_EXIT_NOTES = [];
+
 /* ---------- 初期設定 ---------- */
 /* 待機中（何も操作していない）ときにLCDへ出す画面の初期サンプル。実機は電源の状態や
    二重化の構成によって表示が変わるため、複数持たせて切り替えられるようにしてある。
@@ -1566,6 +1605,7 @@ function defaultSettings(){
     ],
     entryNotes: DEFAULT_ENTRY_NOTES.map(function(t){ return { id: uid('en'), text: t }; }),
     midNotes: DEFAULT_MID_NOTES.map(function(t){ return { id: uid('mn'), text: t }; }),
+    exitNotes: DEFAULT_EXIT_NOTES.map(function(t){ return { id: uid('xn'), text: t }; }),
     reportNotes: [],
     reportComments: {},
     commands: defaultCommands(),
@@ -1626,6 +1666,7 @@ function collectDraft(){
     end: $('day-end') ? $('day-end').value : '',
     notes: dayNotes,
     midNotes: dayMidNotes,
+    exitNotes: dayExitNotes,
     ctx: dayCtx,
     msgs: dayMsgs,
     counts: dayCounts,
@@ -1680,6 +1721,7 @@ function restoreDraft(){
   if(day.end && $('day-end')){ $('day-end').innerHTML = timeOptionsHtml(day.end); $('day-end').value = day.end; }
   if(day.notes) dayNotes = day.notes.slice();
   if(day.midNotes) dayMidNotes = day.midNotes.slice();
+  if(day.exitNotes) dayExitNotes = day.exitNotes.slice();
   if(day.tenpo && $('day-tenpo')){ $('day-tenpo').value = day.tenpo; restored = true; }
   if(day.paste && $('day-paste')) $('day-paste').value = day.paste;
   if(day.ctx){
@@ -1692,6 +1734,7 @@ function restoreDraft(){
     renderEquipRow();
     renderEntryNoteRow();
     renderMidNoteRow();
+    renderExitNoteRow();
     renderDaySummary();
     renderDayMsgs();
     renderPhraseChips();
@@ -1761,6 +1804,7 @@ function normalizeSettings(o){
     phrases: [],
     entryNotes: [],
     midNotes: [],
+    exitNotes: [],
     reportNotes: [],
     reportComments: {},
     commands: [],
@@ -1789,6 +1833,14 @@ function normalizeSettings(o){
     (o.midNotes || []).forEach(function(mn){
       var txt = (typeof mn === 'string') ? mn : (mn && typeof mn.text === 'string' ? mn.text : '');
       if(txt) s.midNotes.push({ id: (mn && mn.id) ? mn.id : uid('mn'), text: txt });
+    });
+  }
+  if(o.exitNotes === undefined){
+    s.exitNotes = DEFAULT_EXIT_NOTES.map(function(t){ return { id: uid('xn'), text: t }; });
+  }else{
+    (o.exitNotes || []).forEach(function(xn){
+      var txt = (typeof xn === 'string') ? xn : (xn && typeof xn.text === 'string' ? xn.text : '');
+      if(txt) s.exitNotes.push({ id: (xn && xn.id) ? xn.id : uid('xn'), text: txt });
     });
   }
   /* レポートの見方タブの「注意事項」。既定は無し（利用者がインストールレポート画面から
@@ -3222,8 +3274,43 @@ function onEquipInput(code, v){
   rebuildEquipmentBlock();
   saveDraftSoon();
 }
-/* 退店連絡の本文を「本文 → 機器台数 → 特記事項」の順に組み立て直す。
-   機器台数も特記事項も、入力されたものだけが入る（空なら何も足さない）。 */
+/* ---------- 退店連絡に足す文（チェックしたものだけ本文に入れる） ---------- */
+var dayExitNotes = [];   /* チェックされている文（本文そのもの） */
+function resetExitNotes(){ dayExitNotes = []; }
+function stripExitNoteLines(text){
+  var all = settings.exitNotes.map(function(n){ return n.text; });
+  var lines = String(text == null ? '' : text).split('\n');
+  var kept = lines.filter(function(l){ return all.indexOf(l.trim()) < 0; });
+  while(kept.length && kept[kept.length - 1].trim() === '') kept.pop();
+  return kept.join('\n');
+}
+function renderExitNoteRow(){
+  var host = $('exit-note-row');
+  if(!host) return;
+  if(!settings.exitNotes.length){ host.innerHTML = ''; return; }
+  var html = '';
+  settings.exitNotes.forEach(function(n, i){
+    var on = dayExitNotes.indexOf(n.text) >= 0;
+    html += '<label class="' + (on ? 'on' : '') + '">'
+          + '<input type="checkbox"' + (on ? ' checked' : '')
+          + ' onchange="onExitNoteToggle(' + i + ',this.checked)">'
+          + '<span>' + esc(n.text) + '</span></label>';
+  });
+  host.innerHTML = html;
+}
+function onExitNoteToggle(i, on){
+  var n = settings.exitNotes[i];
+  if(!n) return;
+  var pos = dayExitNotes.indexOf(n.text);
+  if(on && pos < 0) dayExitNotes.push(n.text);
+  if(!on && pos >= 0) dayExitNotes.splice(pos, 1);
+  rebuildOutBlock();
+  renderExitNoteRow();
+  saveDraftSoon();
+}
+
+/* 退店連絡の本文を「本文（チェックした文を含む） → 機器台数 → 特記事項」の順に組み立て直す。
+   チェックした文・機器台数・特記事項は、入力されたものだけが入る（空なら何も足さない）。 */
 var REMARK_HEADING = '【特記事項】';
 var dayRemark = '';        /* 特記事項の入力内容（見出しは含まない） */
 var appliedRemark = '';    /* いま本文の末尾に入っているブロック（見出し込み。消すときの目印） */
@@ -3244,7 +3331,15 @@ function stripRemarkBlock(text){
   return t;   /* 手で書き換えられていたら、そのまま残す */
 }
 function rebuildOutBlock(){
-  var base = stripEquipmentLines(stripRemarkBlock(dayMsgs.out));
+  var base = stripExitNoteLines(stripEquipmentLines(stripRemarkBlock(dayMsgs.out)));
+  var pickedNotes = settings.exitNotes
+    .filter(function(n){ return dayExitNotes.indexOf(n.text) >= 0; })
+    .map(function(n){ return n.text; });
+  if(pickedNotes.length){
+    var noteLines = base.split('\n');
+    var noteHead = noteLines.length ? [noteLines.shift()] : [];
+    base = noteHead.concat(pickedNotes, noteLines).join('\n');
+  }
 
   var block = [];
   EQUIPMENT_CODES.forEach(function(code){
@@ -3276,16 +3371,18 @@ function onRemarkInput(v){
 function setDayCtx(c){
   dayCtx = c;
   dayMsgs = splitReport(c.description || '');
-  dayMsgs.out = stripEquipmentLines(dayMsgs.out);
+  dayMsgs.out = stripExitNoteLines(stripEquipmentLines(dayMsgs.out));
   dayMsgs.in = stripEntryNoteLines(dayMsgs.in);
   dayMsgs.mid = stripMidNoteLines(dayMsgs.mid);
   resetDayCounts();
   resetEntryNotes();
   resetMidNotes();
+  resetExitNotes();
   resetDayRemark();
   renderEquipRow();
   renderEntryNoteRow();
   renderMidNoteRow();
+  renderExitNoteRow();
   renderDaySummary();
   renderDayMsgs();
   renderPhraseChips();
@@ -4792,6 +4889,7 @@ function renderSettings(){
   renderPhraseList();
   renderEntryNoteList();
   renderMidNoteList();
+  renderExitNoteList();
   renderIdleScreenList();
   renderCommandList();
 
@@ -4989,6 +5087,56 @@ function removeMidNote(i){
   afterSettingsChange(true);
 }
 
+function renderExitNoteList(){
+  var host = $('exit-note-list');
+  if(!host) return;
+  if(!settings.exitNotes.length){
+    host.innerHTML = '<div class="empty">まだありません。<br>「＋ 文を追加」から登録してください。</div>';
+    return;
+  }
+  var html = '';
+  settings.exitNotes.forEach(function(n, i){
+    html += '<div class="ph-row">'
+      + '<input type="text" placeholder="例: 動作確認済みです" value="' + esc(n.text) + '"'
+      +   ' oninput="setExitNote(' + i + ',this.value)">'
+      + '<div class="ph-ops">'
+      +   '<button class="btn btn-ghost btn-sm" onclick="moveExitNote(' + i + ',-1)"' + (i === 0 ? ' disabled' : '') + ' aria-label="上へ">↑</button>'
+      +   '<button class="btn btn-ghost btn-sm" onclick="moveExitNote(' + i + ',1)"' + (i === settings.exitNotes.length-1 ? ' disabled' : '') + ' aria-label="下へ">↓</button>'
+      +   '<button class="btn btn-danger btn-sm" onclick="removeExitNote(' + i + ')" aria-label="削除">✕</button>'
+      + '</div>'
+      + '</div>';
+  });
+  host.innerHTML = html;
+}
+function addExitNote(){
+  if(!requireAdmin()) return;
+  settings.exitNotes.push({ id: uid('xn'), text: '' });
+  afterSettingsChange(true);
+  var boxes = document.querySelectorAll('#exit-note-list input');
+  if(boxes.length) boxes[boxes.length-1].focus();
+}
+function setExitNote(i, v){
+  if(!settings.exitNotes[i]) return;
+  settings.exitNotes[i].text = v;
+  saveSettings();
+  markSharedDirty();
+  renderExitNoteRow();
+}
+function moveExitNote(i, d){
+  if(!requireAdmin()) return;
+  var j = i + d;
+  if(j < 0 || j >= settings.exitNotes.length) return;
+  var t = settings.exitNotes[i];
+  settings.exitNotes[i] = settings.exitNotes[j];
+  settings.exitNotes[j] = t;
+  afterSettingsChange(true);
+}
+function removeExitNote(i){
+  if(!requireAdmin()) return;
+  settings.exitNotes.splice(i, 1);
+  afterSettingsChange(true);
+}
+
 function renderPhraseList(){
   var host = $('phrase-list');
   if(!host) return;
@@ -5140,6 +5288,39 @@ function cmdBuilderHtml(c){
     + '</div>';
 }
 /* ---------- 設定画面: 待機中の画面の編集 ---------- */
+/* 待機画面ごとの折りたたみ開閉状態（見た目だけの状態なので、settingsには入れない） */
+var idleScreenOpenSet = {};
+function toggleIdleScreenOpen(id){
+  idleScreenOpenSet[id] = !idleScreenOpenSet[id];
+  renderIdleScreenList();
+}
+function idleScreenChipHtml(s, i, list){
+  var open = !!idleScreenOpenSet[s.id];
+  var preview = [s.l1, s.l2].filter(function(t){ return t; }).join(' / ');
+  var html = '<div class="cs-chip' + (open ? ' open' : '') + '" data-idle-id="' + s.id + '" onclick="toggleIdleScreenOpen(\'' + s.id + '\')">'
+    + '<span class="cs-chip-label">' + esc(s.name || '（名前未設定）')
+    +   (preview ? '<span class="cs-chip-sub">' + esc(preview) + '</span>' : '')
+    + '</span>'
+    + '<span class="cs-ops" onclick="event.stopPropagation()">'
+    +   '<button class="btn btn-ghost btn-sm" onclick="moveIdleScreen(' + i + ',-1)"' + (i === 0 ? ' disabled' : '') + ' aria-label="上へ">↑</button>'
+    +   '<button class="btn btn-ghost btn-sm" onclick="moveIdleScreen(' + i + ',1)"' + (i === list.length - 1 ? ' disabled' : '') + ' aria-label="下へ">↓</button>'
+    +   '<button class="btn btn-danger btn-sm" onclick="removeIdleScreen(\'' + s.id + '\')" aria-label="削除">✕</button>'
+    + '</span>'
+    + '</div>';
+  if(open){
+    html += '<div class="cs-chip-detail" onclick="event.stopPropagation()">'
+      + '<input type="text" class="is-name" value="' + esc(s.name) + '" autocomplete="off"'
+      +   ' placeholder="名前（プルダウンに出ます）" oninput="setIdleScreenField(\'' + s.id + '\',\'name\',this.value)">'
+      + '<div class="cs-lines">'
+      +   '<input type="text" class="cs-disp" value="' + esc(s.l1) + '" autocomplete="off" placeholder="1行目"'
+      +     ' oninput="setIdleScreenField(\'' + s.id + '\',\'l1\',this.value)">'
+      +   '<input type="text" class="cs-disp" value="' + esc(s.l2) + '" autocomplete="off" placeholder="2行目"'
+      +     ' oninput="setIdleScreenField(\'' + s.id + '\',\'l2\',this.value)">'
+      + '</div>'
+      + '</div>';
+  }
+  return html;
+}
 function renderIdleScreenList(){
   var host = $('idle-screen-list');
   if(!host) return;
@@ -5149,29 +5330,17 @@ function renderIdleScreenList(){
     return;
   }
   var html = '';
-  list.forEach(function(s, i){
-    html += '<div class="is-row">'
-      + '<input type="text" class="is-name" value="' + esc(s.name) + '" autocomplete="off"'
-      +   ' placeholder="名前（プルダウンに出ます）" oninput="setIdleScreenField(\'' + s.id + '\',\'name\',this.value)">'
-      + '<div class="cs-lines">'
-      +   '<input type="text" class="cs-disp" value="' + esc(s.l1) + '" autocomplete="off" placeholder="1行目"'
-      +     ' oninput="setIdleScreenField(\'' + s.id + '\',\'l1\',this.value)">'
-      +   '<input type="text" class="cs-disp" value="' + esc(s.l2) + '" autocomplete="off" placeholder="2行目"'
-      +     ' oninput="setIdleScreenField(\'' + s.id + '\',\'l2\',this.value)">'
-      + '</div>'
-      + '<span class="cs-ops">'
-      +   '<button class="btn btn-ghost btn-sm" onclick="moveIdleScreen(' + i + ',-1)"' + (i === 0 ? ' disabled' : '') + ' aria-label="上へ">↑</button>'
-      +   '<button class="btn btn-ghost btn-sm" onclick="moveIdleScreen(' + i + ',1)"' + (i === list.length - 1 ? ' disabled' : '') + ' aria-label="下へ">↓</button>'
-      +   '<button class="btn btn-danger btn-sm" onclick="removeIdleScreen(\'' + s.id + '\')" aria-label="削除">✕</button>'
-      + '</span>'
-      + '</div>';
-  });
+  list.forEach(function(s, i){ html += idleScreenChipHtml(s, i, list); });
   host.innerHTML = html;
 }
 function addIdleScreen(){
   if(!requireAdmin()) return;
-  settings.idleScreens.push({ id: uid('is'), name: '', l1: '', l2: '' });
+  var s = { id: uid('is'), name: '', l1: '', l2: '' };
+  settings.idleScreens.push(s);
+  idleScreenOpenSet[s.id] = true;
   afterSettingsChange(true);
+  var boxes = document.querySelectorAll('#idle-screen-list .cs-chip-detail .is-name');
+  if(boxes.length) boxes[boxes.length - 1].focus();
 }
 function removeIdleScreen(id){
   if(!requireAdmin()) return;
@@ -5189,10 +5358,19 @@ function moveIdleScreen(i, d){
   afterSettingsChange(true);
 }
 function setIdleScreenField(id, which, v){
+  var s = null;
   for(var i = 0; i < settings.idleScreens.length; i++){
-    if(settings.idleScreens[i].id === id){ settings.idleScreens[i][which] = v; break; }
+    if(settings.idleScreens[i].id === id){ s = settings.idleScreens[i]; s[which] = v; break; }
   }
   afterSettingsChange(false);
+  if(s) updateIdleScreenChipLabel(s);
+}
+/* 詳細欄の入力中はリスト全体を作り直さず、閉じたときの見出し（1行チップ）だけをその場で更新する */
+function updateIdleScreenChipLabel(s){
+  var chip = document.querySelector('#idle-screen-list .cs-chip[data-idle-id="' + s.id + '"] .cs-chip-label');
+  if(!chip) return;
+  var preview = [s.l1, s.l2].filter(function(t){ return t; }).join(' / ');
+  chip.innerHTML = esc(s.name || '（名前未設定）') + (preview ? '<span class="cs-chip-sub">' + esc(preview) + '</span>' : '');
 }
 /* コマンドごとの折りたたみ開閉状態（見た目だけの状態なので、settingsには入れない） */
 var cmdOpenSet = {};
@@ -5809,6 +5987,7 @@ function afterSettingsChange(rerenderSettingsPane){
   renderPhraseChips();
   renderEntryNoteRow();
   renderMidNoteRow();
+  renderExitNoteRow();
   if(!$('pane-cmd').classList.contains('hidden')){ renderIdleSelect(); renderCmdSelect(true); }
   if(!$('pane-rep').classList.contains('hidden')){ renderRepUserNotes(); renderRepComments(); }
   if(rerenderSettingsPane) renderSettings();
