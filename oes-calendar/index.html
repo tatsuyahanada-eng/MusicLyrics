@@ -634,12 +634,11 @@ input:focus,select:focus,textarea:focus{border-color:var(--blue);box-shadow:0 0 
 .ph-row input{flex:1;min-width:0;}
 .ph-ops{display:flex;gap:4px;flex-shrink:0;}
 .ph-ops button{width:34px;height:34px;padding:0;justify-content:center;}
-/* 退店連絡の機器台数の項目（表示名・文言・単位） */
+/* 退店連絡の機器台数の項目（表示名・単位） */
 .eq-edit-row{display:flex;flex-wrap:wrap;gap:5px;align-items:center;border:1px solid var(--line-w);
   border-radius:var(--r-s);padding:6px 7px;background:var(--white);margin-bottom:6px;}
-.eq-edit-code{flex:0 1 80px;min-width:60px;font-weight:700;}
-.eq-edit-prefix{flex:1 1 160px;min-width:0;}
-.eq-edit-unit{flex:0 1 60px;min-width:44px;}
+.eq-edit-code{flex:1 1 100px;min-width:60px;font-weight:700;}
+.eq-edit-unit{flex:0 1 70px;min-width:44px;}
 .eq-edit-preview{flex:1 1 100%;font-size:11px;color:var(--muted);}
 
 /* ---------- モーダル / トースト ---------- */
@@ -1279,10 +1278,16 @@ input:focus,select:focus,textarea:focus{border-color:var(--blue);box-shadow:0 0 
               </div>
               <div class="card-body">
                 <div class="hint" style="margin-bottom:9px;">
-                  作業当日タブの「③退店連絡」で台数を選ぶ項目（MPR・MST・HTなど）です。台数を選ぶと
-                  「表示名　文言＋台数＋単位」の順で本文に入ります。「文言」は空欄でも構いません
-                  （例: MSTの前に<code>[撤去機]</code>と付けたい場合はここに入力）。
+                  作業当日タブの「③退店連絡」で台数を選ぶ項目（MPR・MST・HTなど）です。
+                  台数を1つ以上選ぶと、下の「見出し」が一番上に1行入り、続けて選んだ項目が
+                  「表示名＋台数＋単位」の順で1行ずつ入ります。
                 </div>
+                <div class="field" style="margin-bottom:9px;">
+                  <label for="set-equip-heading">機器台数の見出し（任意。空欄なら見出し無し）</label>
+                  <input type="text" id="set-equip-heading" placeholder="例: [撤去機]" value=""
+                         oninput="setEquipHeading(this.value)">
+                </div>
+                <div class="hint" id="equip-heading-preview" style="margin-bottom:9px;white-space:pre-line;"></div>
                 <div id="equip-type-list"></div>
               </div>
             </div>
@@ -1560,17 +1565,25 @@ var DEFAULT_MID_NOTES = [
 /* 退店連絡に足せる文（当日タブでチェックした文だけが退店連絡に入る） */
 var DEFAULT_EXIT_NOTES = [];
 
-/* 退店連絡の機器台数の項目（表示名・単位・台数の前に付ける文言）。設定タブで追加・編集・削除できる。
-   本文には「表示名＋3スペース＋文言＋台数＋単位」の順で入る（例: MST   [撤去機]3台）。 */
+/* 退店連絡の機器台数の項目（表示名・単位）。設定タブで追加・編集・削除できる。
+   本文には「表示名＋3スペース＋台数＋単位」の順で1行ずつ入る（例: MST   3台）。 */
 function defaultEquipmentTypes(){
   return [
-    { id:'eq-mpr', code:'MPR', unit:'台', prefix:'' },
-    { id:'eq-mst', code:'MST', unit:'台', prefix:'[撤去機]' },
-    { id:'eq-ht',  code:'HT',  unit:'台', prefix:'' },
-    { id:'eq-bc',  code:'BC',  unit:'台', prefix:'' },
-    { id:'eq-bp',  code:'BP',  unit:'個', prefix:'' }
+    { id:'eq-mpr', code:'MPR', unit:'台' },
+    { id:'eq-mst', code:'MST', unit:'台' },
+    { id:'eq-ht',  code:'HT',  unit:'台' },
+    { id:'eq-bc',  code:'BC',  unit:'台' },
+    { id:'eq-bp',  code:'BP',  unit:'個' }
   ];
 }
+/* 機器台数の一番上に見出しとして入る文言（任意・空欄なら見出し無し）。利用者の指定で既定は「[撤去機]」。
+   例: MPR 2台・MST 2台・HT 3台を選ぶと本文は
+     [撤去機]
+     MPR   2台
+     MST   2台
+     HT   3台
+   の順になる（`rebuildOutBlock()`）。 */
+var DEFAULT_EQUIP_HEADING = '[撤去機]';
 
 /* ---------- 初期設定 ---------- */
 /* 待機中（何も操作していない）ときにLCDへ出す画面の初期サンプル。実機は電源の状態や
@@ -1643,6 +1656,7 @@ function defaultSettings(){
     midNotes: DEFAULT_MID_NOTES.map(function(t){ return { id: uid('mn'), text: t }; }),
     exitNotes: DEFAULT_EXIT_NOTES.map(function(t){ return { id: uid('xn'), text: t }; }),
     equipmentTypes: defaultEquipmentTypes(),
+    equipHeading: DEFAULT_EQUIP_HEADING,
     reportNotes: [],
     reportComments: {},
     commands: defaultCommands(),
@@ -1890,11 +1904,11 @@ function normalizeSettings(o){
       s.equipmentTypes.push({
         id: (eq && eq.id) ? eq.id : uid('eq'),
         code: code,
-        unit: (eq && typeof eq.unit === 'string') ? eq.unit : '台',
-        prefix: (eq && typeof eq.prefix === 'string') ? eq.prefix : ''
+        unit: (eq && typeof eq.unit === 'string') ? eq.unit : '台'
       });
     });
   }
+  s.equipHeading = (o.equipHeading === undefined) ? DEFAULT_EQUIP_HEADING : String(o.equipHeading || '');
   /* レポートの見方タブの「注意事項」。既定は無し（利用者がインストールレポート画面から
      管理者パスワードを入れて追記していく運用のため、あらかじめ何か入れておく性質のものではない） */
   (o.reportNotes || []).forEach(function(rn){
@@ -3193,7 +3207,8 @@ function pickDayCand(i){
 }
 
 /* ---------- 機器の台数（退店連絡にのみ反映） ----------
-   表示名（コード）・単位・台数の前に付ける文言（任意）は settings.equipmentTypes（設定タブで編集可）。
+   表示名（コード）・単位は settings.equipmentTypes（設定タブで編集可）。台数を1件以上選んだときだけ、
+   一番上に settings.equipHeading（任意の見出し文言。既定は「[撤去機]」）が1行だけ入る。
    `dayCounts` は行編集中に表示名を変えても選んだ台数が消えないよう、コードではなく id をキーにする。 */
 var EQUIP_MAX = 10;   /* 台数はプルダウンで1〜10から選ぶ */
 var dayCounts = {};
@@ -3309,9 +3324,14 @@ function resetDayCounts(){
 function stripEquipmentLines(text){
   var re = equipLineRe();
   var t = String(text == null ? '' : text);
-  if(!re) return t;
+  var heading = String(settings.equipHeading || '').trim();
   var lines = t.split('\n');
-  var kept = lines.filter(function(l){ return !re.test(l.trim()); });
+  var kept = lines.filter(function(l){
+    var trimmed = l.trim();
+    if(heading && trimmed === heading) return false;
+    if(re && re.test(trimmed)) return false;
+    return true;
+  });
   while(kept.length && kept[kept.length - 1].trim() === '') kept.pop();
   return kept.join('\n');
 }
@@ -3405,8 +3425,11 @@ function rebuildOutBlock(){
   var block = [];
   settings.equipmentTypes.forEach(function(eq){
     var v = String(dayCounts[eq.id] || '').trim();
-    if(v !== '') block.push(eq.code + '   ' + (eq.prefix || '') + v + eq.unit);
+    if(v !== '') block.push(eq.code + '   ' + v + eq.unit);
   });
+  if(block.length && String(settings.equipHeading || '').trim()){
+    block.unshift(String(settings.equipHeading).trim());
+  }
   var out = block.length ? (base ? base + '\n\n' + block.join('\n') : block.join('\n')) : base;
 
   var r = String(dayRemark || '').replace(/^\s+|\s+$/g, '');
@@ -5199,11 +5222,21 @@ function removeExitNote(i){
   afterSettingsChange(true);
 }
 
-/* ---------- 設定画面: 退店連絡の機器台数の項目（表示名・単位・台数の前に付ける文言） ---------- */
+/* ---------- 設定画面: 退店連絡の機器台数の項目（見出し・表示名・単位） ---------- */
 function equipTypePreview(eq){
-  return (eq.code || '(表示名)') + '   ' + (eq.prefix || '') + '3' + (eq.unit || '');
+  return (eq.code || '(表示名)') + '   3' + (eq.unit || '');
+}
+function equipHeadingPreview(){
+  var heading = String(settings.equipHeading || '').trim();
+  var sample = settings.equipmentTypes.slice(0, 2).map(function(eq){ return eq.code + '   2' + eq.unit; });
+  if(!sample.length) sample = ['MPR   2台', 'MST   2台'];
+  return (heading ? heading + '\n' : '') + sample.join('\n');
 }
 function renderEquipTypeList(){
+  var headingEl = $('set-equip-heading');
+  if(headingEl && document.activeElement !== headingEl) headingEl.value = settings.equipHeading || '';
+  var previewEl = $('equip-heading-preview');
+  if(previewEl) previewEl.textContent = equipHeadingPreview();
   var host = $('equip-type-list');
   if(!host) return;
   if(!settings.equipmentTypes.length){
@@ -5215,8 +5248,6 @@ function renderEquipTypeList(){
     html += '<div class="eq-edit-row" data-eq-id="' + eq.id + '">'
       + '<input type="text" class="eq-edit-code" placeholder="例: MST" value="' + esc(eq.code) + '"'
       +   ' oninput="setEquipTypeField(\'' + eq.id + '\',\'code\',this.value)">'
-      + '<input type="text" class="eq-edit-prefix" placeholder="任意: 台数の前に付ける文言（例: [撤去機]）" value="' + esc(eq.prefix) + '"'
-      +   ' oninput="setEquipTypeField(\'' + eq.id + '\',\'prefix\',this.value)">'
       + '<input type="text" class="eq-edit-unit" placeholder="単位" value="' + esc(eq.unit) + '"'
       +   ' oninput="setEquipTypeField(\'' + eq.id + '\',\'unit\',this.value)">'
       + '<span class="eq-edit-preview">例: ' + esc(equipTypePreview(eq)) + '</span>'
@@ -5231,7 +5262,7 @@ function renderEquipTypeList(){
 }
 function addEquipType(){
   if(!requireAdmin()) return;
-  settings.equipmentTypes.push({ id: uid('eq'), code: '', unit: '台', prefix: '' });
+  settings.equipmentTypes.push({ id: uid('eq'), code: '', unit: '台' });
   afterSettingsChange(true);
   var boxes = document.querySelectorAll('#equip-type-list .eq-edit-code');
   if(boxes.length) boxes[boxes.length-1].focus();
@@ -5246,6 +5277,15 @@ function setEquipTypeField(id, which, v){
   afterSettingsChange(false);
   var el = document.querySelector('#equip-type-list .eq-edit-row[data-eq-id="' + id + '"] .eq-edit-preview');
   if(el) el.textContent = '例: ' + equipTypePreview(eq);
+  var previewEl = $('equip-heading-preview');
+  if(previewEl) previewEl.textContent = equipHeadingPreview();
+}
+function setEquipHeading(v){
+  settings.equipHeading = v;
+  saveSettings();
+  markSharedDirty();
+  var previewEl = $('equip-heading-preview');
+  if(previewEl) previewEl.textContent = equipHeadingPreview();
 }
 function moveEquipType(i, d){
   if(!requireAdmin()) return;
