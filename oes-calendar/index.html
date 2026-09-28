@@ -715,9 +715,19 @@ body.cm-drag-active,body.cm-drag-active *{-webkit-user-select:none;user-select:n
 .inst-os{font-size:12.5px;font-weight:700;color:var(--blue-d);margin:12px 0 5px;}
 .inst-os:first-child{margin-top:0;}
 
-/* ---------- 未共有の変更バー / 診断 ---------- */
-#diag-card .gy-name{flex:1 1 auto;}
-#diag-card .gy-meta{flex:1 1 100%;margin-left:20px;}
+/* ---------- 未共有の変更バー / 診断 ----------
+   説明（.gy-meta）が長い見出しは、幅の狭いスマホだと .gy-name と横並びのまま縮もうとして
+   崩れる（日本語は文字の間でいくらでも折り返せるため、両方が1文字ずつ縦積みになってしまう）。
+   対象を「常時表示の折りたたみ見出し」（診断・カレンダーの定型文・当日の定型文・詳細設定）に絞り、
+   .gy-metaを強制的に次の行へ回す（説明が短い業態・コマンドの見出しは対象外のまま、今までどおり）。 */
+#diag-card .gy-name,
+#gy-calphrase .gy-name,
+#gy-dayphrase .gy-name,
+#gy-advanced .gy-name{flex:1 1 auto;}
+#diag-card .gy-meta,
+#gy-calphrase .gy-meta,
+#gy-dayphrase .gy-meta,
+#gy-advanced .gy-meta{flex:1 1 100%;margin-left:20px;}
 
 .dirty-bar{
   display:flex; align-items:center; gap:10px; flex-wrap:wrap;
