@@ -41,12 +41,14 @@ import androidx.compose.material.icons.filled.CheckBoxOutlineBlank
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.ContentCopy
+import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.ExpandLess
 import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.material.icons.filled.Folder
 import androidx.compose.material.icons.filled.Mic
 import androidx.compose.material.icons.filled.RadioButtonUnchecked
 import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -174,6 +176,24 @@ private fun TemplateWorkPane(
         } else {
             if (selectedIds == listOf(id)) selectedIds else listOf(id)
         }
+    }
+
+    var showClearAllConfirm by remember { mutableStateOf(false) }
+
+    /** 選択・差し込み項目・プレビューをすべて空に戻し、最初からやり直せるようにする。 */
+    fun clearAll() {
+        selectedIds = emptyList()
+        date = ""
+        time1 = "09:00"
+        time2 = "10:00"
+        amount1 = ""
+        amount2 = ""
+        name = ""
+        mailTo = ""
+        subjectField = TextFieldValue("")
+        bodyField = TextFieldValue("")
+        subjectEdited = false
+        bodyEdited = false
     }
 
     val tokenValues = TokenValues(date, time1, time2, amount1, amount2, name)
@@ -324,8 +344,9 @@ private fun TemplateWorkPane(
         Spacer(Modifier.height(8.dp))
 
         categories.forEach { folder ->
-            val isExpanded = folder.id == expandedFolderId ||
-                (expandedFolderId == null && folder == categories.first())
+            // 最初のフォルダを自動で開いていたのをやめ、タップして初めて開く
+            // ようにする
+            val isExpanded = folder.id == expandedFolderId
             FolderCard(
                 folder = folder,
                 expanded = isExpanded,
@@ -497,31 +518,48 @@ private fun TemplateWorkPane(
                             }
                         }
                         Spacer(Modifier.height(8.dp))
-                        OutlinedButton(
-                            onClick = {
-                                copyText(context, bodyField.text)
-                                scope.launch { snackbarHostState.showSnackbar("本文をコピーしました") }
-                            },
-                            shape = RoundedCornerShape(50),
+                        Row(
                             modifier = Modifier.fillMaxWidth(),
-                            colors = ButtonDefaults.outlinedButtonColors(contentColor = BrandBlueDeep),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
                         ) {
-                            Icon(
-                                Icons.Filled.ContentCopy,
-                                contentDescription = null,
-                                modifier = Modifier.size(18.dp),
-                            )
-                            Spacer(Modifier.width(6.dp))
-                            Text("本文だけコピー")
+                            OutlinedButton(
+                                onClick = {
+                                    copyText(context, bodyField.text)
+                                    scope.launch { snackbarHostState.showSnackbar("本文をコピーしました") }
+                                },
+                                shape = RoundedCornerShape(50),
+                                modifier = Modifier.weight(1f),
+                                colors = ButtonDefaults.outlinedButtonColors(contentColor = BrandBlueDeep),
+                            ) {
+                                Icon(
+                                    Icons.Filled.ContentCopy,
+                                    contentDescription = null,
+                                    modifier = Modifier.size(18.dp),
+                                )
+                                Spacer(Modifier.width(6.dp))
+                                Text("本文だけコピー")
+                            }
+                            ClearSelectionButton(enabled = selectedIds.isNotEmpty()) {
+                                showClearAllConfirm = true
+                            }
                         }
                     } else {
-                        GradientActionButton(
-                            text = "コピー",
-                            icon = Icons.Filled.ContentCopy,
-                            enabled = true,
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
                         ) {
-                            copyText(context, bodyField.text)
-                            scope.launch { snackbarHostState.showSnackbar("コピーしました") }
+                            GradientActionButton(
+                                text = "コピー",
+                                icon = Icons.Filled.ContentCopy,
+                                enabled = true,
+                                modifier = Modifier.weight(1f),
+                            ) {
+                                copyText(context, bodyField.text)
+                                scope.launch { snackbarHostState.showSnackbar("コピーしました") }
+                            }
+                            ClearSelectionButton(enabled = selectedIds.isNotEmpty()) {
+                                showClearAllConfirm = true
+                            }
                         }
                     }
                 }
@@ -529,6 +567,23 @@ private fun TemplateWorkPane(
         }
 
         Spacer(Modifier.height(24.dp))
+    }
+
+    if (showClearAllConfirm) {
+        AlertDialog(
+            onDismissRequest = { showClearAllConfirm = false },
+            title = { Text("入力内容をクリア") },
+            text = { Text("選んだ定型文・差し込み項目・プレビューをすべて消去します。よろしいですか？") },
+            confirmButton = {
+                TextButton(onClick = {
+                    clearAll()
+                    showClearAllConfirm = false
+                }) { Text("クリアする") }
+            },
+            dismissButton = {
+                TextButton(onClick = { showClearAllConfirm = false }) { Text("キャンセル") }
+            },
+        )
     }
 }
 
@@ -841,14 +896,14 @@ internal fun GradientActionButton(
     text: String,
     icon: androidx.compose.ui.graphics.vector.ImageVector,
     enabled: Boolean,
+    modifier: Modifier = Modifier.fillMaxWidth(),
     onClick: () -> Unit,
 ) {
     val disabled = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.30f)
     Row(
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.Center,
-        modifier = Modifier
-            .fillMaxWidth()
+        modifier = modifier
             .height(52.dp)
             .clip(RoundedCornerShape(50))
             .background(if (enabled) OrangeGradient else Brush.horizontalGradient(listOf(disabled, disabled)))
@@ -857,6 +912,21 @@ internal fun GradientActionButton(
         Icon(icon, contentDescription = null, tint = Color.White, modifier = Modifier.size(20.dp))
         Spacer(Modifier.width(8.dp))
         Text(text, color = Color.White, fontWeight = FontWeight.Bold, fontSize = 16.sp)
+    }
+}
+
+/** 主要アクションの横に添える、選択・入力内容をやり直すためのクリアボタン。 */
+@Composable
+private fun ClearSelectionButton(enabled: Boolean, onClick: () -> Unit) {
+    OutlinedButton(
+        onClick = onClick,
+        enabled = enabled,
+        shape = RoundedCornerShape(50),
+        colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colorScheme.error),
+    ) {
+        Icon(Icons.Filled.Delete, contentDescription = null, modifier = Modifier.size(18.dp))
+        Spacer(Modifier.width(4.dp))
+        Text("クリア")
     }
 }
 
