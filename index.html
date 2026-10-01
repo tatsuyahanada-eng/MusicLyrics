@@ -184,6 +184,33 @@
     .ai-review tr.ai-warn td { background: #fff6f7; }
     .ai-review tr.ai-done td { opacity: .55; }
     .ai-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; align-items: center; }
+
+    /* 読み取り中ポップアップ（画面中央に浮かぶカード。裏の画面は操作できる） */
+    .ai-busy {
+      position: fixed; left: 50%; top: 50%; transform: translate(-50%, -50%);
+      z-index: 9000; width: min(420px, calc(100vw - 32px));
+      background: #fff; border: 2px solid #7b61ff; border-radius: 14px;
+      box-shadow: 0 12px 40px rgba(60, 40, 160, .35);
+      padding: 22px 22px 18px; text-align: center;
+      animation: aiBusyIn .18s ease-out;
+    }
+    .ai-busy[hidden] { display: none; }
+    @keyframes aiBusyIn { from { opacity: 0; transform: translate(-50%, -46%); } to { opacity: 1; transform: translate(-50%, -50%); } }
+    .ai-spinner {
+      width: 46px; height: 46px; margin: 0 auto 10px;
+      border: 5px solid #e3dcff; border-top-color: #7b61ff; border-radius: 50%;
+      animation: aiSpin .9s linear infinite;
+    }
+    @keyframes aiSpin { to { transform: rotate(360deg); } }
+    .ai-busy-title { font-size: 18px; font-weight: 800; color: #4b3bb8; }
+    .ai-busy-step { font-size: 13px; color: var(--text); margin-top: 6px; font-weight: 600; }
+    .ai-busy-file { font-size: 12px; color: var(--muted); margin-top: 3px; word-break: break-all; }
+    .ai-busy-bar { height: 10px; border-radius: 6px; background: #ece8ff; margin-top: 14px; overflow: hidden; }
+    .ai-busy-bar > i { display: block; height: 100%; width: 0; background: linear-gradient(90deg, #7b61ff, #4c8dff); border-radius: 6px; transition: width .35s ease; }
+    .ai-busy-meta { display: flex; justify-content: space-between; font-size: 12px; color: var(--muted); margin-top: 6px; font-variant-numeric: tabular-nums; }
+    .ai-busy-note { font-size: 11px; color: var(--muted); margin-top: 10px; line-height: 1.5; }
+    .ai-busy-done { font-size: 22px; font-weight: 800; color: #1a8f5f; }
+    @media (prefers-reduced-motion: reduce) { .ai-spinner { animation-duration: 2.4s; } .ai-busy { animation: none; } }
     input.ai-filled { background: #fff7d6 !important; border-color: #f0a500 !important; }
 
     /* 「会社から出発」クイックリンク */
@@ -380,7 +407,7 @@
 <body>
   <div class="wrap">
     <header>
-      <h1>車両移動経費請求書 <span class="app-ver">Ver 1.5</span></h1>
+      <h1>車両移動経費請求書 <span class="app-ver">Ver 1.6</span></h1>
       <p>基点から各訪問先への移動経費（ガソリン代・有料道路・駐車場）を入力し、請求総額を計算します。</p>
     </header>
 
@@ -498,6 +525,15 @@
       </div>
       <div id="aiStatus" class="geo-status"></div>
       <div id="aiReview" class="ai-review"></div>
+      <div id="aiBusy" class="ai-busy" role="status" aria-live="polite" hidden>
+        <div class="ai-spinner" id="aiBusySpinner" aria-hidden="true"></div>
+        <div class="ai-busy-title" id="aiBusyTitle">読み取り中…</div>
+        <div class="ai-busy-step" id="aiBusyStep"></div>
+        <div class="ai-busy-file" id="aiBusyFile"></div>
+        <div class="ai-busy-bar"><i id="aiBusyBar"></i></div>
+        <div class="ai-busy-meta"><span id="aiBusyCount"></span><span id="aiBusyTime"></span></div>
+        <div class="ai-busy-note" id="aiBusyNote"></div>
+      </div>
     </section>
 
     <!-- ルート（有料道路） -->
@@ -848,7 +884,7 @@
     recalc();
 
     /* ---------- 領収書AI読み取り（サーバーの api/receipt.php 経由で Gemini を利用） ---------- */
-    const APP_VERSION = '1.5';   // 見出しの Ver 表記・api/receipt.php の APP_VERSION と揃えて上げる
+    const APP_VERSION = '1.6';   // 見出しの Ver 表記・api/receipt.php の APP_VERSION と揃えて上げる
     const AI_ENDPOINT = 'api/receipt.php';
     const AI_MAX_RAW_BYTES = 5 * 1024 * 1024;   // PDF・変換できない画像をそのまま送る場合の上限
     const AI_IMAGE_MAX_PX = 2400;               // 長辺をこのサイズまで縮小してから送る
@@ -1077,39 +1113,100 @@
       runAiQueue();
     }
 
+    // 読み取り中ポップアップ：スピナー・何枚目か・段階・経過秒数を出し、完了したら消す
+    const aiBusy = {
+      el: document.getElementById('aiBusy'),
+      timer: null, hideTimer: null, startedAt: 0, doubleCheck: true,
+      $: id => document.getElementById(id),
+      start(doubleCheck) {
+        clearTimeout(this.hideTimer);
+        this.startedAt = Date.now();
+        this.doubleCheck = doubleCheck;
+        this.$('aiBusySpinner').hidden = false;
+        this.$('aiBusyTitle').className = 'ai-busy-title';
+        this.$('aiBusyTitle').textContent = '領収書を読み取り中…';
+        this.$('aiBusyNote').textContent = doubleCheck
+          ? 'ダブルチェックのため、1枚につきAIが2回読み取って金額を照合します。1枚あたり数秒〜十数秒かかります。この画面は閉じずにお待ちください。'
+          : '1枚あたり数秒〜十数秒かかります。この画面は閉じずにお待ちください。';
+        this.el.hidden = false;
+        this.tick();
+        clearInterval(this.timer);
+        this.timer = setInterval(() => this.tick(), 500);
+      },
+      tick() {
+        const s = Math.floor((Date.now() - this.startedAt) / 1000);
+        this.$('aiBusyTime').textContent = `経過 ${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
+      },
+      // done=処理済み枚数、total=現時点の総枚数（途中で追加ドロップがあると増える）、step=いま何をしているか
+      update({ done, total, name, step }) {
+        this.$('aiBusyCount').textContent = `${Math.min(done + 1, total)} / ${total} 枚目`;
+        this.$('aiBusyFile').textContent = name || '';
+        this.$('aiBusyStep').textContent = step || '';
+        this.$('aiBusyBar').style.width = `${Math.round((done / Math.max(total, 1)) * 100)}%`;
+      },
+      finish(summary) {
+        clearInterval(this.timer);
+        this.$('aiBusyBar').style.width = '100%';
+        this.$('aiBusySpinner').hidden = true;
+        this.$('aiBusyTitle').className = 'ai-busy-title ai-busy-done';
+        this.$('aiBusyTitle').textContent = '✓ 読み取り完了';
+        this.$('aiBusyStep').textContent = summary || '';
+        this.$('aiBusyFile').textContent = '';
+        this.$('aiBusyNote').textContent = '';
+        this.hideTimer = setTimeout(() => this.hide(), 900);
+      },
+      hide() {
+        clearInterval(this.timer);
+        clearTimeout(this.hideTimer);
+        this.el.hidden = true;
+      },
+    };
+
     async function runAiQueue() {
       if (aiRunning) return;
       aiRunning = true;
       const failed = [];
       const counts = { toll: 0, parking: 0, other: 0 };
       let done = 0;
-      while (aiQueue.length) {
-        const f = aiQueue.shift();
-        const dbl = document.getElementById('aiDoubleCheck').checked;
-        aiSetStatus(`AIで読み取り中… ${done + 1}/${done + 1 + aiQueue.length}：${f.name}${dbl ? '（ダブルチェック中）' : ''}`, '');
-        try {
-          const prep = await prepareReceiptFile(f);
-          let passes, checkFailed = false;
-          if (dbl) {
-            const [a, b] = await Promise.allSettled([postReceipt(prep), postReceipt(prep)]);
-            if (a.status === 'fulfilled' && b.status === 'fulfilled') passes = [a.value, b.value];
-            else if (a.status === 'fulfilled' || b.status === 'fulfilled') {
-              passes = [(a.status === 'fulfilled' ? a : b).value];
-              checkFailed = true;
-            } else throw a.reason;
-          } else {
-            passes = [await postReceipt(prep)];
+      aiBusy.start(document.getElementById('aiDoubleCheck').checked);
+      try {
+        while (aiQueue.length) {
+          const f = aiQueue.shift();
+          const dbl = document.getElementById('aiDoubleCheck').checked;
+          const total = () => done + 1 + aiQueue.length;
+          const busy = step => aiBusy.update({ done, total: total(), name: f.name, step });
+          aiSetStatus(`AIで読み取り中… ${done + 1}/${total()}：${f.name}${dbl ? '（ダブルチェック中）' : ''}`, '');
+          busy('① 画像を準備中…');
+          try {
+            const prep = await prepareReceiptFile(f);
+            let passes, checkFailed = false;
+            busy(dbl ? '② AIが読み取り中…（1回目・2回目を同時に実行）' : '② AIが読み取り中…');
+            if (dbl) {
+              const [a, b] = await Promise.allSettled([postReceipt(prep), postReceipt(prep)]);
+              busy('③ 2回の読み取り結果を照合中…');
+              if (a.status === 'fulfilled' && b.status === 'fulfilled') passes = [a.value, b.value];
+              else if (a.status === 'fulfilled' || b.status === 'fulfilled') {
+                passes = [(a.status === 'fulfilled' ? a : b).value];
+                checkFailed = true;
+              } else throw a.reason;
+            } else {
+              passes = [await postReceipt(prep)];
+            }
+            const items = buildAiItems(f, prep, passes, checkFailed);
+            items.forEach(it => { counts[it.category] = (counts[it.category] || 0) + 1; });
+            aiItems.push(...items);
+          } catch (err) {
+            failed.push(`${f.name}：${err.message}`);
           }
-          const items = buildAiItems(f, prep, passes, checkFailed);
-          items.forEach(it => { counts[it.category] = (counts[it.category] || 0) + 1; });
-          aiItems.push(...items);
-        } catch (err) {
-          failed.push(`${f.name}：${err.message}`);
+          done++;
+          renderAiReview();
         }
-        done++;
-        renderAiReview();
+      } catch (err) {
+        failed.push(`予期しないエラー：${err.message}`);
+        aiQueue.length = 0;
+      } finally {
+        aiRunning = false;
       }
-      aiRunning = false;
       const warnCount = aiItems.filter(it => !it.applied && it.reasons.length).length;
       let msg = `読み取り完了（自動識別）：高速代 ${counts.toll}件・駐車場代 ${counts.parking}件`
         + (counts.other ? `・対象外/未検出 ${counts.other}件` : '') + '。内容を確認して「フォームに反映」を押してください。';
@@ -1117,6 +1214,12 @@
       if (aiSkipped.length) msg += ` 画像・PDF以外のため除外：${aiSkipped.splice(0).join('、')}`;
       if (failed.length) msg += ` 読み取り失敗：${failed.join(' ／ ')}`;
       aiSetStatus(msg, (failed.length || warnCount) ? 'warn' : 'ok');
+      // ポップアップを消して、読み取り結果の一覧が見える位置へ移動する
+      aiBusy.finish(`高速代 ${counts.toll}件・駐車場代 ${counts.parking}件` + (failed.length ? `（失敗 ${failed.length}件）` : ''));
+      setTimeout(() => {
+        const target = document.getElementById('aiReview');
+        if (target && target.firstElementChild) target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      }, 950);
     }
 
     // フォルダをドロップした場合は中のファイルをすべて取り出す
