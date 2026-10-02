@@ -1,12 +1,12 @@
-# APIキーを書いた config.php（とサンプル）を外部から直接開けないようにする
+# APIキーを書いた config.php（とサンプル）、使用回数の記録 usage.json を外部から直接開けないようにする
 # （receipt.php はルートの .htaccess のBasic認証で保護される）
 <IfModule mod_authz_core.c>
-  <FilesMatch "^config(\.sample)?\.php$">
+  <FilesMatch "^(config(\.sample)?\.php|usage\.json)$">
     Require all denied
   </FilesMatch>
 </IfModule>
 <IfModule !mod_authz_core.c>
-  <FilesMatch "^config(\.sample)?\.php$">
+  <FilesMatch "^(config(\.sample)?\.php|usage\.json)$">
     Order allow,deny
     Deny from all
   </FilesMatch>
