@@ -112,6 +112,12 @@ interface MediaDao {
     @Query("UPDATE media_items SET lastPlayedAt = :playedAt WHERE id = :id")
     suspend fun markPlayed(id: Long, playedAt: Long)
 
+    @Query("SELECT recordHistory FROM media_items WHERE id = :id")
+    suspend fun isRecordHistoryEnabled(id: Long): Boolean?
+
+    @Query("UPDATE media_items SET recordHistory = :enabled WHERE id = :id")
+    suspend fun setRecordHistory(id: Long, enabled: Boolean)
+
     @Query("DELETE FROM media_items WHERE id = :id")
     suspend fun deleteById(id: Long)
 

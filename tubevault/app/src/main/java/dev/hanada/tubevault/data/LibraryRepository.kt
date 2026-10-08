@@ -290,13 +290,24 @@ class LibraryRepository(
      * badge keys off. Called the moment a track starts rather than waiting for
      * [recordPlayback], which only fires once a position is worth saving —
      * a badge that lingers for the first few seconds of playback looks broken.
+     *
+     * Skipped entirely when the item's own [MediaItemEntity.recordHistory] is
+     * off — the point of that toggle is that nothing about having watched it
+     * gets written anywhere, not just that the UI hides it afterward.
      */
     suspend fun markPlayed(itemId: Long) {
+        if (mediaDao.isRecordHistoryEnabled(itemId) == false) return
         mediaDao.markPlayed(itemId, System.currentTimeMillis())
     }
 
     suspend fun recordPlayback(itemId: Long, positionMs: Long) {
+        if (mediaDao.isRecordHistoryEnabled(itemId) == false) return
         mediaDao.updateProgress(itemId, positionMs, System.currentTimeMillis())
+    }
+
+    /** Whether to keep this item's play history at all — off leaves whatever it already holds frozen. */
+    suspend fun setRecordHistory(itemId: Long, enabled: Boolean) {
+        mediaDao.setRecordHistory(itemId, enabled)
     }
 
     /** The user's correction to the artist/title guessed for lyrics lookup. */

@@ -317,6 +317,10 @@ class LibraryViewModel(private val container: AppContainer) : ViewModel() {
         viewModelScope.launch { container.library.copyItem(itemId, targetCategoryId) }
     }
 
+    fun setRecordHistory(itemId: Long, enabled: Boolean) {
+        viewModelScope.launch { container.library.setRecordHistory(itemId, enabled) }
+    }
+
     fun deleteItem(itemId: Long) {
         viewModelScope.launch {
             container.playback.stopIfPlaying(itemId)

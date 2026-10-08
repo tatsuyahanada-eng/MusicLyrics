@@ -65,6 +65,10 @@ data class MediaItemEntity(
     // the best guess from title/uploader" rather than "no lyrics".
     val lyricsArtist: String? = null,
     val lyricsTitle: String? = null,
+    // Some downloads are better left with no trace of having been watched —
+    // off skips both of the above on every future play, leaving whatever
+    // they already held untouched rather than clearing it.
+    val recordHistory: Boolean = true,
 ) {
     val mediaKind: MediaKind
         get() = runCatching { MediaKind.valueOf(kind) }.getOrDefault(MediaKind.VIDEO)

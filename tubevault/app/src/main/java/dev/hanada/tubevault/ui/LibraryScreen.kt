@@ -35,6 +35,8 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Audiotrack
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.CheckBox
+import androidx.compose.material.icons.filled.CheckBoxOutlineBlank
 import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.CreateNewFolder
 import androidx.compose.material.icons.filled.Delete
@@ -147,6 +149,7 @@ fun LibraryScreen(
                 onCopy = viewModel::copyItem,
                 onCopyMany = viewModel::copyItems,
                 onDeleteMany = viewModel::deleteItems,
+                onToggleRecordHistory = viewModel::setRecordHistory,
                 onOpenSub = viewModel::open,
                 onCreateSub = viewModel::createSubfolder,
                 onRenameSub = viewModel::renameCategory,
@@ -392,6 +395,7 @@ private fun CategoryDetail(
     onCopy: (Long, Long) -> Unit,
     onCopyMany: (Set<Long>, Long) -> Unit,
     onDeleteMany: (Set<Long>) -> Unit,
+    onToggleRecordHistory: (Long, Boolean) -> Unit,
     onOpenSub: (Long) -> Unit,
     onCreateSub: (String) -> Unit,
     onRenameSub: (Long, String) -> Unit,
@@ -538,6 +542,7 @@ private fun CategoryDetail(
                         onMove = { moving = item },
                         onCopy = { copying = item },
                         onDelete = { deleting = item },
+                        onToggleRecordHistory = { onToggleRecordHistory(item.id, !item.recordHistory) },
                     )
                 }
             }
@@ -879,6 +884,7 @@ private fun MediaRow(
     onMove: () -> Unit,
     onCopy: () -> Unit,
     onDelete: () -> Unit,
+    onToggleRecordHistory: () -> Unit,
 ) {
     var menuOpen by remember { mutableStateOf(false) }
 
@@ -1019,6 +1025,23 @@ private fun MediaRow(
                             onClick = {
                                 menuOpen = false
                                 onDelete()
+                            },
+                        )
+                        DropdownMenuItem(
+                            text = { Text("再生記録を保存") },
+                            leadingIcon = {
+                                Icon(
+                                    imageVector = if (item.recordHistory) {
+                                        Icons.Default.CheckBox
+                                    } else {
+                                        Icons.Default.CheckBoxOutlineBlank
+                                    },
+                                    contentDescription = null,
+                                )
+                            },
+                            onClick = {
+                                menuOpen = false
+                                onToggleRecordHistory()
                             },
                         )
                         DropdownMenuItem(

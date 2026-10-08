@@ -9,7 +9,7 @@ import androidx.sqlite.db.SupportSQLiteDatabase
 
 @Database(
     entities = [CategoryEntity::class, MediaItemEntity::class, LyricsCacheEntity::class],
-    version = 5,
+    version = 6,
     exportSchema = false,
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -82,13 +82,26 @@ abstract class AppDatabase : RoomDatabase() {
             }
         }
 
+        /**
+         * Lets a download be excluded from its own play history — the "New"
+         * badge and resume position both key off the columns this guards,
+         * so turning it off for one item simply freezes both rather than
+         * clearing anything already recorded. Defaults on for every existing
+         * row, matching the behaviour before this toggle existed.
+         */
+        private val MIGRATION_5_6 = object : Migration(5, 6) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE media_items ADD COLUMN recordHistory INTEGER NOT NULL DEFAULT 1")
+            }
+        }
+
         fun build(context: Context): AppDatabase =
             Room.databaseBuilder(
                 context.applicationContext,
                 AppDatabase::class.java,
                 "tubevault.db",
             )
-                .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5)
+                .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6)
                 .build()
     }
 }
