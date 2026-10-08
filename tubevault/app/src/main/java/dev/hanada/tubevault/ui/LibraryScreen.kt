@@ -103,6 +103,7 @@ fun LibraryScreen(
     val settings by viewModel.settings.collectAsStateWithLifecycle()
     val importing by viewModel.importing.collectAsStateWithLifecycle()
     val importStatus by viewModel.importStatus.collectAsStateWithLifecycle()
+    val playingItemId by viewModel.playingItemId.collectAsStateWithLifecycle()
 
     BackHandler(enabled = openCategory != null) { viewModel.closeCategory() }
 
@@ -135,6 +136,7 @@ fun LibraryScreen(
                 subcategories = subcategories,
                 canPlayFolder = subtreeItems.isNotEmpty(),
                 allCategories = categories,
+                playingItemId = playingItemId,
                 onBack = viewModel::closeCategory,
                 onPlay = { index -> viewModel.play(items, index) },
                 onPlayFolder = viewModel::playFolder,
@@ -379,6 +381,7 @@ private fun CategoryDetail(
     subcategories: List<CategoryWithStats>,
     canPlayFolder: Boolean,
     allCategories: List<CategoryWithStats>,
+    playingItemId: Long?,
     onBack: () -> Unit,
     onPlay: (Int) -> Unit,
     onPlayFolder: () -> Unit,
@@ -519,6 +522,7 @@ private fun CategoryDetail(
                         compact = compact,
                         selecting = selecting,
                         selected = item.id in selection,
+                        playing = item.id == playingItemId,
                         onClick = {
                             if (selecting) {
                                 selection = if (item.id in selection) {
@@ -869,6 +873,7 @@ private fun MediaRow(
     compact: Boolean,
     selecting: Boolean,
     selected: Boolean,
+    playing: Boolean,
     onClick: () -> Unit,
     onLongClick: () -> Unit,
     onMove: () -> Unit,
@@ -879,15 +884,17 @@ private fun MediaRow(
 
     // primaryContainer alone read too close to the row's normal background
     // to tell selected rows apart at a glance — a tinted fill plus a solid
-    // accent-coloured border makes a selected row unmistakable.
+    // accent-coloured border makes a selected row unmistakable. Playing gets
+    // the same border treatment at a lighter fill, so the two never read as
+    // the same state even if a track somehow plays while selection is open.
     Surface(
         shape = MaterialTheme.shapes.medium,
-        color = if (selected) {
-            MaterialTheme.colorScheme.primary.copy(alpha = 0.20f)
-        } else {
-            MaterialTheme.colorScheme.surfaceContainerHigh
+        color = when {
+            selected -> MaterialTheme.colorScheme.primary.copy(alpha = 0.20f)
+            playing -> MaterialTheme.colorScheme.primary.copy(alpha = 0.10f)
+            else -> MaterialTheme.colorScheme.surfaceContainerHigh
         },
-        border = if (selected) {
+        border = if (selected || playing) {
             BorderStroke(1.5.dp, MaterialTheme.colorScheme.primary)
         } else {
             null
@@ -936,6 +943,9 @@ private fun MediaRow(
             }
             Column(modifier = Modifier.weight(1f).padding(start = 12.dp)) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
+                    if (playing) {
+                        NowPlayingBadge(modifier = Modifier.padding(end = 6.dp))
+                    }
                     if (compact && item.lastPlayedAt == null) {
                         NewBadge(modifier = Modifier.padding(end = 6.dp))
                     }
@@ -1038,6 +1048,31 @@ private fun NewBadge(modifier: Modifier = Modifier) {
             .background(MaterialTheme.colorScheme.primary)
             .padding(horizontal = 5.dp, vertical = 1.dp),
     )
+}
+
+/** Marks the row currently loaded into the player, wherever this folder is being browsed from. */
+@Composable
+private fun NowPlayingBadge(modifier: Modifier = Modifier) {
+    Row(
+        modifier = modifier
+            .clip(RoundedCornerShape(4.dp))
+            .background(MaterialTheme.colorScheme.primary)
+            .padding(horizontal = 5.dp, vertical = 1.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(2.dp),
+    ) {
+        Icon(
+            imageVector = Icons.Default.PlayArrow,
+            contentDescription = null,
+            tint = MaterialTheme.colorScheme.onPrimary,
+            modifier = Modifier.size(10.dp),
+        )
+        Text(
+            text = "再生中",
+            style = MaterialTheme.typography.labelSmall,
+            color = MaterialTheme.colorScheme.onPrimary,
+        )
+    }
 }
 
 @Composable

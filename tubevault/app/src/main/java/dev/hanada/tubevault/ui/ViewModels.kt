@@ -196,6 +196,15 @@ class LibraryViewModel(private val container: AppContainer) : ViewModel() {
     val allItems: StateFlow<List<MediaItemEntity>> = container.library.observeAllItems()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(SUBSCRIBE_TIMEOUT_MS), emptyList())
 
+    /**
+     * The id of whatever is playing right now, so a row list can mark it —
+     * browsing away from a folder while a track from it keeps playing in the
+     * mini bar otherwise leaves no trace of which file that actually is.
+     */
+    val playingItemId: StateFlow<Long?> = container.playback.currentItem
+        .map { it?.id }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(SUBSCRIBE_TIMEOUT_MS), null)
+
     val settings = container.settings.state
 
     private val _importing = MutableStateFlow(false)

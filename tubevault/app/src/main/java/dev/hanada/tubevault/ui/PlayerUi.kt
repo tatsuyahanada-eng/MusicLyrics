@@ -753,7 +753,12 @@ private fun ModeRow(
     }
 }
 
-/** A toggle that reads as on at a glance: filled when active, bare when not. */
+/**
+ * A toggle that reads as on at a glance: filled solid with the app's one
+ * accent colour when active, bare when not — the same treatment the big
+ * play/pause button uses, rather than the muted container tone this used to
+ * sit at, which read too close to the inactive state to tell apart.
+ */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun ModeButton(
@@ -766,7 +771,7 @@ private fun ModeButton(
         onClick = onClick,
         shape = CircleShape,
         color = if (active) {
-            MaterialTheme.colorScheme.primaryContainer
+            MaterialTheme.colorScheme.primary
         } else {
             MaterialTheme.colorScheme.surfaceContainerHigh
         },
@@ -777,7 +782,7 @@ private fun ModeButton(
                 imageVector = icon,
                 contentDescription = description,
                 tint = if (active) {
-                    MaterialTheme.colorScheme.onPrimaryContainer
+                    MaterialTheme.colorScheme.onPrimary
                 } else {
                     MaterialTheme.colorScheme.onSurfaceVariant
                 },
