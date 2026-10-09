@@ -6,6 +6,8 @@ import androidx.media3.common.C
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.session.MediaSession
 import androidx.media3.session.MediaSessionService
+import dev.hanada.tubevault.TubeVaultApp
+import kotlinx.coroutines.runBlocking
 
 /**
  * Hosts the one ExoPlayer instance. Living in a service is what lets audio keep
@@ -35,6 +37,12 @@ class PlaybackService : MediaSessionService() {
     override fun onGetSession(controllerInfo: MediaSession.ControllerInfo): MediaSession? = session
 
     override fun onTaskRemoved(rootIntent: Intent?) {
+        // Swiping the app away from recents while paused can tear this
+        // service down before PlaybackController's own save — launched
+        // fire-and-forget on pause — has actually landed in the database.
+        // This blocks briefly to flush the position that is about to be
+        // lost, closing that race at the one point guaranteed to run first.
+        persistCurrentPosition()
         val player = session?.player
         if (player == null || !player.playWhenReady || player.mediaItemCount == 0) {
             stopSelf()
@@ -43,11 +51,20 @@ class PlaybackService : MediaSessionService() {
     }
 
     override fun onDestroy() {
+        persistCurrentPosition()
         session?.run {
             player.release()
             release()
         }
         session = null
         super.onDestroy()
+    }
+
+    private fun persistCurrentPosition() {
+        val player = session?.player ?: return
+        val itemId = player.currentMediaItem?.mediaId?.toLongOrNull() ?: return
+        val position = player.currentPosition.coerceAtLeast(0L)
+        val library = (application as TubeVaultApp).container.library
+        runBlocking { runCatching { library.recordPlayback(itemId, position) } }
     }
 }
