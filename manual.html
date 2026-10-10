@@ -13,13 +13,13 @@
   <link rel="icon" href="icon.svg" type="image/svg+xml">
   <link rel="apple-touch-icon" href="icon-192.png">
   <!-- ============================================================
-       アプリのバージョン番号：1.43
+       アプリのバージョン番号：1.44
        アップデートのたびに、ここ2箇所（?v=…）と sw.js の3箇所
        （CACHE と ASSETS内の2つの ?v=…）を、すべて同じ番号に
-       揃えて書き換えてください（次回は例：1.44）。
-       画面下フッターの版番号（v1.43）は、ここから自動で表示されます。
+       揃えて書き換えてください（次回は例：1.45）。
+       画面下フッターの版番号（v1.44）は、ここから自動で表示されます。
        ============================================================ -->
-  <link rel="stylesheet" href="manual.css?v=1.43">
+  <link rel="stylesheet" href="manual.css?v=1.44">
 </head>
 <body class="tm-body">
 
@@ -780,7 +780,9 @@
 
       <p id="nodeError" class="tm-dialog-err" aria-live="polite"></p>
 
-      <div class="tm-dialog-actions">
+      <div class="tm-dialog-actions tm-dialog-actions-split">
+        <button type="button" id="nodeDeleteBtn" class="tm-btn tm-btn-danger-outline" hidden>&#128465; この項目を削除</button>
+        <span class="tm-dialog-actions-sp"></span>
         <button type="button" id="nodeCancelBtn" class="tm-btn tm-btn-outline">キャンセル</button>
         <button type="submit" class="tm-btn tm-btn-primary">保存</button>
       </div>
@@ -1601,7 +1603,7 @@
   </dialog>
 
   <script src="vendor/xlsx.full.min.js"></script>
-  <!-- バージョン番号：1.43（次回更新時はここも忘れずに） -->
-  <script src="manual.js?v=1.43"></script>
+  <!-- バージョン番号：1.44（次回更新時はここも忘れずに） -->
+  <script src="manual.js?v=1.44"></script>
 </body>
 </html>

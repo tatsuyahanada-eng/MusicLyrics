@@ -1646,6 +1646,9 @@ body.tm-dragging .tm-treenode-row { cursor: grabbing; }
 .tm-input:focus { outline: none; border-color: var(--tm-cyan); box-shadow: 0 0 0 2px rgba(63,224,224,.2); }
 .tm-textarea { resize: vertical; line-height: 1.6; font-family: var(--tm-sans); }
 .tm-dialog-actions { display: flex; justify-content: flex-end; gap: 10px; }
+/* 削除ボタンを左、キャンセル・保存を右に分けて置きたいとき用（例：項目の編集ダイアログ） */
+.tm-dialog-actions-split { flex-wrap: wrap; }
+.tm-dialog-actions-sp { flex: 1 1 auto; }
 .tm-confirm-msg { font-size: 14px; line-height: 1.7; color: var(--tm-text); }
 .tm-btn-sm { font-size: 12px; padding: 7px 12px; }
 .tm-dialog-imgrow { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-top: -4px; }

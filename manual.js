@@ -2270,6 +2270,10 @@
     }
     if (nodeMetaEl) nodeMetaEl.textContent = metaStr;
     if (nodeErrorEl) nodeErrorEl.textContent = '';
+    // 削除ボタン：既存項目を編集しているときだけ、かつ管理者だけに表示する。
+    // 「この項目を編集」は通常モードからも一般ユーザーが開けるため、ここで
+    // 必ず権限を確認する（修正モードに入れること＝管理者、とは限らない）。
+    { const db = $('#nodeDeleteBtn'); if (db) db.hidden = !(editId && session && session.isAdmin); }
     const canAttach = serverMode();
     [nodeImgBtn, nodeFileBtn].forEach((b) => {
       if (b) { b.disabled = false; b.title = canAttach ? '' : '添付はサーバー(DB)接続時のみ'; }
@@ -2300,6 +2304,35 @@
     if (lockOpt && lockOpt.pw) return false;           // 新しいロックのパスワードを入力
     if (lockOpt && !!lockOpt.enabled !== !!snap.lockEnabled) return false; // ロックの入切を変更
     return title === snap.title && body === snap.body;
+  }
+
+  // 編集ダイアログから直接削除する（管理者のみ。ボタン自体を隠しているが、
+  // 念のためここでも権限と対象を確認してから実行する）。
+  function nodeDeleteFromDialog() {
+    if (!dialogTarget || dialogTarget.mode !== 'edit' || !dialogTarget.id) return;
+    if (!(session && session.isAdmin)) return;
+    const id = dialogTarget.id;
+    const node = findNode(id);
+    if (!node) return;
+    const count = countDescendants(node);
+    const extra = count > 0 ? `（子項目 ${count} 件も一緒に削除されます）` : '';
+    const shared = serverMode() ? '（共有データから削除されます）' : '';
+    askConfirm(`「${node.title}」を削除しますか？${extra}${shared}`, async () => {
+      try {
+        await opDelete(id);
+        nodeDialog.close();
+        if (!editView.hidden) {
+          // 修正モードのツリーから開いた場合：ツリー全体を更新
+          renderEdit();
+          flashSaved('削除しました');
+        } else {
+          // 通常モードの「この項目を編集」から開いた場合：今見ていた項目が
+          // 無くなるので、1つ上の階層へ戻ってから表示し直す
+          if (navPath.length && navPath[navPath.length - 1] === id) navPath.pop();
+          renderNav();
+        }
+      } catch (e) { nodeError('削除に失敗：' + e.message); }
+    }, '削除');
   }
 
   nodeForm.addEventListener('submit', async (e) => {
@@ -2347,6 +2380,7 @@
     }
   });
   $('#nodeCancelBtn').addEventListener('click', () => nodeDialog.close());
+  { const b = $('#nodeDeleteBtn'); if (b) b.addEventListener('click', nodeDeleteFromDialog); }
 
   /* ---------- 追記（既存の内容は書き換えず、上に新しい内容を足す） ---------- */
   const appendDialog = $('#appendDialog');

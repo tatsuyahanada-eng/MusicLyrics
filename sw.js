@@ -1,10 +1,10 @@
 /* Case By Case — service worker (offline cache, app-shell) */
-// アプリのバージョン番号：1.43（manual.html と揃えること。次回更新時は両方 1.44 などへ）
-const CACHE = 'case-by-case-v1.43';
+// アプリのバージョン番号：1.44（manual.html と揃えること。次回更新時は両方 1.45 などへ）
+const CACHE = 'case-by-case-v1.44';
 const ASSETS = [
   'manual.html',
-  'manual.css?v=1.43',
-  'manual.js?v=1.43',
+  'manual.css?v=1.44',
+  'manual.js?v=1.44',
   'manifest.webmanifest',
   'icon.svg',
   'logo-default.png',

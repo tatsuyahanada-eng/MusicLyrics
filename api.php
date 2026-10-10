@@ -1195,6 +1195,10 @@ switch ($action) {
 
   case 'node_delete': {
     require_token();
+    // 項目の削除は管理者のみ（作成・更新・並び替えは従来どおり誰でも可）。
+    // 画面側でもボタンを管理者以外に出さないようにしているが、直接APIを
+    // 呼ばれた場合に備えてサーバー側でも必ず確認する。
+    require_admin_session($pdo);
     $d = body_json();
     if (empty($d['id'])) fail('id は必須です');
     // 子孫をまとめて削除
