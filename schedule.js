@@ -3434,10 +3434,17 @@ function moveMonth(delta) {
   view.year = d.getFullYear();
   view.month = d.getMonth();
   renderAll();
+  animateMonthChange(delta);
+  // スマホでは月の途中までスクロールしていることが多いので、新しい月の先頭（今月なら今日）を見せる
+  if (isNarrow()) {
+    const t = fromKey(todayKey());
+    if (t.getFullYear() === view.year && t.getMonth() === view.month) scrollToTodayIfNeeded(false);
+    else scrollToCalendarTop(false);
+  }
 }
 
 const PAINT_HINTS = {
-  none: '枠をタップすると、空いている枠はすぐに登録画面、予定がある枠はその内容（編集・確定・削除）が開きます。日付をタップすると、その日の内容と希望の設定が開きます。枠を長押し（パソコンはShift＋クリックかドラッグ）すると、複数の枠をまとめて登録・変更できます。◯稼働可・✕休み希望は、左端の日付をタップ（ドラッグ）して設定します。',
+  none: '枠をタップすると、空いている枠はすぐに登録画面、予定がある枠はその内容（編集・確定・削除）が開きます。日付をタップすると、その日の内容と希望の設定が開きます。枠を長押し（パソコンはShift＋クリックかドラッグ）すると、複数の枠をまとめて登録・変更できます。◯稼働可・✕休み希望は、左端の日付をタップ（ドラッグ）して設定します。スマホでは右下の「＋」からも追加でき、カレンダーを左右にスワイプすると月を切り替えられます。開いた画面は、下に引っぱるか「戻る」で閉じられます。',
   multi: 'まとめて操作中です。枠をタップで追加・解除できます（パソコンはドラッグ、スマホは長押ししたまま指でなぞると連続で選べます）。日付をタップすると、その日の枠をまとめて選べます。選んだら「登録」か「変更」を押してください。',
   paint: 'まとめて入力中です。日付を1日だけタップすると確認してから登録します。日付の列をドラッグすると、複数日を確認なしで一括設定できます。終わったら「選択のみ」に戻してください。',
 };
@@ -3565,6 +3572,7 @@ function updateSideModalState() {
   elSideAside.classList.toggle('sc-side-modal-open', open);
   document.body.classList.toggle('sc-modal-open-body', open);
   renderMultiBar();
+  syncHistoryLayers();
 }
 
 /** スマホでまとめて選択しているときに、画面の下に出す操作バー */
@@ -3590,6 +3598,186 @@ function renderMultiBar() {
     </div>`;
 }
 
+/* ------------------------------------------------------------
+   スマホ向けの画面まわり（PWAとしてスマホで使うことを主に想定）
+   ------------------------------------------------------------ */
+
+/**
+ * 操作モードのボタンを、スマホでは月の切り替えの下（上部に貼り付く帯）に移し、
+ * パソコンでは右のパネルの上に戻す。貼り付く帯の高さを測って、時間帯の見出し行をその下に貼り付ける。
+ */
+function placeToolbar() {
+  const toolbar = document.querySelector('.sc-side-toolbar');
+  const monthnav = document.querySelector('.sc-monthnav');
+  if (!toolbar || !monthnav || !elSideAside) return;
+  if (isNarrow()) {
+    if (toolbar.parentElement !== monthnav) monthnav.appendChild(toolbar);
+  } else if (toolbar.parentElement !== elSideAside) {
+    elSideAside.insertBefore(toolbar, elSideAside.firstChild);
+  }
+  measureSticky();
+}
+
+function measureSticky() {
+  const header = document.querySelector('.sc-header');
+  const monthnav = document.querySelector('.sc-monthnav');
+  if (!header || !monthnav) return;
+  const root = document.documentElement.style;
+  const headH = Math.round(header.getBoundingClientRect().height);
+  const navH = Math.round(monthnav.getBoundingClientRect().height);
+  root.setProperty('--sc-head-h', headH + 'px');
+  root.setProperty('--sc-stick-top', (headH + navH) + 'px');
+}
+
+/** その日の行が、上に貼り付いている帯と見出し行のすぐ下に来るようにスクロールする */
+function scrollToDay(key, smooth) {
+  const row = elCalendar.querySelector(`[data-role="date"][data-date="${key}"]`);
+  if (!row) return;
+  const stick = parseInt(getComputedStyle(document.documentElement).getPropertyValue('--sc-stick-top'), 10) || 0;
+  const head = elCalendar.querySelector('.sc-vhead');
+  const headH = head ? head.getBoundingClientRect().height : 0;
+  const top = row.getBoundingClientRect().top + window.scrollY - stick - headH - 6;
+  window.scrollTo({ top: Math.max(0, top), behavior: smooth ? 'smooth' : 'auto' });
+}
+
+/** 今日が表示中の月にあれば、今日の行まで移動する（月の初めのうちは先頭のままにする） */
+function scrollToTodayIfNeeded(smooth) {
+  const t = todayKey();
+  const d = fromKey(t);
+  if (d.getFullYear() !== view.year || d.getMonth() !== view.month) return;
+  if (d.getDate() <= 3) { scrollToCalendarTop(smooth); return; }
+  scrollToDay(t, smooth);
+}
+
+function scrollToCalendarTop(smooth) {
+  const main = document.querySelector('.sc-main');
+  if (!main) return;
+  const stick = parseInt(getComputedStyle(document.documentElement).getPropertyValue('--sc-stick-top'), 10) || 0;
+  const top = main.getBoundingClientRect().top + window.scrollY - stick;
+  if (window.scrollY > top) window.scrollTo({ top: Math.max(0, top), behavior: smooth ? 'smooth' : 'auto' });
+}
+
+/** 月を切り替えたときに、左右どちらから来たか分かるよう少しだけ動かす */
+function animateMonthChange(delta) {
+  elCalendar.classList.remove('sc-cal-from-left', 'sc-cal-from-right');
+  void elCalendar.offsetWidth;   // アニメーションをやり直すため
+  elCalendar.classList.add(delta > 0 ? 'sc-cal-from-right' : 'sc-cal-from-left');
+}
+
+/**
+ * Androidの「戻る」ボタン・ジェスチャーで、開いているシートやまとめて選択を閉じられるようにする。
+ * 開いている“層”の数だけ履歴を積んでおき、戻るで1つずつ閉じる（アプリが終了してしまわないように）。
+ */
+let historyPushed = 0;
+let historyIgnorePops = 0;
+function syncHistoryLayers() {
+  if (!window.history || !history.pushState) return;
+  const sheetOpen = elSideAside && elSideAside.classList.contains('sc-side-modal-open');
+  const want = (view.paint === 'multi' && isNarrow() ? 1 : 0) + (sheetOpen ? 1 : 0);
+  while (historyPushed < want) {
+    history.pushState({ vcLayer: historyPushed + 1 }, '');
+    historyPushed++;
+  }
+  if (historyPushed > want) {
+    const n = historyPushed - want;
+    historyPushed = want;
+    historyIgnorePops++;
+    history.go(-n);
+  }
+}
+
+function onHistoryPop() {
+  if (historyIgnorePops > 0) { historyIgnorePops--; return; }
+  if (historyPushed > 0) historyPushed--;
+  if (!elConfirmOverlay.hidden) {
+    closeCustomConfirm(false);
+    syncHistoryLayers();
+    return;
+  }
+  if (elSideAside.classList.contains('sc-side-modal-open')) { closeForm(); return; }
+  if (view.paint === 'multi') { setPaintMode(null); return; }
+}
+
+/** スマホの「＋」ボタン：選んでいる日（なければ今日）に予定を追加する */
+function openQuickAdd() {
+  const today = todayKey();
+  const base = view.selected && view.selected >= today ? view.selected : today;
+  selectDate(base, { openForm: true, popup: true });
+}
+
+/** シートを下に引っぱって閉じる（いちばん上までスクロールしている状態のときだけ） */
+function bindSheetSwipe() {
+  let startY = 0;
+  let dragging = false;
+  let tracking = false;
+  let dy = 0;
+  elSidePanel.addEventListener('touchstart', (ev) => {
+    if (!elSideAside.classList.contains('sc-side-modal-open') || ev.touches.length !== 1) return;
+    if (ev.target.closest('input, textarea, select')) return;
+    tracking = elSidePanel.scrollTop <= 0;
+    dragging = false;
+    startY = ev.touches[0].clientY;
+    dy = 0;
+  }, { passive: true });
+  elSidePanel.addEventListener('touchmove', (ev) => {
+    if (!tracking) return;
+    dy = ev.touches[0].clientY - startY;
+    if (!dragging) {
+      if (dy > 8 && elSidePanel.scrollTop <= 0) dragging = true;
+      else if (dy < -4) { tracking = false; return; }
+      else return;
+    }
+    ev.preventDefault();
+    elSidePanel.style.transition = 'none';
+    elSidePanel.style.transform = `translateY(${Math.max(0, dy)}px)`;
+  }, { passive: false });
+  const end = () => {
+    if (!tracking) return;
+    tracking = false;
+    if (!dragging) return;
+    dragging = false;
+    elSidePanel.style.transition = 'transform 0.18s ease-out';
+    if (dy > 110) {
+      elSidePanel.style.transform = 'translateY(100%)';
+      setTimeout(() => {
+        elSidePanel.style.transition = '';
+        elSidePanel.style.transform = '';
+        closeForm();
+      }, 170);
+    } else {
+      elSidePanel.style.transform = '';
+      setTimeout(() => { elSidePanel.style.transition = ''; }, 200);
+    }
+  };
+  elSidePanel.addEventListener('touchend', end);
+  elSidePanel.addEventListener('touchcancel', end);
+}
+
+/** カレンダーを左右にスワイプして月を切り替える */
+function bindMonthSwipe() {
+  let sx = 0, sy = 0, st = 0, valid = false;
+  elCalendar.addEventListener('touchstart', (ev) => {
+    valid = ev.touches.length === 1;
+    if (!valid) return;
+    sx = ev.touches[0].clientX;
+    sy = ev.touches[0].clientY;
+    st = Date.now();
+  }, { passive: true });
+  elCalendar.addEventListener('touchmove', () => {
+    if (longPressActive) valid = false;   // 長押しでなぞって選んでいるときは月を変えない
+  }, { passive: true });
+  elCalendar.addEventListener('touchend', (ev) => {
+    if (!valid) return;
+    valid = false;
+    const t = ev.changedTouches[0];
+    if (!t) return;
+    const dx = t.clientX - sx;
+    const dy = t.clientY - sy;
+    if (Date.now() - st > 600 || Math.abs(dx) < 70 || Math.abs(dy) > 45 || Math.abs(dx) < Math.abs(dy) * 2) return;
+    moveMonth(dx < 0 ? 1 : -1);
+  }, { passive: true });
+}
+
 function clearLongPress() {
   clearTimeout(longPressTimer);
   longPressTimer = null;
@@ -3603,6 +3791,30 @@ function bindEvents() {
     view.year = d.getFullYear();
     view.month = d.getMonth();
     renderAll();
+    scrollToTodayIfNeeded(true);
+  });
+
+  // スマホ向け：戻るボタン・＋ボタン・シートを引いて閉じる・左右スワイプで月送り
+  window.addEventListener('popstate', onHistoryPop);
+  $('fabAdd').addEventListener('click', openQuickAdd);
+  bindSheetSwipe();
+  bindMonthSwipe();
+  let resizeTimer = 0;
+  window.addEventListener('resize', () => {
+    clearTimeout(resizeTimer);
+    resizeTimer = setTimeout(() => { placeToolbar(); updateSideModalState(); }, 120);
+  });
+  if (window.ResizeObserver) {
+    const ro = new ResizeObserver(() => measureSticky());
+    ro.observe(document.querySelector('.sc-header'));
+    ro.observe(document.querySelector('.sc-monthnav'));
+  }
+  // シートの中の入力欄を触ったとき、キーボードに隠れないよう見える位置まで送る
+  elSidePanel.addEventListener('focusin', (ev) => {
+    if (!isNarrow() || !ev.target.matches('input, textarea, select')) return;
+    setTimeout(() => {
+      try { ev.target.scrollIntoView({ block: 'center', behavior: 'smooth' }); } catch (err) { /* 古い端末は無視 */ }
+    }, 300);
   });
   elMonthPicker.addEventListener('change', () => {
     const v = elMonthPicker.value;
@@ -3726,16 +3938,45 @@ function bindEvents() {
   });
 
   // 長押しが成立したあとは、指でなぞった枠を続けて選ぶ（画面のスクロールは止める）
+  const pickAt = (x, y) => {
+    const el = document.elementFromPoint(x, y);
+    const cell = el && el.closest ? el.closest('[data-pick]') : null;
+    if (!cell || paintTouched.has(cell.dataset.pick)) return;
+    paintTouched.add(cell.dataset.pick);
+    setMultiPick(cell.dataset.pick, paintAdd);
+  };
+  // 指が画面の上端・下端に近づいたら、自動でスクロールして続きの日も選べるようにする
+  let dragPoint = null;
+  let dragScrollFrame = 0;
+  const dragScrollSpeed = () => {
+    if (!dragPoint) return 0;
+    const stick = parseInt(getComputedStyle(document.documentElement).getPropertyValue('--sc-stick-top'), 10) || 0;
+    const bar = $('multiBar');
+    const bottomLimit = window.innerHeight - (bar && !bar.hidden ? bar.getBoundingClientRect().height : 0);
+    // 見出し行の分を含めた上端、操作バーを除いた下端の、ごく端に指が来たときだけ動かす
+    const topEdge = stick + 40 + 28;
+    const bottomEdge = bottomLimit - 28;
+    if (dragPoint.y > bottomEdge) return Math.min(12, 2 + (dragPoint.y - bottomEdge) / 3);
+    if (dragPoint.y < topEdge) return -Math.min(12, 2 + (topEdge - dragPoint.y) / 3);
+    return 0;
+  };
+  const dragScrollLoop = () => {
+    dragScrollFrame = 0;
+    if (!longPressActive || !painting || !dragPoint) return;
+    const v = dragScrollSpeed();
+    if (!v) return;
+    window.scrollBy(0, v);
+    pickAt(dragPoint.x, dragPoint.y);
+    dragScrollFrame = requestAnimationFrame(dragScrollLoop);
+  };
   elCalendar.addEventListener('touchmove', (ev) => {
     if (!longPressActive || !painting) return;
     ev.preventDefault();
     const t = ev.touches[0];
     if (!t) return;
-    const el = document.elementFromPoint(t.clientX, t.clientY);
-    const cell = el && el.closest ? el.closest('[data-pick]') : null;
-    if (!cell || paintTouched.has(cell.dataset.pick)) return;
-    paintTouched.add(cell.dataset.pick);
-    setMultiPick(cell.dataset.pick, paintAdd);
+    dragPoint = { x: t.clientX, y: t.clientY };
+    pickAt(t.clientX, t.clientY);
+    if (!dragScrollFrame && dragScrollSpeed()) dragScrollFrame = requestAnimationFrame(dragScrollLoop);
   }, { passive: false });
 
   // 長押しで出る文字選択・メニューを出さない
@@ -4452,7 +4693,10 @@ function init() {
   refreshProjectFilterOptions();
   view.form = blankForm();
   bindEvents();
+  placeToolbar();
   renderAll();
+  // スマホで開いたときは、今日の行がすぐ見えるようにする
+  if (isNarrow()) requestAnimationFrame(() => { measureSticky(); scrollToTodayIfNeeded(false); });
 
   // 起動時に、他の端末で更新されていないか確認する
   if (sync.auto && syncConfigured()) syncNow(true);

@@ -3,17 +3,17 @@
 <head>
   <meta charset="UTF-8">
   <meta http-equiv="Cache-Control" content="no-store">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
   <title>VertiCale</title>
   <meta name="description" content="休み希望・稼働可能日の申請から、仮出勤・確定の管理までを1画面で行う業務スケジューラー">
-  <meta name="theme-color" content="#1d4ed8">
+  <meta name="theme-color" content="#17233d">
   <link rel="manifest" href="manifest.webmanifest">
   <link rel="icon" href="icons/favicon-32.png" sizes="32x32">
   <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="default">
   <meta name="apple-mobile-web-app-title" content="VertiCale">
-  <link rel="stylesheet" href="schedule.css?v=48">
+  <link rel="stylesheet" href="schedule.css?v=49">
 </head>
 <body class="sc-body">
 
@@ -26,8 +26,8 @@
 
       <nav class="sc-menu" aria-label="メニュー">
         <button class="sc-menu-item" data-jump="calendar" type="button">カレンダー</button>
-        <button class="sc-menu-item" data-jump="mail" type="button">日付をコピー</button>
-        <button class="sc-menu-item" data-jump="list" type="button">予定一覧</button>
+        <button class="sc-menu-item" data-jump="mail" type="button"><span class="sc-menu-long">日付を</span>コピー</button>
+        <button class="sc-menu-item" data-jump="list" type="button"><span class="sc-menu-long">予定</span>一覧</button>
         <button class="sc-menu-item" data-jump="todo" type="button">ToDo</button>
         <button class="sc-menu-item" data-jump="settings" type="button">設定</button>
       </nav>
@@ -100,6 +100,7 @@
         <p id="paintHint" class="sc-hint" hidden>
           枠をタップすると、空いている枠はすぐに登録画面、予定がある枠はその内容（編集・確定・削除）が開きます。日付をタップすると、その日の内容と希望の設定が開きます。枠を長押し（パソコンはShift＋クリックかドラッグ）すると、複数の枠をまとめて登録・変更できます。
           ◯稼働可・✕休み希望は、左端の日付をタップ（ドラッグ）して設定します。
+          スマホでは右下の「＋」からも追加でき、カレンダーを左右にスワイプすると月を切り替えられます。開いた画面は、下に引っぱるか「戻る」で閉じられます。
         </p>
       </div>
 
@@ -108,6 +109,9 @@
       </div>
     </aside>
   </main>
+
+  <!-- スマホ：予定を追加する「＋」ボタン -->
+  <button id="fabAdd" class="sc-fab" type="button" aria-label="予定を追加">＋</button>
 
   <!-- スマホでまとめて選択しているときの操作バー -->
   <div id="multiBar" class="sc-multibar" hidden></div>
@@ -491,6 +495,6 @@ Require valid-user</pre>
     </div>
   </div>
 
-  <script src="schedule.js?v=48"></script>
+  <script src="schedule.js?v=49"></script>
 </body>
 </html>

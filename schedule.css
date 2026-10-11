@@ -1188,6 +1188,7 @@ textarea.sc-input { resize: vertical; line-height: 1.5; min-height: 2.6em; }
   font-weight: 600;
   box-shadow: 0 6px 20px rgba(15, 23, 42, 0.28);
   z-index: 250;   /* 下からのシート（200）の上、確認ダイアログ（300）の下 */
+  pointer-events: none;   /* 表示中も、下にある枠やボタンの操作を邪魔しない */
   animation: sc-toast-in 0.18s ease-out;
   max-width: 90vw;
   text-align: center;
@@ -1333,20 +1334,70 @@ textarea.sc-input { resize: vertical; line-height: 1.5; min-height: 2.6em; }
   .sc-main { grid-template-columns: minmax(0, 1fr); }
   .sc-side { position: static; max-height: none; display: block; }
   .sc-side-inner { max-height: none; }
-  /* 操作モードのボタンは、スマホではカレンダーの中に埋もれてしまうため
-     （sticky はそのときの親要素の高さまでしか貼り付かない）、
-     画面（ビューポート）に対して常に固定して、常に上部に見えるようにする */
-  .sc-side-toolbar {
-    position: fixed;
-    top: 107px;
-    left: 0;
-    right: 0;
-    z-index: 50;
+  /* スマホでは、操作モードのボタンを月の切り替えの下へ移し（schedule.js の placeToolbar）、
+     上部に貼り付く1つの帯にまとめる。時間帯の見出し行は、その帯のすぐ下に貼り付ける
+     （帯の高さは schedule.js が測って --sc-head-h / --sc-stick-top に入れる） */
+  .sc-monthnav { top: var(--sc-head-h, 52px); }
+  .sc-vhead { top: var(--sc-stick-top, 140px); }
+  .sc-section-title, .sc-main { scroll-margin-top: calc(var(--sc-stick-top, 140px) + 8px); }
+  .sc-monthnav .sc-side-toolbar {
+    flex-direction: row;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 6px;
     margin: 0;
+    padding: 6px 10px 7px;
+    border: 0;
+    border-top: 1px solid var(--sc-border);
     border-radius: 0;
+    box-shadow: none;
   }
-  /* 固定した分だけ、カレンダーの先頭が隠れないように空けておく */
-  .sc-calendar-col { padding-top: 120px; }
+  .sc-monthnav .sc-toolbar-head { order: 2; }
+  .sc-monthnav .sc-toolbar-label { display: none; }
+  .sc-monthnav .sc-hint-toggle { width: 30px; height: 30px; font-size: 0.8rem; }
+  .sc-monthnav .sc-paint-tabs {
+    order: 1;
+    flex: 1 1 0;
+    min-width: 0;
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+  }
+  .sc-monthnav .sc-paint-tabs::-webkit-scrollbar { display: none; }
+  .sc-monthnav .sc-paint-tab { flex: 0 0 auto; white-space: nowrap; min-height: 32px; padding: 5px 12px; }
+  .sc-monthnav #paintHint { order: 3; flex: 1 1 100%; margin: 2px 0 0; }
+
+  /* 入力欄の文字が16px未満だと、iPhoneでは触れたときに画面が勝手に拡大されるため大きくする */
+  .sc-input, .sc-input-sm, select.sc-input, textarea.sc-input { font-size: 16px; }
+
+  /* 予定カードのボタンは指で押しやすい大きさにする */
+  .sc-job-actions .sc-btn-sm, .sc-bulk-quick .sc-btn-sm, .sc-wish-btn { min-height: 40px; }
+  .sc-job-actions .sc-btn-sm { padding: 8px 12px; font-size: 0.84rem; }
+
+  /* 予定を追加する「＋」ボタン（右下） */
+  .sc-fab {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    position: fixed;
+    right: 16px;
+    bottom: calc(18px + env(safe-area-inset-bottom));
+    z-index: 55;
+    width: 58px;
+    height: 58px;
+    border-radius: 50%;
+    border: 0;
+    background: var(--sc-primary);
+    color: #fff;
+    font-size: 2rem;
+    line-height: 1;
+    box-shadow: 0 6px 18px rgba(29, 78, 216, 0.45);
+    cursor: pointer;
+    -webkit-tap-highlight-color: transparent;
+  }
+  .sc-fab:active { transform: scale(0.94); }
+  body.sc-modal-open-body .sc-fab, body.sc-has-multibar .sc-fab { display: none; }
 
   /* ダブルタップで予定入力を開いたときは、カレンダーの上に重ねてポップアップ表示する */
   .sc-side.sc-side-modal-open {
@@ -1363,6 +1414,7 @@ textarea.sc-input { resize: vertical; line-height: 1.5; min-height: 2.6em; }
   .sc-side.sc-side-modal-open .sc-side-inner {
     width: 100%;
     max-height: 88vh;
+    max-height: 90dvh;
     margin: 0;
     border-radius: 16px 16px 0 0;
     box-shadow: 0 -8px 24px rgba(0, 0, 0, 0.3);
@@ -1371,6 +1423,28 @@ textarea.sc-input { resize: vertical; line-height: 1.5; min-height: 2.6em; }
     animation: sc-sheet-up 0.2s ease-out;
   }
   .sc-side.sc-side-modal-open { animation: sc-fade-in 0.15s ease-out; }
+  /* 下に引っぱって閉じられることが分かるよう、上端に取っ手を付ける */
+  .sc-side.sc-side-modal-open .sc-side-inner::before {
+    content: '';
+    display: block;
+    width: 44px;
+    height: 5px;
+    border-radius: 3px;
+    background: #cbd5e1;
+    margin: -4px auto 6px;
+  }
+  /* 登録・反映ボタンは、長いフォームでも常にシートの下端に見えるようにする */
+  .sc-side.sc-side-modal-open .sc-form-actions {
+    position: sticky;
+    bottom: calc(-16px - env(safe-area-inset-bottom));
+    z-index: 3;
+    margin: 4px -12px 0;
+    padding: 10px 12px calc(12px + env(safe-area-inset-bottom));
+    background: var(--sc-surface);
+    border-top: 1px solid var(--sc-border);
+    box-shadow: 0 -6px 12px rgba(15, 23, 42, 0.06);
+  }
+  .sc-side.sc-side-modal-open .sc-form-actions .sc-btn { min-height: 46px; font-size: 1rem; }
   .sc-side.sc-side-modal-open .sc-modal-close {
     display: block;
     position: sticky;
@@ -1392,34 +1466,40 @@ textarea.sc-input { resize: vertical; line-height: 1.5; min-height: 2.6em; }
 }
 
 @media (max-width: 720px) {
+  /* スマホでは、ロゴ・メニュー・同期の表示を1行にまとめて、上部の場所を空ける */
   .sc-header { padding: 0 8px; }
-  .sc-header-inner { gap: 8px; min-height: 46px; }
-  .sc-header-title { font-size: 1.15rem; gap: 6px; }
-  .sc-header-logo { width: 24px; height: 24px; }
+  .sc-header-inner { gap: 6px; min-height: 44px; flex-wrap: nowrap; }
+  .sc-header-title { font-size: 0; gap: 0; flex: 0 0 auto; }
+  .sc-header-logo { width: 26px; height: 26px; }
   .sc-menu {
-    order: 3;
-    width: 100%;
+    flex: 1 1 0;
+    min-width: 0;
     flex-wrap: nowrap;
     overflow-x: auto;
     -webkit-overflow-scrolling: touch;
     scrollbar-width: none;
-    border-top: 1px solid rgba(255, 255, 255, 0.12);
   }
   .sc-menu::-webkit-scrollbar { display: none; }
-  .sc-menu-item { padding: 9px 10px 7px; font-size: 0.76rem; }
-  .sc-monthnav { top: 74px; }
-  .sc-section-title, .sc-main { scroll-margin-top: 130px; }
+  .sc-menu-item { padding: 12px 9px 10px; font-size: 0.78rem; white-space: nowrap; }
+  .sc-header-right { flex: 0 0 auto; }
+  .sc-header-badge { font-size: 0.66rem; padding: 3px 7px; }
 }
 
 @media (max-width: 560px) {
+  /* 小さい画面では、メニューの文字を短くして（日付をコピー→コピー、予定一覧→一覧）すべて見えるようにする */
+  .sc-menu-long { display: none; }
+  .sc-menu-item { padding: 12px 7px 10px; }
+  /* 横にスクロールできる帯は、右端を薄くして続きがあることを示す */
+  .sc-monthnav .sc-paint-tabs {
+    -webkit-mask-image: linear-gradient(to right, #000 88%, transparent);
+    mask-image: linear-gradient(to right, #000 88%, transparent);
+  }
   .sc-monthnav-inner { gap: 4px; flex-wrap: nowrap; }
   .sc-month-label { min-width: 0; flex: 1; white-space: nowrap; font-size: 1rem; }
   .sc-btn-ghost { padding: 6px 6px; }
   .sc-jump-label { display: none; }
   .sc-jump .sc-input-sm { width: auto; max-width: 108px; }
   .sc-vrow { grid-template-columns: 58px repeat(5, minmax(0, 1fr)); }
-  .sc-vhead { top: 126px; }
-  .sc-side-toolbar { top: 126px; }
   .sc-vdate { min-height: 40px; padding: 3px 4px; }
   .sc-vdate-num { font-size: 0.86rem; }
   .sc-vdate-wd { font-size: 0.62rem; }
@@ -1432,7 +1512,7 @@ textarea.sc-input { resize: vertical; line-height: 1.5; min-height: 2.6em; }
   .sc-vbar-stack .sc-vbar-time { font-size: 0.46rem; }
   .sc-vdate-head, .sc-vslot-head { font-size: 0.66rem; padding: 5px 2px; }
   .sc-vslot-time { font-size: 0.5rem; }
-  .sc-form-row { grid-template-columns: 1fr; }
+  .sc-form-row { gap: 6px; }
   .sc-joblist-date { min-width: 5.5em; }
   .sc-filter-tabs { margin-left: 0; width: 100%; }
   .sc-filter-tab, .sc-todo-filter-tab { flex: 1; }
@@ -1447,7 +1527,7 @@ textarea.sc-input { resize: vertical; line-height: 1.5; min-height: 2.6em; }
 }
 
 @media print {
-  .sc-multibar { display: none !important; }
+  .sc-multibar, .sc-fab { display: none !important; }
   * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
 
   html { height: auto; }
@@ -1561,4 +1641,18 @@ textarea.sc-input { resize: vertical; line-height: 1.5; min-height: 2.6em; }
 }
 @media (prefers-reduced-motion: reduce) {
   .sc-side.sc-side-modal-open, .sc-side.sc-side-modal-open .sc-side-inner, .sc-multibar { animation: none !important; }
+}
+
+/* 月を切り替えたときの小さな動き */
+.sc-cal-from-right { animation: sc-cal-in-right 0.22s ease-out; }
+.sc-cal-from-left { animation: sc-cal-in-left 0.22s ease-out; }
+@keyframes sc-cal-in-right { from { transform: translateX(28px); opacity: 0.3; } to { transform: none; opacity: 1; } }
+@keyframes sc-cal-in-left { from { transform: translateX(-28px); opacity: 0.3; } to { transform: none; opacity: 1; } }
+@media (prefers-reduced-motion: reduce) {
+  .sc-cal-from-right, .sc-cal-from-left { animation: none; }
+}
+
+/* パソコンでは「＋」ボタンは出さない（右のパネルから登録できるため） */
+@media (min-width: 901px) {
+  .sc-fab { display: none; }
 }
