@@ -4,6 +4,8 @@ import android.app.Application
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.netdiag.core.DiagnosticsLog
+import com.netdiag.core.net.CableTest
+import com.netdiag.core.net.CableTestResult
 import com.netdiag.core.net.DiscoveredHost
 import com.netdiag.core.net.EthernetMonitor
 import com.netdiag.core.net.EthernetState
@@ -37,6 +39,8 @@ data class ScanUiState(
     // USB-C / Ethernet adapter
     val ethernet: EthernetState = EthernetState(connected = false),
     val ethernetBound: Boolean = false,
+    val cableTestRunning: Boolean = false,
+    val cableTestResult: CableTestResult? = null,
 )
 
 class ScanViewModel(app: Application) : AndroidViewModel(app) {
@@ -56,18 +60,46 @@ class ScanViewModel(app: Application) : AndroidViewModel(app) {
         // Android treats as the system default (it may keep preferring Wi-Fi
         // even with a cable plugged in, especially if the wired LAN has no
         // internet gateway). Auto-pin the app's traffic to it the moment it
-        // appears so every tool here (ping/scan/DNS/speed test) actually tests
-        // the wired LAN, and release the pin again when it's unplugged.
+        // appears so most tools here (scan/DNS/speed test — sockets this
+        // process opens directly) actually test the wired LAN, and release the
+        // pin again when it's unplugged. Note PingTool shells out to the system
+        // `ping` binary as a separate process, which this pin does NOT affect;
+        // ケーブル診断's gateway check uses a bound socket instead for that reason.
         viewModelScope.launch {
             ethernetMonitor.observe().collect { eth ->
                 val wasConnected = _state.value.ethernet.connected
                 _state.update { it.copy(ethernet = eth) }
                 when {
                     eth.connected && !wasConnected -> setEthernetBound(true)
-                    !eth.connected && wasConnected -> setEthernetBound(false)
+                    !eth.connected && wasConnected -> {
+                        setEthernetBound(false)
+                        _state.update { it.copy(cableTestResult = null) }
+                    }
                     eth.connected -> refreshInfo() // e.g. DHCP lease arrived after onAvailable
                 }
             }
+        }
+    }
+
+    /** One-tap link/DHCP/gateway check for the plugged-in wired adapter. */
+    fun runCableTest() {
+        val eth = _state.value.ethernet
+        val network = eth.network ?: return
+        if (_state.value.cableTestRunning) return
+        _state.update { it.copy(cableTestRunning = true, cableTestResult = null) }
+        viewModelScope.launch {
+            val (down, up) = ethernetMonitor.linkRateMbps(network)
+            val result = CableTest.run(network, down, up, eth.info ?: NetInfo())
+            _state.update { it.copy(cableTestRunning = false, cableTestResult = result) }
+            DiagnosticsLog.add(
+                "CABLE TEST ${result.verdict} IP=${result.ip ?: "-"} " +
+                    "GW=${result.gateway ?: "-"}(${
+                        result.gatewayCheck?.let {
+                            if (it.reachable) "到達 ${it.rttMs ?: "-"}ms" else "応答なし"
+                        } ?: "-"
+                    }) " +
+                    "リンク速度=${result.downstreamMbps?.let { "${it}Mbps" } ?: "-"}"
+            )
         }
     }
 

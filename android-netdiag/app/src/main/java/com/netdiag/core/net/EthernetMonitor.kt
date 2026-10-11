@@ -75,9 +75,25 @@ class EthernetMonitor(context: Context) {
 
     /**
      * Pins this process's own network traffic to [network] (every socket this
-     * app opens — ping/scan/DNS/speed test — goes out over it), or clears the
-     * pin and returns to normal OS routing when [network] is null.
+     * app opens — scan/DNS/speed test — goes out over it; the shelled-out
+     * `ping` binary runs as a separate process and is unaffected, see
+     * [CableTest]), or clears the pin and returns to normal OS routing when
+     * [network] is null.
      */
     fun bind(network: Network?): Boolean =
         runCatching { cm.bindProcessToNetwork(network) }.getOrDefault(false)
+
+    /**
+     * Best-effort negotiated link rate (downstream, upstream) in Mbps, from
+     * [NetworkCapabilities]. Many Ethernet drivers report the adapter's real
+     * negotiated PHY speed here (a cable with a damaged pair often shows up as
+     * a 1000→100 Mbps downgrade), but some report a generic default — treat
+     * this as a reference value, not a guaranteed measurement.
+     */
+    fun linkRateMbps(network: Network): Pair<Int?, Int?> {
+        val caps = cm.getNetworkCapabilities(network) ?: return null to null
+        val down = caps.linkDownstreamBandwidthKbps.takeIf { it > 0 }?.let { it / 1000 }
+        val up = caps.linkUpstreamBandwidthKbps.takeIf { it > 0 }?.let { it / 1000 }
+        return down to up
+    }
 }

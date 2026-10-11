@@ -14,6 +14,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
@@ -35,6 +36,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontFamily
@@ -44,12 +46,15 @@ import android.content.Intent
 import android.net.Uri
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.netdiag.core.net.CableTestResult
+import com.netdiag.core.net.CableVerdict
 import com.netdiag.core.net.DeviceClassifier
 import com.netdiag.core.net.DeviceKind
 import com.netdiag.core.net.DiscoveredHost
 import com.netdiag.core.net.EthernetState
 import com.netdiag.core.net.OsGuesser
 import com.netdiag.core.net.PortScanner
+import com.netdiag.ui.DangerColor
 import com.netdiag.ui.LabeledValue
 import com.netdiag.ui.NameColor
 import com.netdiag.ui.NetScopeHeader
@@ -72,7 +77,16 @@ fun ScanScreen(vm: ScanViewModel = viewModel()) {
         item { NetScopeHeader() }
 
         if (state.ethernet.connected) {
-            item { EthernetCard(state.ethernet, state.ethernetBound, vm::setEthernetBound) }
+            item {
+                EthernetCard(
+                    eth = state.ethernet,
+                    bound = state.ethernetBound,
+                    onBoundChange = vm::setEthernetBound,
+                    testRunning = state.cableTestRunning,
+                    testResult = state.cableTestResult,
+                    onRunTest = vm::runCableTest,
+                )
+            }
         }
 
         item {
@@ -243,11 +257,20 @@ private fun HostCard(host: DiscoveredHost, scanning: Boolean, onPortScan: () -> 
  * Shown when a USB-C/Ethernet adapter is plugged in, independently of whether
  * Android treats it as the system's default network (it may not, especially
  * when the wired LAN has no internet gateway). Lets the user see the wired
- * link's DHCP result and, with one switch, pin this app's own traffic to it so
- * every other tool (診断/スキャン/速度) actually tests the cable.
+ * link's DHCP result, pin this app's own traffic to it with one switch, and
+ * run a one-tap "is this cable/port good" check — a lightweight stand-in for
+ * a dedicated LAN tester (it can't check physical wiring, see the test's own
+ * explanation below).
  */
 @Composable
-private fun EthernetCard(eth: EthernetState, bound: Boolean, onBoundChange: (Boolean) -> Unit) {
+private fun EthernetCard(
+    eth: EthernetState,
+    bound: Boolean,
+    onBoundChange: (Boolean) -> Unit,
+    testRunning: Boolean,
+    testResult: CableTestResult?,
+    onRunTest: () -> Unit,
+) {
     SectionCard(title = "有線LAN（イーサネットアダプタ）") {
         val info = eth.info
         if (info?.hasIpv4 == true) {
@@ -271,12 +294,72 @@ private fun EthernetCard(eth: EthernetState, bound: Boolean, onBoundChange: (Boo
         }
         Spacer(Modifier.height(6.dp))
         Text(
-            "オンの間、診断・スキャン・速度測定などこのアプリの通信はすべて有線LAN経由になります。" +
+            "オンの間、スキャン・速度測定などこのアプリの通信はすべて有線LAN経由になります。" +
                 "端末本体のWi-Fi／モバイル回線や他のアプリの通信には影響しません。",
             style = MaterialTheme.typography.labelSmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
+
+        Spacer(Modifier.height(14.dp))
+        HorizontalDividerThin()
+        Spacer(Modifier.height(10.dp))
+
+        Text("ケーブル診断（簡易LANテスター）", style = MaterialTheme.typography.labelLarge)
+        Spacer(Modifier.height(4.dp))
+        Text(
+            "リンク速度・IP取得・ゲートウェイ応答をまとめて確認します。" +
+                "配線の断線／結線チェックは専用機器が必要なため対応できません。",
+            style = MaterialTheme.typography.labelSmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        Spacer(Modifier.height(8.dp))
+        Button(onClick = onRunTest, enabled = !testRunning) {
+            Text(if (testRunning) "診断中…" else "ケーブル診断を実行")
+        }
+
+        testResult?.let { r ->
+            Spacer(Modifier.height(12.dp))
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Tag(verdictLabel(r.verdict), verdictColor(r.verdict))
+                Spacer(Modifier.width(8.dp))
+                Text(r.summary, style = MaterialTheme.typography.bodySmall, color = NameColor)
+            }
+            Spacer(Modifier.height(10.dp))
+            LabeledValue(
+                "リンク速度（推定）",
+                r.downstreamMbps?.let { down ->
+                    "${down}Mbps" + (r.upstreamMbps?.let { " / ↑${it}Mbps" } ?: "")
+                } ?: "取得不可",
+            )
+            LabeledValue("DHCP取得", if (r.ipObtained) "成功（${r.ip}）" else "失敗")
+            LabeledValue(
+                "ゲートウェイ応答",
+                r.gatewayCheck?.let {
+                    if (it.reachable) "${it.note}（${it.rttMs ?: "-"} ms）" else it.note
+                } ?: "未確認",
+            )
+        }
     }
+}
+
+@Composable
+private fun HorizontalDividerThin() {
+    HorizontalDivider(
+        thickness = 1.dp,
+        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.2f),
+    )
+}
+
+private fun verdictLabel(v: CableVerdict): String = when (v) {
+    CableVerdict.PASS -> "正常"
+    CableVerdict.WARN -> "要確認"
+    CableVerdict.FAIL -> "異常"
+}
+
+private fun verdictColor(v: CableVerdict): Color = when (v) {
+    CableVerdict.PASS -> Color(0xFF2E9E54)
+    CableVerdict.WARN -> Color(0xFFE0A422)
+    CableVerdict.FAIL -> DangerColor
 }
 
 private fun iconFor(kind: DeviceKind): ImageVector = when (kind) {
