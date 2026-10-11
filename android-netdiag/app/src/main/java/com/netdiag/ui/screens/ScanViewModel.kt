@@ -5,6 +5,8 @@ import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.netdiag.core.DiagnosticsLog
 import com.netdiag.core.net.DiscoveredHost
+import com.netdiag.core.net.EthernetMonitor
+import com.netdiag.core.net.EthernetState
 import com.netdiag.core.net.HostDiscovery
 import com.netdiag.core.net.NetInfo
 import com.netdiag.core.net.NetworkInfoProvider
@@ -32,12 +34,16 @@ data class ScanUiState(
     val rangeMode: Boolean = false,
     val rangeStart: String = "",
     val rangeEnd: String = "",
+    // USB-C / Ethernet adapter
+    val ethernet: EthernetState = EthernetState(connected = false),
+    val ethernetBound: Boolean = false,
 )
 
 class ScanViewModel(app: Application) : AndroidViewModel(app) {
 
     private val infoProvider = NetworkInfoProvider(app)
     private val mdns = MdnsDiscovery(app)
+    private val ethernetMonitor = EthernetMonitor(app)
 
     private val _state = MutableStateFlow(ScanUiState(info = infoProvider.current()))
     val state: StateFlow<ScanUiState> = _state.asStateFlow()
@@ -45,14 +51,54 @@ class ScanViewModel(app: Application) : AndroidViewModel(app) {
     init {
         DiagnosticsLog.init(app)
         seedRangeDefaults(_state.value.info)
+
+        // Watch for a USB-C/Ethernet adapter independently of whichever network
+        // Android treats as the system default (it may keep preferring Wi-Fi
+        // even with a cable plugged in, especially if the wired LAN has no
+        // internet gateway). Auto-pin the app's traffic to it the moment it
+        // appears so every tool here (ping/scan/DNS/speed test) actually tests
+        // the wired LAN, and release the pin again when it's unplugged.
+        viewModelScope.launch {
+            ethernetMonitor.observe().collect { eth ->
+                val wasConnected = _state.value.ethernet.connected
+                _state.update { it.copy(ethernet = eth) }
+                when {
+                    eth.connected && !wasConnected -> setEthernetBound(true)
+                    !eth.connected && wasConnected -> setEthernetBound(false)
+                    eth.connected -> refreshInfo() // e.g. DHCP lease arrived after onAvailable
+                }
+            }
+        }
     }
 
     private var scanJob: Job? = null
+
+    /**
+     * Pins (or releases) this app's own network traffic to the wired adapter.
+     * Only this app's sockets are affected — the device's normal Wi-Fi/mobile
+     * data connection for every other app is untouched.
+     */
+    fun setEthernetBound(bound: Boolean) {
+        val network = _state.value.ethernet.network
+        val ok = if (bound && network != null) {
+            ethernetMonitor.bind(network)
+        } else {
+            ethernetMonitor.bind(null)
+            true
+        }
+        _state.update { it.copy(ethernetBound = bound && ok) }
+        refreshInfo()
+    }
 
     fun refreshInfo() {
         val info = infoProvider.current()
         _state.update { it.copy(info = info) }
         seedRangeDefaults(info)
+    }
+
+    override fun onCleared() {
+        if (_state.value.ethernetBound) ethernetMonitor.bind(null)
+        super.onCleared()
     }
 
     fun setRangeMode(v: Boolean) = _state.update { it.copy(rangeMode = v) }

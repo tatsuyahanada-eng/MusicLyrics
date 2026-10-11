@@ -47,6 +47,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.netdiag.core.net.DeviceClassifier
 import com.netdiag.core.net.DeviceKind
 import com.netdiag.core.net.DiscoveredHost
+import com.netdiag.core.net.EthernetState
 import com.netdiag.core.net.OsGuesser
 import com.netdiag.core.net.PortScanner
 import com.netdiag.ui.LabeledValue
@@ -70,16 +71,28 @@ fun ScanScreen(vm: ScanViewModel = viewModel()) {
     ) {
         item { NetScopeHeader() }
 
+        if (state.ethernet.connected) {
+            item { EthernetCard(state.ethernet, state.ethernetBound, vm::setEthernetBound) }
+        }
+
         item {
             SectionCard(title = "このネットワーク") {
                 if (info.hasIpv4) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text("接続方式", style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Spacer(Modifier.width(8.dp))
+                        Tag(info.transport.label, MaterialTheme.colorScheme.secondary)
+                    }
+                    Spacer(Modifier.height(8.dp))
                     LabeledValue("自分のIP", info.ipv4 ?: "-", monospace = true)
                     LabeledValue("サブネット", "/${info.prefixLength}  (${info.subnetMask})", monospace = true)
                     LabeledValue("ゲートウェイ", info.gateway ?: "-", monospace = true)
                     LabeledValue("DNS", info.dnsServers.joinToString(", ").ifBlank { "-" }, monospace = true)
                 } else {
                     Text(
-                        "アクティブなIPv4ネットワークが見つかりません。Wi-Fiに接続してください。",
+                        "アクティブなIPv4ネットワークが見つかりません。Wi-Fiに接続するか、" +
+                            "LANケーブル/イーサネットアダプタを接続してください。",
                         color = MaterialTheme.colorScheme.error,
                         style = MaterialTheme.typography.bodyMedium,
                     )
@@ -223,6 +236,46 @@ private fun HostCard(host: DiscoveredHost, scanning: Boolean, onPortScan: () -> 
                 }
             }
         }
+    }
+}
+
+/**
+ * Shown when a USB-C/Ethernet adapter is plugged in, independently of whether
+ * Android treats it as the system's default network (it may not, especially
+ * when the wired LAN has no internet gateway). Lets the user see the wired
+ * link's DHCP result and, with one switch, pin this app's own traffic to it so
+ * every other tool (診断/スキャン/速度) actually tests the cable.
+ */
+@Composable
+private fun EthernetCard(eth: EthernetState, bound: Boolean, onBoundChange: (Boolean) -> Unit) {
+    SectionCard(title = "有線LAN（イーサネットアダプタ）") {
+        val info = eth.info
+        if (info?.hasIpv4 == true) {
+            LabeledValue("IPアドレス", info.ipv4 ?: "-", monospace = true)
+            LabeledValue("サブネット", "/${info.prefixLength}  (${info.subnetMask})", monospace = true)
+            LabeledValue("ゲートウェイ", info.gateway ?: "-", monospace = true)
+            LabeledValue("DNS", info.dnsServers.joinToString(", ").ifBlank { "-" }, monospace = true)
+        } else {
+            Text(
+                "アダプタは接続されていますが、IPアドレスを取得できていません。" +
+                    "LANケーブルが挿さっているか、DHCPサーバー（ルーター）が動作しているか確認してください。",
+                color = MaterialTheme.colorScheme.error,
+                style = MaterialTheme.typography.bodyMedium,
+            )
+        }
+        Spacer(Modifier.height(12.dp))
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Switch(checked = bound, onCheckedChange = onBoundChange)
+            Spacer(Modifier.width(8.dp))
+            Text("このアプリの通信を有線LANに固定", style = MaterialTheme.typography.bodyMedium)
+        }
+        Spacer(Modifier.height(6.dp))
+        Text(
+            "オンの間、診断・スキャン・速度測定などこのアプリの通信はすべて有線LAN経由になります。" +
+                "端末本体のWi-Fi／モバイル回線や他のアプリの通信には影響しません。",
+            style = MaterialTheme.typography.labelSmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
     }
 }
 
