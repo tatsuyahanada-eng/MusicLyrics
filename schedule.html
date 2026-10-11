@@ -13,7 +13,7 @@
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="default">
   <meta name="apple-mobile-web-app-title" content="VertiCale">
-  <link rel="stylesheet" href="schedule.css?v=47">
+  <link rel="stylesheet" href="schedule.css?v=48">
 </head>
 <body class="sc-body">
 
@@ -98,8 +98,8 @@
           <button class="sc-paint-tab" data-paint="clear" type="button">− 未定に戻す</button>
         </div>
         <p id="paintHint" class="sc-hint" hidden>
-          枠（早朝・AM・P1・P2・夜間）を1回クリックすると内容を確認できます。空いている枠はダブルクリック（スマホはダブルタップ）で登録画面が開きます。予定がある枠は内容の確認のままなので、新規に追加したいときは「＋予定を登録」ボタンを押してください。ドラッグすると複数の枠をまとめて選べます。
-          ◯稼働可・✕休み希望は、左端の日付をクリック（ドラッグ）して設定します。
+          枠をタップすると、空いている枠はすぐに登録画面、予定がある枠はその内容（編集・確定・削除）が開きます。日付をタップすると、その日の内容と希望の設定が開きます。枠を長押し（パソコンはShift＋クリックかドラッグ）すると、複数の枠をまとめて登録・変更できます。
+          ◯稼働可・✕休み希望は、左端の日付をタップ（ドラッグ）して設定します。
         </p>
       </div>
 
@@ -108,6 +108,9 @@
       </div>
     </aside>
   </main>
+
+  <!-- スマホでまとめて選択しているときの操作バー -->
+  <div id="multiBar" class="sc-multibar" hidden></div>
 
   <!-- 日付の一覧 & コピー -->
   <section class="sc-section">
@@ -488,6 +491,6 @@ Require valid-user</pre>
     </div>
   </div>
 
-  <script src="schedule.js?v=47"></script>
+  <script src="schedule.js?v=48"></script>
 </body>
 </html>

@@ -357,10 +357,15 @@ const view = {
   month: now.getMonth(),   // 0-11
   selected: null,          // 'YYYY-MM-DD'
   slot: null,              // 選択中の時間帯ID（日付ラベルを選んだときは null）
-  formOpen: false,         // 登録フォームを開いているか（ダブルクリックで開く）
-  popup: false,            // スマホでダブルタップしたときに、内容をポップアップで見せるか
+  formOpen: false,         // 登録フォームを開いているか（空いている枠をタップで開く）
+  popup: false,            // スマホで、内容を下からのシートで見せるか
   paint: null,             // null | 'available' | 'off' | 'clear' | 'multi'
-  multi: new Set(),        // まとめて登録する枠（'YYYY-MM-DD|slotId'）
+  multi: new Set(),        // まとめて登録・変更する枠（'YYYY-MM-DD|slotId'）
+  multiTab: null,          // まとめて操作の表示（'add'=新規登録 / 'edit'=選んだ予定を変更 / null=自動）
+  multiAuto: false,        // 長押し・Shiftクリックで一時的に選択モードに入ったか（操作後に自動で戻す）
+  bulkForm: null,          // まとめて変更の入力途中の値
+  bulkExclude: new Set(),  // まとめて変更の対象から外した予定ID
+  sheetOpenedAt: 0,        // シートを開いた時刻（続けてのタップで、すぐ閉じてしまわないように）
   editingId: null,
   confirming: false,       // 仮出勤 → 確定 への切り替え中
   jobFilter: 'all',        // 予定一覧の絞り込み
@@ -374,14 +379,17 @@ const view = {
 
 let painting = false;
 let paintAdd = true;      // 複数日モードでドラッグ中に追加するか解除するか
-let lastTapKey = null;    // ダブルクリック／ダブルタップの判定用
-let lastTapAt = 0;
+let longPressTimer = null;    // 長押しで複数選択に入るためのタイマー
+let longPressActive = false;  // 長押しが成立して、指でなぞって選べる状態か
+let swallowTouchEnd = false;  // 指を離した瞬間にシート等を開いたとき、続けて起きるクリックを無効にする
+let confirmOpenedAt = 0;      // 確認ダイアログを開いた時刻
 let paintPointerId = null;   // 選択操作中のポインターID（スクロールとの誤操作防止用）
 let paintIsTouch = false;
 let paintStartX = 0;
 let paintStartY = 0;
 const SCROLL_CANCEL_PX = 10;   // これ以上指が動いたらスクロールとみなして選択を中止する
-const DOUBLE_TAP_MS = 450;
+const LONG_PRESS_MS = 450;     // これだけ押し続けたら長押し（複数選択の開始）とみなす
+const SHEET_GUARD_MS = 500;    // シートを開いた直後は、背景のタップで閉じない
 const paintTouched = new Set();
 
 function loadState() {
@@ -708,10 +716,28 @@ function renderMonthNav() {
   elMonthPicker.value = `${view.year}-${pad2(view.month + 1)}`;
 }
 
+/** 表示中の月の予定を日付ごとにまとめる（日ごとに全件を探し直さないため） */
+function monthJobsByDate() {
+  const prefix = `${view.year}-${pad2(view.month + 1)}-`;
+  const map = {};
+  state.jobs.forEach((j) => {
+    if (typeof j.date !== 'string' || j.date.indexOf(prefix) !== 0) return;
+    (map[j.date] = map[j.date] || []).push(j);
+  });
+  Object.keys(map).forEach((k) => {
+    map[k].sort((a, b) => {
+      if (a.allDay !== b.allDay) return a.allDay ? -1 : 1;
+      return jobRange(a).s - jobRange(b).s;
+    });
+  });
+  return map;
+}
+
 function renderCalendar() {
   const conflicts = conflictingJobIds();
   const today = todayKey();
   const total = daysInMonth(view.year, view.month);
+  const byDate = monthJobsByDate();
 
   const head = '<div class="sc-vrow sc-vhead">'
     + '<div class="sc-vdate-head">日付</div>'
@@ -726,9 +752,7 @@ function renderCalendar() {
     const dow = date.getDay();
     const hol = holidayName(key);
     const wish = state.wishes[key] || null;
-    const dayJobs = jobsOn(key);
-    const hasConfirmed = dayJobs.some((j) => j.status !== 'tentative');
-    const hasTentative = dayJobs.some((j) => j.status === 'tentative');
+    const dayJobs = byDate[key] || [];
     const isEmpty = key >= today && !wish && !dayJobs.length;
 
     const dcls = ['sc-vdate'];
@@ -756,7 +780,8 @@ function renderCalendar() {
       + `</button>`;
 
     const slotJobs = {};
-    SLOTS.forEach((s2) => { slotJobs[s2.id] = jobsInSlot(key, s2.id); });
+    SLOTS.forEach((s2) => { slotJobs[s2.id] = []; });
+    dayJobs.forEach((j) => { jobSlots(j).forEach((sid) => { if (slotJobs[sid]) slotJobs[sid].push(j); }); });
 
     const cells = SLOTS.map((slot) => {
       const list = slotJobs[slot.id];
@@ -885,7 +910,7 @@ function visitRowHtml(rowKey, address, removable) {
 function jobFormHtml(f) {
   return `
     <div class="sc-side-block">
-      <p class="sc-side-block-title">${view.paint === 'multi' ? `選んだ ${view.multi.size} 日にまとめて追加`
+      <p class="sc-side-block-title">${view.paint === 'multi' ? `選んだ ${view.multi.size} 枠にまとめて追加`
         : view.confirming ? '仮出勤を確定にする' : view.editingId ? '予定を編集' : '予定を追加'}</p>
       ${view.confirming ? `<div class="sc-alert sc-alert-confirm">
         <span class="sc-alert-title">✓ 確定内容の確認</span>
@@ -933,9 +958,11 @@ function jobFormHtml(f) {
           </label>
         </div>
 
-        ${view.paint === 'multi' && !f.allDay
-          ? '<p class="sc-hint">ここで指定した時間が、選んだすべての枠にまとめて登録されます。</p>' : ''}
-        <div class="sc-form-row" id="timeRow" ${f.allDay ? 'hidden' : ''}>
+        ${view.paint === 'multi' ? `<label class="sc-check" id="useSlotTimeRow" ${f.allDay ? 'hidden' : ''}>
+          <input id="fUseSlotTime" type="checkbox" ${f.useSlotTime !== false ? 'checked' : ''}>
+          <span>選んだ枠の時間帯で登録する（AMなら9:00〜12:00。同じ日の続いた枠は1件にまとめます）</span>
+        </label>` : ''}
+        <div class="sc-form-row" id="timeRow" ${f.allDay || (view.paint === 'multi' && f.useSlotTime !== false) ? 'hidden' : ''}>
           <label class="sc-field">
             <span class="sc-field-label">開始</span>
             <input id="fStart" class="sc-input" type="time" value="${escapeHtml(f.start)}">
@@ -992,15 +1019,134 @@ function jobFormHtml(f) {
     </div>`;
 }
 
+/** 選んだ枠に入っている予定（同じ予定が複数の枠に掛かっていても1件として数える） */
+function multiSelectedJobs() {
+  const seen = new Set();
+  const out = [];
+  Array.from(view.multi).sort().forEach((pk) => {
+    const [d, sid] = pk.split('|');
+    jobsInSlot(d, sid).forEach((j) => {
+      if (seen.has(j.id)) return;
+      seen.add(j.id);
+      out.push(j);
+    });
+  });
+  return out.sort((x, y) => jobRange(x).s - jobRange(y).s);
+}
+
+/** まとめて変更の対象（チェックを外した予定を除く） */
+function bulkTargets() {
+  return multiSelectedJobs().filter((j) => !view.bulkExclude.has(j.id));
+}
+
+/** いま表示するまとめて操作のタブ（選んでいない場合は、選んだ枠がすべて予定ありなら変更、それ以外は新規登録） */
+function effectiveMultiTab() {
+  const jobs = multiSelectedJobs();
+  if (!jobs.length) return 'add';
+  if (view.multiTab) return view.multiTab;
+  const allBusy = Array.from(view.multi).every((pk) => { const [d, sid] = pk.split('|'); return jobsInSlot(d, sid).length; });
+  return allBusy ? 'edit' : 'add';
+}
+
+function blankBulkForm() {
+  return { title: '', workType: '', status: '', timeMode: '', start: state.settings.defStart, end: state.settings.defEnd, client: '', storeName: '' };
+}
+
+/** まとめて変更のフォーム（空欄・「変更しない」の項目はそのまま残す） */
+function bulkFormHtml(targets) {
+  const b = view.bulkForm || blankBulkForm();
+  const tentativeCount = targets.filter((j) => j.status === 'tentative').length;
+  const list = multiSelectedJobs().map((j) => {
+    const time = j.allDay ? '終日' : `${shortTime(j.start)}〜${shortTime(j.end)}`;
+    const checked = !view.bulkExclude.has(j.id);
+    return `<label class="sc-bulk-item ${j.status === 'tentative' ? 'sc-bulk-item-tentative' : ''}">
+      <input type="checkbox" data-bulk-pick="${j.id}" ${checked ? 'checked' : ''}>
+      <span class="sc-bulk-item-date">${formatDate(j.date)}</span>
+      <span class="sc-bulk-item-time">${escapeHtml(time)}</span>
+      <span class="sc-bulk-item-title">${j.status === 'tentative' ? '<span class="sc-vbar-mark">仮</span>' : ''}${escapeHtml(j.title || '(無題)')}${j.workType ? `<small>${escapeHtml(j.workType)}</small>` : ''}</span>
+    </label>`;
+  }).join('');
+
+  return `
+    <div class="sc-side-block">
+      <p class="sc-side-block-title">対象の予定（${targets.length}件）</p>
+      <div class="sc-bulk-list">${list}</div>
+      <div class="sc-bulk-quick">
+        ${tentativeCount ? `<button type="button" id="bulkConfirmBtn" class="sc-btn sc-btn-sm sc-btn-confirm">✓ 仮出勤 ${tentativeCount}件 をまとめて確定</button>` : ''}
+        <button type="button" id="bulkDeleteBtn" class="sc-btn sc-btn-sm sc-btn-outline sc-btn-danger" ${targets.length ? '' : 'disabled'}>🗑 ${targets.length}件 をまとめて削除</button>
+      </div>
+    </div>
+
+    <div class="sc-side-block">
+      <p class="sc-side-block-title">内容をまとめて変更</p>
+      <p class="sc-hint">変えたい項目だけ入力してください。空欄・「変更しない」の項目は、それぞれの予定の内容がそのまま残ります。</p>
+      <form id="bulkForm" class="sc-form">
+        <label class="sc-field">
+          <span class="sc-field-label">案件名</span>
+          <select id="bTitle" class="sc-input">
+            <option value="">変更しない</option>
+            ${state.settings.projects.map((p) => `<option value="${escapeHtml(p)}" ${b.title === p ? 'selected' : ''}>${escapeHtml(p)}</option>`).join('')}
+          </select>
+        </label>
+        <label class="sc-field">
+          <span class="sc-field-label">業務内容</span>
+          <input id="bWorkType" class="sc-input" type="text" list="workTypeList" value="${escapeHtml(b.workType)}" placeholder="変更しない" autocomplete="off">
+        </label>
+        <div class="sc-form-row">
+          <label class="sc-field">
+            <span class="sc-field-label">区分</span>
+            <select id="bStatus" class="sc-input">
+              <option value="" ${b.status === '' ? 'selected' : ''}>変更しない</option>
+              <option value="confirmed" ${b.status === 'confirmed' ? 'selected' : ''}>確定</option>
+              <option value="tentative" ${b.status === 'tentative' ? 'selected' : ''}>仮出勤（未確定）</option>
+            </select>
+          </label>
+          <label class="sc-field">
+            <span class="sc-field-label">時間</span>
+            <select id="bTimeMode" class="sc-input">
+              <option value="" ${b.timeMode === '' ? 'selected' : ''}>変更しない</option>
+              <option value="time" ${b.timeMode === 'time' ? 'selected' : ''}>時間を指定</option>
+              <option value="allday" ${b.timeMode === 'allday' ? 'selected' : ''}>終日</option>
+            </select>
+          </label>
+        </div>
+        <div class="sc-form-row" id="bTimeRow" ${b.timeMode === 'time' ? '' : 'hidden'}>
+          <label class="sc-field">
+            <span class="sc-field-label">開始</span>
+            <input id="bStart" class="sc-input" type="time" value="${escapeHtml(b.start)}">
+          </label>
+          <label class="sc-field">
+            <span class="sc-field-label">終了</span>
+            <input id="bEnd" class="sc-input" type="time" value="${escapeHtml(b.end)}">
+          </label>
+        </div>
+        <div class="sc-form-row">
+          <label class="sc-field">
+            <span class="sc-field-label">業態</span>
+            <input id="bClient" class="sc-input" type="text" value="${escapeHtml(b.client)}" placeholder="変更しない" autocomplete="off">
+          </label>
+          <label class="sc-field">
+            <span class="sc-field-label">店舗名</span>
+            <input id="bStoreName" class="sc-input" type="text" value="${escapeHtml(b.storeName)}" placeholder="変更しない" autocomplete="off">
+          </label>
+        </div>
+        <div class="sc-form-actions">
+          <button type="submit" id="bSubmit" class="sc-btn" ${targets.length ? '' : 'disabled'}>${targets.length}件 に反映する</button>
+        </div>
+      </form>
+    </div>`;
+}
+
 /** 複数の枠をまとめて扱うときのパネル */
 function renderMultiPanel() {
   const picks = Array.from(view.multi).sort();
   const f = view.form || blankForm();
+  const closeBtn = '<button type="button" class="sc-modal-close" data-modal-close aria-label="閉じる">✕</button>';
 
   if (!picks.length) {
-    elSidePanel.innerHTML = `
-      <p class="sc-side-date">まとめて登録</p>
-      <p class="sc-side-date-sub">カレンダーの枠をクリックして選んでください（ドラッグで連続選択）。</p>
+    elSidePanel.innerHTML = closeBtn + `
+      <p class="sc-side-date">まとめて登録・変更</p>
+      <p class="sc-side-date-sub">カレンダーの枠をタップして選んでください（パソコンはドラッグ、スマホは長押ししたまま指でなぞると連続で選べます）。日付をタップすると、その日の枠をまとめて選べます。</p>
       <p class="sc-side-empty">まだ選ばれていません。</p>`;
     return;
   }
@@ -1013,20 +1159,18 @@ function renderMultiPanel() {
   }).join('');
 
   const dates = Array.from(new Set(picks.map((pk) => pk.split('|')[0]))).sort();
+  const selectedJobs = multiSelectedJobs();
   const busy = picks.filter((pk) => { const [d, sid] = pk.split('|'); return jobsInSlot(d, sid).length; });
   const offDays = dates.filter((d) => (state.wishes[d] || null) === WISH_OFF);
+  const tab = effectiveMultiTab();
 
-  elSidePanel.innerHTML = `
-    <div>
-      <p class="sc-side-date">${picks.length}枠を選択中</p>
-      <p class="sc-side-date-sub">${dates.length}日ぶん。指定した時間で、同じ内容の予定をまとめて登録します。</p>
-    </div>
+  const tabs = selectedJobs.length ? `
+    <div class="sc-multi-tabs" role="tablist">
+      <button type="button" class="sc-multi-tab ${tab === 'add' ? 'active' : ''}" data-multitab="add" role="tab">＋ 新しく登録</button>
+      <button type="button" class="sc-multi-tab ${tab === 'edit' ? 'active' : ''}" data-multitab="edit" role="tab">✎ 予定を変更（${selectedJobs.length}件）</button>
+    </div>` : '';
 
-    <div class="sc-side-block">
-      <div class="sc-chip-row">${chips}</div>
-      <button type="button" id="multiClear" class="sc-btn sc-btn-sm sc-btn-outline" style="margin-top:6px">選択をすべて解除</button>
-    </div>
-
+  const addBody = `
     <div class="sc-side-block">
       <p class="sc-side-block-title">選んだ日の希望をまとめて設定</p>
       <div class="sc-wish-row">
@@ -1041,10 +1185,24 @@ function renderMultiPanel() {
       ${offDays.length ? `<p class="sc-job-meta">・休み希望の日：${offDays.map((d) => formatDate(d)).join('、')}</p>` : ''}
     </div>` : ''}
 
-    ${jobFormHtml(f)}
+    ${jobFormHtml(f)}`;
+
+  elSidePanel.innerHTML = closeBtn + `
+    <div>
+      <p class="sc-side-date">${picks.length}枠を選択中</p>
+      <p class="sc-side-date-sub">${dates.length}日ぶん${selectedJobs.length ? `・入っている予定 ${selectedJobs.length}件` : ''}</p>
+    </div>
+
+    <div class="sc-side-block">
+      <div class="sc-chip-row">${chips}</div>
+      <button type="button" id="multiClear" class="sc-btn sc-btn-sm sc-btn-outline" style="margin-top:6px">選択をすべて解除</button>
+    </div>
+
+    ${tabs}
+    ${tab === 'edit' ? bulkFormHtml(bulkTargets()) : addBody}
   `;
 
-  updateFormAlert();
+  if (tab !== 'edit') updateFormAlert();
 }
 
 function renderSidePanel() {
@@ -1104,13 +1262,14 @@ function renderSidePanel() {
 
   const f = view.form || blankForm();
 
-  elSidePanel.innerHTML = `
+  const header = `
     <button type="button" class="sc-modal-close" data-modal-close aria-label="閉じる">✕</button>
     <div>
       <p class="sc-side-date">${formatDate(key, 'long')}${slot ? `　<span class="sc-slot-badge">${escapeHtml(slot.name)}</span>` : ''}</p>
       <p class="sc-side-date-sub">${slot ? `${slot.start}〜${slot.end}　` : ''}${hol ? '🎌 ' + escapeHtml(hol) : ''}${key < todayKey() ? ' （過去の日付）' : ''}</p>
-    </div>
+    </div>`;
 
+  const wishBlock = `
     <div class="sc-side-block">
       <p class="sc-side-block-title">この日の希望</p>
       ${(view.paint === 'off' || view.paint === 'available') ? `<p class="sc-paint-notice">
@@ -1122,21 +1281,31 @@ function renderSidePanel() {
         <button type="button" class="sc-wish-btn ${wish === WISH_OFF ? 'active-off' : ''} ${view.paint === 'off' ? 'sc-wish-btn-suggest' : ''}" data-wish="off">✕ 休み希望</button>
         <button type="button" class="sc-wish-btn ${!wish ? 'active-none' : ''}" data-wish="none">− 未定</button>
       </div>
-    </div>
+    </div>`;
 
+  const jobsBlock = `
     <div class="sc-side-block">
       <p class="sc-side-block-title">${slot ? `この枠の予定` : 'この日の予定'}（${dayJobs.length}件）</p>
       ${cards || '<p class="sc-empty-note">まだ予定はありません。</p>'}
-    </div>
+    </div>`;
 
-    ${view.formOpen ? jobFormHtml(f) : `
+  if (view.formOpen) {
+    // 入力中は、フォームをいちばん上に出す（スマホのシートでもすぐ入力できるように）。
+    // 編集・確定中は対象の予定がフォームに出ているので、カードの一覧は省く
+    elSidePanel.innerHTML = header + jobFormHtml(f)
+      + (!view.editingId && dayJobs.length ? jobsBlock : '')
+      + (!view.editingId ? wishBlock : '');
+  } else {
+    const addBlock = `
     <div class="sc-side-block">
       <button type="button" id="openForm" class="sc-btn sc-btn-block">＋ ${slot ? 'この枠' : 'この日'}に予定を登録</button>
       <p class="sc-hint" style="margin-top:6px">
-        枠をダブルクリック（スマホはダブルタップ）でも、この画面を開けます。
+        空いている枠をタップすると、すぐに登録画面が開きます。枠を長押し（パソコンはShift＋クリック）すると、複数の枠をまとめて登録・変更できます。
       </p>
-    </div>`}
-  `;
+    </div>`;
+    // 枠を選んだときは予定の内容を先に、日付を選んだときは希望の設定を先に出す
+    elSidePanel.innerHTML = header + (slot ? jobsBlock + addBlock + wishBlock : wishBlock + jobsBlock + addBlock);
+  }
 
   updateFormAlert();
 }
@@ -2147,6 +2316,7 @@ function blankForm() {
     start: slot ? slot.start : state.settings.defStart,
     end: slot ? slot.end : state.settings.defEnd,
     clientSel: '', clientFree: '', storeName: '', place: '', address: '', extraAddresses: [], note: '',
+    useSlotTime: true,   // まとめて登録で、選んだ枠それぞれの時間帯を使うか
   };
 }
 
@@ -2199,6 +2369,7 @@ function readForm() {
     address: $('fAddress').value,
     extraAddresses: extraAddresses,
     note: $('fNote').value,
+    useSlotTime: $('fUseSlotTime') ? $('fUseSlotTime').checked : true,
   };
 }
 
@@ -2347,23 +2518,53 @@ function updateFormAlert() {
   }
 }
 
-/** 選んだ枠それぞれについて、登録しようとしている内容の重複を調べる */
-function multiDraft(pick) {
-  const [date, sid] = pick.split('|');
-  const base = draftJob();
-  return Object.assign(base, {
-    id: '__draft__', date: date,
-    slot: sid,
+/**
+ * まとめて登録で作る予定の一覧。
+ *   枠の時間帯で登録 … 同じ日の続いた枠（AM＋P1など）は1件にまとめ、その範囲の時間で作る
+ *   時間を指定／終日 … 1日につき1件（同じ日の枠を複数選んでも重ねて作らない）
+ */
+function multiPlan() {
+  const f = view.form || blankForm();
+  const byDate = {};
+  Array.from(view.multi).forEach((pk) => {
+    const [d, sid] = pk.split('|');
+    const idx = SLOTS.findIndex((sl) => sl.id === sid);
+    if (idx >= 0) (byDate[d] = byDate[d] || []).push(idx);
   });
+  const plan = [];
+  Object.keys(byDate).sort().forEach((d) => {
+    const idxs = byDate[d].sort((x, y) => x - y);
+    if (f.allDay || f.useSlotTime === false) {
+      plan.push({ date: d, slotIds: idxs.map((i) => SLOTS[i].id) });
+      return;
+    }
+    let run = [idxs[0]];
+    for (let k = 1; k <= idxs.length; k++) {
+      if (k < idxs.length && idxs[k] === run[run.length - 1] + 1) { run.push(idxs[k]); continue; }
+      plan.push({ date: d, slotIds: run.map((i) => SLOTS[i].id), start: SLOTS[run[0]].start, end: SLOTS[run[run.length - 1]].end });
+      if (k < idxs.length) run = [idxs[k]];
+    }
+  });
+  return plan;
 }
 
+/** 計画1件分の、登録しようとしている予定 */
+function multiDraft(item) {
+  const base = draftJob();
+  const job = Object.assign(base, { id: '__draft__', date: item.date });
+  if (item.start && !job.allDay) { job.start = item.start; job.end = item.end; }
+  // メモの差し込み（日付・時間）は、その予定の内容で作り直す
+  job.note = fillTemplate((view.form || blankForm()).note.trim(), job);
+  return job;
+}
+
+/** 選んだ枠それぞれについて、登録しようとしている内容の重複を調べる */
 function multiConflicts() {
   const f = view.form || blankForm();
   if (!f.titleSel) return [];
-  return Array.from(view.multi).sort().map((pick) => {
-    const [date, sid] = pick.split('|');
-    const slot = slotById(sid);
-    return { date: date, slotName: slot ? slot.name : '', conflicts: findConflicts(multiDraft(pick), null) };
+  return multiPlan().map((item) => {
+    const names = item.slotIds.map((sid) => { const sl = slotById(sid); return sl ? sl.name : ''; }).join('・');
+    return { date: item.date, slotName: names, conflicts: findConflicts(multiDraft(item), null) };
   }).filter((r) => r.conflicts.length);
 }
 
@@ -2407,8 +2608,8 @@ function updateMultiFormAlert(alertBox) {
 /** 送信ボタンの文言（登録／更新／確定 × 重複の有無） */
 function submitLabel(hasConflict) {
   if (view.paint === 'multi') {
-    const n = view.multi.size;
-    return hasConflict ? `重複を承知で ${n}枠に登録` : `${n}枠にまとめて登録`;
+    const n = multiPlan().length;
+    return hasConflict ? `重複を承知で ${n}件を登録` : `${n}件をまとめて登録`;
   }
   if (view.confirming) return hasConflict ? '重複を承知で確定する' : 'この内容で確定する';
   if (view.editingId) return hasConflict ? '重複を承知で更新' : '更新する';
@@ -2418,8 +2619,8 @@ function submitLabel(hasConflict) {
 /** 選んだ日すべてに同じ内容の予定を作る */
 function submitMultiJobs() {
   const base = draftJob();
-  const picks = Array.from(view.multi).sort();
 
+  if (!view.multi.size) { toast('枠を選んでください', true); return; }
   if (!view.form.titleSel) { toast('案件名を選択してください', true); $('fTitle').focus(); return; }
   if (!base.title) { toast('案件名を入力してください', true); $('fTitleFree').focus(); return; }
   if (base.status === 'confirmed' && !base.workType) {
@@ -2438,8 +2639,9 @@ function submitMultiJobs() {
   }
 
   const at = nowIso();
-  picks.forEach((pick) => {
-    const job = Object.assign({}, multiDraft(pick), {
+  const plan = multiPlan();
+  plan.forEach((item) => {
+    const job = Object.assign({}, multiDraft(item), {
       id: newId(), createdAt: at, updatedAt: at,
     });
     if (job.status === 'confirmed') job.confirmedAt = at;
@@ -2447,14 +2649,167 @@ function submitMultiJobs() {
     if (state.wishes[job.date] === WISH_OFF) setWish(job.date, null, true);
   });
 
-  view.multi.clear();
   view.ack = false;
   view.form = blankForm();
   saveState();
   refreshWorkTypeOptions();
   refreshProjectFilterOptions();
-  renderAll();
-  toast(`${picks.length}枠に登録しました`);
+  finishMultiAction();
+  toast(`${plan.length}件の予定を登録しました`);
+}
+
+/**
+ * まとめて操作が終わったあとの後片付け。選択を空にしてシートを閉じる。
+ * 長押し・Shiftクリックで一時的に入った選択モードなら、元の「選択のみ」に戻す。
+ */
+function finishMultiAction() {
+  view.multi.clear();
+  view.multiTab = null;
+  view.bulkForm = null;
+  view.bulkExclude.clear();
+  view.popup = false;
+  if (view.multiAuto) setPaintMode(null);
+  else renderAll();
+}
+
+/** まとめて変更の入力欄の値を読む */
+function readBulkForm() {
+  if (!$('bulkForm')) return view.bulkForm || blankBulkForm();
+  return {
+    title: $('bTitle').value,
+    workType: $('bWorkType').value,
+    status: $('bStatus').value,
+    timeMode: $('bTimeMode').value,
+    start: $('bStart').value,
+    end: $('bEnd').value,
+    client: $('bClient').value,
+    storeName: $('bStoreName').value,
+  };
+}
+
+/** 予定に変更を当てはめる（版数・更新日時をそろえ、確定にしたときは確定日時を残す） */
+function applyJobChanges(job, changes, at) {
+  const next = Object.assign({}, job, changes, { updatedAt: at, rev: (Number(job.rev) || 0) + 1 });
+  if (next.status === 'confirmed' && next.confirmedAt == null) next.confirmedAt = at;
+  return next;
+}
+
+/** まとめて変更の対象どうし・ほかの予定との重複を数える（変更後の内容で判定する） */
+function countBulkConflicts(updatedById) {
+  const buffer = Number(state.settings.bufferMin) || 0;
+  const all = state.jobs.map((j) => updatedById[j.id] || j);
+  let n = 0;
+  Object.keys(updatedById).forEach((id) => {
+    const job = updatedById[id];
+    const hit = all.some((other) => other.id !== id
+      && Math.abs(dayIndex(other.date) - dayIndex(job.date)) <= 1
+      && relation(job, other, buffer) === 'overlap');
+    if (hit) n++;
+  });
+  return n;
+}
+
+/** 選んだ予定の内容をまとめて書き換える */
+async function applyBulkEdit() {
+  const targets = bulkTargets();
+  if (!targets.length) { toast('変更する予定を選んでください', true); return; }
+  const b = view.bulkForm = readBulkForm();
+
+  const changes = {};
+  if (b.title) changes.title = b.title;
+  if (b.workType.trim()) changes.workType = b.workType.trim();
+  if (b.status) changes.status = b.status;
+  if (b.timeMode === 'allday') changes.allDay = true;
+  if (b.timeMode === 'time') {
+    if (toMinutes(b.start) === null || toMinutes(b.end) === null) { toast('開始・終了時刻を入力してください', true); return; }
+    Object.assign(changes, { allDay: false, start: b.start, end: b.end });
+  }
+  if (b.client.trim()) changes.client = b.client.trim();
+  if (b.storeName.trim()) changes.storeName = b.storeName.trim();
+  if (!Object.keys(changes).length) { toast('変更する項目を入力してください', true); return; }
+
+  const at = nowIso();
+  const updatedById = {};
+  targets.forEach((j) => { updatedById[j.id] = applyJobChanges(j, changes, at); });
+
+  const missingWork = Object.keys(updatedById).filter((id) => updatedById[id].status === 'confirmed' && !(updatedById[id].workType || '').trim());
+  if (missingWork.length) {
+    toast(`業務内容が未入力の予定が${missingWork.length}件あります。確定にするには業務内容も入力してください`, true);
+    const el = $('bWorkType');
+    if (el) el.focus();
+    return;
+  }
+
+  const labels = [];
+  if (changes.title) labels.push(`案件名→${changes.title}`);
+  if (changes.workType) labels.push(`業務内容→${changes.workType}`);
+  if (changes.status) labels.push(`区分→${changes.status === 'confirmed' ? '確定' : '仮出勤'}`);
+  if (b.timeMode === 'allday') labels.push('時間→終日');
+  if (b.timeMode === 'time') labels.push(`時間→${b.start}〜${b.end}`);
+  if (changes.client) labels.push(`業態→${changes.client}`);
+  if (changes.storeName) labels.push(`店舗名→${changes.storeName}`);
+  let msg = `選んだ ${targets.length}件 の予定を変更します。\n\n${labels.map((l) => '・' + l).join('\n')}`;
+  const overlaps = countBulkConflicts(updatedById);
+  if (overlaps) msg += `\n\n⚠ 変更後、${overlaps}件 がほかの予定と時間が重なります。`;
+  msg += '\n\nよろしいですか？';
+  if (!(await customConfirm(msg))) return;
+
+  state.jobs = state.jobs.map((j) => updatedById[j.id] || j);
+  // 確定にした日は、休み希望を外して稼働扱いにそろえる（単日の登録と同じ扱い）
+  Object.keys(updatedById).forEach((id) => {
+    const j = updatedById[id];
+    if (j.status === 'confirmed' && state.wishes[j.date] === WISH_OFF) setWish(j.date, null, true);
+  });
+  saveState();
+  refreshWorkTypeOptions();
+  refreshProjectFilterOptions();
+  finishMultiAction();
+  toast(`${targets.length}件の予定を変更しました`);
+}
+
+/** 選んだ予定のうち、仮出勤をまとめて確定にする */
+async function bulkConfirmTentatives() {
+  const b = view.bulkForm = readBulkForm();
+  const tentative = bulkTargets().filter((j) => j.status === 'tentative');
+  if (!tentative.length) return;
+  const fallbackWork = b.workType.trim();
+  const missing = tentative.filter((j) => !(j.workType || '').trim());
+  if (missing.length && !fallbackWork) {
+    toast(`業務内容が未入力の仮出勤が${missing.length}件あります。下の「業務内容」を入力してから確定してください`, true);
+    const el = $('bWorkType');
+    if (el) el.focus();
+    return;
+  }
+  const lines = tentative.map((j) => `・${formatDate(j.date)} ${j.allDay ? '終日' : j.start + '〜' + j.end} ${j.title || '(無題)'}`).join('\n');
+  if (!(await customConfirm(`仮出勤 ${tentative.length}件 を確定にします。\n\n${lines}\n\nよろしいですか？`))) return;
+
+  const at = nowIso();
+  const ids = new Set(tentative.map((j) => j.id));
+  state.jobs = state.jobs.map((j) => {
+    if (!ids.has(j.id)) return j;
+    const changes = { status: 'confirmed' };
+    if (!(j.workType || '').trim()) changes.workType = fallbackWork;
+    return applyJobChanges(j, changes, at);
+  });
+  tentative.forEach((j) => { if (state.wishes[j.date] === WISH_OFF) setWish(j.date, null, true); });
+  saveState();
+  refreshWorkTypeOptions();
+  finishMultiAction();
+  toast(`${tentative.length}件を確定にしました`);
+}
+
+/** 選んだ予定をまとめて削除する */
+async function bulkDeleteSelected() {
+  const targets = bulkTargets();
+  if (!targets.length) return;
+  const lines = targets.slice(0, 12).map((j) => `・${formatDate(j.date)} ${j.allDay ? '終日' : j.start + '〜' + j.end} ${j.title || '(無題)'}`).join('\n')
+    + (targets.length > 12 ? `\n…ほか${targets.length - 12}件` : '');
+  if (!(await customConfirm(`選んだ ${targets.length}件 の予定を削除します。\n\n${lines}\n\n元に戻せません。よろしいですか？`))) return;
+  removeJobs(new Set(targets.map((j) => j.id)));
+  saveState();
+  refreshProjectFilterOptions();
+  finishMultiAction();
+  toast(`${targets.length}件の予定を削除しました`);
 }
 
 function submitJob(ev) {
@@ -2539,9 +2894,9 @@ function submitJob(ev) {
   view.confirming = false;
   view.ack = false;
   view.form = blankForm();
-  // 狭い画面ではポップアップのまま残ると裏の操作ができなくなるため閉じる
-  // （広い画面は続けて登録しやすいよう、これまでどおり開いたままにする）
-  if (window.innerWidth <= 900) { view.formOpen = false; view.popup = false; }
+  // 登録・更新したら入力画面を閉じて、その枠の内容表示に戻す（スマホはシートごと閉じる）
+  view.formOpen = false;
+  if (isNarrow()) view.popup = false;
   saveState();
 
   // 確定させたときは、同じ時間帯に残っている仮出勤をまとめて取り消せるようにする
@@ -2564,12 +2919,14 @@ function cleanupTentatives(confirmedId) {
   const names = leftovers
     .map((j) => `・${formatDate(j.date)} ${j.allDay ? '終日' : j.start + '〜' + j.end} ${j.title || '(無題)'}`)
     .join('\n');
-  if (!confirm(`確定した予定と重なっている仮出勤が ${leftovers.length}件 あります。\n\n${names}\n\nこれらを取り消しますか？（「キャンセル」で残します）`)) return;
-
-  const ids = new Set(leftovers.map((j) => j.id));
-  removeJobs(ids);
-  saveState();
-  toast(`仮出勤 ${ids.size}件 を取り消しました`);
+  customConfirm(`確定した予定と重なっている仮出勤が ${leftovers.length}件 あります。\n\n${names}\n\nこれらを取り消しますか？（「キャンセル」で残します）`).then((ok) => {
+    if (!ok) return;
+    const ids = new Set(leftovers.map((j) => j.id));
+    removeJobs(ids);
+    saveState();
+    renderAll();
+    toast(`仮出勤 ${ids.size}件 を取り消しました`);
+  });
 }
 
 /** 仮出勤カードの「確定にする」 */
@@ -2626,18 +2983,19 @@ function startDuplicate(id) {
   if (el) el.focus();
 }
 
-function deleteJob(id) {
+async function deleteJob(id) {
   const job = state.jobs.find((j) => j.id === id);
   if (!job) return;
-  if (!confirm(`「${job.title || '(無題)'}」（${formatDate(job.date, 'long')}）を削除します。よろしいですか？`)) return;
+  if (!(await customConfirm(`「${job.title || '(無題)'}」（${formatDate(job.date, 'long')}）を削除します。よろしいですか？`))) return;
   removeJobs(new Set([id]));
   if (view.editingId === id) {
     view.editingId = null;
     view.confirming = false;
     view.form = blankForm();
   }
-  // 狭い画面ではポップアップのまま残ると裏の操作ができなくなるため閉じる
-  if (window.innerWidth <= 900) { view.formOpen = false; view.popup = false; }
+  view.formOpen = false;
+  // 狭い画面ではシートのまま残ると裏の操作ができなくなるため閉じる
+  if (isNarrow()) view.popup = false;
   saveState();
   renderAll();
   toast('予定を削除しました');
@@ -2880,6 +3238,7 @@ function customConfirm(message) {
     confirmResolve = resolve;
     elConfirmMsg.textContent = message;
     elConfirmOverlay.hidden = false;
+    confirmOpenedAt = Date.now();
   });
 }
 function closeCustomConfirm(result) {
@@ -3077,23 +3436,88 @@ function moveMonth(delta) {
   renderAll();
 }
 
-/** 「選択のみ」でドラッグしたときに、複数選択モードへ切り替える */
-function switchToMulti() {
-  view.paint = 'multi';
+const PAINT_HINTS = {
+  none: '枠をタップすると、空いている枠はすぐに登録画面、予定がある枠はその内容（編集・確定・削除）が開きます。日付をタップすると、その日の内容と希望の設定が開きます。枠を長押し（パソコンはShift＋クリックかドラッグ）すると、複数の枠をまとめて登録・変更できます。◯稼働可・✕休み希望は、左端の日付をタップ（ドラッグ）して設定します。',
+  multi: 'まとめて操作中です。枠をタップで追加・解除できます（パソコンはドラッグ、スマホは長押ししたまま指でなぞると連続で選べます）。日付をタップすると、その日の枠をまとめて選べます。選んだら「登録」か「変更」を押してください。',
+  paint: 'まとめて入力中です。日付を1日だけタップすると確認してから登録します。日付の列をドラッグすると、複数日を確認なしで一括設定できます。終わったら「選択のみ」に戻してください。',
+};
+
+/** 操作モード（選択のみ／まとめて登録／稼働可／休み希望／未定に戻す）を切り替える */
+function setPaintMode(mode, opts) {
+  view.paint = mode || null;
+  if (view.paint !== 'multi') {
+    view.multi.clear();
+    view.multiAuto = false;
+  }
+  view.multiTab = null;
+  view.bulkForm = null;
+  view.bulkExclude.clear();
+  view.popup = false;
+  view.formOpen = false;
   view.editingId = null;
   view.confirming = false;
   view.ack = false;
   view.form = blankForm();
+  const tabKey = view.paint || 'off-mode';
   document.querySelectorAll('.sc-paint-tab').forEach((t) => {
-    t.classList.toggle('active', t.dataset.paint === 'multi');
+    t.classList.toggle('active', t.dataset.paint === tabKey);
   });
   const hint = $('paintHint');
-  if (hint) hint.textContent = 'まとめて登録中です。枠をクリックで追加・解除、ドラッグで連続選択できます。終わったら「選択のみ」に戻してください。';
+  if (hint) hint.textContent = !view.paint ? PAINT_HINTS.none : view.paint === 'multi' ? PAINT_HINTS.multi : PAINT_HINTS.paint;
   const cal = document.querySelector('.sc-calendar');
-  if (cal) cal.classList.add('sc-calendar-painting');
+  if (cal) cal.classList.toggle('sc-calendar-painting', !!view.paint);
+  if (!(opts && opts.noRender)) renderAll();
+}
+
+/** 「選択のみ」から、長押し・ドラッグ・Shiftクリックで複数選択モードへ切り替える */
+function switchToMulti() {
+  setPaintMode('multi', { noRender: true });
+  view.multiAuto = true;
+  view.selected = null;
+  view.slot = null;
+  updateSelectionMarks();
+}
+
+/** 選択中の枠・日付の枠線だけを付け替える（カレンダー全体を作り直さないので、タップの反応が速い） */
+function updateSelectionMarks() {
+  elCalendar.querySelectorAll('.sc-vcell-selected').forEach((el) => el.classList.remove('sc-vcell-selected'));
+  elCalendar.querySelectorAll('.sc-vdate-selected').forEach((el) => el.classList.remove('sc-vdate-selected'));
+  if (!view.selected) return;
+  const target = view.slot
+    ? elCalendar.querySelector(`[data-pick="${view.selected}|${view.slot}"]`)
+    : elCalendar.querySelector(`[data-role="date"][data-date="${view.selected}"]`);
+  if (target) target.classList.add(view.slot ? 'sc-vcell-selected' : 'sc-vdate-selected');
+}
+
+/** まとめて選択中の枠の見た目だけを付け替える */
+function updateMultiMark(pick) {
+  const cell = elCalendar.querySelector(`[data-pick="${pick}"]`);
+  if (!cell) return;
+  const on = view.multi.has(pick);
+  cell.classList.toggle('sc-vcell-multi', on);
+  const check = cell.querySelector('.sc-vcell-check');
+  if (on && !check) cell.insertAdjacentHTML('beforeend', '<span class="sc-vcell-check">✓</span>');
+  if (!on && check) check.remove();
+}
+
+/** 選択を追加・解除する（見た目は該当の枠だけ更新し、パネルは次の描画のときにまとめて更新する） */
+function setMultiPick(pick, on) {
+  if (on) view.multi.add(pick); else view.multi.delete(pick);
+  updateMultiMark(pick);
+  scheduleSidePanel();
+}
+
+let sidePanelFrame = 0;
+function scheduleSidePanel() {
+  if (sidePanelFrame) return;
+  sidePanelFrame = requestAnimationFrame(() => {
+    sidePanelFrame = 0;
+    renderSidePanel();
+  });
 }
 
 function selectDate(key, opts) {
+  const wasOpen = elSideAside && elSideAside.classList.contains('sc-side-modal-open');
   view.selected = key;
   view.slot = (opts && opts.slot) || null;
   view.formOpen = !!(opts && opts.openForm);
@@ -3106,12 +3530,23 @@ function selectDate(key, opts) {
   if (d.getMonth() !== view.month || d.getFullYear() !== view.year) {
     view.year = d.getFullYear();
     view.month = d.getMonth();
+    renderAll();
+  } else {
+    updateSelectionMarks();
+    renderSidePanel();
   }
-  renderAll();
+  if (!wasOpen && (view.formOpen || view.popup)) view.sheetOpenedAt = Date.now();
+  if (elSidePanel) elSidePanel.scrollTop = 0;
 }
 
-/** 登録フォームを閉じて、選んだ日の内容表示に戻す */
+/** 登録フォーム（シート）を閉じて、選んだ日の内容表示に戻す */
 function closeForm() {
+  if (view.paint === 'multi') {
+    // まとめて操作中は、入力途中の内容と選択は残したまま閉じるだけにする
+    view.popup = false;
+    renderSidePanel();
+    return;
+  }
   view.editingId = null;
   view.confirming = false;
   view.formOpen = false;
@@ -3121,12 +3556,43 @@ function closeForm() {
   renderSidePanel();
 }
 
-/** 狭い画面では、ダブルタップしたときの内容をカレンダーの上に重ねて表示する */
+function isNarrow() { return window.innerWidth <= 900; }
+
+/** 狭い画面では、選んだ枠の内容や登録画面をカレンダーの上に下からのシートで重ねて表示する */
 function updateSideModalState() {
   if (!elSideAside) return;
-  const open = (view.formOpen || view.popup) && view.paint !== 'multi' && window.innerWidth <= 900;
+  const open = isNarrow() && (view.paint === 'multi' ? view.popup : (view.formOpen || view.popup));
   elSideAside.classList.toggle('sc-side-modal-open', open);
   document.body.classList.toggle('sc-modal-open-body', open);
+  renderMultiBar();
+}
+
+/** スマホでまとめて選択しているときに、画面の下に出す操作バー */
+function renderMultiBar() {
+  const bar = $('multiBar');
+  if (!bar) return;
+  const show = view.paint === 'multi';
+  bar.hidden = !show;
+  document.body.classList.toggle('sc-has-multibar', show);
+  if (!show) return;
+  const n = view.multi.size;
+  const jobs = n ? multiSelectedJobs().length : 0;
+  bar.innerHTML = `
+    <div class="sc-multibar-info">
+      <strong>${n}枠</strong>を選択中${jobs ? `<span>（予定 ${jobs}件）</span>` : ''}
+      ${n ? '' : '<small>枠をタップして選んでください</small>'}
+    </div>
+    <div class="sc-multibar-actions">
+      <button type="button" class="sc-btn sc-btn-sm" data-multibar="add" ${n ? '' : 'disabled'}>＋ 登録</button>
+      ${jobs ? '<button type="button" class="sc-btn sc-btn-sm sc-btn-accent" data-multibar="edit">✎ 変更</button>' : ''}
+      ${n ? '<button type="button" class="sc-btn sc-btn-sm sc-btn-outline" data-multibar="clear">解除</button>' : ''}
+      <button type="button" class="sc-btn sc-btn-sm sc-btn-outline" data-multibar="exit">終了</button>
+    </div>`;
+}
+
+function clearLongPress() {
+  clearTimeout(longPressTimer);
+  longPressTimer = null;
 }
 
 function bindEvents() {
@@ -3160,18 +3626,8 @@ function bindEvents() {
   // まとめて入力モード
   document.querySelectorAll('.sc-paint-tab').forEach((tab) => {
     tab.addEventListener('click', () => {
-      document.querySelectorAll('.sc-paint-tab').forEach((t) => t.classList.remove('active'));
-      tab.classList.add('active');
       const v = tab.dataset.paint;
-      view.paint = v === 'off-mode' ? null : v;
-      if (view.paint !== 'multi') view.multi.clear();
-      view.ack = false;
-      view.form = blankForm();
-      renderAll();
-      $('paintHint').textContent = view.paint
-        ? 'まとめて入力中です。1日だけクリックすると確認してから登録します。ドラッグすると複数日を確認なしで一括設定できます。終わったら「選択のみ」に戻してください。'
-        : '日付をクリックすると詳細パネルが開きます。まとめて入力を選ぶと、クリック（ドラッグ）で一括設定できます。';
-      document.querySelector('.sc-calendar').classList.toggle('sc-calendar-painting', !!view.paint);
+      setPaintMode(v === 'off-mode' ? null : v);
     });
   });
 
@@ -3180,46 +3636,68 @@ function bindEvents() {
     const dateBtn = ev.target.closest('[data-role="date"]');
     const cell = ev.target.closest('[data-pick]');
     if (!dateBtn && !cell) return;
+    if (ev.button !== undefined && ev.button > 0) return;   // 右クリックなどは対象外
 
     // スマホでのスクロール操作との誤操作防止用に、押した位置を覚えておく
     paintPointerId = ev.pointerId;
-    paintIsTouch = ev.pointerType === 'touch';
+    paintIsTouch = ev.pointerType === 'touch' || ev.pointerType === 'pen';
     paintStartX = ev.clientX;
     paintStartY = ev.clientY;
+    longPressActive = false;
+    clearLongPress();
 
     // 希望の塗りは日付ラベルの列だけ。
     // ここではまだ反映しない（1回押しただけで休みになってしまう誤操作を防ぐため）。
-    // ドラッグして2日目に触れた時点でまとめて反映する。1日だけなら endPaint で選ぶだけにする。
+    // ドラッグして2日目に触れた時点でまとめて反映する。1日だけなら endPaint で確認する。
     if (dateBtn && view.paint && view.paint !== 'multi') {
       painting = true;
       paintTouched.clear();
       paintTouched.add(dateBtn.dataset.date);
-      renderCalendar();
       return;
     }
 
-    if (cell && view.paint === 'multi') {
-      painting = true;
-      paintTouched.clear();
-      paintTouched.add(cell.dataset.pick);
+    if (!cell) return;
+
+    // パソコンでShift／Ctrl／⌘を押しながらクリックすると、そのまま複数選択に入る
+    if (!view.paint && !paintIsTouch && (ev.shiftKey || ev.ctrlKey || ev.metaKey)) {
+      switchToMulti();
+      view.multi.add(cell.dataset.pick);
+      renderAll();
+      return;
+    }
+
+    painting = true;
+    paintTouched.clear();
+    paintTouched.add(cell.dataset.pick);
+
+    if (view.paint === 'multi') {
       paintAdd = !view.multi.has(cell.dataset.pick);
-      if (paintAdd) view.multi.add(cell.dataset.pick); else view.multi.delete(cell.dataset.pick);
-      renderCalendar();
-      renderSidePanel();
-      return;
+      // マウスは押した瞬間に切り替える（そのままドラッグで連続選択）。
+      // 指の場合はスクロールかもしれないので、離したときに切り替える（endPaint）。
+      if (!paintIsTouch) setMultiPick(cell.dataset.pick, paintAdd);
+    } else {
+      paintAdd = true;
     }
 
-    // 選択のみのときは、ドラッグでまとめて選べるようにする
-    if (cell && !view.paint) {
-      painting = true;
-      paintTouched.clear();
-      paintTouched.add(cell.dataset.pick);
-      paintAdd = true;
+    // 指で長押しすると、その枠から複数選択を始める（指を離さずになぞると続けて選べる）
+    if (paintIsTouch) {
+      const pick = cell.dataset.pick;
+      longPressTimer = setTimeout(() => {
+        longPressTimer = null;
+        if (!painting) return;
+        longPressActive = true;
+        // 指を置いたままの枠の要素を作り直すと、そのあとのなぞり操作が届かなくなるため、
+        // カレンダー全体は描き直さずに、その枠の見た目とパネルだけを更新する
+        if (view.paint !== 'multi') switchToMulti();
+        setMultiPick(pick, true);
+        paintAdd = true;
+        if (navigator.vibrate) { try { navigator.vibrate(15); } catch (err) { /* 振動できなくてもよい */ } }
+      }, LONG_PRESS_MS);
     }
   });
 
   elCalendar.addEventListener('pointerover', (ev) => {
-    if (!painting) return;
+    if (!painting || paintIsTouch) return;
 
     if (view.paint && view.paint !== 'multi') {
       const dateBtn = ev.target.closest('[data-role="date"]');
@@ -3239,41 +3717,70 @@ function bindEvents() {
     paintTouched.add(cell.dataset.pick);
 
     if (view.paint === 'multi') {
-      if (paintAdd) view.multi.add(cell.dataset.pick); else view.multi.delete(cell.dataset.pick);
+      setMultiPick(cell.dataset.pick, paintAdd);
     } else {
       // 選択のみでドラッグしたときは、その場で複数選択に切り替える
-      if (view.paint !== 'multi') switchToMulti();
-      paintTouched.forEach((pk) => view.multi.add(pk));
+      switchToMulti();
+      paintTouched.forEach((pk) => setMultiPick(pk, true));
     }
-    renderCalendar();
-    renderSidePanel();
   });
 
-  const endPaint = () => {
+  // 長押しが成立したあとは、指でなぞった枠を続けて選ぶ（画面のスクロールは止める）
+  elCalendar.addEventListener('touchmove', (ev) => {
+    if (!longPressActive || !painting) return;
+    ev.preventDefault();
+    const t = ev.touches[0];
+    if (!t) return;
+    const el = document.elementFromPoint(t.clientX, t.clientY);
+    const cell = el && el.closest ? el.closest('[data-pick]') : null;
+    if (!cell || paintTouched.has(cell.dataset.pick)) return;
+    paintTouched.add(cell.dataset.pick);
+    setMultiPick(cell.dataset.pick, paintAdd);
+  }, { passive: false });
+
+  // 長押しで出る文字選択・メニューを出さない
+  elCalendar.addEventListener('contextmenu', (ev) => {
+    if (ev.target.closest('[data-pick]') && (paintIsTouch || longPressActive)) ev.preventDefault();
+  });
+
+  const endPaint = (ev) => {
+    clearLongPress();
     if (!painting) return;
     painting = false;
-    if (view.paint === 'multi') { renderAll(); return; }
+    const wasLongPress = longPressActive;
+    longPressActive = false;
+    const isCancel = ev && ev.type === 'pointercancel';
+    // 指を離したこの瞬間にシートや確認を開くと、ブラウザがこのあと出すクリックが
+    // 開いたシートの中のボタン（削除など）に当たってしまう。指の操作ではそのクリックを捨てる
+    if (paintIsTouch && !isCancel) swallowTouchEnd = true;
+
+    if (view.paint === 'multi') {
+      // 指で1枠だけタップした（長押し・なぞりではない）ときは、ここで選択を切り替える
+      if (paintIsTouch && !wasLongPress && !isCancel && paintTouched.size === 1) {
+        const pick = Array.from(paintTouched)[0];
+        setMultiPick(pick, !view.multi.has(pick));
+      }
+      paintTouched.clear();
+      return;
+    }
     if (view.paint) {
       // 1日だけ押した（ドラッグしなかった）ときは、まだ何も変更していない。
       // 確認ダイアログでその場で確定できるようにする（誤タップ防止と、操作の軽さを両立させる）。
-      if (paintTouched.size === 1) confirmSingleDayPaint(Array.from(paintTouched)[0]);
+      if (paintTouched.size === 1) { if (!isCancel) confirmSingleDayPaint(Array.from(paintTouched)[0]); }
       else renderAll();   // ドラッグして複数日を触れた場合は pointerover 側ですでに反映済み
+      paintTouched.clear();
       return;
     }
-    // 選択のみ：1枠だけならその枠を選ぶ。
-    // 続けてもう一度押した（ダブルクリック／ダブルタップ）ときだけ登録フォームを開く。
-    // ただし、すでに予定がある枠は、誤って内容を触ってしまわないよう内容の確認だけにする
-    // （新規に追加したいときは「＋予定を登録」ボタンを押す）。
-    if (paintTouched.size === 1) {
+    // 選択のみ：1回タップするだけで開く。
+    //   空いている枠 … すぐに登録画面
+    //   予定がある枠 … その予定の内容（編集・確定・複製・削除のボタン付き）
+    if (paintTouched.size === 1 && !isCancel) {
       const pick = Array.from(paintTouched)[0];
-      const now = Date.now();
-      const isDouble = lastTapKey === pick && (now - lastTapAt) < DOUBLE_TAP_MS;
-      lastTapKey = pick;
-      lastTapAt = now;
       const [d, sid] = pick.split('|');
-      const openForm = isDouble && !jobsInSlot(d, sid).length;
-      selectDate(d, { slot: sid, openForm, popup: isDouble });
-      if (openForm) {
+      const openForm = !jobsInSlot(d, sid).length;
+      selectDate(d, { slot: sid, openForm, popup: true });
+      if (openForm && !isNarrow()) {
+        // スマホは自動で入力欄に移るとキーボードや選択肢が急に出てしまうので、パソコンだけにする
         const el = $('fTitle');
         if (el) el.focus();
       }
@@ -3282,61 +3789,103 @@ function bindEvents() {
   };
   window.addEventListener('pointerup', endPaint);
   window.addEventListener('pointercancel', endPaint);
+  window.addEventListener('touchend', (ev) => {
+    if (!swallowTouchEnd) return;
+    swallowTouchEnd = false;
+    if (ev.cancelable) ev.preventDefault();   // 続くマウス互換イベントとクリックを出さない
+  }, { capture: true, passive: false });
+  window.addEventListener('touchstart', () => { swallowTouchEnd = false; }, { capture: true, passive: true });
 
   // スマホでは、指を押した要素にそのままイベントが送られ続ける（他の枠に指が移っても
   // pointerover は飛ばない）ため、スクロールしようとして指が動いただけでも
   // 「1枠だけ押した」ことになり、そのままその枠が選ばれてしまう。
-  // 一定以上指が動いたらスクロール操作とみなし、選択操作を中止する。
+  // 一定以上指が動いたらスクロール操作とみなし、選択操作を中止する（長押しが成立したあとは除く）。
   window.addEventListener('pointermove', (ev) => {
-    if (!painting || !paintIsTouch || ev.pointerId !== paintPointerId) return;
+    if (!painting || !paintIsTouch || longPressActive || ev.pointerId !== paintPointerId) return;
     const dx = ev.clientX - paintStartX;
     const dy = ev.clientY - paintStartY;
     if (Math.hypot(dx, dy) > SCROLL_CANCEL_PX) {
       painting = false;
+      clearLongPress();
       paintTouched.clear();
     }
   }, { passive: true });
 
   // 念のため、画面が実際にスクロールされたときも同様に選択操作を中止する
   window.addEventListener('scroll', () => {
-    if (!painting) return;
+    if (!painting || longPressActive) return;
     painting = false;
+    clearLongPress();
     paintTouched.clear();
   }, { passive: true });
 
   elCalendar.addEventListener('click', (ev) => {
     const dateBtn = ev.target.closest('[data-role="date"]');
-    if (!dateBtn || view.paint) return;
-    const key = 'date|' + dateBtn.dataset.date;
-    const now = Date.now();
-    const isDouble = lastTapKey === key && (now - lastTapAt) < DOUBLE_TAP_MS;
-    lastTapKey = key;
-    lastTapAt = now;
-    const openForm = isDouble && !jobsOn(dateBtn.dataset.date).length;
-    selectDate(dateBtn.dataset.date, { openForm, popup: isDouble });
+    if (!dateBtn) return;
+    const key = dateBtn.dataset.date;
+    if (view.paint === 'multi') {
+      // まとめて操作中に日付をタップすると、その日の枠をまとめて選ぶ（すべて選んであれば解除）
+      const picks = SLOTS.map((sl) => key + '|' + sl.id);
+      const allOn = picks.every((pk) => view.multi.has(pk));
+      picks.forEach((pk) => setMultiPick(pk, !allOn));
+      return;
+    }
+    if (view.paint) return;
+    // 日付をタップ ＝ その日の内容（予定の一覧と希望の設定）を開く
+    selectDate(key, { popup: true });
   });
 
-  // スマホでポップアップ表示中は、背景（枠外）をタップすると閉じる
+  // スマホでシート表示中は、背景（枠外）をタップすると閉じる。
+  // ただし開いた直後のタップ（ダブルタップの癖など）では閉じない
   elSideAside.addEventListener('click', (ev) => {
-    if (ev.target === elSideAside && elSideAside.classList.contains('sc-side-modal-open')) closeForm();
+    if (ev.target !== elSideAside || !elSideAside.classList.contains('sc-side-modal-open')) return;
+    if (Date.now() - view.sheetOpenedAt < SHEET_GUARD_MS) return;
+    closeForm();
+  });
+
+  // スマホの「まとめて操作」バー
+  $('multiBar').addEventListener('click', (ev) => {
+    const btn = ev.target.closest('[data-multibar]');
+    if (!btn) return;
+    const act = btn.dataset.multibar;
+    if (act === 'exit') { setPaintMode(null); return; }
+    if (act === 'clear') {
+      Array.from(view.multi).forEach((pk) => setMultiPick(pk, false));
+      renderSidePanel();
+      return;
+    }
+    view.multiTab = act === 'edit' ? 'edit' : 'add';
+    view.popup = true;
+    view.sheetOpenedAt = Date.now();
+    renderSidePanel();
+    elSidePanel.scrollTop = 0;
   });
 
   // サイドパネル内の操作（委譲）
   elSidePanel.addEventListener('click', (ev) => {
     const unpick = ev.target.closest('[data-unpick]');
     if (unpick) {
-      view.multi.delete(unpick.dataset.unpick);
-      renderCalendar();
-      renderSidePanel();
+      setMultiPick(unpick.dataset.unpick, false);
       return;
     }
 
     if (ev.target.id === 'multiClear') {
-      view.multi.clear();
-      renderCalendar();
+      Array.from(view.multi).forEach((pk) => setMultiPick(pk, false));
+      return;
+    }
+
+    // まとめて操作：新しく登録／予定を変更 の切り替え
+    const multiTab = ev.target.closest('[data-multitab]');
+    if (multiTab) {
+      if (view.paint === 'multi' && $('jobForm')) view.form = readForm();
+      if ($('bulkForm')) view.bulkForm = readBulkForm();
+      view.multiTab = multiTab.dataset.multitab;
       renderSidePanel();
       return;
     }
+
+    if (ev.target.id === 'bulkConfirmBtn') { bulkConfirmTentatives(); return; }
+    if (ev.target.id === 'bulkDeleteBtn') { bulkDeleteSelected(); return; }
 
     const multiWish = ev.target.closest('[data-multiwish]');
     if (multiWish) {
@@ -3356,11 +3905,13 @@ function bindEvents() {
       const v = wishBtn.dataset.wish;
       const current = state.wishes[view.selected] || null;
       const next = (v === 'none' || current === v) ? null : v;
-      if (next === WISH_OFF && jobsOn(view.selected).length) {
-        if (!confirm('この日にはすでに予定が入っています。休み希望にしますか？')) return;
+      const target = view.selected;
+      const apply = () => { setWish(target, next); renderAll(); };
+      if (next === WISH_OFF && jobsOn(target).length) {
+        customConfirm('この日にはすでに予定が入っています。休み希望にしますか？').then((ok) => { if (ok) apply(); });
+      } else {
+        apply();
       }
-      setWish(view.selected, next);
-      renderAll();
       return;
     }
 
@@ -3368,8 +3919,9 @@ function bindEvents() {
       view.formOpen = true;
       view.form = blankForm();
       renderSidePanel();
+      elSidePanel.scrollTop = 0;
       const el = $('fTitle');
-      if (el) el.focus();
+      if (el && !isNarrow()) el.focus();
       return;
     }
 
@@ -3438,6 +3990,7 @@ function bindEvents() {
   elSidePanel.addEventListener('input', (ev) => {
     // 承知チェックは change 側で扱う（ここで警告欄を作り直すと反応が消えるため）
     if (ev.target.id === 'fAck') return;
+    if (ev.target.closest('#bulkForm')) { view.bulkForm = readBulkForm(); return; }
     if (!ev.target.closest('#jobForm')) return;
     view.form = readForm();
     updateFormAlert();
@@ -3450,16 +4003,36 @@ function bindEvents() {
   });
 
   elSidePanel.addEventListener('change', (ev) => {
+    // まとめて変更：対象の予定のチェック
+    const bulkPick = ev.target.closest('[data-bulk-pick]');
+    if (bulkPick) {
+      if (bulkPick.checked) view.bulkExclude.delete(bulkPick.dataset.bulkPick);
+      else view.bulkExclude.add(bulkPick.dataset.bulkPick);
+      view.bulkForm = readBulkForm();
+      renderSidePanel();
+      return;
+    }
+    if (ev.target.closest('#bulkForm')) {
+      view.bulkForm = readBulkForm();
+      if (ev.target.id === 'bTimeMode') {
+        const row = $('bTimeRow');
+        if (row) row.hidden = ev.target.value !== 'time';
+      }
+      return;
+    }
     if (ev.target.id === 'fAck') {
       view.ack = ev.target.checked;
       const btn = $('fSubmit');
       if (btn) btn.disabled = !view.ack;
       return;
     }
-    if (ev.target.id === 'fAllDay') {
+    if (ev.target.id === 'fAllDay' || ev.target.id === 'fUseSlotTime') {
       view.form = readForm();
+      const multi = view.paint === 'multi';
       const row = $('timeRow');
-      if (row) row.hidden = ev.target.checked;
+      if (row) row.hidden = view.form.allDay || (multi && view.form.useSlotTime);
+      const slotRow = $('useSlotTimeRow');
+      if (slotRow) slotRow.hidden = view.form.allDay;
       updateFormAlert();
       return;
     }
@@ -3494,6 +4067,7 @@ function bindEvents() {
 
   elSidePanel.addEventListener('submit', (ev) => {
     if (ev.target.id === 'jobForm') submitJob(ev);
+    if (ev.target.id === 'bulkForm') { ev.preventDefault(); applyBulkEdit(); }
   });
 
   // 重複バナー／一覧から日付へジャンプ
@@ -3833,7 +4407,7 @@ function bindEvents() {
   // キーボード操作
   document.addEventListener('keydown', (ev) => {
     if (ev.key === 'Escape' && !elConfirmOverlay.hidden) { closeCustomConfirm(false); return; }
-    if (ev.key === 'Escape' && elSideAside.classList.contains('sc-side-modal-open')) { closeForm(); return; }
+    if (ev.key === 'Escape' && (elSideAside.classList.contains('sc-side-modal-open') || (view.formOpen && !view.editingId))) { closeForm(); return; }
     if (ev.target.matches('input, textarea, select')) return;
     if (ev.key === 'ArrowLeft') moveMonth(-1);
     if (ev.key === 'ArrowRight') moveMonth(1);
@@ -3843,7 +4417,8 @@ function bindEvents() {
   elConfirmOk.addEventListener('click', () => closeCustomConfirm(true));
   elConfirmCancel.addEventListener('click', () => closeCustomConfirm(false));
   elConfirmOverlay.addEventListener('click', (ev) => {
-    if (ev.target === elConfirmOverlay) closeCustomConfirm(false);
+    // 開いた直後のタップ（日付をタップした指のクリック）では閉じない
+    if (ev.target === elConfirmOverlay && Date.now() - confirmOpenedAt > SHEET_GUARD_MS) closeCustomConfirm(false);
   });
 }
 

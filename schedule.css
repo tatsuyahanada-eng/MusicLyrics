@@ -489,8 +489,7 @@ textarea.sc-input { resize: vertical; line-height: 1.5; min-height: 2.6em; }
 .sc-vcell-confirmed { background: var(--sc-confirmed-bg); }
 .sc-vcell-tentative { background: var(--sc-tentative-bg); }
 .sc-vcell-conflict { background: var(--sc-conflict-bg); box-shadow: inset 0 0 0 2px var(--sc-conflict); }
-.sc-vcell-selected { box-shadow: inset 0 0 0 3px var(--sc-primary); }
-.sc-vcell-multi { box-shadow: inset 0 0 0 3px var(--sc-primary); background: rgba(30, 64, 175, 0.12); }
+.sc-vcell-multi { background: rgba(30, 64, 175, 0.12); }
 
 .sc-vcell-check {
   position: absolute;
@@ -1188,7 +1187,7 @@ textarea.sc-input { resize: vertical; line-height: 1.5; min-height: 2.6em; }
   font-size: 0.84rem;
   font-weight: 600;
   box-shadow: 0 6px 20px rgba(15, 23, 42, 0.28);
-  z-index: 100;
+  z-index: 250;   /* 下からのシート（200）の上、確認ダイアログ（300）の下 */
   animation: sc-toast-in 0.18s ease-out;
   max-width: 90vw;
   text-align: center;
@@ -1228,8 +1227,109 @@ textarea.sc-input { resize: vertical; line-height: 1.5; min-height: 2.6em; }
 .sc-confirm-actions { display: flex; gap: 8px; }
 .sc-confirm-actions .sc-btn { flex: 1; }
 
+/* ---- カレンダーのタップ・長押し ---- */
+/* 長押しで文字選択やメニューが出ないようにする（長押し＝複数選択の開始に使う） */
+.sc-vcell, .sc-vdate {
+  -webkit-touch-callout: none;
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-tap-highlight-color: transparent;
+}
+/* 選んだ枠の枠線は、予定バーの上にも見えるようにする */
+.sc-vcell-selected::after,
+.sc-vcell-multi::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  pointer-events: none;
+  box-shadow: inset 0 0 0 3px var(--sc-primary);
+}
+.sc-vcell-multi::after { background: rgba(30, 64, 175, 0.16); }
+.sc-vcell-check { z-index: 3; }
+.sc-vcell:active { background: rgba(30, 64, 175, 0.12); }
+
+/* ---- まとめて操作：新規登録／予定を変更 ---- */
+.sc-multi-tabs {
+  display: flex;
+  gap: 4px;
+  padding: 3px;
+  border-radius: 10px;
+  background: var(--sc-surface-2);
+  border: 1px solid var(--sc-border);
+}
+.sc-multi-tab {
+  flex: 1;
+  border: 0;
+  border-radius: 8px;
+  padding: 8px 6px;
+  font: inherit;
+  font-size: 0.82rem;
+  font-weight: 700;
+  background: transparent;
+  color: var(--sc-muted);
+  cursor: pointer;
+}
+.sc-multi-tab.active { background: var(--sc-surface); color: var(--sc-primary); box-shadow: var(--sc-shadow); }
+
+.sc-bulk-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  max-height: 220px;
+  overflow-y: auto;
+}
+.sc-bulk-item {
+  display: grid;
+  grid-template-columns: auto auto auto 1fr;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 8px;
+  border: 1px solid var(--sc-border);
+  border-left: 4px solid var(--sc-confirmed);
+  border-radius: 8px;
+  font-size: 0.8rem;
+  cursor: pointer;
+  background: var(--sc-surface);
+}
+.sc-bulk-item-tentative { border-left-color: var(--sc-tentative); }
+.sc-bulk-item input { width: 18px; height: 18px; margin: 0; }
+.sc-bulk-item-date { font-weight: 700; white-space: nowrap; }
+.sc-bulk-item-time { color: var(--sc-muted); white-space: nowrap; }
+.sc-bulk-item-title { font-weight: 700; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.sc-bulk-item-title small { display: block; font-weight: 500; color: var(--sc-muted); }
+.sc-bulk-quick { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+
+/* スマホでまとめて選択しているときの下部バー（パソコンでは右のパネルで操作するので出さない） */
+.sc-multibar { display: none; }
+
 /* ---- レスポンシブ ---- */
 @media (max-width: 900px) {
+  .sc-multibar:not([hidden]) {
+    display: flex;
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 60;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 6px 10px;
+    padding: 10px 12px calc(10px + env(safe-area-inset-bottom));
+    background: var(--sc-surface);
+    border-top: 2px solid var(--sc-primary);
+    box-shadow: 0 -6px 18px rgba(15, 23, 42, 0.18);
+    animation: sc-sheet-up 0.18s ease-out;
+  }
+  .sc-multibar-info { flex: 1 1 auto; font-size: 0.86rem; min-width: 0; }
+  .sc-multibar-info strong { color: var(--sc-primary); font-size: 1rem; }
+  .sc-multibar-info span { color: var(--sc-muted); }
+  .sc-multibar-info small { display: block; color: var(--sc-muted); font-size: 0.72rem; }
+  .sc-multibar-actions { display: flex; gap: 6px; flex-wrap: wrap; }
+  .sc-multibar-actions .sc-btn { min-height: 38px; }
+  body.sc-has-multibar { padding-bottom: 76px; }
+  body.sc-has-multibar .sc-toast { bottom: 92px; }
+
   .sc-main { grid-template-columns: minmax(0, 1fr); }
   .sc-side { position: static; max-height: none; display: block; }
   .sc-side-inner { max-height: none; }
@@ -1254,7 +1354,9 @@ textarea.sc-input { resize: vertical; line-height: 1.5; min-height: 2.6em; }
     inset: 0;
     z-index: 200;
     display: flex;
-    align-items: flex-end;
+    flex-direction: column;
+    justify-content: flex-end;   /* 画面の下からせり上がるシートにする */
+    max-height: none;
     background: rgba(15, 23, 42, 0.45);
   }
   .sc-side.sc-side-modal-open .sc-side-toolbar { display: none; }
@@ -1264,7 +1366,11 @@ textarea.sc-input { resize: vertical; line-height: 1.5; min-height: 2.6em; }
     margin: 0;
     border-radius: 16px 16px 0 0;
     box-shadow: 0 -8px 24px rgba(0, 0, 0, 0.3);
+    overscroll-behavior: contain;
+    padding-bottom: calc(16px + env(safe-area-inset-bottom));
+    animation: sc-sheet-up 0.2s ease-out;
   }
+  .sc-side.sc-side-modal-open { animation: sc-fade-in 0.15s ease-out; }
   .sc-side.sc-side-modal-open .sc-modal-close {
     display: block;
     position: sticky;
@@ -1341,6 +1447,7 @@ textarea.sc-input { resize: vertical; line-height: 1.5; min-height: 2.6em; }
 }
 
 @media print {
+  .sc-multibar { display: none !important; }
   * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
 
   html { height: auto; }
@@ -1443,4 +1550,15 @@ textarea.sc-input { resize: vertical; line-height: 1.5; min-height: 2.6em; }
 
   /* リンク・カーソル関連の見た目は印刷で意味を持たないため無効化 */
   .sc-vcell, .sc-vdate { cursor: default; }
+}
+
+@keyframes sc-sheet-up {
+  from { transform: translateY(24px); opacity: 0.4; }
+  to { transform: translateY(0); opacity: 1; }
+}
+@keyframes sc-fade-in {
+  from { background: rgba(15, 23, 42, 0); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .sc-side.sc-side-modal-open, .sc-side.sc-side-modal-open .sc-side-inner, .sc-multibar { animation: none !important; }
 }
