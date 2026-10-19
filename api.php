@@ -918,6 +918,34 @@ function require_admin_session($pdo) {
   if (!$s || !$s['is_admin']) fail('管理者としてログインしてください', 403);
   return $s;
 }
+// id から最上位（親の無い）祖先の大項目IDを返す。存在しないIDはそのまま返す。
+function cbc_root_of($pdo, $id) {
+  if ($id === null || $id === '') return $id;
+  try {
+    $rows = $pdo->query('SELECT id, parent_id FROM nodes')->fetchAll();
+  } catch (Throwable $e) { return $id; }
+  $parent = array(); foreach ($rows as $r) $parent[$r['id']] = $r['parent_id'];
+  $cur = $id; $g = 0;
+  while (isset($parent[$cur]) && $parent[$cur] !== null && $parent[$cur] !== '' && $g++ < 60) $cur = $parent[$cur];
+  return $cur;
+}
+// この項目（の大項目）を、このユーザーが書き込んでよいか。
+//   ・管理者は常に可
+//   ・一般ユーザーは、ユーザー権限で「許可」した大項目の配下のみ可
+//     （「この項目を編集」はもともと今見ている＝許可された項目にしか出ないが、
+//     APIを直接呼ばれた場合に備えてサーバー側でも必ず確認する）
+function cbc_node_write_allowed($pdo, $s, $nodeId) {
+  if ($s['is_admin']) return true;
+  $root = cbc_root_of($pdo, $nodeId);
+  if ($root === null || $root === '') return false;
+  return in_array($root, cbc_user_allowed($pdo, $s['username']), true);
+}
+// require_login に加えて、対象項目への書き込み権限も確認する（無ければ403）
+function require_node_write($pdo, $nodeId) {
+  $s = require_login($pdo);
+  if (!cbc_node_write_allowed($pdo, $s, $nodeId)) fail('この項目を編集する権限がありません', 403);
+  return $s;
+}
 // フラットなノード配列を、許可された大項目（＝ルート）配下だけに絞る
 function cbc_filter_allowed($rows, $allowed) {
   $allow = array(); foreach ($allowed as $a) $allow[$a] = true;
@@ -1076,6 +1104,12 @@ switch ($action) {
       $chk = $pdo->prepare('SELECT 1 FROM nodes WHERE id = ?');
       $chk->execute(array($parent));
       if (!$chk->fetchColumn()) fail('親項目が存在しません');
+      require_node_write($pdo, $parent); // 追加先の大項目に書き込み権限が必要
+    } else {
+      // 新しい大項目（カテゴリ）そのものの作成は管理者のみ。
+      // どの「許可」にも属さない項目を一般ユーザーが作れてしまうのを防ぐ。
+      $s = require_login($pdo);
+      if (!$s['is_admin']) fail('大項目の追加は管理者のみ行えます', 403);
     }
     $ord = $pdo->prepare('SELECT COALESCE(MAX(sort_order), -1) + 1 FROM nodes WHERE ' . ($parent === null ? 'parent_id IS NULL' : 'parent_id = ?'));
     $ord->execute($parent === null ? array() : array($parent));
@@ -1094,6 +1128,7 @@ switch ($action) {
     require_token();
     $d = body_json();
     if (empty($d['id'])) fail('id は必須です');
+    require_node_write($pdo, $d['id']); // 許可された大項目の配下のみ編集可
     $title = trim(isset($d['title']) ? $d['title'] : '');
     if ($title === '') fail('title は必須です');
     $who = cbc_node_author($pdo, $d);
@@ -1138,6 +1173,7 @@ switch ($action) {
     require_token();
     $d = body_json();
     if (empty($d['id'])) fail('id は必須です');
+    require_node_write($pdo, $d['id']); // 許可された大項目の配下のみ追記可
     $addBody = isset($d['body']) ? trim((string)$d['body']) : '';
     if ($addBody === '') fail('追記する内容を入力してください');
     $who = cbc_node_author($pdo, $d);
@@ -1228,6 +1264,7 @@ switch ($action) {
     require_token();
     $d = body_json();
     if (empty($d['id'])) fail('id は必須です');
+    require_node_write($pdo, $d['id']); // 許可された大項目の配下のみ並び替え可
     $dir = isset($d['dir']) && (int)$d['dir'] < 0 ? -1 : 1;
     $cur = $pdo->prepare('SELECT id, parent_id, sort_order FROM nodes WHERE id = ?');
     $cur->execute(array($d['id']));
@@ -1265,6 +1302,16 @@ switch ($action) {
     $id = $d['id'];
     $parent = isset($d['parent_id']) && $d['parent_id'] !== '' ? $d['parent_id'] : null;
     $beforeId = isset($d['before_id']) && $d['before_id'] !== '' ? $d['before_id'] : null;
+
+    // 移動元（今の大項目）に書き込み権限が必要
+    $s = require_node_write($pdo, $id);
+    // 新しい親が無い＝大項目そのものに昇格させる操作は、新規の大項目作成と同じ
+    // 重みを持つため管理者のみ。親がある場合は、その移動先の大項目にも権限が必要。
+    if ($parent === null) {
+      if (!$s['is_admin']) fail('大項目として独立させる操作は管理者のみ行えます', 403);
+    } else if (!cbc_node_write_allowed($pdo, $s, $parent)) {
+      fail('移動先を編集する権限がありません', 403);
+    }
 
     $q = $pdo->prepare('SELECT id FROM nodes WHERE id = ?');
     $q->execute(array($id));
