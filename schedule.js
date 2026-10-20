@@ -583,6 +583,16 @@ function isValidJob(j) {
     && typeof j.date === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(j.date);
 }
 
+/** 予定の見出し。タイトルが入っていればそれを、なければ案件名を使う（メインの表示用） */
+function jobHeading(j) {
+  return (j.subject || '').trim() || j.title || '(無題)';
+}
+
+/** タイトルがあるときだけ、案件名を補足として添える（タイトルが無いときは見出しが案件名なので重ねない） */
+function jobSubLabel(j) {
+  return (j.subject || '').trim() ? (j.title || '') : '';
+}
+
 function isValidTodo(t) {
   return t && typeof t === 'object' && typeof t.id === 'string' && typeof t.title === 'string';
 }
@@ -795,7 +805,7 @@ function renderCalendar() {
       if (view.selected === key && view.slot === slot.id) cls.push('sc-vcell-selected');
 
       const label = `${view.month + 1}月${d}日 ${slot.name}`
-        + (list.length ? ' ' + list.map((j) => j.title || '(無題)').join('、') : ' 空き');
+        + (list.length ? ' ' + list.map((j) => jobHeading(j)).join('、') : ' 空き');
 
       return `<button type="button" class="${cls.join(' ')}" data-date="${key}" data-slot="${slot.id}"`
         + ` data-pick="${pick}" aria-label="${escapeHtml(label)}">`
@@ -880,10 +890,11 @@ function jobBarHtml(j, dateKey, slotId, conflicts, style) {
   const tag = j.status === 'tentative' ? '<span class="sc-vbar-mark">仮</span>' : '';
   const timeLabel = j.allDay ? '終日' : `${shortTime(j.start)}〜${shortTime(j.end)}`;
   const tip = [formatDate(j.date), j.allDay ? '終日' : j.start + '〜' + j.end,
-    j.title, j.workType, j.client, j.storeName, j.place, j.address].filter(Boolean).join(' / ');
+    j.subject, j.title, j.workType, j.client, j.storeName, j.place, j.address].filter(Boolean).join(' / ');
   return `<div class="${cls.join(' ')}" data-date="${dateKey}" data-slot="${slotId}"`
     + ` style="${style}${colorStyle}" title="${escapeHtml(tip)}">`
-    + `<span class="sc-vbar-title">${tag}${escapeHtml(j.title || '(無題)')}</span>`
+    + `<span class="sc-vbar-title">${tag}${escapeHtml(jobHeading(j))}</span>`
+    + (jobSubLabel(j) ? `<span class="sc-vbar-proj">${escapeHtml(jobSubLabel(j))}</span>` : '')
     + `<span class="sc-vbar-time">${escapeHtml(timeLabel)}</span>`
     + `</div>`;
 }
@@ -921,6 +932,12 @@ function jobFormHtml(f) {
           <span class="sc-field-label">日付 <span aria-hidden="true">*</span></span>
           <input id="fDate" class="sc-input" type="date" value="${escapeHtml(f.date)}">
         </label>` : ''}
+
+        <label class="sc-field">
+          <span class="sc-field-label">タイトル（スケジュールにメインで表示）</span>
+          <input id="fSubject" class="sc-input" type="text" value="${escapeHtml(f.subject)}"
+            placeholder="例）〇〇店 レジ入替" autocomplete="off" enterkeyhint="next">
+        </label>
 
         <label class="sc-field">
           <span class="sc-field-label">案件名 <span aria-hidden="true">*</span></span>
@@ -1049,7 +1066,7 @@ function effectiveMultiTab() {
 }
 
 function blankBulkForm() {
-  return { title: '', workType: '', status: '', timeMode: '', start: state.settings.defStart, end: state.settings.defEnd, client: '', storeName: '' };
+  return { subject: '', title: '', workType: '', status: '', timeMode: '', start: state.settings.defStart, end: state.settings.defEnd, client: '', storeName: '' };
 }
 
 /** まとめて変更のフォーム（空欄・「変更しない」の項目はそのまま残す） */
@@ -1063,7 +1080,7 @@ function bulkFormHtml(targets) {
       <input type="checkbox" data-bulk-pick="${j.id}" ${checked ? 'checked' : ''}>
       <span class="sc-bulk-item-date">${formatDate(j.date)}</span>
       <span class="sc-bulk-item-time">${escapeHtml(time)}</span>
-      <span class="sc-bulk-item-title">${j.status === 'tentative' ? '<span class="sc-vbar-mark">仮</span>' : ''}${escapeHtml(j.title || '(無題)')}${j.workType ? `<small>${escapeHtml(j.workType)}</small>` : ''}</span>
+      <span class="sc-bulk-item-title">${j.status === 'tentative' ? '<span class="sc-vbar-mark">仮</span>' : ''}${escapeHtml(jobHeading(j))}${(jobSubLabel(j) || j.workType) ? `<small>${escapeHtml([jobSubLabel(j), j.workType].filter(Boolean).join(' / '))}</small>` : ''}</span>
     </label>`;
   }).join('');
 
@@ -1081,6 +1098,10 @@ function bulkFormHtml(targets) {
       <p class="sc-side-block-title">内容をまとめて変更</p>
       <p class="sc-hint">変えたい項目だけ入力してください。空欄・「変更しない」の項目は、それぞれの予定の内容がそのまま残ります。</p>
       <form id="bulkForm" class="sc-form">
+        <label class="sc-field">
+          <span class="sc-field-label">タイトル</span>
+          <input id="bSubject" class="sc-input" type="text" value="${escapeHtml(b.subject)}" placeholder="変更しない" autocomplete="off">
+        </label>
         <label class="sc-field">
           <span class="sc-field-label">案件名</span>
           <select id="bTitle" class="sc-input">
@@ -1232,7 +1253,7 @@ function renderSidePanel() {
     const gcalUrl = googleCalendarUrl(j);
     const others = findConflicts(j, null);
     const warn = others.length
-      ? `<p class="sc-job-warn">⚠ ${others.map((c) => (c.type === 'overlap' ? '時間が重複' : '移動時間が不足') + '：' + formatDate(c.job.date) + ' ' + escapeHtml(c.job.title || '(無題)')).join(' / ')}</p>`
+      ? `<p class="sc-job-warn">⚠ ${others.map((c) => (c.type === 'overlap' ? '時間が重複' : '移動時間が不足') + '：' + formatDate(c.job.date) + ' ' + escapeHtml(jobHeading(c.job))).join(' / ')}</p>`
       : '';
     const visitLines = jobVisits(j).map((addr) => {
       const icons = `<a class="sc-map-icon" href="${escapeHtml(mapUrl('google', addr))}" target="_blank" rel="noopener" title="Googleマップで開く">🗺️</a>` +
@@ -1243,8 +1264,9 @@ function renderSidePanel() {
       <div class="sc-job-card-top">
         <span class="sc-job-status">${tentative ? '仮出勤' : '確定'}</span>
         <span class="sc-job-time">${escapeHtml(time)}</span>
-        <span class="sc-job-title">${escapeHtml(j.title || '(無題)')}</span>
+        <span class="sc-job-title">${escapeHtml(jobHeading(j))}</span>
       </div>
+      ${jobSubLabel(j) ? `<p class="sc-job-meta sc-job-proj">案件：${escapeHtml(jobSubLabel(j))}</p>` : ''}
       ${j.workType ? `<p class="sc-job-meta"><span class="sc-worktype-tag">${escapeHtml(j.workType)}</span></p>` : ''}
       ${meta ? `<p class="sc-job-meta">${meta}</p>` : ''}
       ${visitLines}
@@ -1378,7 +1400,7 @@ function renderConflictBanner() {
   const dates = Array.from(new Set(list.map((j) => j.date))).sort();
   const items = dates.slice(0, 8).map((d) => {
     const names = list.filter((j) => j.date === d)
-      .map((j) => escapeHtml(j.title || '(無題)')).join(' ／ ');
+      .map((j) => escapeHtml(jobHeading(j))).join(' ／ ');
     return `<li><button type="button" class="sc-btn sc-btn-sm sc-btn-outline" data-goto="${d}">${formatDate(d, 'long')}</button> ${names}</li>`;
   }).join('');
 
@@ -1425,7 +1447,8 @@ function renderJobList() {
       <span class="sc-joblist-badge ${tentative ? 'sc-badge-tentative' : 'sc-badge-confirmed'}">${tentative ? '仮出勤' : '確定'}</span>
       <span class="sc-joblist-date">${formatDate(j.date)}</span>
       <span class="sc-joblist-time">${escapeHtml(time)}</span>
-      <span class="sc-joblist-title">${escapeHtml(j.title || '(無題)')}</span>
+      <span class="sc-joblist-title">${escapeHtml(jobHeading(j))}</span>
+      ${jobSubLabel(j) ? `<span class="sc-joblist-proj">${escapeHtml(jobSubLabel(j))}</span>` : ''}
       ${j.workType ? `<span class="sc-worktype-tag">${escapeHtml(j.workType)}</span>` : ''}
       ${meta ? `<span class="sc-joblist-meta">${meta}</span>` : ''}
       ${conflicts.has(j.id) ? '<span class="sc-joblist-warn">⚠ 重複</span>' : ''}
@@ -1763,8 +1786,8 @@ function buildJobsText() {
   ];
   list.forEach((j) => {
     const time = j.allDay ? '終日' : `${j.start}〜${j.end}`;
-    const meta = [j.workType, j.client, j.storeName, j.place, j.address].filter(Boolean).join(' / ');
-    lines.push(`・[${j.status === 'tentative' ? '仮出勤' : '確定'}] ${formatDate(j.date)} ${time} ${j.title || '(無題)'}`
+    const meta = [jobSubLabel(j), j.workType, j.client, j.storeName, j.place, j.address].filter(Boolean).join(' / ');
+    lines.push(`・[${j.status === 'tentative' ? '仮出勤' : '確定'}] ${formatDate(j.date)} ${time} ${jobHeading(j)}`
       + (meta ? `（${meta}）` : ''));
   });
   return lines.join('\n');
@@ -2112,13 +2135,14 @@ function icsTargetJobs() {
 
 /**
  * タイトル・住所・説明文のテンプレートに、その予定の内容を差し込む。
- * {案件名}{業態}{店舗名}{業務内容}{住所}{日付}{開始}{終了}{メモ} が使える
+ * {案件名}{タイトル}{業態}{店舗名}{業務内容}{住所}{日付}{開始}{終了}{メモ} が使える
  * （{依頼元}は{業態}、{店舗}は{店舗名}、{開始時間}{終了時間}は{開始}{終了}と同じ意味で使える。
  * 　{場所}も過去との互換のため残しているが、入力欄が無いため常に空になる）。
  */
 function fillTemplate(tpl, job) {
   const map = {
     '案件名': job.title || '',
+    'タイトル': job.subject || '',
     '依頼元': job.client || '',
     '業態': job.client || '',
     '業務内容': job.workType || '',
@@ -2133,13 +2157,13 @@ function fillTemplate(tpl, job) {
     '終了時間': job.allDay ? '' : (job.end || ''),
     'メモ': job.note || '',
   };
-  return String(tpl).replace(/\{(案件名|依頼元|業態|業務内容|場所|店舗名|店舗|住所|日付|開始時間|終了時間|開始|終了|メモ)\}/g, (m, key) => map[key]);
+  return String(tpl).replace(/\{(案件名|タイトル|依頼元|業態|業務内容|場所|店舗名|店舗|住所|日付|開始時間|終了時間|開始|終了|メモ)\}/g, (m, key) => map[key]);
 }
 
 function icsSummary(job, prefix) {
   const tentative = job.status === 'tentative';
   const cfg = state.settings.projectCalendar[job.title];
-  const base = (cfg && cfg.title && cfg.title.trim()) ? fillTemplate(cfg.title, job) : (job.title || '(無題)');
+  const base = (cfg && cfg.title && cfg.title.trim()) ? fillTemplate(cfg.title, job) : jobHeading(job);
   return (prefix ? prefix : '') + (tentative ? '【仮】' : '') + base;
 }
 
@@ -2159,6 +2183,8 @@ function icsDescription(job) {
     if (cfg.description && cfg.description.trim()) return fillTemplate(cfg.description, job);
   }
   return [
+    job.subject ? 'タイトル: ' + job.subject : '',
+    job.title ? '案件名: ' + job.title : '',
     job.workType ? '業務内容: ' + job.workType : '',
     job.client ? '業態: ' + job.client : '',
     job.storeName ? '店舗名: ' + job.storeName : '',
@@ -2312,7 +2338,7 @@ function blankForm() {
   const slot = view.slot ? slotById(view.slot) : null;
   return {
     date: view.selected || todayKey(),
-    titleSel: '', titleFree: '', workType: '', status: 'confirmed', allDay: false,
+    subject: '', titleSel: '', titleFree: '', workType: '', status: 'confirmed', allDay: false,
     start: slot ? slot.start : state.settings.defStart,
     end: slot ? slot.end : state.settings.defEnd,
     clientSel: '', clientFree: '', storeName: '', place: '', address: '', extraAddresses: [], note: '',
@@ -2327,6 +2353,7 @@ function formFromJob(job) {
   const knownClient = businessTypesForProject(title).includes(client);
   return {
     date: job.date,
+    subject: job.subject || '',
     titleSel: title ? (preset ? title : PROJECT_FREE) : '',
     titleFree: preset ? '' : title,
     workType: job.workType || '',
@@ -2354,6 +2381,7 @@ function readForm() {
   }
   return {
     date: dateEl ? dateEl.value : (view.selected || ''),
+    subject: $('fSubject').value,
     titleSel: $('fTitle').value,
     titleFree: $('fTitleFree').value,
     workType: $('fWorkType').value,
@@ -2400,6 +2428,7 @@ function draftJob() {
     allDay: !!f.allDay,
     start: f.start || state.settings.defStart,
     end: f.end || state.settings.defEnd,
+    subject: (f.subject || '').trim(),
     title: formTitle(f),
     workType: f.workType.trim(),
     client: formClient(f),
@@ -2483,7 +2512,7 @@ function updateFormAlert() {
     const items = conflicts.map((c) => {
       const t = c.job.allDay ? '終日' : `${c.job.start}〜${c.job.end}`;
       const kind = c.type === 'overlap' ? '時間が重複' : `移動・準備時間（${state.settings.bufferMin}分）が不足`;
-      return `<li>${formatDate(c.job.date)} ${escapeHtml(t)} ${escapeHtml(c.job.title || '(無題)')} … ${kind}</li>`;
+      return `<li>${formatDate(c.job.date)} ${escapeHtml(t)} ${escapeHtml(jobHeading(c.job))} … ${kind}</li>`;
     }).join('');
     const cls = overlaps.length ? 'sc-alert-danger' : 'sc-alert-warn';
     const head = overlaps.length
@@ -2579,7 +2608,7 @@ function updateMultiFormAlert(alertBox) {
     const found = multiConflicts();
     if (found.length) {
       const items = found.map((r) => {
-        const names = r.conflicts.map((c) => escapeHtml(c.job.title || '(無題)')
+        const names = r.conflicts.map((c) => escapeHtml(jobHeading(c.job))
           + (c.type === 'overlap' ? '（時間が重複）' : '（間隔が不足）')).join('、');
         return `<li>${formatDate(r.date)} ${escapeHtml(r.slotName)}：${names}</li>`;
       }).join('');
@@ -2676,6 +2705,7 @@ function finishMultiAction() {
 function readBulkForm() {
   if (!$('bulkForm')) return view.bulkForm || blankBulkForm();
   return {
+    subject: $('bSubject').value,
     title: $('bTitle').value,
     workType: $('bWorkType').value,
     status: $('bStatus').value,
@@ -2716,6 +2746,7 @@ async function applyBulkEdit() {
   const b = view.bulkForm = readBulkForm();
 
   const changes = {};
+  if (b.subject.trim()) changes.subject = b.subject.trim();
   if (b.title) changes.title = b.title;
   if (b.workType.trim()) changes.workType = b.workType.trim();
   if (b.status) changes.status = b.status;
@@ -2741,6 +2772,7 @@ async function applyBulkEdit() {
   }
 
   const labels = [];
+  if (changes.subject) labels.push(`タイトル→${changes.subject}`);
   if (changes.title) labels.push(`案件名→${changes.title}`);
   if (changes.workType) labels.push(`業務内容→${changes.workType}`);
   if (changes.status) labels.push(`区分→${changes.status === 'confirmed' ? '確定' : '仮出勤'}`);
@@ -2780,7 +2812,7 @@ async function bulkConfirmTentatives() {
     if (el) el.focus();
     return;
   }
-  const lines = tentative.map((j) => `・${formatDate(j.date)} ${j.allDay ? '終日' : j.start + '〜' + j.end} ${j.title || '(無題)'}`).join('\n');
+  const lines = tentative.map((j) => `・${formatDate(j.date)} ${j.allDay ? '終日' : j.start + '〜' + j.end} ${jobHeading(j)}`).join('\n');
   if (!(await customConfirm(`仮出勤 ${tentative.length}件 を確定にします。\n\n${lines}\n\nよろしいですか？`))) return;
 
   const at = nowIso();
@@ -2802,7 +2834,7 @@ async function bulkConfirmTentatives() {
 async function bulkDeleteSelected() {
   const targets = bulkTargets();
   if (!targets.length) return;
-  const lines = targets.slice(0, 12).map((j) => `・${formatDate(j.date)} ${j.allDay ? '終日' : j.start + '〜' + j.end} ${j.title || '(無題)'}`).join('\n')
+  const lines = targets.slice(0, 12).map((j) => `・${formatDate(j.date)} ${j.allDay ? '終日' : j.start + '〜' + j.end} ${jobHeading(j)}`).join('\n')
     + (targets.length > 12 ? `\n…ほか${targets.length - 12}件` : '');
   if (!(await customConfirm(`選んだ ${targets.length}件 の予定を削除します。\n\n${lines}\n\n元に戻せません。よろしいですか？`))) return;
   removeJobs(new Set(targets.map((j) => j.id)));
@@ -2917,7 +2949,7 @@ function cleanupTentatives(confirmedId) {
   if (!leftovers.length) return;
 
   const names = leftovers
-    .map((j) => `・${formatDate(j.date)} ${j.allDay ? '終日' : j.start + '〜' + j.end} ${j.title || '(無題)'}`)
+    .map((j) => `・${formatDate(j.date)} ${j.allDay ? '終日' : j.start + '〜' + j.end} ${jobHeading(j)}`)
     .join('\n');
   customConfirm(`確定した予定と重なっている仮出勤が ${leftovers.length}件 あります。\n\n${names}\n\nこれらを取り消しますか？（「キャンセル」で残します）`).then((ok) => {
     if (!ok) return;
@@ -2986,7 +3018,7 @@ function startDuplicate(id) {
 async function deleteJob(id) {
   const job = state.jobs.find((j) => j.id === id);
   if (!job) return;
-  if (!(await customConfirm(`「${job.title || '(無題)'}」（${formatDate(job.date, 'long')}）を削除します。よろしいですか？`))) return;
+  if (!(await customConfirm(`「${jobHeading(job)}」（${formatDate(job.date, 'long')}）を削除します。よろしいですか？`))) return;
   removeJobs(new Set([id]));
   if (view.editingId === id) {
     view.editingId = null;
@@ -3408,7 +3440,7 @@ function checkUpcomingNotifications(nowArg) {
     const timing = remain > 0 ? `あと${remain}分で開始` : remain < 0 ? `${-remain}分前に開始` : 'まもなく開始';
     const body = [j.workType, j.client, j.storeName, j.place].filter(Boolean).join(' / ') || `${j.start}〜${j.end}`;
     try {
-      const n = new Notification(`${j.title || '予定'}（${timing}）`, { body, tag: key });
+      const n = new Notification(`${(j.subject || '').trim() || j.title || '予定'}（${timing}）`, { body, tag: key });
       n.onclick = () => { window.focus(); n.close(); };
     } catch (err) { /* 通知が出せなくても動作には影響しない */ }
   });

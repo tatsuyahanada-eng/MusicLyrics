@@ -538,7 +538,27 @@ textarea.sc-input { resize: vertical; line-height: 1.5; min-height: 2.6em; }
   line-height: 1.2;
   overflow: hidden;
   text-overflow: ellipsis;
+  /* タイトルがメインの表示。長いときは2行まで折り返して、なるべく読み切れるようにする */
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  word-break: break-all;
+}
+/* 案件名は補足として小さく（スマホは枠が狭いので色と詳細で分かる。広い画面でだけ添える） */
+.sc-vbar-proj {
+  display: none;
+  max-width: 100%;
+  font-size: 0.58rem;
+  font-weight: 600;
+  line-height: 1.1;
+  opacity: 0.85;
+  overflow: hidden;
+  text-overflow: ellipsis;
   white-space: nowrap;
+}
+@media (min-width: 901px) {
+  .sc-vbar-proj { display: block; }
 }
 .sc-vbar-time {
   font-size: 0.6rem;
@@ -575,7 +595,8 @@ textarea.sc-input { resize: vertical; line-height: 1.5; min-height: 2.6em; }
   min-height: 0;
   margin: 0;
 }
-.sc-vbar-stack .sc-vbar-title { font-size: 0.62rem; }
+.sc-vbar-stack .sc-vbar-title { font-size: 0.62rem; -webkit-line-clamp: 1; line-clamp: 1; }
+.sc-vbar-stack .sc-vbar-proj { display: none; }
 .sc-vbar-stack .sc-vbar-time { font-size: 0.52rem; }
 
 .sc-slot-badge {
@@ -1030,6 +1051,15 @@ textarea.sc-input { resize: vertical; line-height: 1.5; min-height: 2.6em; }
 .sc-joblist-date { font-weight: 800; min-width: 6.5em; font-variant-numeric: tabular-nums; }
 .sc-joblist-time { color: #475569; font-variant-numeric: tabular-nums; min-width: 8.5em; font-weight: 600; }
 .sc-joblist-title { font-weight: 700; }
+.sc-joblist-proj {
+  font-size: 0.7rem;
+  font-weight: 600;
+  color: var(--sc-muted);
+  border: 1px solid var(--sc-border);
+  border-radius: 999px;
+  padding: 0 7px;
+}
+.sc-job-proj { font-weight: 600; }
 .sc-joblist-meta { color: var(--sc-muted); font-size: 0.76rem; }
 .sc-joblist-warn { color: #b91c1c; font-size: 0.76rem; font-weight: 800; }
 
