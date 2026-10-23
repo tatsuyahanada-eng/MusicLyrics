@@ -203,7 +203,7 @@ function lp_version_series(array $entries): array
 }
 
 /* ============================================================
-   添付ファイル（画像・PDF・ZIP）のアップロード
+   添付ファイル（画像・PDF・Excel・Word・ZIP）のアップロード
    ============================================================ */
 
 /** アップロードを許可する拡張子と、それぞれで許容する MIME タイプ */
@@ -216,6 +216,16 @@ function lp_upload_allowed_types(): array
         'gif'  => ['image/gif'],
         'webp' => ['image/webp'],
         'pdf'  => ['application/pdf'],
+        // Word・Excel の旧形式（doc/xls）は共通のファイル形式（OLE2）を使っており、
+        // サーバーの環境によって中身の判定結果が割れるため幅を持たせる
+        'doc'  => ['application/msword', 'application/x-ole-storage', 'application/octet-stream'],
+        'xls'  => ['application/vnd.ms-excel', 'application/x-ole-storage', 'application/octet-stream'],
+        // 新形式（docx/xlsx）は実体が ZIP のため、ZIP や汎用の MIME として
+        // 報告されることがある
+        'docx' => ['application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+                   'application/zip', 'application/octet-stream'],
+        'xlsx' => ['application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+                   'application/zip', 'application/octet-stream'],
         // ZIP は OS やブラウザによって報告される MIME がまちまちなので幅を持たせる
         'zip'  => ['application/zip', 'application/x-zip-compressed', 'application/octet-stream'],
     ];
@@ -265,7 +275,7 @@ function lp_validate_upload(array $file): array
     $ext  = strtolower(pathinfo($name, PATHINFO_EXTENSION));
     $allowed = lp_upload_allowed_types();
     if ($ext === '' || !isset($allowed[$ext])) {
-        return ['ok' => false, 'error' => '画像（jpg / png / gif / webp）・PDF・ZIP のみアップロードできます。'];
+        return ['ok' => false, 'error' => '画像（jpg / png / gif / webp）・PDF・Excel（xls / xlsx）・Word（doc / docx）・ZIP のみアップロードできます。'];
     }
 
     // 拡張子を偽装しただけのファイルを弾くため、中身の MIME も確認する

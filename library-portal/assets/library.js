@@ -1254,7 +1254,7 @@ function openUpdateModal(itemId, uid) {
   $('fSummary').focus();
 }
 
-const UPLOAD_ALLOWED_EXT = ['jpg', 'jpeg', 'png', 'gif', 'webp', 'pdf', 'zip'];
+const UPLOAD_ALLOWED_EXT = ['jpg', 'jpeg', 'png', 'gif', 'webp', 'pdf', 'doc', 'docx', 'xls', 'xlsx', 'zip'];
 
 /**
  * この登録・修正を保存すると版数がいくつになるかを、保存前に見積もる。
@@ -1301,7 +1301,7 @@ async function submitUpdate(ev) {
   if (file) {
     const ext = (file.name.split('.').pop() || '').toLowerCase();
     if (!UPLOAD_ALLOWED_EXT.includes(ext)) {
-      formError('updateError', '画像（jpg / png / gif / webp）・PDF・ZIP のみアップロードできます。');
+      formError('updateError', '画像（jpg / png / gif / webp）・PDF・Excel（xls / xlsx）・Word（doc / docx）・ZIP のみアップロードできます。');
       return;
     }
     const max = (LP_CFG && LP_CFG.uploadMaxBytes) || 20 * 1024 * 1024;
@@ -1513,7 +1513,7 @@ async function submitItem(ev) {
   if (file) {
     const ext = (file.name.split('.').pop() || '').toLowerCase();
     if (!UPLOAD_ALLOWED_EXT.includes(ext)) {
-      formError('itemError', '画像（jpg / png / gif / webp）・PDF・ZIP のみアップロードできます。');
+      formError('itemError', '画像（jpg / png / gif / webp）・PDF・Excel（xls / xlsx）・Word（doc / docx）・ZIP のみアップロードできます。');
       return;
     }
     const max = (LP_CFG && LP_CFG.uploadMaxBytes) || 20 * 1024 * 1024;

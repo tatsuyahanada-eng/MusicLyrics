@@ -4,7 +4,7 @@
  * PUT    api/updates.php … 登録済みの更新履歴を1件修正（管理者・編集者）
  * DELETE api/updates.php … 登録済みの更新履歴を1件削除（管理者・編集者）
  *
- * 添付ファイル（画像・PDF・ZIP）を送る場合は multipart/form-data、
+ * 添付ファイル（画像・PDF・Excel・Word・ZIP）を送る場合は multipart/form-data、
  * 送らない場合は今まで通り JSON のどちらでも受け付ける。
  */
 declare(strict_types=1);
@@ -191,7 +191,7 @@ try {
         }
     }
 
-    // ---- 添付ファイル（画像・PDF・ZIP）----
+    // ---- 添付ファイル（画像・PDF・Excel・Word・ZIP）----
     if ($hasFileCols) {
         if ($newFile !== null) {
             // 新しいファイルを保存する（既存があれば、コミット後に置き換える）

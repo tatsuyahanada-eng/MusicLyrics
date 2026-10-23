@@ -29,7 +29,7 @@ return [
     // セッションの有効時間（分）。無操作がこの時間続くと再ログインが必要。
     'session_minutes' => 480,
 
-    // 更新履歴に添付できるファイル（画像・PDF・ZIP）の上限サイズ（バイト）。
+    // 更新履歴に添付できるファイル（画像・PDF・Excel・Word・ZIP）の上限サイズ（バイト）。
     // 省略時は 20MB。さくらのサーバー側の upload_max_filesize / post_max_size が
     // これより小さいと、そちらの上限が先に効くので docs/deploy-sakura.md も参照してください。
     'upload_max_bytes' => 20 * 1024 * 1024,

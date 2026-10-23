@@ -187,9 +187,9 @@ $dbMissing = $canEdit ? lp_missing_columns() : [];
           <code> : </code>（半角スペース＋コロン＋半角スペース）で区切ると、履歴に表として並びます。</span>
       </label>
       <label class="lp-field">
-        <span class="lp-field-label">添付ファイル（画像・PDF・ZIP）</span>
+        <span class="lp-field-label">添付ファイル（画像・PDF・Excel・Word・ZIP）</span>
         <input id="fAttachment" class="lp-input" type="file"
-               accept=".jpg,.jpeg,.png,.gif,.webp,.pdf,.zip,image/jpeg,image/png,image/gif,image/webp,application/pdf,application/zip">
+               accept=".jpg,.jpeg,.png,.gif,.webp,.pdf,.doc,.docx,.xls,.xlsx,.zip,image/jpeg,image/png,image/gif,image/webp,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/zip">
         <span class="lp-field-hint">この版で配布するファイルをそのまま保存できます（上限 <span id="fAttachmentLimit">20MB</span>）。
           更新ごとに保存されるので、過去のバージョンのファイルもあとから取り出せます。</span>
         <div class="lp-attach-current" id="fAttachmentCurrent" hidden>
@@ -254,7 +254,7 @@ $dbMissing = $canEdit ? lp_missing_columns() : [];
       <label class="lp-field"><span class="lp-field-label">説明</span>
         <textarea id="iDesc" class="lp-input lp-textarea" rows="3"></textarea></label>
       <label class="lp-field" id="iAttachmentField">
-        <span class="lp-field-label" id="iAttachmentLabel">添付ファイル（画像・PDF・ZIP）</span>
+        <span class="lp-field-label" id="iAttachmentLabel">添付ファイル（画像・PDF・Excel・Word・ZIP）</span>
         <div class="lp-attach-current" id="iAttachmentCurrent" hidden>
           <img class="lp-attach-thumb" id="iAttachmentThumb" alt="添付画像のプレビュー" hidden>
           <span class="lp-attach-current-info">
@@ -264,7 +264,7 @@ $dbMissing = $canEdit ? lp_missing_columns() : [];
           <label class="lp-attach-remove"><input type="checkbox" id="iRemoveAttachment"> このファイルを削除する</label>
         </div>
         <input id="iAttachment" class="lp-input" type="file"
-               accept=".jpg,.jpeg,.png,.gif,.webp,.pdf,.zip,image/jpeg,image/png,image/gif,image/webp,application/pdf,application/zip">
+               accept=".jpg,.jpeg,.png,.gif,.webp,.pdf,.doc,.docx,.xls,.xlsx,.zip,image/jpeg,image/png,image/gif,image/webp,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/zip">
         <span class="lp-field-hint" id="iAttachmentHint">初版として配布するファイルをここから登録できます（上限 20MB）。
           あとから「この資料の更新を登録」でも追加できます。</span>
         <span class="lp-field-hint lp-field-hint-warn" id="iAttachmentNote" hidden>
@@ -320,7 +320,7 @@ $dbMissing = $canEdit ? lp_missing_columns() : [];
       uploadMaxBytes: <?= (int)lp_upload_max_bytes() ?>
     };
   </script>
-  <script src="assets/library.js?v=45"></script>
+  <script src="assets/library.js?v=46"></script>
   <script src="assets/pwa.js?v=2"></script>
   <script>
     // インストール導線：すぐに実行できる端末ではその場で、それ以外は案内ページへ
