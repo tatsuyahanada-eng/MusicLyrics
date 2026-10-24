@@ -1563,17 +1563,12 @@ textarea.sc-input { resize: vertical; line-height: 1.5; min-height: 2.6em; }
   html { height: auto; }
   .sc-body { background: #fff; font-size: 9px; }
 
-  /* カレンダーと今月の予定一覧以外は印刷しない（印刷ボタン自体も含む） */
+  /* カレンダーと稼働状況の集計以外は印刷しない（予定一覧・印刷ボタンも含む） */
   .sc-header, .sc-monthnav, #conflictBanner, .sc-output-row,
-  .sc-side, .sc-section, .sc-toast { display: none !important; }
+  .sc-side, .sc-section, #printJobListSection, .sc-toast { display: none !important; }
 
-  /* 左：カレンダー、右：今月の予定一覧　を並べる */
-  .sc-body {
-    display: grid;
-    grid-template-columns: 1.65fr 1fr;
-    align-items: start;
-    gap: 10px;
-  }
+  /* カレンダーを用紙いっぱいに使う */
+  .sc-body { display: block; }
 
   .sc-print-header {
     display: block;
@@ -1598,20 +1593,22 @@ textarea.sc-input { resize: vertical; line-height: 1.5; min-height: 2.6em; }
   }
   .sc-vhead { position: static; box-shadow: none; }
   .sc-vrow { break-inside: avoid; page-break-inside: avoid; border-bottom-color: #ccc; }
-  .sc-vdate, .sc-vcell { border-color: #ccc; min-height: 13.5px; padding: 0px 3px; }
+  .sc-vdate, .sc-vcell { border-color: #ccc; min-height: 18.5px; padding: 0px 3px; }
   .sc-vdate { padding: 0px 4px; }
-  .sc-vdate-num { font-size: 8px; }
-  .sc-vdate-wd { font-size: 6.5px; }
+  .sc-vdate-num { font-size: 9.5px; }
+  .sc-vdate-wd { font-size: 7.5px; }
   .sc-vdate-hol { display: none; }
-  .sc-vslot-head, .sc-vdate-head { font-size: 7px; padding: 1.5px 2px; }
-  .sc-vslot-time { font-size: 5.5px; }
+  .sc-vslot-head, .sc-vdate-head { font-size: 8.5px; padding: 2px 2px; }
+  .sc-vslot-time { font-size: 6.5px; }
   .sc-vbar { margin: 0.5px; padding: 0px 2px; border-radius: 2px; gap: 0; }
-  .sc-vbar-title { font-size: 6px; line-height: 1.15; }
-  .sc-vbar-time { font-size: 5px; }
-  .sc-vbar-mark { font-size: 5px; padding: 0 1px; }
+  .sc-vbar-title { font-size: 8px; line-height: 1.15; -webkit-line-clamp: 1; line-clamp: 1; }
+  .sc-vbar-proj { display: none; }
+  .sc-vbar-time { font-size: 6px; }
+  .sc-vbar-mark { font-size: 6px; padding: 0 1px; }
   .sc-vbar-stack { gap: 0.5px; padding: 0.5px; }
-  .sc-vbar-stack .sc-vbar-title { font-size: 5px; }
-  .sc-vbar-stack .sc-vbar-time { font-size: 4.3px; }
+  .sc-vbar-stack .sc-vbar-title { font-size: 6px; }
+  .sc-vbar-stack .sc-vbar-proj { display: none; }
+  .sc-vbar-stack .sc-vbar-time { font-size: 5px; }
 
   .sc-legend {
     margin-top: 3px;
@@ -1627,36 +1624,6 @@ textarea.sc-input { resize: vertical; line-height: 1.5; min-height: 2.6em; }
   .sc-stat-label { font-size: 6px; }
   .sc-stat-value { font-size: 9px; }
   .sc-stat-unit { font-size: 5.5px; }
-
-  /* 右：今月の予定一覧（絞り込みタブ・件数・コピー操作は印刷しない） */
-  #printJobListSection { display: block !important; border: 0; background: transparent; }
-  #printJobListSection .sc-section-inner { max-width: none; padding: 0; }
-  #printJobListSection .sc-section-count,
-  #printJobListSection .sc-filter-tabs,
-  #printJobListSection .sc-export-actions { display: none !important; }
-  #printJobListSection .sc-section-title { font-size: 11px; margin-bottom: 3px; }
-  /* 件数が多い月でも高さを抑えられるよう、2段組みにする */
-  #printJobListSection .sc-joblist { display: block; column-count: 2; column-gap: 8px; }
-  #printJobListSection .sc-joblist-row {
-    display: flex;
-    margin: 0 0 2.5px;
-    padding: 2px 5px;
-    font-size: 6.2px;
-    border-radius: 4px;
-    border-left-width: 3px;
-    gap: 3px;
-    cursor: default;
-    break-inside: avoid;
-  }
-  #printJobListSection .sc-joblist-badge { font-size: 5.3px; padding: 0 3px; }
-  #printJobListSection .sc-joblist-date { min-width: 3.6em; }
-  #printJobListSection .sc-joblist-time { min-width: 5em; }
-  #printJobListSection .sc-joblist-meta,
-  #printJobListSection .sc-joblist-warn { font-size: 5.5px; }
-  #printJobListSection .sc-worktype-summary { margin-top: 6px; }
-  #printJobListSection .sc-worktype-title { font-size: 6px; }
-  #printJobListSection .sc-worktype-row { gap: 4px; }
-  #printJobListSection .sc-worktype-stat { font-size: 6px; }
 
   /* リンク・カーソル関連の見た目は印刷で意味を持たないため無効化 */
   .sc-vcell, .sc-vdate { cursor: default; }
