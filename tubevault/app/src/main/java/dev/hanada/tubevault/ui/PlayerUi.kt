@@ -88,7 +88,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.BiasAlignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.Shadow
+import androidx.compose.ui.graphics.StrokeJoin
+import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.pointer.pointerInput
@@ -1012,22 +1013,33 @@ private fun BoxScope.FloatingLineText(line: FloatingLine, onExpired: () -> Unit)
     }
 
     val text = if (line.style == FloatStyle.VERTICAL) line.text.toList().joinToString("\n") else line.text
-    Text(
-        text = text,
-        color = Color.White,
+    val strokePx = with(LocalDensity.current) { FLOAT_OUTLINE_WIDTH.toPx() }
+    val base = TextStyle(
         fontSize = line.sizeSp.sp,
         lineHeight = (line.sizeSp * if (line.style == FloatStyle.VERTICAL) 1.05f else 1.25f).sp,
-        fontWeight = if (line.bold) FontWeight.Bold else FontWeight.Normal,
+        fontWeight = if (line.bold) FontWeight.Bold else FontWeight.SemiBold,
         textAlign = TextAlign.Center,
-        style = TextStyle(shadow = Shadow(color = Color.Black.copy(alpha = 0.6f), blurRadius = 8f)),
+    )
+
+    // The outline is the same text drawn twice — a black stroke underneath,
+    // the white fill on top — so the edge stays crisp against any frame,
+    // light or dark, which a blurred shadow alone could not guarantee.
+    Box(
         modifier = Modifier
             .align(line.alignment)
-            .widthIn(max = if (line.style == FloatStyle.VERTICAL) 64.dp else 320.dp)
+            .widthIn(max = if (line.style == FloatStyle.VERTICAL) 88.dp else 420.dp)
             .graphicsLayer {
                 alpha = fade.value
                 rotationZ = line.rotation
             },
-    )
+    ) {
+        Text(
+            text = text,
+            color = Color.Black,
+            style = base.copy(drawStyle = Stroke(width = strokePx, join = StrokeJoin.Round)),
+        )
+        Text(text = text, color = Color.White, style = base)
+    }
 }
 
 /**
@@ -1056,7 +1068,7 @@ private fun randomFloatingLine(id: Long, text: String, taken: List<BiasAlignment
         style = style,
         alignment = BiasAlignment((cx + jitter()).coerceIn(-1f, 1f), (cy + jitter()).coerceIn(-1f, 1f)),
         rotation = rotation,
-        sizeSp = Random.nextInt(16, 29).toFloat(),
+        sizeSp = Random.nextInt(22, 37).toFloat(),
         bold = Random.nextInt(3) == 0,
     )
 }
@@ -1066,7 +1078,8 @@ private val FLOAT_CELLS: List<Pair<Float, Float>> = listOf(-0.85f, 0f, 0.85f).fl
 }.filterNot { it == 0f to 0f }
 
 private const val FLOAT_MAX_VISIBLE = 3
-private const val FLOAT_ALPHA = 0.32f
+private const val FLOAT_ALPHA = 0.6f
+private val FLOAT_OUTLINE_WIDTH = 3.dp
 private const val FLOAT_HOLD_MS = 4_500L
 private const val FLOAT_VERTICAL_MAX_CHARS = 14
 
