@@ -7,6 +7,8 @@ import android.content.pm.ActivityInfo
 import android.content.res.Configuration
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInVertically
@@ -17,6 +19,7 @@ import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -32,6 +35,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.systemBars
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
@@ -41,6 +45,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.FastForward
 import androidx.compose.material.icons.filled.FastRewind
 import androidx.compose.material.icons.filled.Forward30
@@ -57,6 +62,7 @@ import androidx.compose.material.icons.filled.SkipNext
 import androidx.compose.material.icons.filled.SkipPrevious
 import androidx.compose.material.icons.filled.Stop
 import androidx.compose.material.icons.filled.Subtitles
+import androidx.compose.material.icons.filled.SubtitlesOff
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
@@ -72,23 +78,30 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
+import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.BiasAlignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Shadow
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalView
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
@@ -107,6 +120,8 @@ import dev.hanada.tubevault.lyrics.currentLyricLineIndex
 import dev.hanada.tubevault.playback.PlaybackController
 import kotlinx.coroutines.delay
 import java.io.File
+import kotlin.math.abs
+import kotlin.random.Random
 
 /** Persistent bar that sits above the bottom navigation while something plays. */
 @Composable
@@ -510,6 +525,10 @@ private fun ImmersivePlayer(
 ) {
     val player by controller.player.collectAsStateWithLifecycle()
     val isPlaying by controller.isPlaying.collectAsStateWithLifecycle()
+    val positionMs by controller.positionMs.collectAsStateWithLifecycle()
+    val lyricsState by lyrics.state.collectAsStateWithLifecycle()
+    val lyricsOffsetMs by lyrics.offsetMs.collectAsStateWithLifecycle()
+    val floatingVisible by lyrics.floatingVisible.collectAsStateWithLifecycle()
 
     var controlsVisible by remember { mutableStateOf(true) }
     var showLyricsDialog by remember { mutableStateOf(false) }
@@ -546,6 +565,22 @@ private fun ImmersivePlayer(
             )
         }
 
+        val synced = lyricsState as? LyricsUiState.Synced
+        AnimatedVisibility(
+            visible = floatingVisible && synced != null,
+            enter = fadeIn(),
+            exit = fadeOut(),
+            modifier = Modifier.fillMaxSize(),
+        ) {
+            if (synced != null) {
+                FloatingLyrics(
+                    lines = synced.lines,
+                    positionMs = positionMs - lyricsOffsetMs,
+                    modifier = Modifier.fillMaxSize(),
+                )
+            }
+        }
+
         AnimatedVisibility(
             visible = controlsVisible,
             enter = fadeIn(),
@@ -569,9 +604,20 @@ private fun ImmersivePlayer(
                         .padding(horizontal = 24.dp, vertical = 16.dp),
                 )
                 Row(modifier = Modifier.align(Alignment.TopEnd).padding(4.dp)) {
+                    IconButton(onClick = lyrics::toggleFloating) {
+                        Icon(
+                            imageVector = if (floatingVisible) {
+                                Icons.Default.Subtitles
+                            } else {
+                                Icons.Default.SubtitlesOff
+                            },
+                            contentDescription = if (floatingVisible) "歌詞を非表示" else "歌詞を表示",
+                            tint = Color.White,
+                        )
+                    }
                     IconButton(onClick = { showLyricsDialog = true }) {
                         Icon(
-                            imageVector = Icons.Default.Subtitles,
+                            imageVector = Icons.Default.Edit,
                             contentDescription = "歌詞を検索・修正",
                             tint = Color.White,
                         )
@@ -839,18 +885,26 @@ private fun LyricsPanel(
     modifier: Modifier = Modifier,
 ) {
     val state by lyrics.state.collectAsStateWithLifecycle()
+    val offsetMs by lyrics.offsetMs.collectAsStateWithLifecycle()
     Box(modifier = modifier, contentAlignment = Alignment.Center) {
-        (state as? LyricsUiState.Synced)?.let { SyncedLyrics(lines = it.lines, positionMs = positionMs) }
+        (state as? LyricsUiState.Synced)?.let {
+            SyncedLyrics(
+                lines = it.lines,
+                positionMs = positionMs,
+                offsetMs = offsetMs,
+                onSetOffset = lyrics::setOffset,
+            )
+        }
     }
 }
 
 @Composable
-private fun SyncedLyrics(lines: List<LyricLine>, positionMs: Long) {
-    // How far this file's playback clock sits from the lyrics' own clock,
-    // set by tapping the line being sung. Reset per lyric set, since the
-    // offset only describes one pairing of a recording with a transcript.
-    var offsetMs by remember(lines) { mutableStateOf(0L) }
-
+private fun SyncedLyrics(
+    lines: List<LyricLine>,
+    positionMs: Long,
+    offsetMs: Long,
+    onSetOffset: (Long) -> Unit,
+) {
     // Shifting the position the lines are looked up by — rather than the
     // timestamps themselves — keeps one adjustable number in play and leaves
     // the fetched lyrics untouched.
@@ -894,12 +948,127 @@ private fun SyncedLyrics(lines: List<LyricLine>, positionMs: Long) {
                 // short target to hit while the list is moving.
                 modifier = Modifier
                     .fillMaxWidth()
-                    .clickable { offsetMs = positionMs - line.timeMs }
+                    .clickable { onSetOffset(positionMs - line.timeMs) }
                     .padding(vertical = 10.dp),
             )
         }
     }
 }
+
+private enum class FloatStyle { HORIZONTAL, VERTICAL, DIAGONAL }
+
+private class FloatingLine(
+    val id: Long,
+    val text: String,
+    val style: FloatStyle,
+    val alignment: BiasAlignment,
+    val rotation: Float,
+    val sizeSp: Float,
+    val bold: Boolean,
+)
+
+/**
+ * Fullscreen's take on lyrics: each line drifts in at a random spot — set
+ * horizontally, stacked vertically, or tilted — then fades away, the way the
+ * Music Lyrics PWA scatters them. Kept deliberately faint and off the centre
+ * of the frame, since in fullscreen the video is the point and the lyrics are
+ * only ever an accent over it. Draws no pointer input of its own, so taps and
+ * swipes fall straight through to the video underneath.
+ */
+@Composable
+private fun FloatingLyrics(
+    lines: List<LyricLine>,
+    positionMs: Long,
+    modifier: Modifier = Modifier,
+) {
+    val active = remember(lines, positionMs) { currentLyricLineIndex(lines, positionMs) }
+    val shown = remember(lines) { mutableStateListOf<FloatingLine>() }
+    var nextId by remember { mutableStateOf(0L) }
+
+    LaunchedEffect(lines, active) {
+        val text = lines.getOrNull(active)?.text?.trim().orEmpty()
+        if (text.isEmpty()) return@LaunchedEffect
+        while (shown.size >= FLOAT_MAX_VISIBLE) shown.removeAt(0)
+        shown += randomFloatingLine(nextId++, text, taken = shown.map { it.alignment })
+    }
+
+    Box(modifier = modifier.padding(horizontal = 48.dp, vertical = 32.dp)) {
+        shown.forEach { line ->
+            key(line.id) {
+                FloatingLineText(line = line, onExpired = { shown.remove(line) })
+            }
+        }
+    }
+}
+
+@Composable
+private fun BoxScope.FloatingLineText(line: FloatingLine, onExpired: () -> Unit) {
+    val fade = remember { Animatable(0f) }
+    LaunchedEffect(line.id) {
+        fade.animateTo(FLOAT_ALPHA, tween(durationMillis = 800))
+        delay(FLOAT_HOLD_MS)
+        fade.animateTo(0f, tween(durationMillis = 1_200))
+        onExpired()
+    }
+
+    val text = if (line.style == FloatStyle.VERTICAL) line.text.toList().joinToString("\n") else line.text
+    Text(
+        text = text,
+        color = Color.White,
+        fontSize = line.sizeSp.sp,
+        lineHeight = (line.sizeSp * if (line.style == FloatStyle.VERTICAL) 1.05f else 1.25f).sp,
+        fontWeight = if (line.bold) FontWeight.Bold else FontWeight.Normal,
+        textAlign = TextAlign.Center,
+        style = TextStyle(shadow = Shadow(color = Color.Black.copy(alpha = 0.6f), blurRadius = 8f)),
+        modifier = Modifier
+            .align(line.alignment)
+            .widthIn(max = if (line.style == FloatStyle.VERTICAL) 64.dp else 320.dp)
+            .graphicsLayer {
+                alpha = fade.value
+                rotationZ = line.rotation
+            },
+    )
+}
+
+/**
+ * Picks a spot from a 3×3 grid of the frame, skipping its centre cell (where
+ * the subject of a video almost always sits) and any cell a line is already
+ * occupying, then jitters within it so repeated picks never line up neatly.
+ */
+private fun randomFloatingLine(id: Long, text: String, taken: List<BiasAlignment>): FloatingLine {
+    val style = when {
+        // A long line stacked one character per row would run off the frame.
+        text.length > FLOAT_VERTICAL_MAX_CHARS -> listOf(FloatStyle.HORIZONTAL, FloatStyle.DIAGONAL).random()
+        else -> FloatStyle.entries.random()
+    }
+    val cells = FLOAT_CELLS.filterNot { (cx, cy) ->
+        taken.any { abs(it.horizontalBias - cx) < 0.5f && abs(it.verticalBias - cy) < 0.5f }
+    }.ifEmpty { FLOAT_CELLS }
+    val (cx, cy) = cells.random()
+    val jitter = { Random.nextFloat() * 0.3f - 0.15f }
+    val rotation = when (style) {
+        FloatStyle.DIAGONAL -> (Random.nextFloat() * 14f + 10f) * if (Random.nextBoolean()) 1f else -1f
+        else -> 0f
+    }
+    return FloatingLine(
+        id = id,
+        text = text,
+        style = style,
+        alignment = BiasAlignment((cx + jitter()).coerceIn(-1f, 1f), (cy + jitter()).coerceIn(-1f, 1f)),
+        rotation = rotation,
+        sizeSp = Random.nextInt(16, 29).toFloat(),
+        bold = Random.nextInt(3) == 0,
+    )
+}
+
+private val FLOAT_CELLS: List<Pair<Float, Float>> = listOf(-0.85f, 0f, 0.85f).flatMap { x ->
+    listOf(-0.85f, 0f, 0.85f).map { y -> x to y }
+}.filterNot { it == 0f to 0f }
+
+private const val FLOAT_MAX_VISIBLE = 3
+private const val FLOAT_ALPHA = 0.32f
+private const val FLOAT_HOLD_MS = 4_500L
+private const val FLOAT_VERTICAL_MAX_CHARS = 14
 
 /** Lets the user correct the artist/title lyrics are searched for, and shows what was found. */
 @Composable

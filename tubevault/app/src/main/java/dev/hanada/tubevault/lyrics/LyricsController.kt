@@ -44,6 +44,23 @@ class LyricsController(
     private val _query = MutableStateFlow<LyricsQuery?>(null)
     val query: StateFlow<LyricsQuery?> = _query.asStateFlow()
 
+    // Lives here rather than in either player layout so a re-sync made in
+    // portrait still holds after rotating into fullscreen, and vice versa.
+    private val _offsetMs = MutableStateFlow(0L)
+    val offsetMs: StateFlow<Long> = _offsetMs.asStateFlow()
+
+    private val _floatingVisible = MutableStateFlow(true)
+    val floatingVisible: StateFlow<Boolean> = _floatingVisible.asStateFlow()
+
+    /** How far this recording's clock sits from the lyrics' own, set by tapping the line being sung. */
+    fun setOffset(ms: Long) {
+        _offsetMs.value = ms
+    }
+
+    fun toggleFloating() {
+        _floatingVisible.value = !_floatingVisible.value
+    }
+
     private var fetchJob: Job? = null
     private var currentItemId: Long? = null
 
@@ -81,6 +98,7 @@ class LyricsController(
 
     private fun fetch(artist: String, title: String) {
         fetchJob?.cancel()
+        _offsetMs.value = 0L
         if (artist.isBlank() || title.isBlank()) {
             _state.value = LyricsUiState.NotFound
             return
