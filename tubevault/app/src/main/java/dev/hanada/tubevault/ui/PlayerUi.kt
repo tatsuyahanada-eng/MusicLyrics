@@ -19,7 +19,7 @@ import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.BoxScope
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -31,11 +31,11 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.systemBars
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
@@ -85,8 +85,10 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
-import androidx.compose.ui.BiasAlignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Rect
+import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Shadow
 import androidx.compose.ui.graphics.StrokeJoin
@@ -97,11 +99,17 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalView
+import androidx.compose.ui.text.AnnotatedString
+import androidx.compose.ui.text.TextMeasurer
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Constraints
+import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
@@ -122,7 +130,11 @@ import dev.hanada.tubevault.lyrics.currentLyricLineIndex
 import dev.hanada.tubevault.playback.PlaybackController
 import kotlinx.coroutines.delay
 import java.io.File
+import kotlin.math.PI
 import kotlin.math.abs
+import kotlin.math.cos
+import kotlin.math.roundToInt
+import kotlin.math.sin
 import kotlin.random.Random
 
 /** Persistent bar that sits above the bottom navigation while something plays. */
@@ -959,22 +971,35 @@ private fun SyncedLyrics(
 
 private enum class FloatStyle { HORIZONTAL, VERTICAL, DIAGONAL }
 
+/**
+ * One scattered line, already measured and placed. [center] is where its
+ * middle sits in the frame, and [bounds] is the area it covers once rotated
+ * and padded by [FLOAT_GAP] — what later lines are kept clear of.
+ */
 private class FloatingLine(
     val id: Long,
-    val text: String,
+    val shaped: String,
     val style: FloatStyle,
-    val alignment: BiasAlignment,
     val rotation: Float,
     val sizeSp: Float,
+    val widthPx: Int,
+    val heightPx: Int,
+    val center: Offset,
+    val bounds: Rect,
 )
 
 /**
  * Fullscreen's take on lyrics: each line drifts in at a random spot — set
  * horizontally, stacked vertically, or tilted — then fades away, the way the
- * Music Lyrics PWA scatters them. Kept deliberately faint and off the centre
- * of the frame, since in fullscreen the video is the point and the lyrics are
- * only ever an accent over it. Draws no pointer input of its own, so taps and
- * swipes fall straight through to the video underneath.
+ * Music Lyrics PWA scatters them. Kept deliberately faint, since in fullscreen
+ * the video is the point and the lyrics are only ever an accent over it.
+ * Draws no pointer input of its own, so taps and swipes fall straight through
+ * to the video underneath.
+ *
+ * Every line is measured before it is placed, so it is shrunk until its
+ * rotated footprint fits the frame and then positioned only where it clears
+ * the lines already on screen — nothing runs off an edge or lands on top of
+ * the previous line.
  */
 @Composable
 private fun FloatingLyrics(
@@ -985,15 +1010,29 @@ private fun FloatingLyrics(
     val active = remember(lines, positionMs) { currentLyricLineIndex(lines, positionMs) }
     val shown = remember(lines) { mutableStateListOf<FloatingLine>() }
     var nextId by remember { mutableStateOf(0L) }
+    val measurer = rememberTextMeasurer()
+    val density = LocalDensity.current
 
-    LaunchedEffect(lines, active) {
-        val text = lines.getOrNull(active)?.text?.trim().orEmpty()
-        if (text.isEmpty()) return@LaunchedEffect
-        while (shown.size >= FLOAT_MAX_VISIBLE) shown.removeAt(0)
-        shown += randomFloatingLine(nextId++, text, taken = shown.map { it.alignment })
-    }
+    BoxWithConstraints(modifier = modifier) {
+        val frame = Size(constraints.maxWidth.toFloat(), constraints.maxHeight.toFloat())
 
-    Box(modifier = modifier.padding(horizontal = 48.dp, vertical = 32.dp)) {
+        LaunchedEffect(lines, active) {
+            val text = lines.getOrNull(active)?.text?.trim().orEmpty()
+            if (text.isEmpty()) return@LaunchedEffect
+            while (shown.size >= FLOAT_MAX_VISIBLE) shown.removeAt(0)
+            var placed = placeFloatingLine(nextId, text, frame, density, measurer, shown.map { it.bounds })
+            // Nowhere clear left: let the oldest line go early rather than
+            // overlap it or drop the new one.
+            while (placed == null && shown.isNotEmpty()) {
+                shown.removeAt(0)
+                placed = placeFloatingLine(nextId, text, frame, density, measurer, shown.map { it.bounds })
+            }
+            placed?.let {
+                nextId++
+                shown += it
+            }
+        }
+
         shown.forEach { line ->
             key(line.id) {
                 FloatingLineText(line = line, onExpired = { shown.remove(line) })
@@ -1003,7 +1042,7 @@ private fun FloatingLyrics(
 }
 
 @Composable
-private fun BoxScope.FloatingLineText(line: FloatingLine, onExpired: () -> Unit) {
+private fun FloatingLineText(line: FloatingLine, onExpired: () -> Unit) {
     val fade = remember { Animatable(0f) }
     LaunchedEffect(line.id) {
         fade.animateTo(FLOAT_ALPHA, tween(durationMillis = 800))
@@ -1012,14 +1051,9 @@ private fun BoxScope.FloatingLineText(line: FloatingLine, onExpired: () -> Unit)
         onExpired()
     }
 
-    val text = if (line.style == FloatStyle.VERTICAL) line.text.toList().joinToString("\n") else line.text
-    val strokePx = with(LocalDensity.current) { FLOAT_OUTLINE_WIDTH.toPx() }
-    val base = TextStyle(
-        fontSize = line.sizeSp.sp,
-        lineHeight = (line.sizeSp * if (line.style == FloatStyle.VERTICAL) 1.05f else 1.25f).sp,
-        fontWeight = FontWeight.ExtraBold,
-        textAlign = TextAlign.Center,
-    )
+    val density = LocalDensity.current
+    val strokePx = with(density) { FLOAT_OUTLINE_WIDTH.toPx() }
+    val base = floatingTextStyle(line.sizeSp, line.style)
 
     // The outline is the same text drawn twice — a black stroke underneath,
     // the white fill on top — so the edge holds against any frame, light
@@ -1027,66 +1061,131 @@ private fun BoxScope.FloatingLineText(line: FloatingLine, onExpired: () -> Unit)
     // softens that edge into a blur instead of a hard cut-out line.
     Box(
         modifier = Modifier
-            .align(line.alignment)
-            .widthIn(max = if (line.style == FloatStyle.VERTICAL) 88.dp else 420.dp)
+            .offset {
+                IntOffset(
+                    (line.center.x - line.widthPx / 2f).roundToInt(),
+                    (line.center.y - line.heightPx / 2f).roundToInt(),
+                )
+            }
+            .width(with(density) { line.widthPx.toDp() })
             .graphicsLayer {
                 alpha = fade.value
                 rotationZ = line.rotation
             },
     ) {
         Text(
-            text = text,
+            text = line.shaped,
             color = Color.Black,
             style = base.copy(
                 drawStyle = Stroke(width = strokePx, join = StrokeJoin.Round),
                 shadow = Shadow(color = Color.Black, blurRadius = FLOAT_OUTLINE_BLUR),
             ),
         )
-        Text(text = text, color = Color.White, style = base)
+        Text(text = line.shaped, color = Color.White, style = base)
     }
 }
+
+private fun floatingTextStyle(sizeSp: Float, style: FloatStyle) = TextStyle(
+    fontSize = sizeSp.sp,
+    lineHeight = (sizeSp * if (style == FloatStyle.VERTICAL) 1.05f else 1.25f).sp,
+    fontWeight = FontWeight.ExtraBold,
+    textAlign = TextAlign.Center,
+)
 
 /**
- * Picks a spot from a 3×3 grid of the frame, skipping its centre cell (where
- * the subject of a video almost always sits) and any cell a line is already
- * occupying, then jitters within it so repeated picks never line up neatly.
+ * Finds a spot for [text], or null when the frame has no clear room for it.
+ *
+ * Each attempt picks a style, then shrinks the font until the line's rotated
+ * footprint fits the frame (a long line stacked upright would otherwise be
+ * taller than the screen), then tries a random centre inside the margin. A
+ * spot is rejected if it touches a line in [occupied] or — for the first
+ * attempts — the middle of the frame, where a video's subject usually sits.
  */
-private fun randomFloatingLine(id: Long, text: String, taken: List<BiasAlignment>): FloatingLine {
-    val style = when {
-        // A long line stacked one character per row would run off the frame.
-        text.length > FLOAT_VERTICAL_MAX_CHARS -> listOf(FloatStyle.HORIZONTAL, FloatStyle.DIAGONAL).random()
-        else -> FloatStyle.entries.random()
-    }
-    val cells = FLOAT_CELLS.filterNot { (cx, cy) ->
-        taken.any { abs(it.horizontalBias - cx) < 0.5f && abs(it.verticalBias - cy) < 0.5f }
-    }.ifEmpty { FLOAT_CELLS }
-    val (cx, cy) = cells.random()
-    val jitter = { Random.nextFloat() * 0.3f - 0.15f }
-    val rotation = when (style) {
-        FloatStyle.DIAGONAL -> (Random.nextFloat() * 14f + 10f) * if (Random.nextBoolean()) 1f else -1f
-        else -> 0f
-    }
-    return FloatingLine(
-        id = id,
-        text = text,
-        style = style,
-        alignment = BiasAlignment((cx + jitter()).coerceIn(-1f, 1f), (cy + jitter()).coerceIn(-1f, 1f)),
-        rotation = rotation,
-        sizeSp = Random.nextInt(26, 43).toFloat(),
-    )
-}
+private fun placeFloatingLine(
+    id: Long,
+    text: String,
+    frame: Size,
+    density: Density,
+    measurer: TextMeasurer,
+    occupied: List<Rect>,
+): FloatingLine? {
+    val gap = with(density) { FLOAT_GAP.toPx() }
+    val maxLineWidth = minOf(frame.width * 0.7f, with(density) { FLOAT_MAX_LINE_WIDTH.toPx() })
+    val centreZone = Rect(frame.width * 0.3f, frame.height * 0.3f, frame.width * 0.7f, frame.height * 0.7f)
 
-private val FLOAT_CELLS: List<Pair<Float, Float>> = listOf(-0.85f, 0f, 0.85f).flatMap { x ->
-    listOf(-0.85f, 0f, 0.85f).map { y -> x to y }
-}.filterNot { it == 0f to 0f }
+    repeat(FLOAT_PLACE_ATTEMPTS) { attempt ->
+        val style = when {
+            // Stacked one character per row, a long line is taller than any screen.
+            text.length > FLOAT_VERTICAL_MAX_CHARS -> listOf(FloatStyle.HORIZONTAL, FloatStyle.DIAGONAL).random()
+            else -> FloatStyle.entries.random()
+        }
+        val shaped = if (style == FloatStyle.VERTICAL) {
+            text.filterNot { it.isWhitespace() }.toList().joinToString("\n")
+        } else {
+            text
+        }
+        val rotation = when (style) {
+            FloatStyle.DIAGONAL -> (Random.nextFloat() * 14f + 10f) * if (Random.nextBoolean()) 1f else -1f
+            else -> 0f
+        }
+        val radians = rotation * PI.toFloat() / 180f
+        val cosA = abs(cos(radians))
+        val sinA = abs(sin(radians))
+
+        var sizeSp = Random.nextInt(26, 43).toFloat()
+        while (sizeSp >= FLOAT_MIN_SP) {
+            val constraints = if (style == FloatStyle.VERTICAL) {
+                Constraints()
+            } else {
+                Constraints(maxWidth = maxLineWidth.toInt())
+            }
+            val size = measurer.measure(
+                text = AnnotatedString(shaped),
+                style = floatingTextStyle(sizeSp, style),
+                constraints = constraints,
+            ).size
+            val width = size.width + 2
+            val height = size.height
+            val boundsW = width * cosA + height * sinA + 2 * gap
+            val boundsH = width * sinA + height * cosA + 2 * gap
+            if (boundsW <= frame.width && boundsH <= frame.height) {
+                val cx = Random.nextFloat() * (frame.width - boundsW) + boundsW / 2f
+                val cy = Random.nextFloat() * (frame.height - boundsH) + boundsH / 2f
+                val bounds = Rect(cx - boundsW / 2f, cy - boundsH / 2f, cx + boundsW / 2f, cy + boundsH / 2f)
+                val clear = occupied.none { it.overlaps(bounds) } &&
+                    (attempt >= FLOAT_CENTRE_AVOID_ATTEMPTS || !centreZone.overlaps(bounds))
+                if (clear) {
+                    return FloatingLine(
+                        id = id,
+                        shaped = shaped,
+                        style = style,
+                        rotation = rotation,
+                        sizeSp = sizeSp,
+                        widthPx = width,
+                        heightPx = height,
+                        center = Offset(cx, cy),
+                        bounds = bounds,
+                    )
+                }
+                return@repeat
+            }
+            sizeSp *= 0.9f
+        }
+    }
+    return null
+}
 
 private const val FLOAT_MAX_VISIBLE = 3
 private const val FLOAT_ALPHA = 0.6f
 private val FLOAT_OUTLINE_WIDTH = 4.dp
 private const val FLOAT_OUTLINE_BLUR = 28f
-
 private const val FLOAT_HOLD_MS = 4_500L
 private const val FLOAT_VERTICAL_MAX_CHARS = 14
+private const val FLOAT_MIN_SP = 16f
+private const val FLOAT_PLACE_ATTEMPTS = 40
+private const val FLOAT_CENTRE_AVOID_ATTEMPTS = 25
+private val FLOAT_GAP = 16.dp
+private val FLOAT_MAX_LINE_WIDTH = 420.dp
 
 /** Lets the user correct the artist/title lyrics are searched for, and shows what was found. */
 @Composable
