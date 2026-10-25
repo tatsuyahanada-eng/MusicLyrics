@@ -966,7 +966,6 @@ private class FloatingLine(
     val alignment: BiasAlignment,
     val rotation: Float,
     val sizeSp: Float,
-    val fill: Color,
 )
 
 /**
@@ -1023,7 +1022,7 @@ private fun BoxScope.FloatingLineText(line: FloatingLine, onExpired: () -> Unit)
     )
 
     // The outline is the same text drawn twice — a black stroke underneath,
-    // the coloured fill on top — so the edge holds against any frame, light
+    // the white fill on top — so the edge holds against any frame, light
     // or dark. The stroke layer also casts its own black shadow, which
     // softens that edge into a blur instead of a hard cut-out line.
     Box(
@@ -1043,7 +1042,7 @@ private fun BoxScope.FloatingLineText(line: FloatingLine, onExpired: () -> Unit)
                 shadow = Shadow(color = Color.Black, blurRadius = FLOAT_OUTLINE_BLUR),
             ),
         )
-        Text(text = text, color = line.fill, style = base)
+        Text(text = text, color = Color.White, style = base)
     }
 }
 
@@ -1073,8 +1072,7 @@ private fun randomFloatingLine(id: Long, text: String, taken: List<BiasAlignment
         style = style,
         alignment = BiasAlignment((cx + jitter()).coerceIn(-1f, 1f), (cy + jitter()).coerceIn(-1f, 1f)),
         rotation = rotation,
-        sizeSp = Random.nextInt(22, 37).toFloat(),
-        fill = FLOAT_COLORS.random(),
+        sizeSp = Random.nextInt(26, 43).toFloat(),
     )
 }
 
@@ -1084,17 +1082,9 @@ private val FLOAT_CELLS: List<Pair<Float, Float>> = listOf(-0.85f, 0f, 0.85f).fl
 
 private const val FLOAT_MAX_VISIBLE = 3
 private const val FLOAT_ALPHA = 0.6f
-private val FLOAT_OUTLINE_WIDTH = 3.dp
-private const val FLOAT_OUTLINE_BLUR = 10f
+private val FLOAT_OUTLINE_WIDTH = 4.dp
+private const val FLOAT_OUTLINE_BLUR = 28f
 
-/** Soft tints rather than full-strength colour, so a line reads as an accent over the video. */
-private val FLOAT_COLORS = listOf(
-    Color(0xFFFFE08A), // the app's yellow, lightened
-    Color(0xFFFFB3C7), // pink
-    Color(0xFFA8E6FF), // sky blue
-    Color(0xFFB8F2C4), // mint
-    Color(0xFFD9C2FF), // lavender
-)
 private const val FLOAT_HOLD_MS = 4_500L
 private const val FLOAT_VERTICAL_MAX_CHARS = 14
 
