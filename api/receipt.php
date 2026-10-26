@@ -581,10 +581,15 @@ $skipped = [];
 $lastError = null;
 $lastParseError = null;
 $attempts = [];
+// 混雑やタイムアウトが続いても、画面を長く待たせすぎないよう再試行・モデル切替は約3分までにする
+$deadline = microtime(true) + 180;
 foreach ($cfg['models'] as $model) {
     if (!empty($usage['models'][$model]['exhausted']) || !empty($usage['models'][$model]['missing'])) {
         $skipped[] = $model;
         continue;
+    }
+    if ($lastError !== null && microtime(true) > $deadline) {
+        break;
     }
     $basic = !empty($usage['models'][$model]['basic']);
     $path = '/models/' . rawurlencode($model) . ':generateContent';
@@ -598,8 +603,8 @@ foreach ($cfg['models'] as $model) {
         usage_update($model, ['requests' => 1]);
         $attempt = ['model' => $model, 'status' => $r['status'], 'ms' => $r['ms'], 'basic' => $basic];
 
-        if ($r['status'] === 200 && $r['json'] !== null) {
-            [$list, $err] = parse_receipts($r['json']);
+        if ($r['status'] === 200) {
+            [$list, $err] = $r['json'] !== null ? parse_receipts($r['json']) : [null, 'AIの応答を解析できませんでした'];
             $attempt['finish'] = $r['json']['candidates'][0]['finishReason'] ?? null;
             $attempt['tokens'] = array_intersect_key($r['json']['usageMetadata'] ?? [], array_flip(['promptTokenCount', 'candidatesTokenCount', 'thoughtsTokenCount', 'totalTokenCount']));
             if ($list !== null) {
@@ -641,7 +646,7 @@ foreach ($cfg['models'] as $model) {
             usage_update($model, ['basic' => true]);
             continue;
         }
-        if (in_array($r['status'], [0, 500, 502, 503, 504], true) && $transient < 2) {
+        if (in_array($r['status'], [0, 500, 502, 503, 504], true) && $transient < 2 && microtime(true) < $deadline) {
             sleep($transient === 0 ? 2 : 5);
             $transient++;
             continue;
