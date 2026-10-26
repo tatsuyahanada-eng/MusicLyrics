@@ -2,13 +2,22 @@
 /**
  * 領収書AI読み取り API（Gemini 中継）
  *
- *   POST  JSON {"files": [{"mimeType": "image/jpeg", "data": "<base64>"}, ...]}   （最大 max_files_per_request 枚。既定4）
- *         → 複数の画像（またはPDF）をまとめて1回で読み取り、ファイルごとの結果をJSONで返す
+ *   POST  JSON {"files": [{"mimeType": "image/jpeg", "data": "<base64>"}, ...], "pass": 1}
+ *         → 画像（またはPDF）から高速代・駐車場代を読み取り、ファイルごとの結果をJSONで返す
  *         （旧形式 {"mimeType": ..., "data": ...} の1枚送信にも対応）
+ *         pass … 何回目の読み取りか（1〜3）。回ごとに乱数の種（seed）を固定し、同じ画像なら同じ結果が出やすくする
  *   GET   ?action=status
  *         → APIキー・モデル設定の接続テスト（キーは末尾4桁のみ返す）と、本日の使用回数
  *
- * 利用上限（無料枠の回数制限）に達したときは、config.php の models に書いた次のモデルへ自動で切り替える。
+ * 精度と安定性のための設計（Ver 1.8）
+ *   - 1回の呼び出しで送る画像は既定で1枚（Google の資料で「文字の読み取りは1枚ずつの方が精度が良い」とされているため）
+ *   - 画像の解像度を「高」に固定（mediaResolution）。毎回同じ細かさで読ませる
+ *   - 金額を読み取った箇所の文字（amount_text）を書き写させ、数字と金額が一致するかをサーバーで照合（evidence）
+ *   - 一時的なエラー（混雑・タイムアウト・応答の崩れ）は自動で再試行
+ *   - 上記の追加設定をGemini側が受け付けない場合は、追加設定なしで自動的にやり直す
+ *   - 原因調査のため、読み取り結果の要約を api/data/log.jsonl に記録（画像・APIキーは記録しない）
+ *
+ * 利用上限（無料枠の回数制限）に達したときは、予備のモデルへ自動で切り替える。
  * 上限に達したモデルは、その日のうちは使わない（api/data/usage.json に記録）。
  *
  * APIキーは同じフォルダの config.php（無ければ環境変数 GEMINI_API_KEY）にのみ置き、ブラウザには渡さない。
@@ -21,27 +30,31 @@ header('Content-Type: application/json; charset=utf-8');
 header('Cache-Control: no-store');
 header('X-Content-Type-Options: nosniff');
 
-const APP_VERSION = '1.7';   // index.html の APP_VERSION と揃えて上げる
+const APP_VERSION = '1.8';   // index.html の APP_VERSION と揃えて上げる
 const DEFAULT_MODEL = 'gemini-3.8-flash';
 // 主モデルが上限に達したときに自動で使う予備モデル（無料枠の上限はモデルごとに別枠）。config.php の fallback_models で変更・無効化できる。
+// 精度を揃えるため、既定では Flash 系だけにしている（Flash-Lite 系は精度が下がりやすいので、使う場合は config.php で追加する）。
 // 存在しないモデル名は自動で飛ばされる。モデル名は Google AI Studio のモデル一覧で確認できる。
-const DEFAULT_FALLBACK_MODELS = ['gemini-3.7-flash', 'gemini-3.6-flash', 'gemini-3.5-flash-lite'];
+const DEFAULT_FALLBACK_MODELS = ['gemini-3.7-flash', 'gemini-3.6-flash'];
 const DEFAULT_ENDPOINT = 'https://generativelanguage.googleapis.com/v1beta';
 const MAX_FILE_BYTES = 6 * 1024 * 1024;
-const DEFAULT_FILES_PER_REQUEST = 4;             // 1回のAI呼び出しにまとめる枚数の既定値（config.php の max_files_per_request で変更。1〜MAX_FILES_LIMIT）
+const DEFAULT_FILES_PER_REQUEST = 1;             // 1回のAI呼び出しで送る枚数の既定値（精度優先で1枚ずつ。config.php の max_files_per_request で変更）
 const MAX_FILES_LIMIT = 6;
 const MAX_REQUEST_BYTES = 14 * 1024 * 1024;      // 1回の呼び出しで送る画像の合計（Geminiのインライン送信の上限20MBに余裕を持たせる）
-const USAGE_FILE = __DIR__ . '/data/usage.json';
+const DATA_DIR = __DIR__ . '/data';
+const USAGE_FILE = DATA_DIR . '/usage.json';
+const LOG_FILE = DATA_DIR . '/log.jsonl';
+const LOG_KEEP_LINES = 300;                      // 記録は直近この件数だけ残す
+const PASS_SEEDS = [1 => 1101, 2 => 2203, 3 => 3307];   // 何回目の読み取りかごとの乱数の種
 const ALLOWED_MIME = ['image/jpeg', 'image/png', 'image/webp', 'image/heic', 'image/heif', 'application/pdf'];
 
 const RECEIPT_PROMPT = <<<'TXT'
 あなたは日本の経費精算の担当者です。添付の画像（またはPDF）に写っている領収書を読み取り、高速道路・有料道路の通行料金と、駐車場の料金を抽出してください。
 
-## 添付ファイルについて
-- 添付は複数ある場合があります。各ファイルの直前に「[ファイル1]」「[ファイル2]」のように番号を付けています。
-- 各領収書には、それが写っているファイルの番号を image に必ず入れてください（1始まりの整数）。別のファイルの内容を混ぜてはいけません。
-- ファイルが1つだけでも image は 1 を入れてください。
-- 領収書が読み取れないファイルは、そのファイルの番号で category を "other"、amount を null、note に理由を書いた要素を1件入れてください。
+## 読み取りの手順
+1. まず領収書全体を上から下まで読み、店名・日付・各金額の行を確認する。
+2. 実際に支払った金額の行（「合計」「通行料金」「駐車料金」「領収金額」「ご利用金額」など）を特定する。
+3. その行の文字を amount_text にそのまま書き写し、そこに書かれた数字を amount にする。
 
 ## ルール
 1. 領収書が複数写っている場合（ETC利用明細の複数行を含む）は、1件ずつ receipts 配列の別の要素にしてください。
@@ -49,19 +62,32 @@ const RECEIPT_PROMPT = <<<'TXT'
    - "toll": 高速道路・有料道路・首都高速・NEXCO・ETC利用明細・通行料金の領収書
    - "parking": コインパーキング・時間貸し駐車場・駐車料金の領収書
    - "other": 上記以外（ガソリン代・飲食・物品購入など）
-3. amount: 実際に支払った税込の金額を整数（円）で。
-   - 「通行料金」「駐車料金」「合計」「領収金額」「ご利用金額」を優先する。
+3. amount_text: 金額を読み取った箇所の文字を、項目名ごと領収書の表記どおりに書き写す（例:「合計 ¥1,320」「駐車料金 800円」「通行料金 930」）。読めない場合は null。
+4. amount: 実際に支払った税込の金額を整数（円）で。amount_text に書いた数字と必ず一致させる。
    - 「お預り」「お預かり」「現金」「お釣り」「釣銭」「ポイント」「割引額」「消費税額」「小計（別に合計がある場合）」は絶対に採用しない。
    - ETC割引・深夜割引などがある場合は割引後の支払額。
    - カンマ・「¥」「円」は除き数字のみ。読めない・判別できない場合は null（推測しない）。
-4. date: 利用日（駐車場は出庫日、高速は出口の通過日）を YYYY-MM-DD 形式で。和暦（令和7年など）は西暦に変換。不明なら null。
-5. facility:
+5. date: 利用日（駐車場は出庫日、高速は出口の通過日）を YYYY-MM-DD 形式で。和暦（令和7年など）は西暦に変換。不明なら null。
+6. facility:
    - parking: 駐車場名（例: タイムズ上野駅前、三井のリパーク台東2丁目）。店舗名・番号があれば含める。
    - toll: 道路名（例: 首都高速、東北自動車道、常磐自動車道、東京外環自動車道）。道路名が無ければ運営会社名（例: NEXCO東日本）。
-6. entry / exit: 高速・有料道路の入口・出口の料金所名またはIC名（領収書の表記どおり）。駐車場の場合は null。
-7. confidence: 金額の読み取りの確かさを 0〜1 で。文字のかすれ・折れ・影・一部が写っていない・手書きなどがあれば低くする。
-8. note: 読み取りで気になった点（例:「金額の一部がかすれている」「2枚が重なっている」）を短い日本語で。無ければ null。
-9. 画像に書かれていない情報を作らないでください。
+7. entry / exit: 高速・有料道路の入口・出口の料金所名またはIC名（領収書の表記どおり）。駐車場の場合は null。
+8. confidence: 金額の読み取りの確かさを 0〜1 で。文字のかすれ・折れ・影・一部が写っていない・手書きなどがあれば低くする。
+9. note: 読み取りで気になった点（例:「金額の一部がかすれている」「2枚が重なっている」）を短い日本語で。無ければ null。
+10. 画像に書かれていない情報を作らないでください。
+TXT;
+
+const MULTI_FILE_PROMPT = <<<'TXT'
+## 添付ファイルについて
+- 添付は複数あります。各ファイルの直前に「[ファイル1]」「[ファイル2]」のように番号を付けています。
+- 各領収書には、それが写っているファイルの番号を image に必ず入れてください（1始まりの整数）。別のファイルの内容を混ぜてはいけません。
+- 領収書が読み取れないファイルは、そのファイルの番号で category を "other"、amount を null、note に理由を書いた要素を1件入れてください。
+TXT;
+
+const SINGLE_FILE_PROMPT = <<<'TXT'
+## 添付ファイルについて
+- 添付は1つです。image にはすべて 1 を入れてください。
+- 領収書が読み取れない場合は、category を "other"、amount を null、note に理由を書いた要素を1件入れてください。
 TXT;
 
 function respond(int $status, array $body): void
@@ -94,7 +120,6 @@ function load_config(): array
     // 使うモデルの一覧（先頭が最優先。上限に達したら次のモデルへ自動で切り替える）
     //   models           … 全体を直接指定（指定した順に使う）
     //   model            … 主モデル。fallback_models … 予備モデル（省略時は DEFAULT_FALLBACK_MODELS。[] で予備なし）
-    $models = [];
     if (isset($config['models']) && is_array($config['models'])) {
         $models = $config['models'];
     } else {
@@ -120,7 +145,10 @@ function load_config(): array
     $maxFiles = (int)($config['max_files_per_request'] ?? DEFAULT_FILES_PER_REQUEST);
     $maxFiles = max(1, min(MAX_FILES_LIMIT, $maxFiles));
 
-    return ['key' => $key, 'models' => $models, 'model' => $models[0], 'endpoint' => $endpoint, 'maxFiles' => $maxFiles];
+    return [
+        'key' => $key, 'models' => $models, 'model' => $models[0], 'endpoint' => $endpoint, 'maxFiles' => $maxFiles,
+        'log' => !array_key_exists('log_requests', $config) || (bool)$config['log_requests'],
+    ];
 }
 
 /**
@@ -147,11 +175,10 @@ function usage_load(): array
     return $u;
 }
 
-/** 回数を加算し、必要なら「上限到達」の印を付けて保存する。保存できない環境でも本来の処理は止めない */
+/** 回数を加算し、必要なら印（上限到達・モデルなし・追加設定非対応）を付けて保存する。保存できない環境でも本来の処理は止めない */
 function usage_update(string $model, array $changes): void
 {
-    $dir = dirname(USAGE_FILE);
-    if (!is_dir($dir) && !@mkdir($dir, 0755, true)) {
+    if (!is_dir(DATA_DIR) && !@mkdir(DATA_DIR, 0755, true)) {
         return;
     }
     $fp = @fopen(USAGE_FILE, 'c+');
@@ -163,9 +190,9 @@ function usage_update(string $model, array $changes): void
         if (!is_array($u) || ($u['day'] ?? '') !== usage_day()) {
             $u = ['day' => usage_day(), 'models' => []];
         }
-        $m = $u['models'][$model] ?? ['requests' => 0, 'exhausted' => false, 'missing' => false];
+        $m = $u['models'][$model] ?? ['requests' => 0, 'exhausted' => false, 'missing' => false, 'basic' => false];
         $m['requests'] = (int)($m['requests'] ?? 0) + (int)($changes['requests'] ?? 0);
-        foreach (['exhausted', 'missing'] as $flag) {
+        foreach (['exhausted', 'missing', 'basic'] as $flag) {
             if (array_key_exists($flag, $changes)) {
                 $m[$flag] = (bool)$changes[$flag];
             }
@@ -174,6 +201,30 @@ function usage_update(string $model, array $changes): void
         ftruncate($fp, 0);
         rewind($fp);
         fwrite($fp, json_encode($u, JSON_UNESCAPED_UNICODE));
+        fflush($fp);
+        flock($fp, LOCK_UN);
+    }
+    fclose($fp);
+}
+
+/** 読み取りの記録を1行追記する（画像・APIキーは含めない）。直近 LOG_KEEP_LINES 件だけ残す */
+function log_request(array $cfg, array $entry): void
+{
+    if (!$cfg['log'] || (!is_dir(DATA_DIR) && !@mkdir(DATA_DIR, 0755, true))) {
+        return;
+    }
+    $entry = ['time' => (new DateTimeImmutable('now', new DateTimeZone('Asia/Tokyo')))->format('Y-m-d H:i:s'), 'version' => APP_VERSION] + $entry;
+    $fp = @fopen(LOG_FILE, 'c+');
+    if (!$fp) {
+        return;
+    }
+    if (flock($fp, LOCK_EX)) {
+        $lines = array_values(array_filter(explode("\n", (string)stream_get_contents($fp)), fn($l) => trim($l) !== ''));
+        $lines[] = json_encode($entry, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+        $lines = array_slice($lines, -LOG_KEEP_LINES);
+        ftruncate($fp, 0);
+        rewind($fp);
+        fwrite($fp, implode("\n", $lines) . "\n");
         fflush($fp);
         flock($fp, LOCK_UN);
     }
@@ -192,7 +243,7 @@ function gemini_request(array $cfg, string $method, string $path, ?array $body =
     $opts = [
         CURLOPT_RETURNTRANSFER => true,
         CURLOPT_CONNECTTIMEOUT => 10,
-        CURLOPT_TIMEOUT => 90,
+        CURLOPT_TIMEOUT => 120,
         CURLOPT_CUSTOMREQUEST => $method,
     ];
     if ($body !== null) {
@@ -202,6 +253,7 @@ function gemini_request(array $cfg, string $method, string $path, ?array $body =
     $opts[CURLOPT_HTTPHEADER] = $headers;
     curl_setopt_array($ch, $opts);
 
+    $started = microtime(true);
     $raw = curl_exec($ch);
     $status = (int)curl_getinfo($ch, CURLINFO_RESPONSE_CODE);
     $error = curl_error($ch);
@@ -211,6 +263,7 @@ function gemini_request(array $cfg, string $method, string $path, ?array $body =
         'status' => $raw === false ? 0 : $status,
         'json' => is_array($json) ? $json : null,
         'error' => $error,
+        'ms' => (int)round((microtime(true) - $started) * 1000),
     ];
 }
 
@@ -236,10 +289,23 @@ function classify_quota_error(array $r): array
     return ['kind' => $kind, 'retryAfter' => $retry];
 }
 
+/** 追加設定（解像度・seed・項目の順番）をGemini側が受け付けなかったときの 400 か */
+function is_compat_error(array $r): bool
+{
+    if ($r['status'] !== 400) {
+        return false;
+    }
+    $msg = (string)($r['json']['error']['message'] ?? '');
+    if (stripos($msg, 'API key') !== false) {
+        return false;
+    }
+    return (bool)preg_match('/media_?resolution|seed|property_?ordering|Unknown name|Cannot find field|Invalid JSON payload/i', $msg);
+}
+
 function gemini_error_message(array $r): string
 {
     if ($r['status'] === 0) {
-        return 'Gemini API に接続できませんでした（' . $r['error'] . '）。';
+        return 'Gemini API に接続できませんでした（' . $r['error'] . '）。時間をおいてもう一度お試しください。';
     }
     $msg = (string)($r['json']['error']['message'] ?? '');
     if ($r['status'] === 400 && stripos($msg, 'API key') !== false) {
@@ -254,36 +320,92 @@ function gemini_error_message(array $r): string
     if ($r['status'] === 429) {
         return 'Gemini API の利用上限に達しました（1日の回数制限の可能性があります）。日本時間の午後4時（11月以降は午後5時）に回数がリセットされます。回数を増やすには、予備のモデルを追加するか、有料枠にしてください（同梱の README.txt の「3-2b」を参照）。';
     }
+    if (in_array($r['status'], [500, 502, 503, 504], true)) {
+        return 'Gemini 側が混雑しているか一時的な不具合です（HTTP ' . $r['status'] . '）。時間をおいてもう一度お試しください。';
+    }
     return 'Gemini API エラー（HTTP ' . $r['status'] . '）' . ($msg !== '' ? '：' . $msg : '');
 }
 
-function receipt_schema(): array
+function receipt_schema(bool $basic): array
 {
     $nullableString = ['type' => 'STRING', 'nullable' => true];
-    return [
+    $order = ['image', 'category', 'facility', 'entry', 'exit', 'date', 'amount_text', 'amount', 'confidence', 'note'];
+    $item = [
         'type' => 'OBJECT',
         'properties' => [
-            'receipts' => [
-                'type' => 'ARRAY',
-                'items' => [
-                    'type' => 'OBJECT',
-                    'properties' => [
-                        'image' => ['type' => 'INTEGER'],
-                        'category' => ['type' => 'STRING', 'enum' => ['toll', 'parking', 'other']],
-                        'facility' => $nullableString,
-                        'entry' => $nullableString,
-                        'exit' => $nullableString,
-                        'date' => $nullableString,
-                        'amount' => ['type' => 'INTEGER', 'nullable' => true],
-                        'confidence' => ['type' => 'NUMBER'],
-                        'note' => $nullableString,
-                    ],
-                    'required' => ['image', 'category', 'facility', 'entry', 'exit', 'date', 'amount', 'confidence', 'note'],
-                ],
-            ],
+            'image' => ['type' => 'INTEGER'],
+            'category' => ['type' => 'STRING', 'enum' => ['toll', 'parking', 'other']],
+            'facility' => $nullableString,
+            'entry' => $nullableString,
+            'exit' => $nullableString,
+            'date' => $nullableString,
+            'amount_text' => $nullableString,
+            'amount' => ['type' => 'INTEGER', 'nullable' => true],
+            'confidence' => ['type' => 'NUMBER'],
+            'note' => $nullableString,
         ],
+        'required' => $order,
+    ];
+    if (!$basic) {
+        $item['propertyOrdering'] = $order;   // 根拠の文字（amount_text）を書いてから金額（amount）を出させる
+    }
+    return [
+        'type' => 'OBJECT',
+        'properties' => ['receipts' => ['type' => 'ARRAY', 'items' => $item]],
         'required' => ['receipts'],
     ];
+}
+
+/**
+ * Geminiに送る内容を組み立てる。
+ * $basic = true のときは追加設定（解像度・seed・項目の順番）を付けない（Gemini側が受け付けないときの予備）
+ */
+function build_payload(array $files, int $pass, bool $basic): array
+{
+    $parts = [];
+    $multi = count($files) > 1;
+    foreach ($files as $i => $f) {
+        if ($multi) {
+            $parts[] = ['text' => '[ファイル' . ($i + 1) . ']'];
+        }
+        $parts[] = ['inlineData' => ['mimeType' => $f['mimeType'], 'data' => $f['data']]];
+    }
+    $parts[] = ['text' => RECEIPT_PROMPT . "\n\n" . ($multi ? MULTI_FILE_PROMPT . "\n- 今回の添付ファイルは全部で " . count($files) . ' 個です。' : SINGLE_FILE_PROMPT)];
+    $config = [
+        'responseMimeType' => 'application/json',
+        'responseSchema' => receipt_schema($basic),
+    ];
+    if (!$basic) {
+        $config['mediaResolution'] = 'MEDIA_RESOLUTION_HIGH';   // 細かい文字まで読めるよう、画像の解像度を「高」に固定
+        $config['seed'] = PASS_SEEDS[$pass];                   // 同じ画像・同じ回なら、同じ結果が出やすくする
+    }
+    return ['contents' => [['role' => 'user', 'parts' => $parts]], 'generationConfig' => $config];
+}
+
+/** 応答から領収書の配列を取り出す。取り出せなければ [null, 理由] */
+function parse_receipts(array $json): array
+{
+    $candidate = $json['candidates'][0] ?? null;
+    $text = '';
+    foreach (($candidate['content']['parts'] ?? []) as $part) {
+        if (!empty($part['thought'])) {
+            continue;
+        }
+        if (isset($part['text']) && is_string($part['text'])) {
+            $text .= $part['text'];
+        }
+    }
+    if ($text === '') {
+        return [null, 'AIから読み取り結果が返りませんでした（' . ($candidate['finishReason'] ?? ($json['promptFeedback']['blockReason'] ?? '不明')) . '）'];
+    }
+    $parsed = json_decode($text, true);
+    if (!is_array($parsed) && preg_match('/\{[\s\S]*\}/', $text, $m)) {
+        $parsed = json_decode($m[0], true);
+    }
+    if (!is_array($parsed) || !isset($parsed['receipts']) || !is_array($parsed['receipts'])) {
+        return [null, 'AIの応答を解析できませんでした'];
+    }
+    return [$parsed['receipts'], null];
 }
 
 function clean_str($v, int $max): ?string
@@ -297,6 +419,28 @@ function clean_str($v, int $max): ?string
         return null;
     }
     return function_exists('mb_substr') ? mb_substr($s, 0, $max) : $s;
+}
+
+/**
+ * 根拠の文字（amount_text）の中に、金額（amount）と同じ数字があるか。
+ *   'ok' … 一致 / 'mismatch' … 根拠の文字に金額の数字が無い / 'missing' … 根拠の文字が無い / null … 金額が無い
+ */
+function check_evidence(?int $amount, ?string $text): ?string
+{
+    if ($amount === null) {
+        return null;
+    }
+    if ($text === null) {
+        return 'missing';
+    }
+    $t = strtr($text, ['０' => '0', '１' => '1', '２' => '2', '３' => '3', '４' => '4', '５' => '5', '６' => '6', '７' => '7', '８' => '8', '９' => '9', '，' => ',']);
+    preg_match_all('/\d[\d,]*/', $t, $m);
+    foreach ($m[0] as $num) {
+        if ((int)str_replace(',', '', $num) === $amount) {
+            return 'ok';
+        }
+    }
+    return 'mismatch';
 }
 
 function normalize_receipt($r): ?array
@@ -328,10 +472,14 @@ function normalize_receipt($r): ?array
     $image = $r['image'] ?? null;
     $image = (is_int($image) || (is_string($image) && ctype_digit($image))) ? (int)$image : null;
 
+    $amountText = clean_str($r['amount_text'] ?? null, 60);
+
     return [
         'image' => $image,
         'category' => $category,
         'amount' => $amount,
+        'amount_text' => $amountText,
+        'evidence' => check_evidence($amount, $amountText),
         'date' => clean_str($r['date'] ?? null, 20),
         'facility' => clean_str($r['facility'] ?? null, 80),
         'entry' => clean_str($r['entry'] ?? null, 40),
@@ -366,7 +514,8 @@ if ($method === 'GET' && ($_GET['action'] ?? '') === 'status') {
     respond(200, [
         'ok' => true, 'version' => APP_VERSION, 'model' => $cfg['model'], 'keyTail' => key_tail($cfg['key']),
         'maxFiles' => $cfg['maxFiles'], 'usageDay' => $usage['day'], 'models' => $models,
-        'usageWritable' => is_dir(dirname(USAGE_FILE)) ? is_writable(dirname(USAGE_FILE)) : is_writable(__DIR__),
+        'usageWritable' => is_dir(DATA_DIR) ? is_writable(DATA_DIR) : is_writable(__DIR__),
+        'logEnabled' => $cfg['log'],
     ]);
 }
 
@@ -374,7 +523,7 @@ if ($method !== 'POST') {
     respond(405, ['ok' => false, 'error' => 'POST で送信してください。']);
 }
 
-@set_time_limit(240);
+@set_time_limit(600);
 $cfg = load_config();
 if ($cfg['key'] === '') {
     respond(500, ['ok' => false, 'error' => 'APIキーが未設定です。api/config.sample.php を config.php にコピーしてキーを設定してください。']);
@@ -392,6 +541,10 @@ if (!is_array($in)) {
 $files = isset($in['files']) && is_array($in['files']) ? array_values($in['files']) : [['mimeType' => $in['mimeType'] ?? '', 'data' => $in['data'] ?? '']];
 if (!$files || count($files) > $cfg['maxFiles']) {
     respond(400, ['ok' => false, 'error' => '一度に読み取れるのは1〜' . $cfg['maxFiles'] . '枚です。']);
+}
+$pass = (int)($in['pass'] ?? 1);
+if (!isset(PASS_SEEDS[$pass])) {
+    $pass = 1;
 }
 $total = 0;
 foreach ($files as $i => $f) {
@@ -415,106 +568,114 @@ if ($total > MAX_REQUEST_BYTES) {
     respond(413, ['ok' => false, 'error' => '一度に送る画像の合計が大きすぎます。枚数を減らしてください。']);
 }
 
-// ---- Gemini に送る内容：各ファイルの直前に「[ファイルN]」を付けて、どの領収書がどのファイルのものか分かるようにする ----
-$parts = [];
-foreach ($files as $i => $f) {
-    $parts[] = ['text' => '[ファイル' . ($i + 1) . ']'];
-    $parts[] = ['inlineData' => ['mimeType' => $f['mimeType'], 'data' => $f['data']]];
-}
-$parts[] = ['text' => RECEIPT_PROMPT . "\n\n今回の添付ファイルは全部で " . count($files) . " 個です。"];
-$payload = [
-    'contents' => [['role' => 'user', 'parts' => $parts]],
-    'generationConfig' => [
-        'responseMimeType' => 'application/json',
-        'responseSchema' => receipt_schema(),
-    ],
-];
-
 // ---- モデルを順に試す。上限に達したモデルは飛ばし、その日のうちは使わない ----
+//   1つのモデルの中では、一時的なエラーを自動で再試行する
+//     混雑・タイムアウト（0/500/502/503/504）… 2秒・5秒待って最大2回
+//     応答の崩れ（結果が空・JSONが壊れている）… 1回
+//     1分あたりの上限 … 指示された秒数（30秒まで）待って1回
+//     追加設定を受け付けない（400）… 追加設定なしで1回（その日は以後も追加設定なしで送る）
 $usage = usage_load();
-$result = null;
+$receipts = null;
 $usedModel = null;
 $skipped = [];
 $lastError = null;
+$lastParseError = null;
+$attempts = [];
 foreach ($cfg['models'] as $model) {
     if (!empty($usage['models'][$model]['exhausted']) || !empty($usage['models'][$model]['missing'])) {
         $skipped[] = $model;
         continue;
     }
+    $basic = !empty($usage['models'][$model]['basic']);
     $path = '/models/' . rawurlencode($model) . ':generateContent';
-    for ($attempt = 0; ; $attempt++) {
-        $r = gemini_request($cfg, 'POST', $path, $payload);
+    $transient = 0;
+    $parseRetry = 0;
+    $minuteRetry = 0;
+    $compatRetry = 0;
+    $r = null;
+    while (true) {
+        $r = gemini_request($cfg, 'POST', $path, build_payload($files, $pass, $basic));
         usage_update($model, ['requests' => 1]);
+        $attempt = ['model' => $model, 'status' => $r['status'], 'ms' => $r['ms'], 'basic' => $basic];
+
         if ($r['status'] === 200 && $r['json'] !== null) {
+            [$list, $err] = parse_receipts($r['json']);
+            $attempt['finish'] = $r['json']['candidates'][0]['finishReason'] ?? null;
+            $attempt['tokens'] = array_intersect_key($r['json']['usageMetadata'] ?? [], array_flip(['promptTokenCount', 'candidatesTokenCount', 'thoughtsTokenCount', 'totalTokenCount']));
+            if ($list !== null) {
+                $attempts[] = $attempt;
+                $receipts = $list;
+                $usedModel = $model;
+                break 2;
+            }
+            $attempt['error'] = $err;
+            $attempts[] = $attempt;
+            $lastParseError = $err;
+            if ($parseRetry++ < 1) {
+                continue;
+            }
             break;
         }
-        $retry = false;
+        $attempt['error'] = (string)($r['json']['error']['message'] ?? $r['error']);
+        $attempts[] = $attempt;
+
         if ($r['status'] === 404) {
             usage_update($model, ['missing' => true]);
-        } elseif ($r['status'] === 429) {
+            break;
+        }
+        if ($r['status'] === 429) {
             $q = classify_quota_error($r);
             // 1日の上限（または種類が分からない上限）は待っても回復しないので、再試行せず次のモデルへ
             if ($q['kind'] !== 'minute') {
                 usage_update($model, ['exhausted' => true]);
-            } elseif ($attempt < 1 && ($q['retryAfter'] === null || $q['retryAfter'] <= 20)) {
-                sleep(max(2, (int)$q['retryAfter']));   // 1分あたりの上限は、指示された秒数だけ待って1回だけ再試行
-                $retry = true;
+                break;
             }
-        } elseif (in_array($r['status'], [500, 503], true) && $attempt < 1) {
-            sleep(2);
-            $retry = true;
-        }
-        if (!$retry) {
+            if ($minuteRetry++ < 1 && ($q['retryAfter'] === null || $q['retryAfter'] <= 30)) {
+                sleep(max(2, (int)$q['retryAfter']));
+                continue;
+            }
             break;
         }
-    }
-    if ($r['status'] === 200 && $r['json'] !== null) {
-        $result = $r;
-        $usedModel = $model;
+        if (!$basic && is_compat_error($r) && $compatRetry++ < 1) {
+            $basic = true;
+            usage_update($model, ['basic' => true]);
+            continue;
+        }
+        if (in_array($r['status'], [0, 500, 502, 503, 504], true) && $transient < 2) {
+            sleep($transient === 0 ? 2 : 5);
+            $transient++;
+            continue;
+        }
         break;
     }
     $lastError = $r;
-    // 上限（429）・モデルが無い（404）なら次のモデルを試す。キー不正など他のエラーは、モデルを変えても同じなので打ち切る
+    // 上限（429）・モデルが無い（404）なら次のモデルを試す。キー不正・応答の崩れなど他の理由は、モデルを変えても改善しないので打ち切る
     if (!in_array($r['status'], [429, 404], true)) {
         break;
     }
 }
-if ($result === null) {
+
+if ($receipts === null) {
     if ($lastError === null) {
-        respond(502, ['ok' => false, 'code' => 'quota_day', 'error' => '使えるモデルがすべて本日は使えません（上限に達したか、モデルが見つかりません：' . implode('、', $skipped) . '）。日本時間の午後4時（11月以降は午後5時）に回数がリセットされます。回数を増やすには、有料枠にするか、api/config.php に別のモデルを追加してください。']);
+        $error = '使えるモデルがすべて本日は使えません（上限に達したか、モデルが見つかりません：' . implode('、', $skipped) . '）。日本時間の午後4時（11月以降は午後5時）に回数がリセットされます。回数を増やすには、有料枠にするか、api/config.php に別のモデルを追加してください。';
+        $code = 'quota_day';
+    } elseif ($lastError['status'] === 200) {
+        $error = $lastParseError . '。もう一度お試しください。';
+        $code = 'parse';
+    } else {
+        $error = gemini_error_message($lastError);
+        $code = $lastError['status'] === 429 ? 'quota' : 'error';
     }
-    $code = $lastError['status'] === 429 ? 'quota' : 'error';
-    respond(502, ['ok' => false, 'code' => $code, 'error' => gemini_error_message($lastError)]);
+    log_request($cfg, ['pass' => $pass, 'files' => count($files), 'ok' => false, 'error' => $error, 'attempts' => $attempts]);
+    respond(502, ['ok' => false, 'code' => $code, 'error' => $error]);
 }
 
-// ---- 応答の解析 ----
-$candidate = $result['json']['candidates'][0] ?? null;
-$text = '';
-foreach (($candidate['content']['parts'] ?? []) as $part) {
-    if (!empty($part['thought'])) {
-        continue;
-    }
-    if (isset($part['text']) && is_string($part['text'])) {
-        $text .= $part['text'];
-    }
-}
-if ($text === '') {
-    $reason = $candidate['finishReason'] ?? ($result['json']['promptFeedback']['blockReason'] ?? '不明');
-    respond(502, ['ok' => false, 'error' => 'AIから読み取り結果が返りませんでした（' . $reason . '）。']);
-}
-$parsed = json_decode($text, true);
-if (!is_array($parsed) && preg_match('/\{[\s\S]*\}/', $text, $m)) {
-    $parsed = json_decode($m[0], true);
-}
-if (!is_array($parsed) || !isset($parsed['receipts']) || !is_array($parsed['receipts'])) {
-    respond(502, ['ok' => false, 'error' => 'AIの応答を解析できませんでした。もう一度お試しください。']);
-}
-
-// ファイルごとに振り分ける。番号が不正・欠落した領収書は unassigned に分け、画面側で要確認にする
+// ファイルごとに振り分ける。1枚だけならすべてその画像のもの。
+// 複数枚で番号が不正・欠落した領収書は unassigned に分け、画面側で要確認にする
 $byFile = array_fill(0, count($files), []);
 $unassigned = [];
-foreach (array_values(array_filter(array_map('normalize_receipt', $parsed['receipts']))) as $rc) {
-    $idx = isset($rc['image']) ? $rc['image'] - 1 : -1;
+foreach (array_values(array_filter(array_map('normalize_receipt', $receipts))) as $rc) {
+    $idx = count($files) === 1 ? 0 : (isset($rc['image']) ? $rc['image'] - 1 : -1);
     unset($rc['image']);
     if ($idx >= 0 && $idx < count($files)) {
         $byFile[$idx][] = $rc;
@@ -522,8 +683,14 @@ foreach (array_values(array_filter(array_map('normalize_receipt', $parsed['recei
         $unassigned[] = $rc;
     }
 }
+
+$summary = fn($list) => array_map(fn($rc) => [$rc['category'], $rc['amount'], $rc['amount_text'], $rc['evidence'], $rc['confidence']], $list);
+log_request($cfg, [
+    'pass' => $pass, 'files' => count($files), 'ok' => true, 'model' => $usedModel, 'attempts' => $attempts,
+    'result' => array_map($summary, $byFile), 'unassigned' => $summary($unassigned),
+]);
 respond(200, [
-    'ok' => true, 'model' => $usedModel, 'fallback' => $usedModel !== $cfg['models'][0],
+    'ok' => true, 'pass' => $pass, 'model' => $usedModel, 'fallback' => $usedModel !== $cfg['models'][0],
     'files' => array_map(fn($list) => ['receipts' => $list], $byFile),
     'unassigned' => $unassigned,
 ]);
