@@ -146,9 +146,9 @@
     .ai-panel { border-left: 4px solid #7b61ff; }
     .ai-panel h2 { border-left-color: #7b61ff; }
     .ai-controls { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 16px; margin: 4px 0 10px; }
-    .ai-opt { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; font-weight: 600; color: var(--text); margin: 0; }
+    .ai-opt { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; font-weight: 600; color: var(--text); margin: 0; max-width: 100%; }
     .ai-opt input[type="checkbox"], .ai-review input[type="checkbox"] { width: auto; margin: 0; }
-    .ai-mode { width: auto; font-family: inherit; font-size: 13px; padding: 5px 8px; border: 1px solid var(--input-border); border-radius: 6px; background: var(--panel-2); color: var(--text); font-weight: 400; }
+    .ai-mode { width: auto; min-width: 0; max-width: 100%; font-family: inherit; font-size: 13px; padding: 5px 8px; border: 1px solid var(--input-border); border-radius: 6px; background: var(--panel-2); color: var(--text); font-weight: 400; }
     .ai-usage { font-size: 12px; background: #f3f0ff; border: 1px solid #d6ccff; border-radius: 8px; padding: 8px 12px; margin: 0 0 10px; line-height: 1.7; }
     .ai-usage b { color: #4b3bb8; }
     .ai-usage .ex { color: #b3203f; font-weight: 700; }
@@ -193,7 +193,8 @@
     }
     .ai-must .ico { font-size: 20px; }
     .ai-tips { font-size: 12px; color: var(--muted); margin: 8px 0 0; line-height: 1.6; }
-    .ai-evidence { font-size: 10px; color: var(--muted); margin-top: 3px; line-height: 1.3; word-break: break-all; }
+    .ai-evidence { font-size: 10px; color: var(--muted); margin-top: 3px; line-height: 1.3; overflow-wrap: anywhere; }
+    .ai-evidence .num { white-space: nowrap; }
     .ai-evidence.bad { color: #b3203f; font-weight: 700; }
     .ai-review tr.ai-warn td { background: #fff6f7; }
     .ai-review tr.ai-done td { opacity: .55; }
@@ -1007,29 +1008,17 @@
 
     // 1枚の画像についての読み取り結果（最大3回分）から、採用する結果を決める。
     //   2回一致 → all ／ 3回中2回一致 → majority（多い方を採用）／ そろわない → none（1回目を採用して要確認）
+    // 一致した読み取りのうち、金額と根拠の文字が合っている方を採用する
     const aiSignature = list => JSON.stringify(list.map(r => [r.category, r.amount]).sort());
+    const aiEvidenceIssues = list => list.filter(r => r.amount != null && r.evidence && r.evidence !== 'ok').length;
+    const aiPickBetter = (x, y) => (aiEvidenceIssues(y) < aiEvidenceIssues(x) ? y : x);
     function decideConsensus(reads) {
       if (reads.length === 1) return { chosen: reads[0], agreement: 'single', reads };
       const [a, b, c] = reads.map(aiSignature);
-      if (a === b) return { chosen: reads[0], agreement: 'all', reads };
-      if (reads.length >= 3 && c === a) return { chosen: reads[0], agreement: 'majority', reads, minority: reads[1] };
-      if (reads.length >= 3 && c === b) return { chosen: reads[1], agreement: 'majority', reads, minority: reads[0] };
+      if (a === b) return { chosen: aiPickBetter(reads[0], reads[1]), agreement: 'all', reads };
+      if (reads.length >= 3 && c === a) return { chosen: aiPickBetter(reads[0], reads[2]), agreement: 'majority', reads, minority: reads[1] };
+      if (reads.length >= 3 && c === b) return { chosen: aiPickBetter(reads[1], reads[2]), agreement: 'majority', reads, minority: reads[0] };
       return { chosen: reads[0], agreement: 'none', reads };
-    }
-
-    // 1回目の各領収書について、2回目に「種別と金額が同じ」ものがあるかを照合する
-    function compareReceiptPasses(first, second) {
-      const used = new Set();
-      const results = first.map(r => {
-        const j = second.findIndex((s, k) => !used.has(k) && s.category === r.category && s.amount === r.amount);
-        if (j < 0) return null;
-        used.add(j);
-        return { match: true };
-      });
-      return {
-        countDiff: first.length !== second.length,
-        results: results.map((m, i) => m || { match: false, other: second[i] }),
-      };
     }
 
     // consensus … decideConsensus の結果。opts.checkFailed … 2回目・3回目の読み取りに失敗した
@@ -1087,7 +1076,7 @@
         const note = (it.info && !it.applied ? `<div class="ai-note">${xmlEsc(it.info)}</div>` : '')
           + (it.note ? `<div class="ai-note">AIメモ: ${xmlEsc(it.note)}</div>` : '');
         const evidence = it.amountText
-          ? `<div class="ai-evidence${it.evidence === 'mismatch' ? ' bad' : ''}">根拠：${xmlEsc(it.amountText)}</div>` : '';
+          ? `<div class="ai-evidence${it.evidence === 'mismatch' ? ' bad' : ''}">根拠：${xmlEsc(it.amountText).replace(/[¥￥]?[0-9０-９][0-9０-９,，]*/g, '<span class="num">$&</span>')}</div>` : '';
         const dis = it.applied ? ' disabled' : '';
         const opts = Object.entries(AI_CATEGORY_LABEL)
           .map(([v, l]) => `<option value="${v}"${it.category === v ? ' selected' : ''}>${l}</option>`).join('');
@@ -1106,7 +1095,7 @@
       const pending = aiItems.some(it => !it.applied);
       box.innerHTML = `<div class="table-scroll"><table>
           <thead><tr><th style="width:30px">反映</th><th style="width:80px">領収書</th><th style="width:100px">種別</th>
-            <th style="width:100px">金額（円）</th><th>道路名／駐車場名</th><th>区間（入口→出口）</th>
+            <th style="width:120px">金額（円）</th><th>道路名／駐車場名</th><th>区間（入口→出口）</th>
             <th style="width:90px">日付</th><th style="width:180px">判定</th></tr></thead>
           <tbody>${rows}</tbody></table></div>
         <div class="ai-actions">
