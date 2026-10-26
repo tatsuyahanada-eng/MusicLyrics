@@ -1,11 +1,11 @@
 // 大相撲データ
 // 注意: サンプルデータです。実際の番付・成績とは差異がある場合があります。
-// データは2026年九月場所（秋場所）番付発表（2026年8月31日）時点、および同場所の優勝結果（2026年9月27日千秋楽）を反映しています。
+// データは2026年十一月場所（九州場所）番付発表（2026年10月26日）時点の情報です。
 
 const SITE_META = {
   // ▼ データを更新したら、この最終更新日も書き換えてください（表示に使われます）
-  lastUpdated: '2026-09-28',
-  dataAsOf: '令和8年（2026年）九月場所（秋場所）終了時点',
+  lastUpdated: '2026-10-26',
+  dataAsOf: '令和8年（2026年）十一月場所（九州場所）番付発表時点',
   note: '番付・優勝歴などの主要情報は公開情報をもとに精査していますが、前頭の枚数順や通算成績の細部は概算を含みます。正確な最新情報は日本相撲協会公式サイトをご確認ください。',
 };
 
@@ -14,7 +14,7 @@ const SITE_META = {
 const BANZUKE_SCHEDULE = [
   { id: '2026-07', name: '令和8年 七月場所（名古屋場所）', banzukeDate: '2026-06-29', basho: '2026-07-12〜26', venue: 'IGアリーナ（愛知）', banzukeAnnounced: true },
   { id: '2026-09', name: '令和8年 九月場所（秋場所）', banzukeDate: '2026-08-31', basho: '2026-09-13〜27', venue: '両国国技館（東京）', banzukeAnnounced: true },
-  { id: '2026-11', name: '令和8年 十一月場所（九州場所）', banzukeDate: '2026-10-26', basho: '2026-11-08〜22', venue: '福岡国際センター', banzukeAnnounced: false },
+  { id: '2026-11', name: '令和8年 十一月場所（九州場所）', banzukeDate: '2026-10-26', basho: '2026-11-08〜22', venue: '福岡国際センター', banzukeAnnounced: true },
   { id: '2027-01', name: '令和9年 一月場所（初場所）', banzukeDate: '2026-12-21', basho: '2027-01-10〜24', venue: '両国国技館（東京）', banzukeAnnounced: false },
 ];
 
@@ -302,7 +302,7 @@ const RIKISHI = [
     realName: 'ヤヴグシシン・ダニーロ（Danylo Yavhusishyn）',
     rank: '大関',
     rankNum: 2,
-    side: '西',
+    side: '東',
     stableId: 'ajigawa',
     birthplace: 'ウクライナ・ヴィーンヌィツャ',
     birthplaceCountry: 'ウクライナ',
@@ -315,7 +315,7 @@ const RIKISHI = [
     sansho: { shukunsho: 2, kantosho: 2, ginosho: 3 },
     kinboshi: 1,
     favoriteKimarite: ['押し出し', '寄り切り', 'おっつけ'],
-    profile: 'ウクライナ出身者として史上初の大関。2022年に来日し、元関脇・安美錦の安治川部屋へ入門。2023年九月場所で初土俵。低く当たって食い下がる技巧派の取り口で、2025年九州場所で初優勝、翌2026年初場所も連覇。初土俵から所要14場所での大関昇進は史上最速タイ級の出世。夏場所で負け越して大関から陥落するも、2026年七月場所で12勝3敗・巴戦制して3度目の優勝を果たすと同時に大関特例復帰の条件を満たし、大関復帰と優勝の同時達成は史上初となった。2026年秋場所は大関の場所で12勝3敗まで勝ち進んだが、千秋楽の相星決戦で大の里に敗れ準優勝。'
+    profile: 'ウクライナ出身者として史上初の大関。2022年に来日し、元関脇・安美錦の安治川部屋へ入門。2023年九月場所で初土俵。低く当たって食い下がる技巧派の取り口で、2025年九州場所で初優勝、翌2026年初場所も連覇。初土俵から所要14場所での大関昇進は史上最速タイ級の出世。夏場所で負け越して大関から陥落するも、2026年七月場所で12勝3敗・巴戦制して3度目の優勝を果たすと同時に大関特例復帰の条件を満たし、大関復帰と優勝の同時達成は史上初となった。2026年秋場所は大関の場所で12勝3敗まで勝ち進んだが、千秋楽の相星決戦で大の里に敗れ準優勝。この成績により九州場所は東大関1枚目に番付を上げた。'
   },
   {
     id: 'kirishima',
@@ -350,7 +350,7 @@ const RIKISHI = [
     realName: '武井朔太郎',
     rank: '関脇',
     rankNum: 3,
-    side: '東',
+    side: '西',
     stableId: 'isegahama',
     birthplace: '静岡県熱海市',
     birthplaceCountry: '日本',
@@ -371,7 +371,7 @@ const RIKISHI = [
     nameKana: 'ことしょうほう',
     nameRomaji: 'Kotoshoho Yoshinari',
     realName: '秋谷信桜',
-    rank: '前頭1',
+    rank: '前頭6',
     rankNum: 5,
     side: '東',
     stableId: 'sadogatake',
@@ -386,7 +386,7 @@ const RIKISHI = [
     sansho: { shukunsho: 1, kantosho: 2, ginosho: 1 },
     kinboshi: 1,
     favoriteKimarite: ['右四つ', '寄り切り', '突き押し'],
-    profile: '佐渡ヶ嶽部屋所属。琴櫻とは同部屋。2025年名古屋場所で13勝2敗の平幕初優勝を果たし、一気に三役へ昇進した。2026年七月場所は6勝9敗で、秋場所は3場所ぶりの平幕（東前頭筆頭）に。西前頭筆頭には弟の琴栄峰が並ぶ。'
+    profile: '佐渡ヶ嶽部屋所属。琴櫻とは同部屋。2025年名古屋場所で13勝2敗の平幕初優勝を果たし、一気に三役へ昇進した。2026年七月場所は6勝9敗で、秋場所は3場所ぶりの平幕（東前頭筆頭）に。西前頭筆頭には弟の琴栄峰が並んだ。九州場所も兄弟そろって前頭6枚目に。'
   },
   {
     id: 'wakamotoharu',
@@ -417,8 +417,8 @@ const RIKISHI = [
     nameKana: 'だいえいしょう',
     nameRomaji: 'Daieisho Hayato',
     realName: '高橋勇人',
-    rank: '小結',
-    rankNum: 4,
+    rank: '前頭4',
+    rankNum: 5,
     side: '西',
     stableId: 'oitekaze',
     birthplace: '埼玉県朝霞市',
@@ -432,7 +432,7 @@ const RIKISHI = [
     sansho: { shukunsho: 3, kantosho: 1, ginosho: 4 },
     kinboshi: 4,
     favoriteKimarite: ['突き押し', '押し出し', 'はたき込み'],
-    profile: '埼玉栄高校出身。鋭い突き押しで上位陣を苦しめる。2021年初場所で初優勝。2026年秋場所で2年ぶりに小結へ復帰。'
+    profile: '埼玉栄高校出身。鋭い突き押しで上位陣を苦しめる。2021年初場所で初優勝。2026年秋場所で2年ぶりに小結へ復帰したが負け越し、九州場所は前頭4枚目に。'
   },
 
   // ===== 小結 =====
@@ -465,7 +465,7 @@ const RIKISHI = [
     nameKana: 'たかやす',
     nameRomaji: 'Takayasu Akira',
     realName: '高安晃',
-    rank: '前頭2',
+    rank: '前頭3',
     rankNum: 4,
     side: '東',
     stableId: 'tagonoura',
@@ -488,7 +488,7 @@ const RIKISHI = [
     nameKana: 'あさのやま',
     nameRomaji: 'Asanoyama Hideki',
     realName: '石橋広暉',
-    rank: '前頭6',
+    rank: '前頭1',
     rankNum: 5,
     side: '東',
     stableId: 'takasago',
@@ -503,7 +503,7 @@ const RIKISHI = [
     sansho: { shukunsho: 2, kantosho: 2, ginosho: 3 },
     kinboshi: 2,
     favoriteKimarite: ['右四つ', '寄り切り', '上手投げ'],
-    profile: '元大関。2019年夏場所で平幕優勝。右四つからの寄りが強い。'
+    profile: '元大関。2019年夏場所で平幕優勝。右四つからの寄りが強い。2026年秋場所でふた桁勝利を挙げ、九州場所は東前頭筆頭に昇進。'
   },
   {
     id: 'mitakeumi',
@@ -742,9 +742,9 @@ const RIKISHI = [
     nameKana: 'たまわし',
     nameRomaji: 'Tamawashi Ichiro',
     realName: 'マムベタル・バトジャルガル',
-    rank: '十両以下',
+    rank: '前頭14',
     rankNum: 5,
-    side: '西',
+    side: '東',
     stableId: 'kataonami',
     birthplace: 'モンゴル・ウランバートル',
     birthplaceCountry: 'モンゴル',
@@ -757,7 +757,7 @@ const RIKISHI = [
     sansho: { shukunsho: 1, kantosho: 1, ginosho: 4 },
     kinboshi: 3,
     favoriteKimarite: ['突き押し', '押し出し'],
-    profile: '最年長クラスの幕内力士。怪我による休場のない鉄人として知られる。'
+    profile: '最年長クラスの幕内力士。怪我による休場のない鉄人として知られる。2026年九州場所で3場所ぶりに幕内へ復帰。41歳11カ月での再入幕は昭和以降最年長（従来は安美錦の39歳6カ月）。幕内在位101場所は歴代3位、幕内通算714勝は歴代7位タイ。'
   },
   {
     id: 'endo',
@@ -997,9 +997,9 @@ const RIKISHI = [
     nameKana: 'はくのふじ',
     nameRomaji: 'Hakunofuji Tetsuya',
     realName: '落合哲也',
-    rank: '小結',
-    rankNum: 4,
-    side: '東',
+    rank: '前頭3',
+    rankNum: 5,
+    side: '西',
     stableId: 'miyagino',
     birthplace: '鳥取県米子市',
     birthplaceCountry: '日本',
@@ -1012,7 +1012,7 @@ const RIKISHI = [
     sansho: { shukunsho: 1, kantosho: 1, ginosho: 0 },
     kinboshi: 0,
     favoriteKimarite: ['右四つ', '寄り切り', '上手投げ'],
-    profile: '元横綱・白鵬の宮城野部屋出身。鳥取城北高校から角界入り。スピード出世した期待の星。宮城野部屋の閉鎖に伴い、2025年末に「伯桜鵬」から「伯乃富士」へ改名。2026年秋場所で新小結に昇進。'
+    profile: '元横綱・白鵬の宮城野部屋出身。鳥取城北高校から角界入り。スピード出世した期待の星。宮城野部屋の閉鎖に伴い、2025年末に「伯桜鵬」から「伯乃富士」へ改名。2026年秋場所で新小結に昇進したが5勝10敗と負け越し、九州場所は西前頭3枚目まで番付を下げた。'
   },
   {
     id: 'oshoma',
@@ -1066,9 +1066,9 @@ const RIKISHI = [
     nameKana: 'ちゅらのうみ',
     nameRomaji: 'Churanoumi Yoshihisa',
     realName: '田中健太',
-    rank: '前頭2',
-    rankNum: 5,
-    side: '西',
+    rank: '小結',
+    rankNum: 4,
+    side: '東',
     stableId: 'kise',
     birthplace: '沖縄県うるま市',
     birthplaceCountry: '日本',
@@ -1081,7 +1081,7 @@ const RIKISHI = [
     sansho: { shukunsho: 0, kantosho: 0, ginosho: 0 },
     kinboshi: 0,
     favoriteKimarite: ['左四つ', '寄り切り'],
-    profile: '沖縄県出身。木瀬部屋所属の中堅力士。'
+    profile: '沖縄県出身。木瀬部屋所属の中堅力士。2026年九州場所で新小結に昇進し、沖縄県出身者として史上初の三役となった。初土俵から63場所での三役昇進は学生相撲出身力士として史上最も遅い。'
   },
   {
     id: 'abi',
@@ -1116,7 +1116,7 @@ const RIKISHI = [
     realName: '草野直哉',
     rank: '小結',
     rankNum: 4,
-    side: '東',
+    side: '西',
     stableId: 'isegahama',
     birthplace: '熊本県宇土市',
     birthplaceCountry: '日本',
@@ -1129,7 +1129,7 @@ const RIKISHI = [
     sansho: { shukunsho: 0, kantosho: 1, ginosho: 0 },
     kinboshi: 1,
     favoriteKimarite: ['突き押し', '押し出し'],
-    profile: '熊本県宇土市出身。伊勢ヶ濱部屋所属。四股名の「義」は「義理人情」から、「富士」は部屋の伝統から。2026年七月場所で自己最高位の東小結に初到達。大の里から金星を挙げるなど急成長中の若手。'
+    profile: '熊本県宇土市出身。伊勢ヶ濱部屋所属。四股名の「義」は「義理人情」から、「富士」は部屋の伝統から。2026年七月場所で自己最高位の小結に初到達。大の里から金星を挙げるなど急成長中の若手。秋場所は番付を落としたが、2026年九州場所で2場所ぶりに西小結へ復帰。'
   },
   {
     id: 'fujinokawa',
@@ -1139,7 +1139,7 @@ const RIKISHI = [
     realName: '齋藤成剛',
     rank: '関脇',
     rankNum: 3,
-    side: '西',
+    side: '東',
     stableId: 'isenoumi',
     birthplace: '京都府京都市',
     birthplaceCountry: '日本',
@@ -1159,10 +1159,10 @@ const RIKISHI = [
     name: '尊富士',
     nameKana: 'たけるふじ',
     nameRomaji: 'Takerufuji',
-    rank: '前頭13',
+    rank: '前頭4',
     rankNum: 5,
-    side: '西',
-    profile: '令和の怪物と呼ばれた逸材。負傷での長期休場を経て番付を落としながらも、再起を目指している。'
+    side: '東',
+    profile: '令和の怪物と呼ばれた逸材。負傷での長期休場を経て番付を落としたが、2026年九州場所で前頭4枚目まで番付を戻し、再起を目指す。'
   },
   {
     id: 'asahakuryu',
@@ -1199,11 +1199,11 @@ const RIKISHI = [
     name: '琴栄峰',
     nameKana: 'ことえいほう',
     nameRomaji: 'Kotoeisho',
-    rank: '前頭1',
+    rank: '前頭6',
     rankNum: 5,
     side: '西',
     stableId: 'sadogatake',
-    profile: '佐渡ヶ嶽部屋所属。琴勝峰の実弟。右四つからの寄りが持ち味。2026年七月場所は11勝4敗で敢闘賞を受賞し、6枚上げで幕内最高の上昇幅。2026年秋場所で兄弟そろって前頭筆頭に並んだ（東に兄・琴勝峰、西に弟・琴栄峰）。'
+    profile: '佐渡ヶ嶽部屋所属。琴勝峰の実弟。右四つからの寄りが持ち味。2026年七月場所は11勝4敗で敢闘賞を受賞し、6枚上げで幕内最高の上昇幅。2026年秋場所で兄弟そろって前頭筆頭に並んだ（東に兄・琴勝峰、西に弟・琴栄峰）。九州場所も兄弟そろって前頭6枚目に。'
   },
   {
     id: 'fujiseun',
