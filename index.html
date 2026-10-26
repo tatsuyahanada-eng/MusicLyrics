@@ -186,6 +186,15 @@
     .ai-badge.done { background: #eef2f7; color: var(--muted); border: 1px solid var(--line); }
     .ai-reason { font-size: 11px; color: #b3203f; margin-top: 3px; line-height: 1.4; }
     .ai-note { font-size: 11px; color: var(--muted); margin-top: 3px; line-height: 1.4; }
+    .ai-must {
+      display: flex; align-items: center; gap: 8px; margin: 0 0 10px; padding: 10px 14px;
+      background: #fff1f3; border: 2px solid #e2607a; border-radius: 8px;
+      color: #b3203f; font-size: 15px; font-weight: 800; line-height: 1.5;
+    }
+    .ai-must .ico { font-size: 20px; }
+    .ai-tips { font-size: 12px; color: var(--muted); margin: 8px 0 0; line-height: 1.6; }
+    .ai-evidence { font-size: 10px; color: var(--muted); margin-top: 3px; line-height: 1.3; word-break: break-all; }
+    .ai-evidence.bad { color: #b3203f; font-weight: 700; }
     .ai-review tr.ai-warn td { background: #fff6f7; }
     .ai-review tr.ai-done td { opacity: .55; }
     .ai-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; align-items: center; }
@@ -412,7 +421,7 @@
 <body>
   <div class="wrap">
     <header>
-      <h1>車両移動経費請求書 <span class="app-ver">Ver 1.7</span></h1>
+      <h1>車両移動経費請求書 <span class="app-ver">Ver 1.8</span></h1>
       <p>基点から各訪問先への移動経費（ガソリン代・有料道路・駐車場）を入力し、請求総額を計算します。</p>
     </header>
 
@@ -429,7 +438,7 @@
           <li><b>自動計算</b>：「<b>📍 住所から総移動距離を自動計算</b>」で<b>道路距離（OSRM）</b>を取得し、区間ごと・合計を表示</li>
           <li><b>地図で確認</b>：「<b>🗺️ Googleマップで表示</b>」または、自動計算後にページ内地図プレビュー（基点・訪問先1〜のラベル付き）でルートを確認できます</li>
           <li><b>有料道路・駐車場</b>：費用を入力すると請求総額に自動反映</li>
-          <li><b>領収書AI読み取り</b>：「🤖 領収書からAI自動入力」の枠に高速・駐車場の領収書の画像をまとめてドラッグ＆ドロップすると、AIが高速代か駐車場代かを自動で識別し、金額や道路名・駐車場名を読み取ります。<b>内容を確認してから</b>「フォームに反映」を押してください（黄色の欄がAIで入力した箇所。サーバーに設置したページでのみ利用可）</li>
+          <li><b>領収書AI読み取り</b>：<b style="color:#b3203f">アップロードするときは画像を作業指示番号に変更必須</b>。「🤖 領収書からAI自動入力」の枠に高速・駐車場の領収書の画像をまとめてドラッグ＆ドロップすると、AIが高速代か駐車場代かを自動で識別し、金額や道路名・駐車場名を読み取ります。<b>内容を確認してから</b>「フォームに反映」を押してください（黄色の欄がAIで入力した箇所。サーバーに設置したページでのみ利用可）</li>
           <li><b>総移動距離</b>：自動入力後も手修正OK。Googleマップとの差が気になる場合は上書きしてください</li>
           <li><b>Excel出力</b>：右下「<b>Excelエクスポート</b>」で .xlsx をダウンロード（ファイル名・タイトルは選択した案件が反映）</li>
         </ol>
@@ -529,12 +538,14 @@
         <button type="button" id="aiStatusCheck" class="btn btn-outline btn-sm">🔌 接続テスト</button>
       </div>
       <div id="aiUsage" class="ai-usage" hidden></div>
+      <div class="ai-must" role="note"><span class="ico" aria-hidden="true">⚠</span><span>アップロードするときは画像を作業指示番号に変更必須</span></div>
       <div id="aiDropZone" class="ai-drop" tabindex="0" role="button" aria-label="領収書ファイルをドラッグ＆ドロップ、またはクリックして選択">
         <div class="ai-drop-icon">📥</div>
         <div class="ai-drop-main">ここに領収書の画像をまとめてドラッグ＆ドロップ</div>
         <div class="ai-drop-sub">高速・駐車場の領収書が混ざったままでOK／フォルダごとでも可／ETC利用明細のPDFも可／クリックでファイル選択</div>
         <input id="aiReceiptFiles" type="file" accept="image/*,application/pdf,.pdf" multiple hidden>
       </div>
+      <p class="ai-tips">📸 <b>きれいに読み取るコツ</b>：領収書は1枚ずつ撮影／明るい場所で真上から／領収書の端まで全体が入るように／影・折れ・光の反射を避ける</p>
       <div id="aiStatus" class="geo-status"></div>
       <div id="aiReview" class="ai-review"></div>
       <div id="aiBusy" class="ai-busy" role="status" aria-live="polite" hidden>
@@ -896,7 +907,7 @@
     recalc();
 
     /* ---------- 領収書AI読み取り（サーバーの api/receipt.php 経由で Gemini を利用） ---------- */
-    const APP_VERSION = '1.7';   // 見出しの Ver 表記・api/receipt.php の APP_VERSION と揃えて上げる
+    const APP_VERSION = '1.8';   // 見出しの Ver 表記・api/receipt.php の APP_VERSION と揃えて上げる
     const AI_ENDPOINT = 'api/receipt.php';
     const AI_MAX_RAW_BYTES = 5 * 1024 * 1024;   // PDF・変換できない画像をそのまま送る場合の上限
     const AI_IMAGE_MAX_PX = 2400;               // 長辺をこのサイズまで縮小してから送る
@@ -969,14 +980,14 @@
       return body;
     }
 
-    // 複数の画像を1回のAI呼び出しにまとめて送る（回数の消費を減らす）。
+    // 画像をAIに送って読み取る。pass は何回目の読み取りか（1〜3。サーバー側で回ごとに乱数の種を固定する）。
     // 戻り値: { files: [ファイルごとの領収書の配列…], unassigned: どの画像か不明な領収書, model, fallback }
-    let aiMaxFiles = 6;   // 1回にまとめる最大枚数（サーバーの MAX_FILES_PER_REQUEST と接続テストで同期）
-    async function postReceipts(preps) {
+    let aiMaxFiles = 1;   // 1回に送る枚数（精度優先で既定は1枚ずつ。サーバーの設定 max_files_per_request と接続時に同期）
+    async function postReceipts(preps, pass = 1) {
       const body = await aiFetchJson(AI_ENDPOINT, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ files: preps.map(p => ({ mimeType: p.mimeType, data: p.data })) }),
+        body: JSON.stringify({ pass, files: preps.map(p => ({ mimeType: p.mimeType, data: p.data })) }),
       });
       const files = Array.isArray(body.files) ? body.files.map(f => (Array.isArray(f.receipts) ? f.receipts : [])) : [];
       while (files.length < preps.length) files.push([]);
@@ -985,11 +996,25 @@
 
     // ダブルチェック「自動」で、2回目の読み取りが必要かどうか。
     // 確信度が高く・金額が読めていて・高速代か駐車場代と判別できている領収書だけなら、1回で十分とみなす
+    // 金額の根拠の文字と金額が一致していない・予備モデルで読んだ場合も、念のため2回目を実行する
     const AI_AUTO_CONFIDENCE = 0.9;
-    function needsSecondRead(receipts) {
-      if (!receipts.length) return true;
+    function needsSecondRead(receipts, usedFallback) {
+      if (!receipts.length || usedFallback) return true;
       return receipts.some(r => r.amount == null || r.category === 'other'
-        || typeof r.confidence !== 'number' || r.confidence < AI_AUTO_CONFIDENCE);
+        || typeof r.confidence !== 'number' || r.confidence < AI_AUTO_CONFIDENCE
+        || (r.evidence && r.evidence !== 'ok'));
+    }
+
+    // 1枚の画像についての読み取り結果（最大3回分）から、採用する結果を決める。
+    //   2回一致 → all ／ 3回中2回一致 → majority（多い方を採用）／ そろわない → none（1回目を採用して要確認）
+    const aiSignature = list => JSON.stringify(list.map(r => [r.category, r.amount]).sort());
+    function decideConsensus(reads) {
+      if (reads.length === 1) return { chosen: reads[0], agreement: 'single', reads };
+      const [a, b, c] = reads.map(aiSignature);
+      if (a === b) return { chosen: reads[0], agreement: 'all', reads };
+      if (reads.length >= 3 && c === a) return { chosen: reads[0], agreement: 'majority', reads, minority: reads[1] };
+      if (reads.length >= 3 && c === b) return { chosen: reads[1], agreement: 'majority', reads, minority: reads[0] };
+      return { chosen: reads[0], agreement: 'none', reads };
     }
 
     // 1回目の各領収書について、2回目に「種別と金額が同じ」ものがあるかを照合する
@@ -1007,36 +1032,44 @@
       };
     }
 
-    function buildAiItems(file, prep, passes, checkFailed, opts = {}) {
-      const [first, second] = passes;
-      const cmp = second ? compareReceiptPasses(first, second) : null;
+    // consensus … decideConsensus の結果。opts.checkFailed … 2回目・3回目の読み取りに失敗した
+    function buildAiItems(file, prep, consensus, opts = {}) {
+      const { chosen, agreement, reads } = consensus;
       const base = {
         fileName: file.name, thumb: prep.thumb,
         fileTag: prep.mimeType === 'application/pdf' ? 'PDF' : '画像',
-        doubleChecked: !!second, autoSingle: !!opts.autoSingle, applied: false,
+        agreement, readCount: reads.length, autoSingle: !!opts.autoSingle, applied: false,
       };
-      if (!first.length) {
-        return [{ ...base, id: ++aiSeq, category: 'other', amount: null, facility: '', section: '', date: '', note: '',
-          reasons: ['領収書を検出できませんでした'], selected: false }];
+      if (!chosen.length) {
+        return [{ ...base, id: ++aiSeq, category: 'other', amount: null, amountText: '', evidence: null,
+          facility: '', section: '', date: '', note: '', reasons: ['領収書を検出できませんでした'], info: '', selected: false }];
       }
-      return first.map((r, i) => {
+      return chosen.map((r, i) => {
         const reasons = [];
-        if (checkFailed) reasons.push('ダブルチェックの2回目が失敗したため照合できていません');
+        let info = '';
+        if (opts.checkFailed) reasons.push('ダブルチェックの読み取りが失敗したため照合できていません');
         if (opts.groupWarning) reasons.push(opts.groupWarning);
-        if (cmp && cmp.countDiff) reasons.push(`2回の読み取りで件数が異なります（1回目 ${first.length}件／2回目 ${second.length}件）`);
-        if (cmp && !cmp.results[i].match) {
-          const o = cmp.results[i].other;
-          if (!o) reasons.push('2回目の読み取りで該当する領収書がありません');
-          else if (o.amount === r.amount) reasons.push('2回の読み取りで種別の判定が一致しません');
-          else reasons.push(`2回の読み取りで金額が一致しません（2回目: ${fmtYen(o.amount)}）`);
+        if (agreement === 'none') {
+          // 読み取るたびに結果が変わった。各回の金額を並べて見せる
+          const amounts = reads.map((list, k) => `${k + 1}回目 ${fmtYen((list[i] || {}).amount)}`).join('／');
+          const counts = reads.map(list => list.length);
+          if (new Set(counts).size > 1) reasons.push(`読み取るたびに件数が変わりました（${counts.map((n, k) => `${k + 1}回目 ${n}件`).join('／')}）`);
+          else if (reads.every(list => (list[i] || {}).amount === r.amount)) reasons.push(`読み取るたびに種別の判定が変わりました（${amounts}）`);
+          else reasons.push(`読み取るたびに金額が変わりました（${amounts}）`);
+        }
+        if (agreement === 'majority') {
+          const m = consensus.minority[i];
+          info = `3回読み取り、2回が一致した結果を採用${m && m.amount !== r.amount ? `（1回だけ ${fmtYen(m.amount)} と読み取り）` : ''}`;
         }
         if (r.amount == null) reasons.push('金額を読み取れませんでした');
         if (r.category === 'other') reasons.push('高速代・駐車場代ではない可能性があります');
         if (typeof r.confidence === 'number' && r.confidence < 0.8) reasons.push(`AIの確信度が低めです（${Math.round(r.confidence * 100)}%）`);
+        if (r.evidence === 'mismatch') reasons.push('金額と、金額を読み取った箇所の文字が一致しません');
+        if (r.evidence === 'missing') reasons.push('金額を読み取った箇所の文字が確認できません');
         const section = r.category === 'toll' ? [r.entry, r.exit].filter(Boolean).join('→') : '';
         return {
-          ...base, id: ++aiSeq, category: r.category, amount: r.amount,
-          facility: r.facility || '', section, date: r.date || '', note: r.note || '', reasons,
+          ...base, id: ++aiSeq, category: r.category, amount: r.amount, amountText: r.amount_text || '', evidence: r.evidence || null,
+          facility: r.facility || '', section, date: r.date || '', note: r.note || '', reasons, info,
           selected: (r.category === 'toll' || r.category === 'parking') && r.amount != null,
         };
       });
@@ -1049,9 +1082,12 @@
         const warn = it.reasons.length > 0;
         const badge = it.applied ? '<span class="ai-badge done">反映済み</span>'
           : warn ? '<span class="ai-badge warn">⚠ 要確認</span>'
-          : `<span class="ai-badge ok">✓ ${it.doubleChecked ? '2回の読み取りが一致' : (it.autoSingle ? '確信度が高いため1回で確定' : '読み取りOK')}</span>`;
+          : `<span class="ai-badge ok">✓ ${{ all: '2回の読み取りが一致', majority: '3回中2回が一致' }[it.agreement] || (it.autoSingle ? '確信度が高いため1回で確定' : '読み取りOK')}</span>`;
         const reasons = it.applied ? '' : it.reasons.map(r => `<div class="ai-reason">・${xmlEsc(r)}</div>`).join('');
-        const note = it.note ? `<div class="ai-note">AIメモ: ${xmlEsc(it.note)}</div>` : '';
+        const note = (it.info && !it.applied ? `<div class="ai-note">${xmlEsc(it.info)}</div>` : '')
+          + (it.note ? `<div class="ai-note">AIメモ: ${xmlEsc(it.note)}</div>` : '');
+        const evidence = it.amountText
+          ? `<div class="ai-evidence${it.evidence === 'mismatch' ? ' bad' : ''}">根拠：${xmlEsc(it.amountText)}</div>` : '';
         const dis = it.applied ? ' disabled' : '';
         const opts = Object.entries(AI_CATEGORY_LABEL)
           .map(([v, l]) => `<option value="${v}"${it.category === v ? ' selected' : ''}>${l}</option>`).join('');
@@ -1060,7 +1096,7 @@
           <td><input type="checkbox" class="ai-sel" aria-label="反映する"${it.selected && !it.applied ? ' checked' : ''}${dis}></td>
           <td>${thumb}<div class="ai-fname">${xmlEsc(it.fileName)}</div></td>
           <td><select class="ai-cat cat-${it.category}"${dis}>${opts}</select></td>
-          <td><input type="number" class="ai-amt" min="0" step="1" value="${it.amount ?? ''}"${dis}></td>
+          <td><input type="number" class="ai-amt" min="0" step="1" value="${it.amount ?? ''}"${dis}>${evidence}</td>
           <td><input type="text" class="ai-fac" value="${xmlEsc(it.facility)}"${dis}></td>
           <td><input type="text" class="ai-sec" value="${xmlEsc(it.section)}" placeholder="${it.category === 'toll' ? '入口→出口' : ''}"${dis}></td>
           <td>${xmlEsc(it.date) || '―'}</td>
@@ -1157,7 +1193,7 @@
         this.$('aiBusyTitle').className = 'ai-busy-title';
         this.$('aiBusyTitle').textContent = '領収書を読み取り中…';
         this.$('aiBusyNote').textContent = doubleCheck
-          ? 'ダブルチェックのため、1枚につきAIが2回読み取って金額を照合します。1枚あたり数秒〜十数秒かかります。この画面は閉じずにお待ちください。'
+          ? 'ダブルチェックのため、必要に応じてAIが2〜3回読み取り、結果を照合します。1枚あたり数秒〜数十秒かかります。この画面は閉じずにお待ちください。'
           : '1枚あたり数秒〜十数秒かかります。この画面は閉じずにお待ちください。';
         this.el.hidden = false;
         this.tick();
@@ -1193,8 +1229,9 @@
       },
     };
 
-    // 処理待ちの画像を最大 aiMaxFiles 枚ずつのグループにして、グループごとに1回のAI呼び出しで読み取る。
-    // ダブルチェックが必要なもの（または「常に」）は、2回目をグループごとにまとめて実行する。
+    // 処理待ちの画像を aiMaxFiles 枚ずつ（既定は1枚ずつ）AIに送って読み取る。
+    // ダブルチェック：「自動」は不安なものだけ・「常に」は全部、2回目を読み取る。
+    //   2回の結果がそろわなかった画像は、3回目を読み取って多数決で決める（読み取るたびに結果が変わるのを抑える）
     async function runAiQueue() {
       if (aiRunning) return;
       aiRunning = true;
@@ -1206,7 +1243,16 @@
       let done = 0;       // 処理が終わった画像の枚数
       let seen = 0;       // 処理を始めた画像の総数（途中で追加ドロップがあれば増える）
       const mode = () => document.getElementById('aiDoubleCheck').value;
-      aiBusy.start(mode());
+      aiBusy.start(mode() !== 'off');
+      // 指定した画像だけを、指定した回（pass）として読み取る。結果は reads[画像の番号] に追加する
+      const readSome = async (ready, idxs, pass, reads) => {
+        calls++;
+        const r = await postReceipts(idxs.map(i => ready[i].prep), pass);
+        modelsUsed.add(r.model);
+        fallback = fallback || r.fallback;
+        idxs.forEach((i, k) => reads[i].push(r.files[k]));
+        return r;
+      };
       try {
         while (aiQueue.length) {
           const group = aiQueue.splice(0, aiMaxFiles);
@@ -1215,7 +1261,7 @@
           const first = group[0];
           const label = group.length > 1 ? `${first.name} ほか${group.length - 1}枚` : first.name;
           const busy = step => aiBusy.update({ done, total: total(), name: label, step });
-          aiSetStatus(`AIで読み取り中… ${done + 1}〜${done + group.length}/${total()}枚目`, '');
+          aiSetStatus(`AIで読み取り中… ${group.length > 1 ? `${done + 1}〜${done + group.length}` : done + 1}/${total()}枚目`, '');
           busy('① 画像を準備中…');
 
           // 準備（縮小・変換）。読み込めない画像はここで除外して失敗に数える
@@ -1227,39 +1273,37 @@
           if (!ready.length) { renderAiReview(); continue; }
 
           try {
-            // 1回目：グループの画像をまとめて1回で読み取る
-            busy(group.length > 1 ? `② AIが読み取り中…（${ready.length}枚を1回にまとめて送信）` : '② AIが読み取り中…');
-            calls++;
-            const r1 = await postReceipts(ready.map(x => x.prep));
-            modelsUsed.add(r1.model);
-            fallback = fallback || r1.fallback;
+            const all = ready.map((_, i) => i);
+            const reads = ready.map(() => []);
+            const extraFailed = new Set();   // 2回目・3回目の読み取りに失敗した画像
 
-            // 2回目が必要な画像を決める
-            const wantSecond = ready.map((x, i) => mode() === 'always' || (mode() === 'auto' && needsSecondRead(r1.files[i])));
-            const secondIdx = ready.map((_, i) => i).filter(i => wantSecond[i]);
-            let second = null;       // 2回目の結果（secondIdx の順）
-            let secondFailed = false;
-            if (mode() !== 'off' && secondIdx.length) {
-              busy(`③ ダブルチェック中…（${secondIdx.length}枚を再度読み取り）`);
-              try {
-                calls++;
-                const r2 = await postReceipts(secondIdx.map(i => ready[i].prep));
-                modelsUsed.add(r2.model);
-                fallback = fallback || r2.fallback;
-                second = r2;
-              } catch (err) {
-                secondFailed = true;     // 2回目だけ失敗しても、1回目の結果は使う（要確認として表示）
-              }
+            // 1回目
+            busy(ready.length > 1 ? `② AIが読み取り中…（${ready.length}枚を1回にまとめて送信）` : '② AIが読み取り中…');
+            const r1 = await readSome(ready, all, 1, reads);
+
+            // 2回目（ダブルチェック）
+            const second = mode() === 'off' ? []
+              : all.filter(i => mode() === 'always' || needsSecondRead(reads[i][0], r1.fallback));
+            if (second.length) {
+              busy(`③ ダブルチェック中…（2回目の読み取り${second.length > 1 ? `・${second.length}枚` : ''}）`);
+              try { await readSome(ready, second, 2, reads); }
+              catch (err) { second.forEach(i => extraFailed.add(i)); }
             }
 
-            busy('④ 結果を照合中…');
+            // 3回目（2回の結果がそろわなかった画像だけ）
+            const third = second.filter(i => reads[i].length === 2 && aiSignature(reads[i][0]) !== aiSignature(reads[i][1]));
+            if (third.length) {
+              busy(`④ 結果がそろわないため、3回目を読み取って多数決中…${third.length > 1 ? `（${third.length}枚）` : ''}`);
+              try { await readSome(ready, third, 3, reads); }
+              catch (err) { third.forEach(i => extraFailed.add(i)); }
+            }
+
+            busy('⑤ 結果を照合中…');
             ready.forEach((x, i) => {
-              const k = secondIdx.indexOf(i);
-              const passes = [r1.files[i]];
-              if (second && k >= 0) passes.push(second.files[k]);
-              const items = buildAiItems(x.file, x.prep, passes, secondFailed && k >= 0, {
-                autoSingle: mode() === 'auto' && k < 0,
-                // 画像1枚だけのグループ以外では、割り当てが不明な領収書が出たグループ全体を要確認にする
+              const items = buildAiItems(x.file, x.prep, decideConsensus(reads[i]), {
+                checkFailed: extraFailed.has(i),
+                autoSingle: mode() === 'auto' && reads[i].length === 1,
+                // まとめて送った場合に、どの画像のものか特定できない領収書が出たら、そのグループ全体を要確認にする
                 groupWarning: r1.unassigned.length && ready.length > 1
                   ? '複数枚をまとめて読み取った際に、どの画像の領収書か特定できないものがありました。画像と照らして確認してください' : '',
               });
@@ -1269,13 +1313,13 @@
             done += ready.length;
             // どの画像のものか分からなかった領収書は、落とさずに「画像不明」の行として出す
             r1.unassigned.forEach(rc => {
-              const it = buildAiItems({ name: '（画像を特定できず）' }, { thumb: null, mimeType: 'image/jpeg' }, [[rc]], false,
+              const it = buildAiItems({ name: '（画像を特定できず）' }, { thumb: null, mimeType: 'image/jpeg' }, decideConsensus([[rc]]),
                 { groupWarning: '読み取り結果から、どの画像の領収書か特定できませんでした。内容を画像と照らして確認してください' })[0];
               counts[it.category] = (counts[it.category] || 0) + 1;
               aiItems.push(it);
             });
           } catch (err) {
-            // グループ全体の失敗（上限・通信エラーなど）。画像は失敗として数え、続きの処理は進める
+            // 1回目の読み取りの失敗（上限・通信エラーなど）。画像は失敗として数え、続きの処理は進める
             ready.forEach(x => failed.push(`${x.file.name}：${err.message}`));
             done += ready.length;
             if (err.code === 'quota' || err.code === 'quota_day') {
