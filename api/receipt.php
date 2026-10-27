@@ -172,6 +172,8 @@ function load_config(): array
         'key' => $key, 'models' => $models, 'model' => $models[0], 'endpoint' => $endpoint, 'maxFiles' => $maxFiles,
         'log' => !array_key_exists('log_requests', $config) || (bool)$config['log_requests'],
         'timeout' => $timeout, 'thinking' => $thinking,
+        // 再試行・予備モデルへの切替を始めてよい時間（秒）。通常は変更不要（動作確認用に短くできる）
+        'budget' => max(5, min(600, (int)($config['time_budget'] ?? TIME_BUDGET))),
     ];
 }
 
@@ -650,7 +652,7 @@ foreach ($cfg['models'] as $m) {
 $order = array_merge($order, $later);
 
 $started = microtime(true);
-$remaining = fn(): float => TIME_BUDGET - (microtime(true) - $started);
+$remaining = fn(): float => $cfg['budget'] - (microtime(true) - $started);
 $receipts = null;
 $usedModel = null;
 $lastError = null;
@@ -668,7 +670,7 @@ foreach ($order as $model) {
     $r = null;
     while (true) {
         // 残り時間が少ないときは待ち時間も短くする（15秒〜request_timeout）
-        $timeout = (int)max(15, min($cfg['timeout'], ceil($remaining())));
+        $timeout = (int)min($cfg['timeout'], max(15, ceil($remaining())));
         $r = gemini_request($cfg, 'POST', $path, build_payload($files, $seed, $basic, $cfg), $timeout);
         usage_update($model, ['requests' => 1]);
         $attempt = ['model' => $model, 'status' => $r['status'], 'ms' => $r['ms'], 'basic' => $basic, 'seed' => $basic ? null : $seed];
