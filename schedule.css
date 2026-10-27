@@ -1258,6 +1258,143 @@ textarea.sc-input { resize: vertical; line-height: 1.5; min-height: 2.6em; }
 .sc-confirm-actions { display: flex; gap: 8px; }
 .sc-confirm-actions .sc-btn { flex: 1; }
 
+/* ---- 音声（・文章）で予定を登録する画面 ---- */
+.sc-voice-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 280;
+  background: rgba(15, 23, 42, 0.5);
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+}
+.sc-voice-overlay[hidden] { display: none; }
+.sc-voice-sheet {
+  width: 100%;
+  max-width: 560px;
+  max-height: 92vh;
+  max-height: 92dvh;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  background: var(--sc-surface);
+  border-radius: 16px 16px 0 0;
+  padding: 12px 14px calc(12px + env(safe-area-inset-bottom));
+  box-shadow: 0 -8px 24px rgba(0, 0, 0, 0.3);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  animation: sc-sheet-up 0.2s ease-out;
+}
+.sc-voice-head { display: flex; align-items: center; justify-content: space-between; font-size: 1rem; }
+.sc-voice-close {
+  width: 34px; height: 34px;
+  border-radius: 999px;
+  border: 1px solid var(--sc-border);
+  background: var(--sc-surface);
+  color: var(--sc-muted);
+  font-size: 1rem;
+  cursor: pointer;
+}
+.sc-voice-chat {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-height: 72px;
+  max-height: 26vh;
+  overflow-y: auto;
+  padding: 2px;
+}
+.sc-voice-msg {
+  max-width: 88%;
+  padding: 8px 11px;
+  border-radius: 14px;
+  font-size: 0.86rem;
+  line-height: 1.5;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+.sc-voice-bot { align-self: flex-start; background: var(--sc-surface-2); border-bottom-left-radius: 4px; }
+.sc-voice-user { align-self: flex-end; background: var(--sc-primary); color: #fff; border-bottom-right-radius: 4px; }
+.sc-voice-summary {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 4px 8px;
+  border: 1px solid var(--sc-border);
+  border-radius: 10px;
+  padding: 8px 10px;
+  background: var(--sc-surface);
+}
+.sc-voice-row { display: flex; flex-direction: column; min-width: 0; font-size: 0.82rem; }
+.sc-voice-row span { font-size: 0.66rem; color: var(--sc-muted); font-weight: 700; }
+.sc-voice-row strong { overflow-wrap: anywhere; }
+.sc-voice-row-miss strong { color: #b91c1c; font-weight: 700; }
+.sc-voice-chips { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+.sc-voice-chips-label { font-size: 0.7rem; font-weight: 700; color: var(--sc-muted); width: 100%; margin-top: 2px; }
+.sc-voice-chip {
+  border: 1px solid var(--sc-primary);
+  background: var(--sc-surface);
+  color: var(--sc-primary);
+  border-radius: 999px;
+  padding: 7px 13px;
+  min-height: 36px;
+  font: inherit;
+  font-size: 0.82rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+.sc-voice-chip[aria-pressed="true"] { background: var(--sc-primary); color: #fff; }
+.sc-voice-input { display: flex; align-items: flex-end; gap: 6px; }
+.sc-voice-input textarea { flex: 1; resize: none; font-size: 16px; min-height: 46px; }
+.sc-voice-input .sc-btn { min-height: 46px; }
+.sc-voice-mic {
+  flex: 0 0 auto;
+  width: 50px; height: 50px;
+  border-radius: 50%;
+  border: 0;
+  background: var(--sc-primary);
+  color: #fff;
+  font-size: 1.4rem;
+  cursor: pointer;
+}
+.sc-voice-mic[hidden] { display: none; }
+.sc-voice-mic-on { background: #dc2626; animation: sc-voice-pulse 1.1s ease-in-out infinite; }
+@keyframes sc-voice-pulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(220, 38, 38, 0.5); }
+  50% { box-shadow: 0 0 0 10px rgba(220, 38, 38, 0); }
+}
+.sc-voice-actions { display: flex; gap: 8px; }
+.sc-voice-actions .sc-btn { min-height: 46px; }
+.sc-voice-actions #voiceApply { flex: 1 1 auto; min-width: 0; }
+.sc-voice-actions #voiceReset { flex: 0 0 auto; }
+.sc-voice-pill {
+  margin-left: auto;
+  border: 1px solid var(--sc-primary);
+  background: var(--sc-surface);
+  color: var(--sc-primary);
+  border-radius: 999px;
+  padding: 3px 10px;
+  font: inherit;
+  font-size: 0.74rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+.sc-voice-pill:hover { background: var(--sc-primary); color: #fff; }
+@media (min-width: 901px) {
+  .sc-voice-overlay { align-items: center; }
+  .sc-voice-sheet { border-radius: 16px; padding-bottom: 14px; }
+}
+@media (max-width: 900px) {
+  .sc-voice-pill { display: none; }
+  /* シートが開いているときは、通知が下の「登録する」ボタンに重ならないよう少し上に出す */
+  body.sc-modal-open-body .sc-toast { bottom: 96px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .sc-voice-sheet, .sc-voice-mic-on { animation: none !important; }
+}
+
+.sc-print-orient { display: inline-flex; align-items: center; gap: 6px; font-size: 0.78rem; color: var(--sc-muted); white-space: nowrap; }
+.sc-print-orient .sc-input { width: auto; }
+
 /* ---- カレンダーのタップ・長押し ---- */
 /* 長押しで文字選択やメニューが出ないようにする（長押し＝複数選択の開始に使う） */
 .sc-vcell, .sc-vdate {
@@ -1427,6 +1564,18 @@ textarea.sc-input { resize: vertical; line-height: 1.5; min-height: 2.6em; }
     -webkit-tap-highlight-color: transparent;
   }
   .sc-fab:active { transform: scale(0.94); }
+  /* 音声登録のボタンは「＋」の少し上に、ひとまわり小さく */
+  .sc-fab.sc-fab-voice {
+    bottom: calc(86px + env(safe-area-inset-bottom));
+    right: 20px;
+    width: 48px;
+    height: 48px;
+    font-size: 1.35rem;
+    background: var(--sc-surface);
+    color: var(--sc-primary);
+    border: 2px solid var(--sc-primary);
+    box-shadow: 0 4px 12px rgba(15, 23, 42, 0.25);
+  }
   body.sc-modal-open-body .sc-fab, body.sc-has-multibar .sc-fab { display: none; }
 
   /* ダブルタップで予定入力を開いたときは、カレンダーの上に重ねてポップアップ表示する */
@@ -1557,7 +1706,7 @@ textarea.sc-input { resize: vertical; line-height: 1.5; min-height: 2.6em; }
 }
 
 @media print {
-  .sc-multibar, .sc-fab { display: none !important; }
+  .sc-multibar, .sc-fab, .sc-voice-overlay { display: none !important; }
   * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
 
   html { height: auto; }
@@ -1624,6 +1773,21 @@ textarea.sc-input { resize: vertical; line-height: 1.5; min-height: 2.6em; }
   .sc-stat-label { font-size: 6px; }
   .sc-stat-value { font-size: 9px; }
   .sc-stat-unit { font-size: 5.5px; }
+
+  /* A4 縦：幅が狭い分、行を高くして用紙の縦いっぱいに31日ぶんを収める。集計は2段にする */
+  .sc-print-portrait .sc-vdate, .sc-print-portrait .sc-vcell { min-height: 26px; }
+  .sc-print-portrait .sc-vrow { grid-template-columns: 54px repeat(5, minmax(0, 1fr)); }
+  .sc-print-portrait .sc-vdate-num { font-size: 10px; }
+  .sc-print-portrait .sc-vdate-wd { font-size: 7.5px; }
+  .sc-print-portrait .sc-vslot-head, .sc-print-portrait .sc-vdate-head { font-size: 8.5px; }
+  .sc-print-portrait .sc-vbar-title { font-size: 7.5px; }
+  .sc-print-portrait .sc-vbar-time { font-size: 5.8px; }
+  .sc-print-portrait .sc-print-header { font-size: 13px; margin-bottom: 4px; }
+  .sc-print-portrait .sc-legend { margin-top: 5px; }
+  .sc-print-portrait .sc-stats { display: grid; grid-template-columns: repeat(4, 1fr); margin-top: 7px; gap: 4px; }
+  .sc-print-portrait .sc-stat { padding: 4px 6px; }
+  .sc-print-portrait .sc-stat-label { font-size: 6.5px; }
+  .sc-print-portrait .sc-stat-value { font-size: 10px; }
 
   /* リンク・カーソル関連の見た目は印刷で意味を持たないため無効化 */
   .sc-vcell, .sc-vdate { cursor: default; }

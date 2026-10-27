@@ -13,7 +13,7 @@
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="default">
   <meta name="apple-mobile-web-app-title" content="VertiCale">
-  <link rel="stylesheet" href="schedule.css?v=51">
+  <link rel="stylesheet" href="schedule.css?v=52">
 </head>
 <body class="sc-body">
 
@@ -79,7 +79,14 @@
 
       <div class="sc-output-row">
         <button id="printPdfBtn" class="sc-btn sc-btn-accent" type="button">🖨 PDFで出力</button>
-        <p class="sc-hint">表示中の月（1日〜末日）のカレンダーと稼働状況の集計を、PDF・印刷保存します（予定一覧は含みません）。</p>
+        <label class="sc-print-orient">
+          <span>用紙</span>
+          <select id="printOrient" class="sc-input sc-input-sm" aria-label="用紙の向き">
+            <option value="landscape">A4 横</option>
+            <option value="portrait">A4 縦</option>
+          </select>
+        </label>
+        <p class="sc-hint">表示中の月（1日〜末日）のカレンダーと稼働状況の集計を、A4 1枚のPDF・印刷にします（予定一覧は含みません）。</p>
       </div>
     </section>
 
@@ -88,6 +95,7 @@
       <div class="sc-side-toolbar">
         <div class="sc-toolbar-head">
           <span class="sc-toolbar-label">操作モード</span>
+          <button type="button" id="voiceBtn" class="sc-voice-pill" title="音声で予定を登録">🎤 音声で登録</button>
           <button type="button" id="paintHintToggle" class="sc-hint-toggle" aria-expanded="false" aria-controls="paintHint" title="操作方法の説明を表示">？</button>
         </div>
         <div class="sc-paint-tabs" role="group" aria-label="まとめて入力モード">
@@ -110,8 +118,32 @@
     </aside>
   </main>
 
-  <!-- スマホ：予定を追加する「＋」ボタン -->
+  <!-- スマホ：予定を追加する「＋」ボタンと、音声で登録する「マイク」ボタン -->
+  <button id="fabVoice" class="sc-fab sc-fab-voice" type="button" aria-label="音声で予定を登録">🎤</button>
   <button id="fabAdd" class="sc-fab" type="button" aria-label="予定を追加">＋</button>
+
+  <!-- 音声（・文章）で予定を登録する画面 -->
+  <div id="voiceOverlay" class="sc-voice-overlay" hidden>
+    <div class="sc-voice-sheet" role="dialog" aria-modal="true" aria-label="音声で予定を登録">
+      <div class="sc-voice-head">
+        <strong>🎤 音声で予定を登録</strong>
+        <button id="voiceClose" class="sc-voice-close" type="button" aria-label="閉じる">✕</button>
+      </div>
+      <div id="voiceChat" class="sc-voice-chat" aria-live="polite"></div>
+      <div id="voiceSummary" class="sc-voice-summary"></div>
+      <div id="voiceChips" class="sc-voice-chips"></div>
+      <p id="voiceNoMic" class="sc-hint" hidden>この端末・ブラウザでは、画面のマイクボタンが使えません。下の入力欄に文字で入力するか、キーボードのマイク（🎤）で音声入力してください。</p>
+      <div class="sc-voice-input">
+        <button id="voiceMic" class="sc-voice-mic" type="button" aria-label="話して入力する">🎤</button>
+        <textarea id="voiceText" class="sc-input" rows="2" placeholder="話すか、ここに入力（例：明日の13時から15時でOES入替）" enterkeyhint="send"></textarea>
+        <button id="voiceSend" class="sc-btn" type="button">送信</button>
+      </div>
+      <div class="sc-voice-actions">
+        <button id="voiceApply" class="sc-btn" type="button">入力画面を開く</button>
+        <button id="voiceReset" class="sc-btn sc-btn-outline" type="button">やり直し</button>
+      </div>
+    </div>
+  </div>
 
   <!-- スマホでまとめて選択しているときの操作バー -->
   <div id="multiBar" class="sc-multibar" hidden></div>
@@ -495,6 +527,6 @@ Require valid-user</pre>
     </div>
   </div>
 
-  <script src="schedule.js?v=51"></script>
+  <script src="schedule.js?v=52"></script>
 </body>
 </html>

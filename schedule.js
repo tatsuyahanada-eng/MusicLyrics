@@ -3602,7 +3602,7 @@ function updateSideModalState() {
   if (!elSideAside) return;
   const open = isNarrow() && (view.paint === 'multi' ? view.popup : (view.formOpen || view.popup));
   elSideAside.classList.toggle('sc-side-modal-open', open);
-  document.body.classList.toggle('sc-modal-open-body', open);
+  document.body.classList.toggle('sc-modal-open-body', open || voice.open);
   renderMultiBar();
   syncHistoryLayers();
 }
@@ -3628,6 +3628,570 @@ function renderMultiBar() {
       ${n ? '<button type="button" class="sc-btn sc-btn-sm sc-btn-outline" data-multibar="clear">解除</button>' : ''}
       <button type="button" class="sc-btn sc-btn-sm sc-btn-outline" data-multibar="exit">終了</button>
     </div>`;
+}
+
+/* ------------------------------------------------------------
+   音声（・文章）での予定入力
+   「10月27日の13時から15時でOES入替作業で登録」のような話し言葉から、
+   日付・時間・案件名・業務内容などを読み取って入力画面に反映する。
+   解析はこの端末の中だけで行う（話した内容を外部に送らない）。
+   音声の文字起こしは、端末（ブラウザ）の音声認識機能を使う。
+   ------------------------------------------------------------ */
+
+/** 全角英数字などを半角にそろえ、空白を整える */
+function voiceNormalize(t) {
+  return String(t == null ? '' : t).normalize('NFKC').replace(/[\s　]+/g, ' ').trim();
+}
+
+function voiceEscapeRe(str) {
+  return String(str).replace(/[.*+?^${}()|[\]\\\/]/g, '\\$&');
+}
+
+/** 名前の文字の間に「・」や空白が入っていても一致する正規表現にする（点検保守 ⇔ 点検・保守） */
+function voiceLooseRe(name) {
+  const chars = Array.from(voiceNormalize(name).replace(/[・･\/／\s]/g, ''));
+  if (!chars.length) return null;
+  return new RegExp(chars.map(voiceEscapeRe).join('[・･\\/／\\s]*'), 'i');
+}
+
+/** 候補の中から、文中に出てくるいちばん長いものを探す。見つかれば {name, re} */
+function voiceFindName(text, names) {
+  let best = null;
+  (names || []).forEach((name) => {
+    const re = voiceLooseRe(name);
+    if (!re) return;
+    const m = re.exec(text);
+    if (m && (!best || voiceNormalize(name).length > voiceNormalize(best.name).length)) best = { name: name, re: re };
+  });
+  return best;
+}
+
+const VOICE_KEYS = [
+  ['subject', 'タイトル'],
+  ['note', 'メモ'],
+  ['address', '住所'],
+  ['storeName', '店舗名|店舗'],
+  ['client', '業態'],
+  ['project', '案件名|案件'],
+  ['workType', '業務内容|業務'],
+];
+const VOICE_STOP = 'タイトル|メモ|住所|店舗|業態|案件|業務|区分';
+
+/** 値の末尾の「です」「にして」などを取り除く */
+function voiceTrimValue(v) {
+  let out = String(v).trim();
+  for (let i = 0; i < 3; i++) {
+    const next = out.replace(/(?:(?:に|へ)?(?:変更|修正|訂正|変えて|直して)(?:して|します|してください)?|でお願い.*|にしてください|にして|にする|にします|として|です|でし?た?|だ|で)$/u, '').trim();
+    if (next === out) break;
+    out = next;
+  }
+  return out.replace(/^[「『"“]|[」』"”]$/g, '').trim();
+}
+
+/** 時刻（"13:00" など）を作る。mer は 午前/午後 などの語、h は時、m は分 */
+function voiceClock(mer, h, m, half) {
+  let hour = Number(h);
+  let min = m != null && m !== '' ? Number(m) : (half ? 30 : 0);
+  if (!isFinite(hour) || hour > 24 || min > 59) return null;
+  if (mer === '午後' || mer === '夕方' || mer === '夜') { if (hour < 12) hour += 12; }
+  else if (mer === '午前' || mer === '朝') { if (hour === 12) hour = 0; }
+  else if (hour >= 1 && hour <= 4) hour += 12;   // 「3時から」は、ふつう午後
+  return { hour: hour, min: min, explicit: !!mer };
+}
+
+function voiceTimeStr(c) {
+  const total = Math.min(23 * 60 + 59, c.hour * 60 + c.min);
+  return pad2(Math.floor(total / 60)) + ':' + pad2(total % 60);
+}
+
+/**
+ * 話し言葉1回分を解析する。見つかった項目だけを fields に入れて返す。
+ *   ctx.today … 基準の日付(Date)  ctx.projects … 案件名の一覧
+ *   ctx.workTypes … 業務内容の候補  ctx.clientsFor(案件名) … 業態の候補
+ *   ctx.draft … 直前までの内容（時刻の片方だけを直す場合に使う）
+ * rest は、どの項目にも当てはまらなかった言葉。
+ */
+function parseVoiceText(raw, ctx) {
+  const today = ctx.today || new Date();
+  const fields = {};
+  const labels = [];
+  let s = ' ' + voiceNormalize(raw) + ' ';
+  const take = (re) => {
+    const m = re.exec(s);
+    if (!m) return null;
+    s = s.slice(0, m.index) + ' ' + s.slice(m.index + m[0].length);
+    return m;
+  };
+
+  // 1) 「タイトルは〇〇」「メモは〇〇」など、項目名つきの言い方
+  VOICE_KEYS.forEach(([key, kw]) => {
+    const re = new RegExp(`(?:${kw})\\s*(?:は|を|が|:)?\\s*[「『"“]?([^「」『』"”、。,]+?)[」』"”]?(?=[、。,]|$|\\s|(?:${VOICE_STOP}))`, 'u');
+    // 「自社案件」の「案件」のように、項目名のあとに値が続かないものは、取り除かずに残す
+    const m = re.exec(s);
+    if (!m) return;
+    const v = voiceTrimValue(m[1]);
+    if (!v) return;
+    s = s.slice(0, m.index) + ' ' + s.slice(m.index + m[0].length);
+    fields[key] = v;
+  });
+  // 項目名つきで言われた案件名・業務内容・業態は、登録済みの名前に合わせる（点検保守 → 点検・保守）
+  [['project', ctx.projects], ['workType', ctx.workTypes], ['client', ctx.clientsFor ? ctx.clientsFor(fields.project || (ctx.draft && ctx.draft.project) || '') : []]].forEach(([k, names]) => {
+    if (!fields[k]) return;
+    const hit = voiceFindName(fields[k], names);
+    if (hit) fields[k] = hit.name;
+  });
+
+  // 2) 案件名（登録済みの案件から探す）
+  if (!fields.project) {
+    const hit = voiceFindName(s, ctx.projects);
+    if (hit) { fields.project = hit.name; take(hit.re); }
+  }
+  const projectName = fields.project || (ctx.draft && ctx.draft.project) || '';
+
+  // 3) 区分（確定／仮出勤）
+  if (take(/仮出勤|仮置き|仮押さえ|仮予定|仮登録|仮で|仮に|仮の|仮$/u)) fields.status = 'tentative';
+  else if (take(/確定(?!日)(?:で|に|の)?/u)) fields.status = 'confirmed';
+
+  // 4) 業務内容・業態（登録済みの候補から探す）
+  if (!fields.workType) {
+    const hit = voiceFindName(s, ctx.workTypes);
+    if (hit) { fields.workType = hit.name; take(hit.re); }
+  }
+  if (!fields.client && ctx.clientsFor) {
+    const hit = voiceFindName(s, ctx.clientsFor(projectName));
+    if (hit) { fields.client = hit.name; take(hit.re); }
+  }
+
+  // 5) 日付
+  const mk = (y, mo, d) => {
+    const dt = new Date(y, mo - 1, d);
+    return dt.getFullYear() === y && dt.getMonth() === mo - 1 && dt.getDate() === d ? dt : null;
+  };
+  const t0 = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+  let date = null;
+  let m = take(/(\d{4})年\s*(\d{1,2})月\s*(\d{1,2})日/);
+  if (m) date = mk(+m[1], +m[2], +m[3]);
+  if (!date && (m = take(/(来月|再来月|今月)の?\s*(\d{1,2})日/))) {
+    const off = m[1] === '来月' ? 1 : m[1] === '再来月' ? 2 : 0;
+    const base = new Date(t0.getFullYear(), t0.getMonth() + off, 1);
+    date = mk(base.getFullYear(), base.getMonth() + 1, +m[2]);
+  }
+  if (!date && (m = take(/(\d{1,2})月\s*(\d{1,2})日/))) {
+    date = mk(t0.getFullYear(), +m[1], +m[2]);
+    if (date && date < t0) date = mk(t0.getFullYear() + 1, +m[1], +m[2]);
+  }
+  if (!date && (m = take(/(?<![\d:])(\d{1,2})\/(\d{1,2})(?![\d:])/))) {
+    date = mk(t0.getFullYear(), +m[1], +m[2]);
+    if (date && date < t0) date = mk(t0.getFullYear() + 1, +m[1], +m[2]);
+  }
+  if (!date && (m = take(/本日|今日|きょう/))) date = t0;
+  if (!date && (m = take(/明後日|あさって/))) date = addDays(t0, 2);
+  if (!date && (m = take(/明日|あした/))) date = addDays(t0, 1);
+  if (!date && (m = take(/(今週|来週|再来週)?の?\s*([日月火水木金土])曜(?:日)?/))) {
+    const w = '日月火水木金土'.indexOf(m[2]);
+    if (m[1]) {
+      const monday = addDays(t0, -((t0.getDay() + 6) % 7));
+      const weeks = m[1] === '今週' ? 0 : m[1] === '来週' ? 1 : 2;
+      date = addDays(monday, weeks * 7 + ((w + 6) % 7));
+    } else {
+      date = addDays(t0, ((w - t0.getDay() + 6) % 7) + 1);   // 次にくるその曜日
+    }
+  }
+  if (!date && (m = take(/(?<![\d月])(\d{1,2})日(?!間)/))) {
+    date = mk(t0.getFullYear(), t0.getMonth() + 1, +m[1]);
+    if (date && date < t0) date = mk(t0.getFullYear(), t0.getMonth() + 2, +m[1]);
+  }
+  if (date) fields.date = toKey(date);
+
+  // 6) 時間
+  const CLK = '(午前|午後|朝|夕方|夜)?(\\d{1,2})(?::(\\d{2})|時(?!間)(?:(\\d{1,2})分|(半))?)';
+  const SEP = '\\s*(?:から|より|〜|~|-|ー|→)\\s*';
+  const parts = (mm, i) => voiceClock(mm[i], mm[i + 1], mm[i + 2] || mm[i + 3], !!mm[i + 4]);
+  if (take(/終日|一日中|1日中/)) {
+    fields.allDay = true;
+  } else if ((m = take(new RegExp(CLK + SEP + CLK + '(?:まで|に)?')))) {
+    const a = parts(m, 1);
+    const b = parts(m, 6);
+    if (a && b) {
+      // 終わりの時刻に午前・午後の指定がなく、始まりより前になるときは午後とみなす
+      if (!b.explicit && (b.hour * 60 + b.min) <= (a.hour * 60 + a.min) && b.hour < 12) b.hour += 12;
+      fields.start = voiceTimeStr(a);
+      fields.end = voiceTimeStr(b);
+    }
+  } else if ((m = take(new RegExp(CLK + '(?:から|より)?\\s*(\\d+(?:\\.\\d+)?)時間(半)?')))) {
+    const a = parts(m, 1);
+    if (a) {
+      const dur = Math.round((parseFloat(m[6]) + (m[7] ? 0.5 : 0)) * 60);
+      fields.start = voiceTimeStr(a);
+      fields.end = voiceTimeStr({ hour: 0, min: a.hour * 60 + a.min + dur });
+    }
+  } else {
+    if ((m = take(new RegExp(CLK + '\\s*(?:まで|終了|終わり|上がり|あがり)')))) {
+      const b = parts(m, 1);
+      if (b) {
+        const st = (fields.start || (ctx.draft && ctx.draft.start) || '');
+        if (!b.explicit && st && (b.hour * 60 + b.min) <= toMinutes(st) && b.hour < 12) b.hour += 12;
+        fields.end = voiceTimeStr(b);
+      }
+    }
+    if ((m = take(new RegExp(CLK + '(?:\\s*(?:から|より|〜|~|開始|スタート|入り))?')))) {
+      const a = parts(m, 1);
+      if (a) fields.start = voiceTimeStr(a);
+    }
+  }
+  // 時刻の指定がないときは、時間帯の言葉（午前・午後・夜間など）から決める
+  if (!fields.allDay && !fields.start && !fields.end) {
+    const slotWords = [
+      [/早朝/, '05:00', '08:00'], [/夜間|夜/, '18:00', '23:00'], [/午前|朝|AM/i, '09:00', '12:00'],
+      [/午後|PM/i, '12:00', '18:00'], [/(?<![A-Za-z0-9])P1(?![A-Za-z0-9])/i, '12:00', '15:00'],
+      [/(?<![A-Za-z0-9])P2(?![A-Za-z0-9])/i, '15:00', '18:00'],
+    ];
+    for (let i = 0; i < slotWords.length; i++) {
+      if (take(slotWords[i][0])) { fields.start = slotWords[i][1]; fields.end = slotWords[i][2]; break; }
+    }
+  }
+
+  // 7) 店舗名（「〇〇店」）
+  if (!fields.storeName && (m = take(/([^\s、。,「」]{1,12}店)(?:で|に|の|へ|を)?/u))) fields.storeName = m[1];
+
+  // 8) 残った言葉から、つなぎの言葉を除く
+  const rest = s
+    .replace(/スケジュール|予定|登録|入力|追加|お願い(?:します|できますか)?|してください|して|入れて|作業|ください|です|ます|あります/gu, ' ')
+    .replace(/[、。,.\s]+/g, ' ')
+    .replace(/(^| )(?:の|で|に|を|は|が|と|から|まで|中|ごろ|頃|くらい|ぐらい)(?= |$)/gu, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+  return { fields: fields, rest: rest };
+}
+
+/** 直前までの内容に、新しく読み取れた項目を重ねる（時刻は片方だけの修正にも対応） */
+function mergeVoiceDraft(draft, f) {
+  const d = Object.assign({}, draft);
+  ['date', 'project', 'workType', 'status', 'subject', 'storeName', 'client', 'address'].forEach((k) => {
+    if (f[k] !== undefined) d[k] = f[k];
+  });
+  if (f.note !== undefined) d.note = f.note;
+  if (f.allDay) { d.allDay = true; delete d.start; delete d.end; }
+  if (f.start !== undefined || f.end !== undefined) {
+    d.allDay = false;
+    const oldS = toMinutes(draft.start);
+    const oldE = toMinutes(draft.end);
+    if (f.start !== undefined) {
+      d.start = f.start;
+      if (f.end !== undefined) d.end = f.end;
+      else if (oldS !== null && oldE !== null && oldE > oldS) {
+        // 開始だけ直したときは、これまでの長さを保って終了をずらす
+        d.end = fromMinutes(Math.min(23 * 60 + 59, toMinutes(f.start) + (oldE - oldS)));
+      }
+    } else {
+      d.end = f.end;
+    }
+  }
+  return d;
+}
+
+/** 足りない項目（これがそろえば登録できる） */
+function voiceMissing(d) {
+  const out = [];
+  if (!d.date) out.push('date');
+  if (!d.allDay && !(d.start && d.end)) out.push(d.start ? 'end' : 'time');
+  if (!d.project) out.push('project');
+  if ((d.status || 'confirmed') === 'confirmed' && !d.workType) out.push('workType');
+  return out;
+}
+
+const VOICE_LABELS = {
+  date: '日付', time: '時間', end: '終了時間', project: '案件名', workType: '業務内容',
+  status: '区分', subject: 'タイトル', storeName: '店舗名', client: '業態', address: '住所', note: 'メモ',
+};
+
+const voice = {
+  open: false,
+  draft: { status: 'confirmed' },
+  msgs: [],
+  rest: '',
+  listening: false,
+  recog: null,
+};
+
+function voiceSupported() {
+  return !!(window.SpeechRecognition || window.webkitSpeechRecognition);
+}
+
+function voiceCtx() {
+  const used = state.jobs.map((j) => (j.workType || '').trim()).filter(Boolean);
+  return {
+    today: new Date(),
+    projects: state.settings.projects,
+    workTypes: Array.from(new Set(WORK_TYPE_PRESETS.concat(used))),
+    clientsFor: (p) => businessTypesForProject(p),
+    draft: voice.draft,
+  };
+}
+
+function voiceSummaryText(d) {
+  const parts = [];
+  if (d.date) parts.push(formatDate(d.date, 'long'));
+  if (d.allDay) parts.push('終日');
+  else if (d.start) parts.push(`${d.start}〜${d.end || '？'}`);
+  if (d.project) parts.push(d.project);
+  if (d.workType) parts.push(d.workType);
+  return parts.join(' ／ ');
+}
+
+/** 話した（入力した）1回分を受け取り、解析して、返事を作る */
+function voiceSubmit(text) {
+  const t = voiceNormalize(text);
+  if (!t) return;
+  voice.msgs.push({ role: 'user', text: t });
+  const { fields, rest } = parseVoiceText(t, voiceCtx());
+  const keys = Object.keys(fields);
+  if (!keys.length) {
+    voice.msgs.push({ role: 'bot', text: '日付・時間・案件名などを聞き取れませんでした。例：「明日の13時から15時でOES入替、点検・保守」のように話してみてください。' });
+    voice.rest = '';
+    renderVoice();
+    return;
+  }
+  voice.draft = mergeVoiceDraft(voice.draft, fields);
+  voice.rest = rest;
+  const got = [];
+  if (fields.date) got.push('日付');
+  if (fields.allDay || fields.start !== undefined || fields.end !== undefined) got.push('時間');
+  ['project', 'workType', 'status', 'subject', 'storeName', 'client', 'address', 'note'].forEach((k) => {
+    if (fields[k] !== undefined) got.push(VOICE_LABELS[k]);
+  });
+  const miss = voiceMissing(voice.draft);
+  let reply = `${got.join('・')}を反映しました。`;
+  if (miss.length) {
+    reply += `あとは「${miss.map((k) => VOICE_LABELS[k]).join('・')}」です。下のボタンで選ぶか、続けて話してください。`;
+  } else {
+    reply += 'これで入力画面を開けます。直したいところは続けて話してください（例：「15時までにして」「仮出勤にして」）。';
+  }
+  if (rest) reply += `（「${rest}」は読み取れませんでした）`;
+  voice.msgs.push({ role: 'bot', text: reply });
+  renderVoice();
+}
+
+function voiceChipHtml(label, attrs) {
+  return `<button type="button" class="sc-voice-chip" ${attrs}>${escapeHtml(label)}</button>`;
+}
+
+function renderVoice() {
+  const chat = $('voiceChat');
+  if (!chat) return;
+  const d = voice.draft;
+  chat.innerHTML = voice.msgs.map((m) =>
+    `<div class="sc-voice-msg sc-voice-${m.role}">${escapeHtml(m.text)}</div>`).join('');
+  chat.scrollTop = chat.scrollHeight;
+
+  // いまの入力内容（足りない項目は目立たせる）
+  const miss = voiceMissing(d);
+  const row = (label, val, missing) => `<div class="sc-voice-row${missing ? ' sc-voice-row-miss' : ''}">`
+    + `<span>${escapeHtml(label)}</span><strong>${val ? escapeHtml(val) : '未入力'}</strong></div>`;
+  const timeVal = d.allDay ? '終日' : d.start ? `${d.start}〜${d.end || '？'}` : '';
+  const rows = [
+    row('日付', d.date ? formatDate(d.date, 'long') : '', miss.includes('date')),
+    row('時間', timeVal, miss.includes('time') || miss.includes('end')),
+    row('案件名', d.project || '', miss.includes('project')),
+    row('業務内容', d.workType || '', miss.includes('workType')),
+    row('区分', (d.status || 'confirmed') === 'tentative' ? '仮出勤' : '確定', false),
+  ];
+  [['subject', 'タイトル'], ['storeName', '店舗名'], ['client', '業態'], ['address', '住所'], ['note', 'メモ']].forEach(([k, label]) => {
+    if (d[k]) rows.push(row(label, d[k], false));
+  });
+  $('voiceSummary').innerHTML = rows.join('');
+
+  // 足りない項目は、タップで選べるようにする
+  const chips = [];
+  if (miss.includes('date')) {
+    chips.push('<span class="sc-voice-chips-label">日付</span>');
+    [['今日', 0], ['明日', 1], ['明後日', 2]].forEach(([l, n]) => {
+      chips.push(voiceChipHtml(l, `data-voice-date="${toKey(addDays(new Date(), n))}"`));
+    });
+  }
+  if (miss.includes('time')) {
+    chips.push('<span class="sc-voice-chips-label">時間</span>');
+    SLOTS.forEach((sl) => chips.push(voiceChipHtml(`${sl.name} ${shortTime(sl.start)}〜${shortTime(sl.end)}`, `data-voice-time="${sl.start}|${sl.end}"`)));
+    chips.push(voiceChipHtml('終日', 'data-voice-time="allday"'));
+  }
+  if (miss.includes('end') && d.start) {
+    chips.push('<span class="sc-voice-chips-label">長さ</span>');
+    [1, 2, 3, 4, 6, 8].forEach((h) => chips.push(voiceChipHtml(`${h}時間`, `data-voice-len="${h}"`)));
+  }
+  if (miss.includes('project')) {
+    chips.push('<span class="sc-voice-chips-label">案件名</span>');
+    state.settings.projects.forEach((p) => chips.push(voiceChipHtml(p, `data-voice-project="${escapeHtml(p)}"`)));
+  }
+  if (miss.includes('workType')) {
+    chips.push('<span class="sc-voice-chips-label">業務内容</span>');
+    voiceCtx().workTypes.slice(0, 10).forEach((w) => chips.push(voiceChipHtml(w, `data-voice-work="${escapeHtml(w)}"`)));
+  }
+  chips.push('<span class="sc-voice-chips-label">区分</span>');
+  chips.push(voiceChipHtml('確定', `data-voice-status="confirmed" ${(d.status || 'confirmed') === 'confirmed' ? 'aria-pressed="true"' : ''}`));
+  chips.push(voiceChipHtml('仮出勤', `data-voice-status="tentative" ${d.status === 'tentative' ? 'aria-pressed="true"' : ''}`));
+  $('voiceChips').innerHTML = chips.join('');
+
+  const hasAny = !!(d.date || d.start || d.allDay || d.project || d.workType);
+  const apply = $('voiceApply');
+  apply.disabled = !hasAny;
+  apply.textContent = miss.length ? '入力画面を開く' : '✓ この内容で入力画面を開く';
+
+  const mic = $('voiceMic');
+  mic.hidden = !voiceSupported();
+  mic.classList.toggle('sc-voice-mic-on', voice.listening);
+  mic.setAttribute('aria-label', voice.listening ? '聞き取りを止める' : '話して入力する');
+  $('voiceNoMic').hidden = voiceSupported();
+}
+
+function openVoice() {
+  if (voice.open) return;
+  voice.open = true;
+  voice.draft = { status: 'confirmed' };
+  voice.rest = '';
+  voice.msgs = [{ role: 'bot', text: '登録したい予定を話してください。例：「10月27日の13時から15時でOES入替作業で登録」。足りない項目はここで確認します。' }];
+  $('voiceText').value = '';
+  $('voiceOverlay').hidden = false;
+  document.body.classList.add('sc-modal-open-body');
+  renderVoice();
+  syncHistoryLayers();
+}
+
+function closeVoice(skipHistory) {
+  if (!voice.open) return;
+  stopVoiceListening();
+  voice.open = false;
+  $('voiceOverlay').hidden = true;
+  const sheet = elSideAside && elSideAside.classList.contains('sc-side-modal-open');
+  if (!sheet) document.body.classList.remove('sc-modal-open-body');
+  if (!skipHistory) syncHistoryLayers();
+}
+
+function stopVoiceListening() {
+  if (voice.recog) { try { voice.recog.stop(); } catch (err) { /* すでに止まっている */ } }
+  voice.listening = false;
+}
+
+function toggleVoiceListening() {
+  if (voice.listening) { stopVoiceListening(); renderVoice(); return; }
+  const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+  if (!SR) return;
+  const rec = new SR();
+  rec.lang = 'ja-JP';
+  rec.interimResults = true;
+  rec.continuous = false;
+  rec.maxAlternatives = 1;
+  const box = $('voiceText');
+  rec.onresult = (ev) => {
+    let interim = '';
+    let final = '';
+    for (let i = ev.resultIndex; i < ev.results.length; i++) {
+      const tr = ev.results[i][0].transcript;
+      if (ev.results[i].isFinal) final += tr; else interim += tr;
+    }
+    box.value = final || interim;
+    if (final) { box.value = ''; voiceSubmit(final); }
+  };
+  rec.onerror = (ev) => {
+    voice.listening = false;
+    const e = ev && ev.error;
+    let msg = '音声を聞き取れませんでした。もう一度お試しください。';
+    if (e === 'not-allowed' || e === 'service-not-allowed') msg = 'マイクの使用が許可されていません。ブラウザの設定でマイクを許可するか、下の入力欄に文字で入力してください（キーボードのマイクも使えます）。';
+    else if (e === 'no-speech') msg = '声が聞こえませんでした。マイクのボタンを押してから話してください。';
+    else if (e === 'network') msg = '音声認識に接続できませんでした。通信を確認するか、文字で入力してください。';
+    else if (e === 'aborted') { renderVoice(); return; }
+    voice.msgs.push({ role: 'bot', text: msg });
+    renderVoice();
+  };
+  rec.onend = () => { voice.listening = false; renderVoice(); };
+  voice.recog = rec;
+  try {
+    rec.start();
+    voice.listening = true;
+  } catch (err) {
+    voice.listening = false;
+  }
+  renderVoice();
+}
+
+/** 聞き取った内容を、予定の入力画面（日付の選択つき）に反映して開く */
+function applyVoiceDraft() {
+  const d = voice.draft;
+  const f = blankForm();
+  const date = d.date || (view.selected && view.selected >= todayKey() ? view.selected : todayKey());
+  f.date = date;
+  f.status = d.status || 'confirmed';
+  if (d.allDay) f.allDay = true;
+  else if (d.start) { f.start = d.start; f.end = d.end || fromMinutes(Math.min(23 * 60 + 59, toMinutes(d.start) + 60)); }
+  if (d.project) {
+    if (state.settings.projects.includes(d.project)) f.titleSel = d.project;
+    else { f.titleSel = PROJECT_FREE; f.titleFree = d.project; }
+  }
+  f.workType = d.workType || '';
+  f.subject = d.subject || '';
+  f.storeName = d.storeName || '';
+  f.address = d.address || '';
+  f.note = d.note || '';
+  if (d.client) {
+    if (businessTypesForProject(d.project).includes(d.client)) f.clientSel = d.client;
+    else { f.clientSel = CLIENT_FREE; f.clientFree = d.client; }
+  }
+  // 画面を閉じる処理で履歴が動かないよう、ここでは履歴の同期は後の入力画面の表示に任せる
+  closeVoice(true);
+  if (view.paint === 'multi') setPaintMode(null, { noRender: true });
+  selectDate(date, { openForm: true, popup: true });
+  view.form = f;
+  view.ack = false;
+  renderSidePanel();
+  applyClientOverrideNote();
+  updateFormAlert();
+  syncHistoryLayers();
+  if (isNarrow()) scrollToDay(date, false);
+  toast('反映しました。確認して「登録する」を押してください');
+}
+
+function bindVoice() {
+  $('fabVoice').addEventListener('click', openVoice);
+  const pill = $('voiceBtn');
+  if (pill) pill.addEventListener('click', openVoice);
+  $('voiceClose').addEventListener('click', () => closeVoice());
+  $('voiceOverlay').addEventListener('click', (ev) => {
+    if (ev.target === $('voiceOverlay')) closeVoice();
+  });
+  $('voiceMic').addEventListener('click', toggleVoiceListening);
+  const send = () => {
+    const box = $('voiceText');
+    const t = box.value;
+    box.value = '';
+    box.style.height = '';
+    voiceSubmit(t);
+  };
+  $('voiceSend').addEventListener('click', send);
+  $('voiceText').addEventListener('keydown', (ev) => {
+    if (ev.key === 'Enter' && !ev.shiftKey && !ev.isComposing) { ev.preventDefault(); send(); }
+  });
+  $('voiceReset').addEventListener('click', () => {
+    voice.draft = { status: 'confirmed' };
+    voice.rest = '';
+    voice.msgs.push({ role: 'bot', text: '内容をクリアしました。もう一度話してください。' });
+    renderVoice();
+  });
+  $('voiceApply').addEventListener('click', applyVoiceDraft);
+  $('voiceChips').addEventListener('click', (ev) => {
+    const b = ev.target.closest('.sc-voice-chip');
+    if (!b) return;
+    const d = voice.draft;
+    if (b.dataset.voiceDate) d.date = b.dataset.voiceDate;
+    else if (b.dataset.voiceTime) {
+      if (b.dataset.voiceTime === 'allday') { d.allDay = true; delete d.start; delete d.end; }
+      else { const [s, e] = b.dataset.voiceTime.split('|'); d.allDay = false; d.start = s; d.end = e; }
+    } else if (b.dataset.voiceLen) d.end = fromMinutes(Math.min(23 * 60 + 59, toMinutes(d.start) + Number(b.dataset.voiceLen) * 60));
+    else if (b.dataset.voiceProject) d.project = b.dataset.voiceProject;
+    else if (b.dataset.voiceWork) d.workType = b.dataset.voiceWork;
+    else if (b.dataset.voiceStatus) d.status = b.dataset.voiceStatus;
+    const miss = voiceMissing(d);
+    if (!miss.length) voice.msgs.push({ role: 'bot', text: `${voiceSummaryText(d)}。これで入力画面を開けます。` });
+    renderVoice();
+  });
 }
 
 /* ------------------------------------------------------------
@@ -3705,7 +4269,7 @@ let historyIgnorePops = 0;
 function syncHistoryLayers() {
   if (!window.history || !history.pushState) return;
   const sheetOpen = elSideAside && elSideAside.classList.contains('sc-side-modal-open');
-  const want = (view.paint === 'multi' && isNarrow() ? 1 : 0) + (sheetOpen ? 1 : 0);
+  const want = (view.paint === 'multi' && isNarrow() ? 1 : 0) + (sheetOpen ? 1 : 0) + (voice.open ? 1 : 0);
   while (historyPushed < want) {
     history.pushState({ vcLayer: historyPushed + 1 }, '');
     historyPushed++;
@@ -3726,6 +4290,7 @@ function onHistoryPop() {
     syncHistoryLayers();
     return;
   }
+  if (voice.open) { closeVoice(true); return; }
   if (elSideAside.classList.contains('sc-side-modal-open')) { closeForm(); return; }
   if (view.paint === 'multi') { setPaintMode(null); return; }
 }
@@ -3829,6 +4394,7 @@ function bindEvents() {
   // スマホ向け：戻るボタン・＋ボタン・シートを引いて閉じる・左右スワイプで月送り
   window.addEventListener('popstate', onHistoryPop);
   $('fabAdd').addEventListener('click', openQuickAdd);
+  bindVoice();
   bindSheetSwipe();
   bindMonthSwipe();
   let resizeTimer = 0;
@@ -4650,7 +5216,23 @@ function bindEvents() {
   // PDF出力（印刷ダイアログの「PDFに保存」を利用）
   // 保存時のファイル名にも対象の月がわかるよう、印刷中だけタイトルを変える
   let savedTitle = document.title;
+  // 用紙の向き（A4の横／縦）。印刷の設定は @page でしか指定できないため、選んだ向きを <style> に書き出す
+  const orientSel = $('printOrient');
+  const applyPrintOrient = () => {
+    const portrait = orientSel.value === 'portrait';
+    document.body.classList.toggle('sc-print-portrait', portrait);
+    let st = $('printPageStyle');
+    if (!st) { st = document.createElement('style'); st.id = 'printPageStyle'; document.head.appendChild(st); }
+    st.textContent = `@page { size: A4 ${portrait ? 'portrait' : 'landscape'}; margin: ${portrait ? '8mm 8mm' : '7mm 6mm'}; }`;
+  };
+  try { const saved = localStorage.getItem('ms-schedule-print-orient'); if (saved === 'portrait' || saved === 'landscape') orientSel.value = saved; } catch (err) { /* 保存できなくても使える */ }
+  applyPrintOrient();
+  orientSel.addEventListener('change', () => {
+    applyPrintOrient();
+    try { localStorage.setItem('ms-schedule-print-orient', orientSel.value); } catch (err) { /* 保存できなくても使える */ }
+  });
   window.addEventListener('beforeprint', () => {
+    applyPrintOrient();
     $('printHeader').textContent = `${view.year}年${view.month + 1}月 スケジュール`;
     savedTitle = document.title;
     document.title = `VertiCale_${view.year}年${pad2(view.month + 1)}月`;
@@ -4680,6 +5262,7 @@ function bindEvents() {
   // キーボード操作
   document.addEventListener('keydown', (ev) => {
     if (ev.key === 'Escape' && !elConfirmOverlay.hidden) { closeCustomConfirm(false); return; }
+    if (ev.key === 'Escape' && voice.open) { closeVoice(); return; }
     if (ev.key === 'Escape' && (elSideAside.classList.contains('sc-side-modal-open') || (view.formOpen && !view.editingId))) { closeForm(); return; }
     if (ev.target.matches('input, textarea, select')) return;
     if (ev.key === 'ArrowLeft') moveMonth(-1);
