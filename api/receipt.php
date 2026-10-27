@@ -9,13 +9,22 @@
  *   GET   ?action=status
  *         → APIキー・モデル設定の接続テスト（キーは末尾4桁のみ返す）と、本日の使用回数
  *
- * 精度と安定性のための設計（Ver 1.8）
+ * 精度と安定性のための設計（Ver 1.8〜）
  *   - 1回の呼び出しで送る画像は既定で1枚（Google の資料で「文字の読み取りは1枚ずつの方が精度が良い」とされているため）
  *   - 画像の解像度を「高」に固定（mediaResolution）。毎回同じ細かさで読ませる
  *   - 金額を読み取った箇所の文字（amount_text）を書き写させ、数字と金額が一致するかをサーバーで照合（evidence）
- *   - 一時的なエラー（混雑・タイムアウト・応答の崩れ）は自動で再試行
+ *   - 一時的なエラー（混雑・応答の崩れ）は自動で再試行
  *   - 上記の追加設定をGemini側が受け付けない場合は、追加設定なしで自動的にやり直す
  *   - 原因調査のため、読み取り結果の要約を api/data/log.jsonl に記録（画像・APIキーは記録しない）
+ *
+ * 応答が返ってこない問題への対策（Ver 1.9）
+ *   Gemini の新しい Flash 系モデルは、JSON の出力中に同じ数字・文字を延々と繰り返し、出力の上限（約6.5万トークン）まで
+ *   止まらなくなることがある（開発者フォーラムで報告あり。約3回に1回）。その間は応答が返らず、タイムアウトになっていた。
+ *   - 出力の長さに上限（maxOutputTokens）を付け、繰り返しが起きても十数秒で打ち切られるようにする
+ *   - 打ち切られた・崩れた応答は、乱数の種（seed）を変えてやり直す（同じ種だと同じ崩れ方をしやすい）
+ *   - AIの考える量（thinkingLevel）を「低」にして応答を速くする（config.php の thinking_level で変更可）
+ *   - 1回の呼び出しの待ち時間は60秒まで、再試行・予備モデルを含めた1回の読み取りは約100秒までに抑える
+ *   - 時間切れになったモデルは5分間後回しにし、予備のモデルを先に使う
  *
  * 利用上限（無料枠の回数制限）に達したときは、予備のモデルへ自動で切り替える。
  * 上限に達したモデルは、その日のうちは使わない（api/data/usage.json に記録）。
@@ -30,7 +39,7 @@ header('Content-Type: application/json; charset=utf-8');
 header('Cache-Control: no-store');
 header('X-Content-Type-Options: nosniff');
 
-const APP_VERSION = '1.8';   // index.html の APP_VERSION と揃えて上げる
+const APP_VERSION = '1.9';   // index.html の APP_VERSION と揃えて上げる
 const DEFAULT_MODEL = 'gemini-3.8-flash';
 // 主モデルが上限に達したときに自動で使う予備モデル（無料枠の上限はモデルごとに別枠）。config.php の fallback_models で変更・無効化できる。
 // 精度を揃えるため、既定では Flash 系だけにしている（Flash-Lite 系は精度が下がりやすいので、使う場合は config.php で追加する）。
@@ -46,6 +55,13 @@ const USAGE_FILE = DATA_DIR . '/usage.json';
 const LOG_FILE = DATA_DIR . '/log.jsonl';
 const LOG_KEEP_LINES = 300;                      // 記録は直近この件数だけ残す
 const PASS_SEEDS = [1 => 1101, 2 => 2203, 3 => 3307];   // 何回目の読み取りかごとの乱数の種
+const DEFAULT_TIMEOUT = 60;                      // 1回の呼び出しで応答を待つ上限（秒）。config.php の request_timeout で変更
+const TIME_BUDGET = 100;                         // 1回の読み取りで、再試行・予備モデルへの切替を新しく始めてよい時間（秒）
+const SLOW_COOLDOWN = 300;                       // 時間切れになったモデルを後回しにする時間（秒）
+const DEFAULT_THINKING_LEVEL = 'low';            // AIの考える量（minimal / low / medium / high。'' でGeminiの既定＝high）
+const THINKING_LEVELS = ['', 'minimal', 'low', 'medium', 'high'];
+const MAX_OUTPUT_TOKENS = 4096;                  // 出力の上限（画像1枚）。繰り返しが起きても早く打ち切るため
+const MAX_OUTPUT_TOKENS_LARGE = 8192;            // 出力の上限（PDF・複数枚。ETC利用明細など行数が多い場合）
 const ALLOWED_MIME = ['image/jpeg', 'image/png', 'image/webp', 'image/heic', 'image/heif', 'application/pdf'];
 
 const RECEIPT_PROMPT = <<<'TXT'
@@ -64,6 +80,7 @@ const RECEIPT_PROMPT = <<<'TXT'
    - "other": 上記以外（ガソリン代・飲食・物品購入など）
 3. amount_text: 金額を読み取った箇所の文字を、項目名ごと領収書の表記どおりに書き写す（例:「合計 ¥1,320」「駐車料金 800円」「通行料金 930」）。読めない場合は null。
 4. amount: 実際に支払った税込の金額を整数（円）で。amount_text に書いた数字と必ず一致させる。
+   - 領収書に書かれている桁数のとおりに書く（駐車場・高速の料金は通常2〜5桁）。同じ数字を続けて書き足さない。
    - 「お預り」「お預かり」「現金」「お釣り」「釣銭」「ポイント」「割引額」「消費税額」「小計（別に合計がある場合）」は絶対に採用しない。
    - ETC割引・深夜割引などがある場合は割引後の支払額。
    - カンマ・「¥」「円」は除き数字のみ。読めない・判別できない場合は null（推測しない）。
@@ -86,7 +103,7 @@ TXT;
 
 const SINGLE_FILE_PROMPT = <<<'TXT'
 ## 添付ファイルについて
-- 添付は1つです。image にはすべて 1 を入れてください。
+- 添付は1つです。
 - 領収書が読み取れない場合は、category を "other"、amount を null、note に理由を書いた要素を1件入れてください。
 TXT;
 
@@ -145,9 +162,16 @@ function load_config(): array
     $maxFiles = (int)($config['max_files_per_request'] ?? DEFAULT_FILES_PER_REQUEST);
     $maxFiles = max(1, min(MAX_FILES_LIMIT, $maxFiles));
 
+    $timeout = max(5, min(300, (int)($config['request_timeout'] ?? DEFAULT_TIMEOUT)));
+    $thinking = strtolower(trim((string)($config['thinking_level'] ?? DEFAULT_THINKING_LEVEL)));
+    if (!in_array($thinking, THINKING_LEVELS, true)) {
+        $thinking = DEFAULT_THINKING_LEVEL;
+    }
+
     return [
         'key' => $key, 'models' => $models, 'model' => $models[0], 'endpoint' => $endpoint, 'maxFiles' => $maxFiles,
         'log' => !array_key_exists('log_requests', $config) || (bool)$config['log_requests'],
+        'timeout' => $timeout, 'thinking' => $thinking,
     ];
 }
 
@@ -175,7 +199,7 @@ function usage_load(): array
     return $u;
 }
 
-/** 回数を加算し、必要なら印（上限到達・モデルなし・追加設定非対応）を付けて保存する。保存できない環境でも本来の処理は止めない */
+/** 回数を加算し、必要なら印（上限到達・モデルなし・追加設定非対応・後回しの期限）を付けて保存する。保存できない環境でも本来の処理は止めない */
 function usage_update(string $model, array $changes): void
 {
     if (!is_dir(DATA_DIR) && !@mkdir(DATA_DIR, 0755, true)) {
@@ -196,6 +220,9 @@ function usage_update(string $model, array $changes): void
             if (array_key_exists($flag, $changes)) {
                 $m[$flag] = (bool)$changes[$flag];
             }
+        }
+        if (array_key_exists('slowUntil', $changes)) {
+            $m['slowUntil'] = (int)$changes['slowUntil'];
         }
         $u['models'][$model] = $m;
         ftruncate($fp, 0);
@@ -236,14 +263,14 @@ function key_tail(string $key): string
     return '…' . substr($key, -4);
 }
 
-function gemini_request(array $cfg, string $method, string $path, ?array $body = null): array
+function gemini_request(array $cfg, string $method, string $path, ?array $body = null, ?int $timeout = null): array
 {
     $ch = curl_init($cfg['endpoint'] . $path);
     $headers = ['x-goog-api-key: ' . $cfg['key']];
     $opts = [
         CURLOPT_RETURNTRANSFER => true,
         CURLOPT_CONNECTTIMEOUT => 10,
-        CURLOPT_TIMEOUT => 120,
+        CURLOPT_TIMEOUT => $timeout ?? $cfg['timeout'],
         CURLOPT_CUSTOMREQUEST => $method,
     ];
     if ($body !== null) {
@@ -257,12 +284,15 @@ function gemini_request(array $cfg, string $method, string $path, ?array $body =
     $raw = curl_exec($ch);
     $status = (int)curl_getinfo($ch, CURLINFO_RESPONSE_CODE);
     $error = curl_error($ch);
+    $errno = curl_errno($ch);
     $json = is_string($raw) ? json_decode($raw, true) : null;
 
     return [
         'status' => $raw === false ? 0 : $status,
         'json' => is_array($json) ? $json : null,
         'error' => $error,
+        'timedOut' => $raw === false && $errno === 28,   // CURLE_OPERATION_TIMEDOUT
+        'timeout' => $opts[CURLOPT_TIMEOUT],
         'ms' => (int)round((microtime(true) - $started) * 1000),
     ];
 }
@@ -289,21 +319,27 @@ function classify_quota_error(array $r): array
     return ['kind' => $kind, 'retryAfter' => $retry];
 }
 
-/** 追加設定（解像度・seed・項目の順番）をGemini側が受け付けなかったときの 400 か */
+/** APIキーが原因の 400 か */
+function is_key_error(array $r): bool
+{
+    return $r['status'] === 400 && preg_match('/API[ _]?key/i', (string)($r['json']['error']['message'] ?? '')) === 1;
+}
+
+/** 追加設定（解像度・seed・項目の順番・考える量）をGemini側が受け付けなかったときの 400 か */
 function is_compat_error(array $r): bool
 {
-    if ($r['status'] !== 400) {
+    if ($r['status'] !== 400 || is_key_error($r)) {
         return false;
     }
     $msg = (string)($r['json']['error']['message'] ?? '');
-    if (stripos($msg, 'API key') !== false) {
-        return false;
-    }
-    return (bool)preg_match('/media_?resolution|seed|property_?ordering|Unknown name|Cannot find field|Invalid JSON payload/i', $msg);
+    return (bool)preg_match('/media_?resolution|seed|property_?ordering|thinking|Unknown name|Cannot find field|Invalid JSON payload|not supported/i', $msg);
 }
 
 function gemini_error_message(array $r): string
 {
+    if (!empty($r['timedOut'])) {
+        return 'AIの応答に時間がかかりすぎたため中断しました（' . $r['timeout'] . '秒）。Gemini が混雑している可能性があります。少し時間をおいて「もう一度読み取る」を押してください。';
+    }
     if ($r['status'] === 0) {
         return 'Gemini API に接続できませんでした（' . $r['error'] . '）。時間をおいてもう一度お試しください。';
     }
@@ -326,10 +362,14 @@ function gemini_error_message(array $r): string
     return 'Gemini API エラー（HTTP ' . $r['status'] . '）' . ($msg !== '' ? '：' . $msg : '');
 }
 
-function receipt_schema(bool $basic): array
+/** $multi … 複数枚をまとめて送るときだけ、どの画像の領収書かを表す image を求める（1枚のときは不要な数字の項目を減らす） */
+function receipt_schema(bool $basic, bool $multi): array
 {
     $nullableString = ['type' => 'STRING', 'nullable' => true];
     $order = ['image', 'category', 'facility', 'entry', 'exit', 'date', 'amount_text', 'amount', 'confidence', 'note'];
+    if (!$multi) {
+        $order = array_values(array_diff($order, ['image']));
+    }
     $item = [
         'type' => 'OBJECT',
         'properties' => [
@@ -346,6 +386,9 @@ function receipt_schema(bool $basic): array
         ],
         'required' => $order,
     ];
+    if (!$multi) {
+        unset($item['properties']['image']);
+    }
     if (!$basic) {
         $item['propertyOrdering'] = $order;   // 根拠の文字（amount_text）を書いてから金額（amount）を出させる
     }
@@ -358,9 +401,10 @@ function receipt_schema(bool $basic): array
 
 /**
  * Geminiに送る内容を組み立てる。
- * $basic = true のときは追加設定（解像度・seed・項目の順番）を付けない（Gemini側が受け付けないときの予備）
+ * $basic = true のときは追加設定（解像度・seed・項目の順番・考える量）を付けない（Gemini側が受け付けないときの予備）。
+ * 出力の上限（maxOutputTokens）は標準の設定なので常に付ける
  */
-function build_payload(array $files, int $pass, bool $basic): array
+function build_payload(array $files, int $seed, bool $basic, array $cfg): array
 {
     $parts = [];
     $multi = count($files) > 1;
@@ -371,13 +415,19 @@ function build_payload(array $files, int $pass, bool $basic): array
         $parts[] = ['inlineData' => ['mimeType' => $f['mimeType'], 'data' => $f['data']]];
     }
     $parts[] = ['text' => RECEIPT_PROMPT . "\n\n" . ($multi ? MULTI_FILE_PROMPT . "\n- 今回の添付ファイルは全部で " . count($files) . ' 個です。' : SINGLE_FILE_PROMPT)];
+    // PDF・複数枚は行数が多くなりやすく、追加設定なし（考える量がGeminiの既定＝多め）のときは考える分も出力に含まれるため、上限を大きくする
+    $large = $multi || $basic || in_array('application/pdf', array_column($files, 'mimeType'), true);
     $config = [
         'responseMimeType' => 'application/json',
-        'responseSchema' => receipt_schema($basic),
+        'responseSchema' => receipt_schema($basic, $multi),
+        'maxOutputTokens' => $large ? MAX_OUTPUT_TOKENS_LARGE : MAX_OUTPUT_TOKENS,   // 同じ文字の繰り返しが起きても早く打ち切る
     ];
     if (!$basic) {
         $config['mediaResolution'] = 'MEDIA_RESOLUTION_HIGH';   // 細かい文字まで読めるよう、画像の解像度を「高」に固定
-        $config['seed'] = PASS_SEEDS[$pass];                   // 同じ画像・同じ回なら、同じ結果が出やすくする
+        $config['seed'] = $seed;                               // 同じ画像・同じ回なら、同じ結果が出やすくする
+        if ($cfg['thinking'] !== '') {
+            $config['thinkingConfig'] = ['thinkingLevel' => $cfg['thinking']];   // 考える量を抑えて応答を速くする
+        }
     }
     return ['contents' => [['role' => 'user', 'parts' => $parts]], 'generationConfig' => $config];
 }
@@ -395,8 +445,13 @@ function parse_receipts(array $json): array
             $text .= $part['text'];
         }
     }
+    $finish = (string)($candidate['finishReason'] ?? '');
+    if ($finish === 'MAX_TOKENS') {
+        // 同じ数字・文字を繰り返して出力の上限で打ち切られた（JSON が途中で切れている）
+        return [null, 'AIの応答が崩れたため途中で打ち切りました（同じ文字の繰り返し）'];
+    }
     if ($text === '') {
-        return [null, 'AIから読み取り結果が返りませんでした（' . ($candidate['finishReason'] ?? ($json['promptFeedback']['blockReason'] ?? '不明')) . '）'];
+        return [null, 'AIから読み取り結果が返りませんでした（' . ($finish !== '' ? $finish : ($json['promptFeedback']['blockReason'] ?? '不明')) . '）'];
     }
     $parsed = json_decode($text, true);
     if (!is_array($parsed) && preg_match('/\{[\s\S]*\}/', $text, $m)) {
@@ -497,7 +552,7 @@ if ($method === 'GET' && ($_GET['action'] ?? '') === 'status') {
     if ($cfg['key'] === '') {
         respond(200, ['ok' => false, 'model' => $cfg['model'], 'error' => 'APIキーが未設定です。api/config.sample.php を config.php にコピーしてキーを設定してください。']);
     }
-    $r = gemini_request($cfg, 'GET', '/models/' . rawurlencode($cfg['model']));
+    $r = gemini_request($cfg, 'GET', '/models/' . rawurlencode($cfg['model']), null, 20);
     if ($r['status'] !== 200) {
         respond(200, ['ok' => false, 'model' => $cfg['model'], 'keyTail' => key_tail($cfg['key']), 'error' => gemini_error_message($r)]);
     }
@@ -509,13 +564,14 @@ if ($method === 'GET' && ($_GET['action'] ?? '') === 'status') {
             'requests' => (int)($usage['models'][$m]['requests'] ?? 0),
             'exhausted' => !empty($usage['models'][$m]['exhausted']),
             'missing' => !empty($usage['models'][$m]['missing']),
+            'slow' => (int)($usage['models'][$m]['slowUntil'] ?? 0) > time(),
         ];
     }
     respond(200, [
         'ok' => true, 'version' => APP_VERSION, 'model' => $cfg['model'], 'keyTail' => key_tail($cfg['key']),
         'maxFiles' => $cfg['maxFiles'], 'usageDay' => $usage['day'], 'models' => $models,
         'usageWritable' => is_dir(DATA_DIR) ? is_writable(DATA_DIR) : is_writable(__DIR__),
-        'logEnabled' => $cfg['log'],
+        'logEnabled' => $cfg['log'], 'thinkingLevel' => $cfg['thinking'], 'timeout' => $cfg['timeout'],
     ]);
 }
 
@@ -570,38 +626,52 @@ if ($total > MAX_REQUEST_BYTES) {
 
 // ---- モデルを順に試す。上限に達したモデルは飛ばし、その日のうちは使わない ----
 //   1つのモデルの中では、一時的なエラーを自動で再試行する
-//     混雑・タイムアウト（0/500/502/503/504）… 2秒・5秒待って最大2回
-//     応答の崩れ（結果が空・JSONが壊れている）… 1回
+//     応答の崩れ（繰り返しで打ち切り・JSONが壊れている・結果が空）… 乱数の種を変えて1回
+//     混雑（0/500/502/503/504）… 2秒待って1回
 //     1分あたりの上限 … 指示された秒数（30秒まで）待って1回
-//     追加設定を受け付けない（400）… 追加設定なしで1回（その日は以後も追加設定なしで送る）
+//     受け付けられない（400）… 追加設定なしで1回（追加設定が原因と分かったら、その日は以後も追加設定なしで送る）
+//   時間切れ（request_timeout 秒）になったモデルは再試行せず、5分間後回しにして予備のモデルへ
+//   再試行・予備モデルへの切替は、読み取り開始から TIME_BUDGET 秒までに始めるものに限る
 $usage = usage_load();
+$now = time();
+$order = [];
+$later = [];
+$skipped = [];
+foreach ($cfg['models'] as $m) {
+    $mu = $usage['models'][$m] ?? [];
+    if (!empty($mu['exhausted']) || !empty($mu['missing'])) {
+        $skipped[] = $m;
+    } elseif ((int)($mu['slowUntil'] ?? 0) > $now) {
+        $later[] = $m;
+    } else {
+        $order[] = $m;
+    }
+}
+$order = array_merge($order, $later);
+
+$started = microtime(true);
+$remaining = fn(): float => TIME_BUDGET - (microtime(true) - $started);
 $receipts = null;
 $usedModel = null;
-$skipped = [];
 $lastError = null;
 $lastParseError = null;
 $attempts = [];
-// 混雑やタイムアウトが続いても、画面を長く待たせすぎないよう再試行・モデル切替は約3分までにする
-$deadline = microtime(true) + 180;
-foreach ($cfg['models'] as $model) {
-    if (!empty($usage['models'][$model]['exhausted']) || !empty($usage['models'][$model]['missing'])) {
-        $skipped[] = $model;
-        continue;
-    }
-    if ($lastError !== null && microtime(true) > $deadline) {
+foreach ($order as $model) {
+    if ($lastError !== null && $remaining() < 10) {
         break;
     }
     $basic = !empty($usage['models'][$model]['basic']);
+    $persistBasic = false;
+    $seed = PASS_SEEDS[$pass];
     $path = '/models/' . rawurlencode($model) . ':generateContent';
-    $transient = 0;
-    $parseRetry = 0;
-    $minuteRetry = 0;
-    $compatRetry = 0;
+    $retry = ['parse' => 0, 'transient' => 0, 'minute' => 0, 'bad' => 0];
     $r = null;
     while (true) {
-        $r = gemini_request($cfg, 'POST', $path, build_payload($files, $pass, $basic));
+        // 残り時間が少ないときは待ち時間も短くする（15秒〜request_timeout）
+        $timeout = (int)max(15, min($cfg['timeout'], ceil($remaining())));
+        $r = gemini_request($cfg, 'POST', $path, build_payload($files, $seed, $basic, $cfg), $timeout);
         usage_update($model, ['requests' => 1]);
-        $attempt = ['model' => $model, 'status' => $r['status'], 'ms' => $r['ms'], 'basic' => $basic];
+        $attempt = ['model' => $model, 'status' => $r['status'], 'ms' => $r['ms'], 'basic' => $basic, 'seed' => $basic ? null : $seed];
 
         if ($r['status'] === 200) {
             [$list, $err] = $r['json'] !== null ? parse_receipts($r['json']) : [null, 'AIの応答を解析できませんでした'];
@@ -609,6 +679,9 @@ foreach ($cfg['models'] as $model) {
             $attempt['tokens'] = array_intersect_key($r['json']['usageMetadata'] ?? [], array_flip(['promptTokenCount', 'candidatesTokenCount', 'thoughtsTokenCount', 'totalTokenCount']));
             if ($list !== null) {
                 $attempts[] = $attempt;
+                if ($persistBasic) {
+                    usage_update($model, ['basic' => true]);
+                }
                 $receipts = $list;
                 $usedModel = $model;
                 break 2;
@@ -616,14 +689,21 @@ foreach ($cfg['models'] as $model) {
             $attempt['error'] = $err;
             $attempts[] = $attempt;
             $lastParseError = $err;
-            if ($parseRetry++ < 1) {
+            // 同じ種だと同じ崩れ方をしやすいので、種を変えてやり直す
+            if ($retry['parse']++ < 1 && $remaining() >= 10) {
+                $seed += 100;
                 continue;
             }
             break;
         }
-        $attempt['error'] = (string)($r['json']['error']['message'] ?? $r['error']);
+        $attempt['error'] = $r['timedOut'] ? 'timeout ' . $r['timeout'] . 's' : (string)($r['json']['error']['message'] ?? $r['error']);
         $attempts[] = $attempt;
 
+        if ($r['timedOut']) {
+            // 応答が返らないモデルは、しばらく後回しにして予備のモデルを先に使う
+            usage_update($model, ['slowUntil' => time() + SLOW_COOLDOWN]);
+            break;
+        }
         if ($r['status'] === 404) {
             usage_update($model, ['missing' => true]);
             break;
@@ -635,28 +715,31 @@ foreach ($cfg['models'] as $model) {
                 usage_update($model, ['exhausted' => true]);
                 break;
             }
-            if ($minuteRetry++ < 1 && ($q['retryAfter'] === null || $q['retryAfter'] <= 30)) {
-                sleep(max(2, (int)$q['retryAfter']));
+            $wait = max(2, (int)$q['retryAfter']);
+            if ($retry['minute']++ < 1 && $wait <= 30 && $remaining() >= $wait + 10) {
+                sleep($wait);
                 continue;
             }
             break;
         }
-        if (!$basic && is_compat_error($r) && $compatRetry++ < 1) {
-            $basic = true;
-            usage_update($model, ['basic' => true]);
+        if ($r['status'] === 400 && !is_key_error($r) && $retry['bad']++ < 1) {
+            // 追加設定を受け付けない（または原因不明の一時的な 400）。追加設定なしで1回だけやり直す
+            if (!$basic) {
+                $persistBasic = is_compat_error($r);
+                $basic = true;
+            }
             continue;
         }
-        if (in_array($r['status'], [0, 500, 502, 503, 504], true) && $transient < 2 && microtime(true) < $deadline) {
-            sleep($transient === 0 ? 2 : 5);
-            $transient++;
+        if (in_array($r['status'], [0, 500, 502, 503, 504], true) && $retry['transient']++ < 1 && $remaining() >= 10) {
+            sleep(2);
             continue;
         }
         break;
     }
     $lastError = $r;
-    // 上限（429）・モデルが無い（404）・再試行しても混雑やタイムアウトが続く（0/5xx）なら次のモデルを試す。
-    // キー不正・応答の崩れなど他の理由は、モデルを変えても改善しないので打ち切る
-    if (!in_array($r['status'], [429, 404, 0, 500, 502, 503, 504], true)) {
+    // 上限（429）・モデルが無い（404）・時間切れや混雑（0/5xx）・応答の崩れ（200）なら次のモデルを試す。
+    // キー不正・受け付けられない画像など他の理由は、モデルを変えても改善しないので打ち切る
+    if (!in_array($r['status'], [200, 429, 404, 0, 500, 502, 503, 504], true)) {
         break;
     }
 }
@@ -666,13 +749,14 @@ if ($receipts === null) {
         $error = '使えるモデルがすべて本日は使えません（上限に達したか、モデルが見つかりません：' . implode('、', $skipped) . '）。日本時間の午後4時（11月以降は午後5時）に回数がリセットされます。回数を増やすには、有料枠にするか、api/config.php に別のモデルを追加してください。';
         $code = 'quota_day';
     } elseif ($lastError['status'] === 200) {
-        $error = $lastParseError . '。もう一度お試しください。';
+        $error = $lastParseError . '。「もう一度読み取る」を押してください。';
         $code = 'parse';
     } else {
         $error = gemini_error_message($lastError);
-        $code = $lastError['status'] === 429 ? 'quota' : 'error';
+        $code = $lastError['status'] === 429 ? 'quota' : ($lastError['timedOut'] ? 'timeout' : 'error');
     }
-    log_request($cfg, ['pass' => $pass, 'files' => count($files), 'ok' => false, 'error' => $error, 'attempts' => $attempts]);
+    log_request($cfg, ['pass' => $pass, 'files' => count($files), 'ok' => false, 'error' => $error,
+        'elapsedMs' => (int)round((microtime(true) - $started) * 1000), 'attempts' => $attempts]);
     respond(502, ['ok' => false, 'code' => $code, 'error' => $error]);
 }
 
@@ -692,7 +776,8 @@ foreach (array_values(array_filter(array_map('normalize_receipt', $receipts))) a
 
 $summary = fn($list) => array_map(fn($rc) => [$rc['category'], $rc['amount'], $rc['amount_text'], $rc['evidence'], $rc['confidence']], $list);
 log_request($cfg, [
-    'pass' => $pass, 'files' => count($files), 'ok' => true, 'model' => $usedModel, 'attempts' => $attempts,
+    'pass' => $pass, 'files' => count($files), 'ok' => true, 'model' => $usedModel,
+    'elapsedMs' => (int)round((microtime(true) - $started) * 1000), 'attempts' => $attempts,
     'result' => array_map($summary, $byFile), 'unassigned' => $summary($unassigned),
 ]);
 respond(200, [
