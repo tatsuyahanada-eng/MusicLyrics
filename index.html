@@ -1188,8 +1188,8 @@
         this.$('aiBusyTitle').className = 'ai-busy-title';
         this.$('aiBusyTitle').textContent = '領収書を読み取り中…';
         this.baseNote = doubleCheck
-          ? 'ダブルチェックのため、必要に応じてAIが2〜3回読み取り、結果を照合します。1枚あたり通常5〜30秒ほどです。この画面は閉じずにお待ちください。'
-          : '1枚あたり通常5〜15秒ほどです。この画面は閉じずにお待ちください。';
+          ? 'ダブルチェックのため、必要に応じてAIが2〜3回読み取り、結果を照合します。1枚あたり数秒〜数十秒かかります。この画面は閉じずにお待ちください。'
+          : '1枚あたり数秒〜十数秒かかります。この画面は閉じずにお待ちください。';
         this.$('aiBusyNote').className = 'ai-busy-note';
         this.$('aiBusyNote').textContent = this.baseNote;
         this.stepStartedAt = Date.now();
