@@ -201,6 +201,23 @@
     .ai-fail ul { margin: 0 0 8px; padding-left: 18px; }
     .ai-fail li { margin: 2px 0; line-height: 1.5; overflow-wrap: anywhere; }
     .ai-busy-note.ai-busy-slow { color: #b06a00; font-weight: 600; }
+    .ai-diag { margin: 0 0 10px; padding: 10px 12px; border: 1px solid #c9d6ea; background: #f5f8fd; border-radius: 8px; font-size: 12px; line-height: 1.6; color: var(--text); }
+    .ai-diag-head { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 6px; margin-bottom: 6px; }
+    .ai-diag-headline { font-size: 15px; font-weight: 800; padding: 6px 10px; border-radius: 6px; margin-bottom: 6px; }
+    .ai-diag-headline.lv-bad { background: #fde8ec; color: #b3203f; }
+    .ai-diag-headline.lv-warn { background: #fff4e0; color: #8a5200; }
+    .ai-diag-headline.lv-ok { background: #e6f6ec; color: #17683a; }
+    .ai-diag-headline.lv-info { background: #eef1f6; color: var(--text); }
+    .ai-diag ul { margin: 0 0 6px; padding-left: 18px; }
+    .ai-diag li { margin: 3px 0; overflow-wrap: anywhere; }
+    .ai-diag li.lv-bad { color: #b3203f; font-weight: 700; }
+    .ai-diag li.lv-warn { color: #8a5200; font-weight: 600; }
+    .ai-diag li.lv-ok { color: #17683a; font-weight: 600; }
+    .ai-diag table { border-collapse: collapse; margin: 4px 0 8px; font-size: 12px; }
+    .ai-diag th, .ai-diag td { border: 1px solid #d5deea; padding: 3px 8px; text-align: left; }
+    .ai-diag details { margin: 4px 0 8px; }
+    .ai-diag summary { cursor: pointer; font-weight: 600; }
+    .ai-diag-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; color: var(--muted); }
     .ai-review tr.ai-warn td { background: #fff6f7; }
     .ai-review tr.ai-done td { opacity: .55; }
     .ai-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; align-items: center; }
@@ -427,7 +444,7 @@
 <body>
   <div class="wrap">
     <header>
-      <h1>車両移動経費請求書 <span class="app-ver">Ver 1.9</span></h1>
+      <h1>車両移動経費請求書 <span class="app-ver">Ver 2.0</span></h1>
       <p>基点から各訪問先への移動経費（ガソリン代・有料道路・駐車場）を入力し、請求総額を計算します。</p>
     </header>
 
@@ -542,8 +559,10 @@
           </select>
         </label>
         <button type="button" id="aiStatusCheck" class="btn btn-outline btn-sm">🔌 接続テスト</button>
+        <button type="button" id="aiDiagnose" class="btn btn-outline btn-sm" title="読み取れない原因（今日の上限か、Gemini側の問題か）を調べます">🩺 診断</button>
       </div>
       <div id="aiUsage" class="ai-usage" hidden></div>
+      <div id="aiDiag" class="ai-diag" hidden></div>
       <div class="ai-must" role="note"><span class="ico" aria-hidden="true">⚠</span><span>アップロードするときは画像を作業指示番号に変更必須</span></div>
       <div id="aiDropZone" class="ai-drop" tabindex="0" role="button" aria-label="領収書ファイルをドラッグ＆ドロップ、またはクリックして選択">
         <div class="ai-drop-icon">📥</div>
@@ -914,7 +933,7 @@
     recalc();
 
     /* ---------- 領収書AI読み取り（サーバーの api/receipt.php 経由で Gemini を利用） ---------- */
-    const APP_VERSION = '1.9';   // 見出しの Ver 表記・api/receipt.php の APP_VERSION と揃えて上げる
+    const APP_VERSION = '2.0';   // 見出しの Ver 表記・api/receipt.php の APP_VERSION と揃えて上げる
     const AI_ENDPOINT = 'api/receipt.php';
     const AI_MAX_RAW_BYTES = 5 * 1024 * 1024;   // PDF・変換できない画像をそのまま送る場合の上限
     const AI_IMAGE_MAX_PX = 2400;               // 長辺をこのサイズまで縮小してから送る
@@ -1055,6 +1074,9 @@
         if (agreement === 'majority') {
           const m = consensus.minority[i];
           info = `3回読み取り、2回が一致した結果を採用${m && m.amount !== r.amount ? `（1回だけ ${fmtYen(m.amount)} と読み取り）` : ''}`;
+        }
+        if (opts.fallbackModels && opts.fallbackModels.length) {
+          info += (info ? '／' : '') + `予備のモデル（${opts.fallbackModels.join('、')}）で読み取りました。主モデルより精度が下がることがあるため、金額を特に確認してください`;
         }
         if (r.amount == null) reasons.push('金額を読み取れませんでした');
         if (r.category === 'other') reasons.push('高速代・駐車場代ではない可能性があります');
@@ -1204,11 +1226,11 @@
         this.$('aiBusyTime').textContent = `経過 ${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
         // 同じ段階が長く続いているときは、止まっていないことと、自動で再試行することを知らせる
         if (!this.el.hidden && this.stepStartedAt) {
-          const slow = Date.now() - this.stepStartedAt > 25000;
+          const slow = Date.now() - this.stepStartedAt > 45000;
           const note = this.$('aiBusyNote');
           note.className = 'ai-busy-note' + (slow ? ' ai-busy-slow' : '');
           note.textContent = slow
-            ? 'AIの応答に時間がかかっています。応答がないときは自動でやり直し・予備のモデルへの切替を行います（1回の読み取りは長くても約2分で終わります）。'
+            ? 'AIの応答に時間がかかっています。応答がないときは自動でやり直し、続くときは予備のモデルに切り替えます（1回の読み取りは長くても2〜3分で終わります）。'
             : this.baseNote;
         }
       },
@@ -1251,10 +1273,12 @@
       if (!failed.length) { box.hidden = true; box.innerHTML = ''; return; }
       box.innerHTML = `<div class="ai-fail-title">⚠ 読み取れなかった画像（${failed.length}件）</div>
         <ul>${failed.map(f => `<li><b>${xmlEsc(f.name)}</b>：${xmlEsc(f.reason)}</li>`).join('')}</ul>`
-        + (aiRetryFiles.length ? `<button type="button" class="btn btn-sm" data-ai="retry">🔁 もう一度読み取る（${aiRetryFiles.length}枚）</button>` : '');
+        + (aiRetryFiles.length ? `<button type="button" class="btn btn-sm" data-ai="retry">🔁 もう一度読み取る（${aiRetryFiles.length}枚）</button> ` : '')
+        + '<button type="button" class="btn btn-outline btn-sm" data-ai="diag">🩺 原因を調べる</button>';
       box.hidden = false;
     }
     document.getElementById('aiFail').addEventListener('click', (e) => {
+      if (e.target.closest('button[data-ai="diag"]')) { aiShowDiagnosis(); return; }
       if (!e.target.closest('button[data-ai="retry"]') || aiRunning || !aiRetryFiles.length) return;
       const files = aiRetryFiles;
       aiRenderFailures([]);
@@ -1276,12 +1300,13 @@
       const mode = () => document.getElementById('aiDoubleCheck').value;
       aiBusy.start(mode() !== 'off');
       // 指定した画像だけを、指定した回（pass）として読み取る。結果は reads[画像の番号] に追加する
-      const readSome = async (ready, idxs, pass, reads) => {
+      // fb[画像の番号] … その画像を予備のモデルで読み取ったときのモデル名
+      const readSome = async (ready, idxs, pass, reads, fb) => {
         calls++;
         const r = await postReceipts(idxs.map(i => ready[i].prep), pass);
         modelsUsed.add(r.model);
         fallback = fallback || r.fallback;
-        idxs.forEach((i, k) => reads[i].push(r.files[k]));
+        idxs.forEach((i, k) => { reads[i].push(r.files[k]); if (r.fallback) fb[i].add(r.model); });
         return r;
       };
       try {
@@ -1306,18 +1331,19 @@
           try {
             const all = ready.map((_, i) => i);
             const reads = ready.map(() => []);
+            const fb = ready.map(() => new Set());
             const extraFailed = new Set();   // 2回目・3回目の読み取りに失敗した画像
 
             // 1回目
             busy(ready.length > 1 ? `② AIが読み取り中…（${ready.length}枚を1回にまとめて送信）` : '② AIが読み取り中…');
-            const r1 = await readSome(ready, all, 1, reads);
+            const r1 = await readSome(ready, all, 1, reads, fb);
 
             // 2回目（ダブルチェック）
             const second = mode() === 'off' ? []
               : all.filter(i => mode() === 'always' || needsSecondRead(reads[i][0], r1.fallback));
             if (second.length) {
               busy(`③ ダブルチェック中…（2回目の読み取り${second.length > 1 ? `・${second.length}枚` : ''}）`);
-              try { await readSome(ready, second, 2, reads); }
+              try { await readSome(ready, second, 2, reads, fb); }
               catch (err) { second.forEach(i => extraFailed.add(i)); }
             }
 
@@ -1325,7 +1351,7 @@
             const third = second.filter(i => reads[i].length === 2 && aiSignature(reads[i][0]) !== aiSignature(reads[i][1]));
             if (third.length) {
               busy(`④ 結果がそろわないため、3回目を読み取って多数決中…${third.length > 1 ? `（${third.length}枚）` : ''}`);
-              try { await readSome(ready, third, 3, reads); }
+              try { await readSome(ready, third, 3, reads, fb); }
               catch (err) { third.forEach(i => extraFailed.add(i)); }
             }
 
@@ -1333,6 +1359,7 @@
             ready.forEach((x, i) => {
               const items = buildAiItems(x.file, x.prep, decideConsensus(reads[i]), {
                 checkFailed: extraFailed.has(i),
+                fallbackModels: [...fb[i]],
                 autoSingle: mode() === 'auto' && reads[i].length === 1,
                 // まとめて送った場合に、どの画像のものか特定できない領収書が出たら、そのグループ全体を要確認にする
                 groupWarning: r1.unassigned.length && ready.length > 1
@@ -1373,7 +1400,7 @@
       let msg = `読み取り完了（自動識別）：高速代 ${counts.toll}件・駐車場代 ${counts.parking}件`
         + (counts.other ? `・対象外/未検出 ${counts.other}件` : '') + `。AI呼び出し ${calls}回。`
         + (gotAny ? '内容を確認して「フォームに反映」を押してください。' : '');
-      if (fallback) msg += ` ※上限に達したため予備のモデル（${[...modelsUsed].join('、')}）も使いました。`;
+      if (fallback) msg += ` ※主モデルが使えなかったため、予備のモデル（${[...modelsUsed].join('、')}）も使いました（理由は「🩺 診断」で確認できます）。`;
       if (warnCount) msg += ` ⚠ 要確認 ${warnCount}件（赤い行）は画像と照らして確認してください。`;
       if (aiSkipped.length) msg += ` 画像・PDF以外のため除外：${aiSkipped.splice(0).join('、')}`;
       if (failed.length) msg += ` 読み取れなかった画像が ${failed.length}件あります（下の一覧を確認してください）。`;
@@ -1490,12 +1517,12 @@
       if (!body || !Array.isArray(body.models)) { box.hidden = true; return; }
       const rows = body.models.map((m, i) => {
         const state = m.missing ? '<span class="ex">モデルが見つかりません（今日は使いません）</span>'
-          : m.exhausted ? '<span class="ex">本日の上限に到達</span>'
+          : m.exhausted ? `<span class="ex">本日の上限に到達${m.limit ? `（1日 ${m.limit} 回まで）` : ''}</span>`
           : m.slow ? '<span class="ex">応答が遅かったため、数分間は後回し</span>'
           : (body.models.slice(0, i).every(x => x.exhausted || x.missing || x.slow) ? '<span class="cur">使用中</span>' : '待機（上限・応答が遅いときに自動で切替）');
         return `・${xmlEsc(m.name)}：本日 <b>${m.requests}回</b>　${state}`;
       }).join('<br>');
-      box.innerHTML = `<b>📊 本日のAI呼び出し回数</b>（Googleの1日の区切り＝日本時間 午後4時〜／11月以降は午後5時〜）<br>${rows}`
+      box.innerHTML = `<b>📊 本日のAI呼び出し回数</b>（Googleの1日の区切り＝日本時間 午後4時〜／11月以降は午後5時〜${body.resetAt ? `。次のリセット：${xmlEsc(body.resetAt)}` : ''}）<br>${rows}`
         + (body.usageWritable === false ? '<br><span class="ex">⚠ サーバーの api フォルダに書き込めないため、使用回数を記録できていません（上限に達したモデルを飛ばせず、無駄な呼び出しが増えます）。api フォルダの書き込み権限を確認してください。</span>' : '')
         + (body.models.length < 2 ? '<br><span style="color:var(--muted)">※ 予備のモデルが設定されていません。api/config.php を確認してください（初期設定では上限に達すると予備のモデルへ自動で切り替わります）。</span>' : '');
       box.hidden = false;
@@ -1508,6 +1535,62 @@
         aiRenderUsage(body);
       } catch (_) { /* 表示できなくても読み取りには影響しない */ }
     }
+
+    // 診断：読み取れない原因が「今日の上限」か「Gemini 側の応答の問題」かを、サーバーの記録から調べて表示する
+    const AI_DIAG_LEVEL = { '今日の上限が原因です': 'bad', '本日の記録はまだありません': 'info', '上限には達していません': 'ok' };
+    function aiRenderDiagnosis(d) {
+      const box = document.getElementById('aiDiag');
+      const lv = AI_DIAG_LEVEL[d.headline] || 'warn';
+      const st = d.stats || {};
+      const state = m => m.missing ? 'モデルが見つかりません'
+        : m.exhausted ? `1日の上限に到達（${xmlEsc(m.exhaustedAt || '')}${m.exhaustedAfter ? `・本日 ${m.exhaustedAfter} 回目` : ''}${m.limit ? `・${m.freeTier ? '無料枠 ' : ''}1日 ${m.limit} 回まで` : ''}）`
+        : m.slow ? `${m.slowUntil} まで後回し（${m.slowReason === 'rate' ? '混雑' : '時間切れが続いた'}）`
+        : '使用可' + (m.compat ? (m.compat === 1 ? '（考える量の設定なし）' : '（追加設定なし）') : '');
+      const models = (d.models || []).map(m => `<tr><td>${xmlEsc(m.name)}${m.primary ? '（主）' : '（予備）'}</td><td>${m.requests} 回</td><td>${state(m)}</td></tr>`).join('');
+      const errors = (d.recentErrors || []).map(e => `<li>${xmlEsc(e.time)}：${xmlEsc(e.error)}</li>`).join('');
+      box.innerHTML = `<div class="ai-diag-head"><b>🩺 読み取りの診断</b><span>本日（Googleの日付 ${xmlEsc(d.day || '')}）／次のリセット：${xmlEsc(d.resetAt || '')}</span>
+          <button type="button" class="btn btn-outline btn-sm" data-diag="close">閉じる</button></div>
+        <div class="ai-diag-headline lv-${lv}">結論：${xmlEsc(d.headline || '')}</div>
+        <ul>${(d.findings || []).map(f => `<li class="lv-${f.level}">${xmlEsc(f.text)}</li>`).join('')}</ul>
+        <details><summary>詳しい数字</summary>
+          <table><thead><tr><th>モデル</th><th>本日の呼び出し</th><th>状態</th></tr></thead><tbody>${models}</tbody></table>
+          <div>読み取り ${st.reads ?? 0} 回（成功 ${st.ok ?? 0}・失敗 ${st.failed ?? 0}・予備のモデルで成功 ${st.fallbackReads ?? 0}）</div>
+          <div>AI呼び出し ${st.attempts ?? 0} 回のうち：時間切れ ${st.timeouts ?? 0}・応答の崩れ ${st.runaways ?? 0}・空の応答 ${st.emptyAnswers ?? 0}・1日の上限 ${st.quotaDay ?? 0}・1分の上限 ${st.quotaMinute ?? 0}・混雑(429) ${st.quotaOther ?? 0}・Gemini側のエラー ${st.serverErrors ?? 0}</div>
+          <div>成功したときの時間：平均 ${st.avgSeconds ?? '―'} 秒（最長 ${st.maxSeconds ?? '―'} 秒）／AIが考えた量：平均 ${st.avgThoughts ?? '―'} トークン</div>
+          <div>設定：考える量 ${xmlEsc(d.settings?.thinkingLevel || '既定')}・待ち時間 ${d.settings?.timeout ?? '―'} 秒</div>
+          ${errors ? `<div style="margin-top:4px"><b>最近のエラー</b></div><ul>${errors}</ul>` : ''}
+        </details>
+        <div class="ai-diag-actions"><button type="button" class="btn btn-outline btn-sm" data-diag="reset">↺ モデルの状態をリセット</button>
+          <span>「上限に到達」「後回し」の印を消して、主モデルから試し直します（本当に上限に達している場合は、また上限と表示されます）</span></div>`;
+      box.hidden = false;
+    }
+    async function aiShowDiagnosis() {
+      if (location.protocol === 'file:') { aiSetStatus('診断はサーバーに設置したページでのみ使えます。', 'err'); return; }
+      const box = document.getElementById('aiDiag');
+      try {
+        aiRenderDiagnosis(await aiFetchJson(AI_ENDPOINT + '?action=diagnose', { cache: 'no-store' }));
+        box.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+      } catch (err) {
+        aiSetStatus('診断できませんでした：' + err.message, 'err');
+      }
+    }
+    document.getElementById('aiDiagnose').addEventListener('click', aiShowDiagnosis);
+    document.getElementById('aiDiag').addEventListener('click', async (e) => {
+      const b = e.target.closest('button[data-diag]');
+      if (!b) return;
+      if (b.dataset.diag === 'close') { document.getElementById('aiDiag').hidden = true; return; }
+      if (b.dataset.diag === 'reset') {
+        if (!confirm('モデルの「上限に到達」「後回し」の印を消して、主モデルから試し直しますか？\n（本日の呼び出し回数の記録は残ります）')) return;
+        try {
+          await aiFetchJson(AI_ENDPOINT + '?action=reset', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' });
+          aiSetStatus('モデルの状態をリセットしました。次の読み取りは主モデルから試します。', 'ok');
+          await aiShowDiagnosis();
+          aiRefreshUsage();
+        } catch (err) {
+          aiSetStatus('リセットできませんでした：' + err.message, 'err');
+        }
+      }
+    });
 
     // 接続テスト（APIキー・モデルを変更したときの確認用）
     document.getElementById('aiStatusCheck').addEventListener('click', async () => {
