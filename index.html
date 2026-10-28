@@ -1012,7 +1012,8 @@
     // 画像をAIに送って読み取る。pass は何回目の読み取りか（1〜3。サーバー側で回ごとに乱数の種を固定する）。
     // 戻り値: { files: [ファイルごとの領収書の配列…], unassigned: どの画像か不明な領収書, model, fallback }
     // 続けて読み取るとき、無料枠の「1分あたりの回数」に当たりにくいよう、AI呼び出しの開始を一定時間あける
-    let aiMinIntervalMs = 6500;
+    // 既定は12秒（無料枠は、1分に5回までのモデルが多いため）。サーバーの設定（min_call_interval）を接続時に受け取る
+    let aiMinIntervalMs = 12000;
     let aiLastCallAt = 0;
     const aiSleep = ms => new Promise(r => setTimeout(r, ms));
     async function aiPace() {
@@ -1243,7 +1244,7 @@
           const note = this.$('aiBusyNote');
           note.className = 'ai-busy-note' + (slow ? ' ai-busy-slow' : '');
           note.textContent = slow
-            ? 'AIの応答に時間がかかっています。応答がないときは自動でやり直し、続くときは予備のモデルに切り替えます（1回の読み取りは長くても2〜3分で終わります）。'
+            ? 'AIの応答に時間がかかっています。Gemini が混雑しているときは、別のモデルでも同時に読み取って、先に終わった方を使います（1回の読み取りは長くても約2分で終わります）。'
             : this.baseNote;
         }
       },
@@ -1348,7 +1349,7 @@
           if (group.length === 1 && aiAutoRetried.has(first)) {
             const le = aiLastError.get(first);
             busy('待機中…');
-            await aiSleep(le && le.code === 'rate' ? 20000 : 4000);
+            await aiSleep(le && ['overload', 'timeout', 'rate'].includes(le.code) ? 15000 : 4000);   // 混雑のときは、少し間をあけて読み直す
           }
           aiSetStatus(`AIで読み取り中… ${group.length > 1 ? `${done + 1}〜${done + group.length}` : done + 1}/${total()}枚目`, '');
           busy('① 画像を準備中…');
@@ -1420,7 +1421,8 @@
               seen -= ready.length;
               continue;
             }
-            if (ready.length === 1 && !noRetry && !aiAutoRetried.has(ready[0].file) && consecFails < 2) {
+            const overload = err.code === 'overload';   // Gemini（Google）側の混雑で、すべてのモデルから答えが返らなかった
+            if (ready.length === 1 && !noRetry && !aiAutoRetried.has(ready[0].file) && consecFails < 2 && !(overload && consecFails >= 1)) {
               // 1枚の失敗：最後にもう一度、自動で読み直す（一時的な混雑・時間切れは、やり直すと成功することが多い）
               aiAutoRetried.add(ready[0].file);
               aiLastError.set(ready[0].file, { code: err.code, reason: err.message, detail: err.detail || [] });
@@ -1438,11 +1440,11 @@
               aiQueue.splice(0).forEach(f => failed.push({ name: f.name, reason: why, file: f }));
               break;
             }
-            if (consecFails >= 3 && aiQueue.length) {
+            if ((consecFails >= 3 || (overload && consecFails >= 2)) && aiQueue.length) {
               // 続けて失敗している＝Gemini が不調。待たせ続けず中断する（時間をおいて「もう一度読み取る」で再開できる）
               aiQueue.splice(0).forEach(f => {
                 const le = aiLastError.get(f);
-                failed.push({ name: f.name, reason: '続けて失敗したため、読み取りを中断しました。' + (le ? `（直前の失敗：${le.reason}）` : '少し時間をおいて「もう一度読み取る」を押してください。'), file: f, detail: le ? le.detail : [] });
+                failed.push({ name: f.name, reason: '続けて失敗したため、読み取りを中断しました。' + (le ? `（直前の失敗：${le.reason}）` : '数分おいて「もう一度読み取る」を押してください。'), file: f, detail: le ? le.detail : [] });
               });
               break;
             }
@@ -1579,9 +1581,9 @@
       const rows = body.models.map((m, i) => {
         const state = m.missing ? '<span class="ex">モデルが見つかりません（今日は使いません）</span>'
           : m.exhausted ? `<span class="ex">本日の上限に到達${m.limit ? `（1日 ${m.limit} 回まで）` : ''}</span>`
-          : m.slow ? '<span class="ex">応答が遅かったため、数分間は後回し</span>'
-          : (body.models.slice(0, i).every(x => x.exhausted || x.missing || x.slow) ? '<span class="cur">使用中</span>' : '待機（上限・応答が遅いときに自動で切替）');
-        return `・${xmlEsc(m.name)}：本日 <b>${m.requests}回</b>　${state}`;
+          : m.slow ? `<span class="ex">${{ rate: '混み合っている（429）', timeout: '応答が返らない', overload: '混雑している（503）', slow: '応答が遅い' }[m.slowReason] || '不調'}ため、${xmlEsc(m.slowUntil || '')} まで後回し</span>`
+          : (body.models.slice(0, i).every(x => x.exhausted || x.missing || x.slow) ? '<span class="cur">使用中</span>' : '待機（上限・混雑のときに自動で切替）');
+        return `・${xmlEsc(m.name)}${m.auto ? '（最後の予備・自動追加）' : ''}：本日 <b>${m.requests}回</b>　${state}`;
       }).join('<br>');
       box.innerHTML = `<b>📊 本日のAI呼び出し回数</b>（Googleの1日の区切り＝日本時間 午後4時〜／11月以降は午後5時〜${body.resetAt ? `。次のリセット：${xmlEsc(body.resetAt)}` : ''}）<br>${rows}`
         + (body.usageWritable === false ? '<br><span class="ex">⚠ サーバーの api フォルダに書き込めないため、使用回数を記録できていません（上限に達したモデルを飛ばせず、無駄な呼び出しが増えます）。api フォルダの書き込み権限を確認してください。</span>' : '')
@@ -1593,6 +1595,7 @@
       try {
         const body = await aiFetchJson(AI_ENDPOINT + '?action=status', { cache: 'no-store' });
         if (body.maxFiles) aiMaxFiles = body.maxFiles;
+        if (typeof body.minInterval === 'number') aiMinIntervalMs = body.minInterval * 1000;
         aiRenderUsage(body);
       } catch (_) { /* 表示できなくても読み取りには影響しない */ }
     }
@@ -1603,18 +1606,20 @@
       const box = document.getElementById('aiDiag');
       const lv = AI_DIAG_LEVEL[d.headline] || 'warn';
       const st = d.stats || {};
+      const reasonText = { rate: '混雑（429）', timeout: '応答が返らない', overload: '混雑（503）', slow: '応答が遅かった' };
       const state = m => m.missing ? 'モデルが見つかりません'
         : m.exhausted ? `1日の上限に到達（${xmlEsc(m.exhaustedAt || '')}${m.exhaustedAfter ? `・本日 ${m.exhaustedAfter} 回目` : ''}${m.limit ? `・${m.freeTier ? '無料枠 ' : ''}1日 ${m.limit} 回まで` : ''}）`
-        : m.slow ? `${m.slowUntil} まで後回し（${m.slowReason === 'rate' ? '混雑' : '時間切れが続いた'}）`
+        : m.slow ? `${m.slowUntil} まで後回し（${reasonText[m.slowReason] || '不調'}${m.fails ? `・${m.fails}回続けて` : ''}）`
         : '使用可' + (m.compat ? (m.compat === 1 ? '（考える量の設定なし）' : '（追加設定なし）') : '');
-      const models = (d.models || []).map(m => `<tr><td>${xmlEsc(m.name)}${m.primary ? '（主）' : '（予備）'}</td><td>${m.requests} 回</td><td>${state(m)}</td></tr>`).join('');
+      const models = (d.models || []).map(m => `<tr><td>${xmlEsc(m.name)}${m.primary ? '（主）' : m.auto ? '（最後の予備・自動追加）' : '（予備）'}</td><td>${m.requests} 回</td>
+        <td>成功 ${m.stat?.ok ?? 0}・応答なし ${m.stat?.timeouts ?? 0}・混雑 ${m.stat?.overload ?? 0}${m.stat?.aborted ? `・先を越された ${m.stat.aborted}` : ''}</td><td>${state(m)}</td></tr>`).join('');
       const errors = (d.recentErrors || []).map(e => `<li>${xmlEsc(e.time)}：${xmlEsc(e.error)}</li>`).join('');
       box.innerHTML = `<div class="ai-diag-head"><b>🩺 読み取りの診断</b><span>本日（Googleの日付 ${xmlEsc(d.day || '')}）／次のリセット：${xmlEsc(d.resetAt || '')}</span>
           <button type="button" class="btn btn-outline btn-sm" data-diag="close">閉じる</button></div>
         <div class="ai-diag-headline lv-${lv}">結論：${xmlEsc(d.headline || '')}</div>
         <ul>${(d.findings || []).map(f => `<li class="lv-${f.level}">${xmlEsc(f.text)}</li>`).join('')}</ul>
         <details><summary>詳しい数字</summary>
-          <table><thead><tr><th>モデル</th><th>本日の呼び出し</th><th>状態</th></tr></thead><tbody>${models}</tbody></table>
+          <table><thead><tr><th>モデル</th><th>本日の呼び出し</th><th>結果（記録のある分）</th><th>状態</th></tr></thead><tbody>${models}</tbody></table>
           <div>読み取り ${st.reads ?? 0} 回（成功 ${st.ok ?? 0}・失敗 ${st.failed ?? 0}・予備のモデルで成功 ${st.fallbackReads ?? 0}）</div>
           <div>AI呼び出し ${st.attempts ?? 0} 回のうち：時間切れ ${st.timeouts ?? 0}・応答の崩れ ${st.runaways ?? 0}・空の応答 ${st.emptyAnswers ?? 0}・1日の上限 ${st.quotaDay ?? 0}・1分の上限 ${st.quotaMinute ?? 0}・混雑(429) ${st.quotaOther ?? 0}・Gemini側のエラー ${st.serverErrors ?? 0}</div>
           <div>成功したときの時間：平均 ${st.avgSeconds ?? '―'} 秒（最長 ${st.maxSeconds ?? '―'} 秒）／AIが考えた量：平均 ${st.avgThoughts ?? '―'} トークン</div>
@@ -1663,6 +1668,7 @@
       try {
         const body = await aiFetchJson(AI_ENDPOINT + '?action=status', { cache: 'no-store' });
         if (body.maxFiles) aiMaxFiles = body.maxFiles;
+        if (typeof body.minInterval === 'number') aiMinIntervalMs = body.minInterval * 1000;
         let msg = `接続OK：モデル ${body.model}／APIキー末尾 ${body.keyTail}／サーバー Ver ${body.version || '不明'}`;
         if (body.version !== APP_VERSION) {
           msg += `　⚠ 画面（Ver ${APP_VERSION}）とサーバーの api フォルダのバージョンが違います。api フォルダも同じZIPのものに更新してください。`;

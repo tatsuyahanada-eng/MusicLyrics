@@ -60,7 +60,7 @@ const LOG_FILE = DATA_DIR . '/log.jsonl';
 const LOG_KEEP_LINES = 300;                      // 記録は直近この件数だけ残す
 const PASS_SEEDS = [1 => 1101, 2 => 2203, 3 => 3307];   // 何回目の読み取りかごとの乱数の種
 const DEFAULT_TIMEOUT = 60;                      // 画像1枚の呼び出しで応答を待つ上限（秒）。config.php の request_timeout で変更
-const DEFAULT_HEDGE_AFTER = 12;                  // 主モデルから12秒たっても答えが返らないとき、別のモデルでも同時に読み始める（秒）。config.php の hedge_after で変更
+const DEFAULT_HEDGE_AFTER = 15;                  // 主モデルから15秒たっても答えが返らないとき、別のモデルでも同時に読み始める（秒）。config.php の hedge_after で変更
 const COOLDOWNS = [60, 240, 720];                // 応答なし・混雑が続くモデルを後回しにする時間（秒）。1回目・2回目・3回目以降
 const SLOW_RACE_COOLDOWN = 90;                   // 他のモデルに先を越されたモデルを、念のため後回しにする時間（秒）
 const DEFAULT_MIN_INTERVAL = 12;                 // 画面側が、AI呼び出しの開始を空ける間隔（秒）。無料枠は1分に5回までのモデルが多いため。config.php の min_call_interval で変更
@@ -1239,7 +1239,7 @@ if ($total > MAX_REQUEST_BYTES) {
 // ---- 読み取り：複数のモデルを、必要に応じて同時に走らせ、先に正しく読めたものを使う ----
 //   Gemini の新しいモデルは、混雑（503）や、応答が返らない状態になることがある（特に無料枠）。
 //   そのため、混雑しているモデルを何度も待たずに、次のモデルへ移る。
-//     ・主モデルから hedge_after 秒（既定12秒）たっても答えが返らなければ、次のモデルでも同時に読み始める（さらに12秒ごとに次のモデルを追加）
+//     ・主モデルから hedge_after 秒（既定15秒）たっても答えが返らなければ、次のモデルでも同時に読み始める（さらに15秒ごとに次のモデルを追加）
 //       → 先に正しく読めた方を使い、残りは打ち切る
 //     ・503・応答なし（時間切れ）・理由のはっきりしない 429 は、そのモデルを後回しにして（続くほど長く）、すぐ次のモデルへ
 //     ・応答の崩れ（同じ文字の繰り返し・JSONが壊れている・結果が空）… 乱数の種を変えて、同じモデルでもう1回
@@ -1422,7 +1422,10 @@ while (true) {
             if ($r['timedOut'] || in_array($r['status'], [0, 500, 502, 503, 504], true)) {
                 // 応答なし・混雑：そのモデルを後回しにして、次のモデルへ。他に無ければ、考える量を下げて1回だけやり直す
                 $anyTimeout = $anyTimeout || $r['timedOut'];
-                health_fail($model, $r['timedOut'] ? 'timeout' : 'overload');
+                if (!$isBatch) {
+                    // まとめ読みは作業が重く、失敗してもモデルの不調とは限らないので、後回しにはしない
+                    health_fail($model, $r['timedOut'] ? 'timeout' : 'overload');
+                }
                 if (count($candidates) === 1 && $ms['transient']++ < 1 && $elapsed() < $cfg['budget'] - 25) {   // 使えるモデルが1つだけのときだけ、同じモデルでやり直す
                     $retryQueue[] = ['model' => $model, 'at' => $now + 2];
                 }
