@@ -200,6 +200,8 @@
     .ai-fail-title { font-weight: 700; margin-bottom: 4px; }
     .ai-fail ul { margin: 0 0 8px; padding-left: 18px; }
     .ai-fail li { margin: 2px 0; line-height: 1.5; overflow-wrap: anywhere; }
+    .ai-fail details { margin: 2px 0 4px; font-size: 11px; color: #7a5a1f; }
+    .ai-fail details div { margin-left: 4px; }
     .ai-busy-note.ai-busy-slow { color: #b06a00; font-weight: 600; }
     .ai-diag { margin: 0 0 10px; padding: 10px 12px; border: 1px solid #c9d6ea; background: #f5f8fd; border-radius: 8px; font-size: 12px; line-height: 1.6; color: var(--text); }
     .ai-diag-head { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 6px; margin-bottom: 6px; }
@@ -444,7 +446,7 @@
 <body>
   <div class="wrap">
     <header>
-      <h1>車両移動経費請求書 <span class="app-ver">Ver 2.0</span></h1>
+      <h1>車両移動経費請求書 <span class="app-ver">Ver 2.1</span></h1>
       <p>基点から各訪問先への移動経費（ガソリン代・有料道路・駐車場）を入力し、請求総額を計算します。</p>
     </header>
 
@@ -933,7 +935,7 @@
     recalc();
 
     /* ---------- 領収書AI読み取り（サーバーの api/receipt.php 経由で Gemini を利用） ---------- */
-    const APP_VERSION = '2.0';   // 見出しの Ver 表記・api/receipt.php の APP_VERSION と揃えて上げる
+    const APP_VERSION = '2.1';   // 見出しの Ver 表記・api/receipt.php の APP_VERSION と揃えて上げる
     const AI_ENDPOINT = 'api/receipt.php';
     const AI_MAX_RAW_BYTES = 5 * 1024 * 1024;   // PDF・変換できない画像をそのまま送る場合の上限
     const AI_IMAGE_MAX_PX = 2400;               // 長辺をこのサイズまで縮小してから送る
@@ -1001,6 +1003,7 @@
       if (!res.ok || !body.ok) {
         const e = new Error(body.error || `サーバーエラー（HTTP ${res.status}）`);
         e.code = body.code || '';
+        e.detail = Array.isArray(body.detail) ? body.detail : [];   // 各回の結果（モデル・考える量・何秒で何が起きたか）
         throw e;
       }
       return body;
@@ -1008,8 +1011,18 @@
 
     // 画像をAIに送って読み取る。pass は何回目の読み取りか（1〜3。サーバー側で回ごとに乱数の種を固定する）。
     // 戻り値: { files: [ファイルごとの領収書の配列…], unassigned: どの画像か不明な領収書, model, fallback }
+    // 続けて読み取るとき、無料枠の「1分あたりの回数」に当たりにくいよう、AI呼び出しの開始を一定時間あける
+    let aiMinIntervalMs = 6500;
+    let aiLastCallAt = 0;
+    const aiSleep = ms => new Promise(r => setTimeout(r, ms));
+    async function aiPace() {
+      const wait = aiLastCallAt + aiMinIntervalMs - Date.now();
+      if (wait > 0) await aiSleep(wait);
+      aiLastCallAt = Date.now();
+    }
     let aiMaxFiles = 1;   // 1回に送る枚数（精度優先で既定は1枚ずつ。サーバーの設定 max_files_per_request と接続時に同期）
     async function postReceipts(preps, pass = 1) {
+      await aiPace();
       const body = await aiFetchJson(AI_ENDPOINT, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -1272,7 +1285,8 @@
       aiRetryFiles = failed.filter(f => f.file).map(f => f.file);
       if (!failed.length) { box.hidden = true; box.innerHTML = ''; return; }
       box.innerHTML = `<div class="ai-fail-title">⚠ 読み取れなかった画像（${failed.length}件）</div>
-        <ul>${failed.map(f => `<li><b>${xmlEsc(f.name)}</b>：${xmlEsc(f.reason)}</li>`).join('')}</ul>`
+        <ul>${failed.map(f => `<li><b>${xmlEsc(f.name)}</b>：${xmlEsc(f.reason)}${f.detail && f.detail.length
+          ? `<details open><summary>技術情報（原因の調査用）</summary>${f.detail.map(d => `<div>・${xmlEsc(d)}</div>`).join('')}</details>` : ''}</li>`).join('')}</ul>`
         + (aiRetryFiles.length ? `<button type="button" class="btn btn-sm" data-ai="retry">🔁 もう一度読み取る（${aiRetryFiles.length}枚）</button> ` : '')
         + '<button type="button" class="btn btn-outline btn-sm" data-ai="diag">🩺 原因を調べる</button>';
       box.hidden = false;
@@ -1286,11 +1300,17 @@
       runAiQueue();
     });
 
+    const aiForceSingle = new WeakSet();    // まとめ読みに失敗したので、1枚ずつ読み直す画像
+    const aiAutoRetried = new WeakSet();    // 自動で読み直し済みの画像（読み直しは1回だけ）
+    const aiLastError = new WeakMap();      // 直前の失敗の内容（読み直しの待ち時間・中断時の表示に使う）
+    const AI_NO_RETRY_CODES = ['quota', 'quota_day', 'auth'];   // 待っても・やり直しても直らない失敗
+
     async function runAiQueue() {
       if (aiRunning) return;
       aiRunning = true;
       aiRenderFailures([]);
-      const failed = [];   // { name, reason, file }（file があれば「もう一度読み取る」の対象）
+      const failed = [];   // { name, reason, file, detail }（file があれば「もう一度読み取る」の対象）
+      let consecFails = 0;   // 続けて失敗した回数（Gemini が不調のときに、時間とAI呼び出しを無駄にしないため）
       const counts = { toll: 0, parking: 0, other: 0 };
       const modelsUsed = new Set();
       let fallback = false;
@@ -1311,12 +1331,25 @@
       };
       try {
         while (aiQueue.length) {
-          const group = aiQueue.splice(0, aiMaxFiles);
+          // まとめ読みに失敗した画像は、1枚ずつ読む
+          const group = [];
+          while (aiQueue.length && group.length < aiMaxFiles) {
+            if (aiForceSingle.has(aiQueue[0])) { if (!group.length) group.push(aiQueue.shift()); break; }
+            group.push(aiQueue.shift());
+          }
           seen += group.length;
           const total = () => seen + aiQueue.length;
           const first = group[0];
           const label = group.length > 1 ? `${first.name} ほか${group.length - 1}枚` : first.name;
-          const busy = step => aiBusy.update({ done, total: total(), name: label, step });
+          const tag = group.length === 1 && aiForceSingle.has(first) ? '（まとめ読みに失敗したため、1枚ずつ読み直しています）'
+            : group.length === 1 && aiAutoRetried.has(first) ? '（失敗したため、自動で読み直しています）' : '';
+          const busy = step => aiBusy.update({ done, total: total(), name: label, step: step + tag });
+          // 自動で読み直す画像は、少し待ってから（混雑・上限の直後に続けて送らない）
+          if (group.length === 1 && aiAutoRetried.has(first)) {
+            const le = aiLastError.get(first);
+            busy('待機中…');
+            await aiSleep(le && le.code === 'rate' ? 20000 : 4000);
+          }
           aiSetStatus(`AIで読み取り中… ${group.length > 1 ? `${done + 1}〜${done + group.length}` : done + 1}/${total()}枚目`, '');
           busy('① 画像を準備中…');
 
@@ -1369,6 +1402,7 @@
               aiItems.push(...items);
             });
             done += ready.length;
+            consecFails = 0;
             // どの画像のものか分からなかった領収書は、落とさずに「画像不明」の行として出す
             r1.unassigned.forEach(rc => {
               const it = buildAiItems({ name: '（画像を特定できず）' }, { thumb: null, mimeType: 'image/jpeg' }, decideConsensus([[rc]]),
@@ -1377,12 +1411,39 @@
               aiItems.push(it);
             });
           } catch (err) {
-            // 1回目の読み取りの失敗（上限・通信エラーなど）。画像は失敗として数え、続きの処理は進める
-            ready.forEach(x => failed.push({ name: x.file.name, reason: err.message, file: x.file }));
+            // 1回目の読み取りの失敗（上限・時間切れ・通信エラーなど）
+            const noRetry = AI_NO_RETRY_CODES.includes(err.code);
+            if (ready.length > 1 && !noRetry) {
+              // まとめ読みの失敗：1枚ずつに切り替えて、同じ画像を読み直す（まとめ読みは時間がかかり失敗しやすいため）
+              ready.forEach(x => aiForceSingle.add(x.file));
+              aiQueue.unshift(...ready.map(x => x.file));
+              seen -= ready.length;
+              continue;
+            }
+            if (ready.length === 1 && !noRetry && !aiAutoRetried.has(ready[0].file) && consecFails < 2) {
+              // 1枚の失敗：最後にもう一度、自動で読み直す（一時的な混雑・時間切れは、やり直すと成功することが多い）
+              aiAutoRetried.add(ready[0].file);
+              aiLastError.set(ready[0].file, { code: err.code, reason: err.message, detail: err.detail || [] });
+              aiQueue.push(ready[0].file);
+              seen -= 1;
+              consecFails++;
+              continue;
+            }
+            ready.forEach(x => failed.push({ name: x.file.name, reason: err.message, file: x.file, detail: err.detail || [] }));
             done += ready.length;
-            if (err.code === 'quota' || err.code === 'quota_day') {
-              // 上限に達しているので、残りを送っても無駄に回数を使うだけ。残りは中止する
-              aiQueue.splice(0).forEach(f => failed.push({ name: f.name, reason: '上限のため未処理（回数のリセット後に読み取れます）', file: f }));
+            consecFails++;
+            if (noRetry) {
+              // 上限・キー不正など、残りを送っても無駄に回数を使うだけ。残りは中止する
+              const why = err.code === 'auth' ? 'APIキーの問題のため未処理' : '上限のため未処理（回数のリセット後に読み取れます）';
+              aiQueue.splice(0).forEach(f => failed.push({ name: f.name, reason: why, file: f }));
+              break;
+            }
+            if (consecFails >= 3 && aiQueue.length) {
+              // 続けて失敗している＝Gemini が不調。待たせ続けず中断する（時間をおいて「もう一度読み取る」で再開できる）
+              aiQueue.splice(0).forEach(f => {
+                const le = aiLastError.get(f);
+                failed.push({ name: f.name, reason: '続けて失敗したため、読み取りを中断しました。' + (le ? `（直前の失敗：${le.reason}）` : '少し時間をおいて「もう一度読み取る」を押してください。'), file: f, detail: le ? le.detail : [] });
+              });
               break;
             }
           }
@@ -1557,7 +1618,7 @@
           <div>読み取り ${st.reads ?? 0} 回（成功 ${st.ok ?? 0}・失敗 ${st.failed ?? 0}・予備のモデルで成功 ${st.fallbackReads ?? 0}）</div>
           <div>AI呼び出し ${st.attempts ?? 0} 回のうち：時間切れ ${st.timeouts ?? 0}・応答の崩れ ${st.runaways ?? 0}・空の応答 ${st.emptyAnswers ?? 0}・1日の上限 ${st.quotaDay ?? 0}・1分の上限 ${st.quotaMinute ?? 0}・混雑(429) ${st.quotaOther ?? 0}・Gemini側のエラー ${st.serverErrors ?? 0}</div>
           <div>成功したときの時間：平均 ${st.avgSeconds ?? '―'} 秒（最長 ${st.maxSeconds ?? '―'} 秒）／AIが考えた量：平均 ${st.avgThoughts ?? '―'} トークン</div>
-          <div>設定：考える量 ${xmlEsc(d.settings?.thinkingLevel || '既定')}・待ち時間 ${d.settings?.timeout ?? '―'} 秒</div>
+          <div>設定：考える量 ${xmlEsc(d.settings?.thinkingLevel || '既定')}（ダブルチェック ${xmlEsc(d.settings?.thinkingRecheck || '1回目と同じ')}）・待ち時間 ${d.settings?.timeout ?? '―'} 秒（まとめ読みは1枚増えるごとに +25 秒）・1回に読む枚数 ${d.settings?.maxFiles ?? '―'}</div>
           ${errors ? `<div style="margin-top:4px"><b>最近のエラー</b></div><ul>${errors}</ul>` : ''}
         </details>
         <div class="ai-diag-actions"><button type="button" class="btn btn-outline btn-sm" data-diag="reset">↺ モデルの状態をリセット</button>

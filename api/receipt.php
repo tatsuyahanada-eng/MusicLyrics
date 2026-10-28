@@ -13,7 +13,14 @@
  * 精度と安定性のための設計
  *   - 1回の呼び出しで送る画像は既定で1枚（Google の資料で「文字の読み取りは1枚ずつの方が精度が良い」とされているため）
  *   - 画像の解像度を「高」に固定（mediaResolution）。金額を読み取った箇所の文字（amount_text）を書き写させ、金額と照合（evidence）
- *   - AIの考える量（thinkingLevel）は「中」（config.php の thinking_level で変更可）
+ *   - AIの考える量（thinkingLevel）は、1回目「低」・ダブルチェック「中」（config.php の thinking_level / thinking_level_recheck で変更可）
+ *
+ * Ver 2.1 で見直した点（「まとめて読むとほとんどエラー」「1枚でもときどきエラー」への対策）
+ *   - 考える量は、1回目は「低」（速い）・ダブルチェック（2回目以降）は「中」。考える時間が長いと、時間切れになりやすかった
+ *   - 待ち時間は、1枚あたり70秒＋まとめ読みは1枚増えるごとに25秒。時間切れの後は、考える量を下げて短い待ち時間でやり直す
+ *   - 予備のモデルまで必ず進めるよう、時間の枠を広げた（200秒）
+ *   - まとめ読み（2枚以上）は、失敗したら早めに諦めて画面側に知らせる（画面側が1枚ずつに切り替えて読み直す）
+ *   - 失敗したときは、各回の結果（モデル・考える量・何秒で・何が起きたか）を画面に返し、原因が分かるようにした
  *
  * Ver 2.0 で見直した点（「ほとんど読み取れない」への対策）
  *   - Ver 1.9 の出力の上限（4,096トークン）は、Gemini 3 系では「考える分」も含めて数えられるため、考えている途中で
@@ -36,7 +43,7 @@ header('Content-Type: application/json; charset=utf-8');
 header('Cache-Control: no-store');
 header('X-Content-Type-Options: nosniff');
 
-const APP_VERSION = '2.0';   // index.html の APP_VERSION と揃えて上げる
+const APP_VERSION = '2.1';   // index.html の APP_VERSION と揃えて上げる
 const DEFAULT_MODEL = 'gemini-3.8-flash';
 // 主モデルが上限に達したときに自動で使う予備モデル（無料枠の上限はモデルごとに別枠）。config.php の fallback_models で変更・無効化できる。
 // 精度を揃えるため、既定では Flash 系だけにしている（Flash-Lite 系は精度が下がりやすいので、使う場合は config.php で追加する）。
@@ -52,14 +59,18 @@ const USAGE_FILE = DATA_DIR . '/usage.json';
 const LOG_FILE = DATA_DIR . '/log.jsonl';
 const LOG_KEEP_LINES = 300;                      // 記録は直近この件数だけ残す
 const PASS_SEEDS = [1 => 1101, 2 => 2203, 3 => 3307];   // 何回目の読み取りかごとの乱数の種
-const DEFAULT_TIMEOUT = 60;                      // 1回の呼び出しで応答を待つ上限（秒）。config.php の request_timeout で変更
-const TIME_BUDGET = 130;                         // 1回の読み取りで、再試行・予備モデルへの切替を新しく始めてよい時間（秒）
+const DEFAULT_TIMEOUT = 70;                      // 画像1枚の呼び出しで応答を待つ上限（秒）。config.php の request_timeout で変更
+const BATCH_EXTRA_TIMEOUT = 25;                  // まとめ読みで、2枚目以降の1枚ごとに増やす待ち時間（秒）
+const MAX_TIMEOUT = 240;                         // 待ち時間の最大（秒）
+const TIME_BUDGET = 200;                         // 1回の読み取りで、再試行・予備モデルへの切替を新しく始めてよい時間（秒）
 const SLOW_COOLDOWN = 300;                       // 時間切れが続いたモデルを後回しにする時間（秒）
 const RATE_COOLDOWN = 600;                       // 種類の分からない 429（混雑など）のモデルを後回しにする時間（秒）
-const DEFAULT_THINKING_LEVEL = 'medium';         // AIの考える量（minimal / low / medium / high。'' でGeminiの既定＝high）
+const DEFAULT_THINKING_LEVEL = 'low';            // AIの考える量・1回目（minimal / low / medium / high。'' でGeminiの既定＝high）
+const DEFAULT_THINKING_RECHECK = 'medium';       // ダブルチェック（2回目以降）の考える量。1回目より低くはしない。'' なら1回目と同じ
+const THINK_ORDER = ['minimal', 'low', 'medium', 'high'];
 const THINKING_LEVELS = ['', 'minimal', 'low', 'medium', 'high'];
 const MAX_OUTPUT_TOKENS = 16384;                 // 出力の上限（考える分を含む）。暴走したときの費用の歯止め。考える途中で切れないよう大きめ
-const MAX_ANSWER_BYTES = 8000;                   // 画像1枚の答え（JSON）の長さの上限。超えたら暴走とみなして打ち切る
+const MAX_ANSWER_BYTES = 24000;                  // 画像1枚の答え（JSON）の長さの上限。超えたら暴走とみなして打ち切る（行数の多い明細の画像も読めるように大きめ）
 const MAX_ANSWER_BYTES_LARGE = 80000;            // PDF・複数枚の答えの長さの上限（ETC利用明細など行数が多い場合）
 const COMPAT_FULL = 0;                           // 追加設定をすべて付ける
 const COMPAT_NO_THINKING = 1;                    // 考える量の設定だけ外す
@@ -164,16 +175,20 @@ function load_config(): array
     $maxFiles = (int)($config['max_files_per_request'] ?? DEFAULT_FILES_PER_REQUEST);
     $maxFiles = max(1, min(MAX_FILES_LIMIT, $maxFiles));
 
-    $timeout = max(5, min(300, (int)($config['request_timeout'] ?? DEFAULT_TIMEOUT)));
+    $timeout = max(5, min(MAX_TIMEOUT, (int)($config['request_timeout'] ?? DEFAULT_TIMEOUT)));
     $thinking = strtolower(trim((string)($config['thinking_level'] ?? DEFAULT_THINKING_LEVEL)));
     if (!in_array($thinking, THINKING_LEVELS, true)) {
         $thinking = DEFAULT_THINKING_LEVEL;
+    }
+    $recheck = strtolower(trim((string)($config['thinking_level_recheck'] ?? DEFAULT_THINKING_RECHECK)));
+    if (!in_array($recheck, THINKING_LEVELS, true)) {
+        $recheck = DEFAULT_THINKING_RECHECK;
     }
 
     return [
         'key' => $key, 'models' => $models, 'model' => $models[0], 'endpoint' => $endpoint, 'maxFiles' => $maxFiles,
         'log' => !array_key_exists('log_requests', $config) || (bool)$config['log_requests'],
-        'timeout' => $timeout, 'thinking' => $thinking,
+        'timeout' => $timeout, 'thinking' => $thinking, 'recheck' => $recheck,
         // 再試行・予備モデルへの切替を始めてよい時間（秒）。通常は変更不要（動作確認用に短くできる）
         'budget' => max(5, min(600, (int)($config['time_budget'] ?? TIME_BUDGET))),
         'maxTokens' => max(2048, min(65536, (int)($config['max_output_tokens'] ?? MAX_OUTPUT_TOKENS))),
@@ -572,6 +587,42 @@ function gemini_error_message(array $r): string
     return 'Gemini API エラー（HTTP ' . $r['status'] . '）' . ($msg !== '' ? '：' . $msg : '');
 }
 
+/**
+ * その読み取りで使う「考える量」を決める。null は設定を付けない（Gemini の既定＝high）
+ *   1回目は thinking_level、ダブルチェック（2回目以降）は thinking_level_recheck（1回目より低くはしない）
+ *   $shifted … 時間切れになったあとのやり直し。考えすぎて止まらないことがあるため、「低」まで下げる
+ */
+function thinking_for(array $cfg, int $pass, bool $shifted): ?string
+{
+    $level = $cfg['thinking'];
+    if ($pass >= 2 && $cfg['recheck'] !== '' && $level !== '') {
+        $level = THINK_ORDER[max((int)array_search($level, THINK_ORDER, true), (int)array_search($cfg['recheck'], THINK_ORDER, true))];
+    } elseif ($pass >= 2 && $cfg['recheck'] !== '' && $level === '') {
+        $level = '';   // 1回目が Gemini の既定（高）なら、2回目もそのまま
+    }
+    if ($shifted && ($level === '' || (int)array_search($level, THINK_ORDER, true) > 1)) {
+        $level = 'low';
+    }
+    return $level === '' ? null : $level;
+}
+
+/** 失敗したときに画面へ返す、各回の結果の短い説明（原因の調査用） */
+function attempt_text(array $a): string
+{
+    $err = (string)($a['error'] ?? '');
+    $sec = round(((int)($a['ms'] ?? 0)) / 1000, 1);
+    if (!empty($a['runaway'])) {
+        $why = '答えが崩れた（同じ文字の繰り返し）';
+    } elseif ((int)($a['status'] ?? 0) === 0 && strncmp($err, 'timeout', 7) === 0) {
+        $why = '応答なし（' . $sec . '秒で時間切れ）';
+    } elseif ((int)($a['status'] ?? 0) === 200) {
+        $why = $err !== '' ? $err : '成功';
+    } else {
+        $why = 'HTTP ' . (int)($a['status'] ?? 0) . ($err !== '' ? ' ' . cut_text($err, 0, 80) : '') . '（' . $sec . '秒）';
+    }
+    return (string)$a['model'] . (!empty($a['thinking']) ? '（考える量 ' . $a['thinking'] . '）' : '') . '：' . $why;
+}
+
 /** $multi … 複数枚をまとめて送るときだけ、どの画像の領収書かを表す image を求める（1枚のときは不要な数字の項目を減らす） */
 function receipt_schema(bool $ordering, bool $multi): array
 {
@@ -614,7 +665,7 @@ function receipt_schema(bool $ordering, bool $multi): array
  * $compat … COMPAT_FULL：追加設定（解像度・seed・項目の順番・考える量）をすべて付ける ／ COMPAT_NO_THINKING：考える量だけ外す ／
  *           COMPAT_BASIC：すべて外す（Gemini側が受け付けないときの予備）。出力の上限は標準の設定なので常に付ける
  */
-function build_payload(array $files, int $seed, int $compat, array $cfg): array
+function build_payload(array $files, int $seed, int $compat, ?string $thinking, array $cfg): array
 {
     $parts = [];
     $multi = count($files) > 1;
@@ -634,8 +685,8 @@ function build_payload(array $files, int $seed, int $compat, array $cfg): array
         $config['mediaResolution'] = 'MEDIA_RESOLUTION_HIGH';   // 細かい文字まで読めるよう、画像の解像度を「高」に固定
         $config['seed'] = $seed;                               // 同じ画像・同じ回なら、同じ結果が出やすくする
     }
-    if ($compat === COMPAT_FULL && $cfg['thinking'] !== '') {
-        $config['thinkingConfig'] = ['thinkingLevel' => $cfg['thinking']];
+    if ($compat === COMPAT_FULL && $thinking !== null) {
+        $config['thinkingConfig'] = ['thinkingLevel' => $thinking];
     }
     return ['contents' => [['role' => 'user', 'parts' => $parts]], 'generationConfig' => $config];
 }
@@ -915,7 +966,7 @@ function diagnose(array $cfg): array
         'ok' => true, 'version' => APP_VERSION, 'day' => $day, 'resetAt' => reset_time_jst(), 'headline' => $headline,
         'findings' => $find, 'models' => $models, 'stats' => $st, 'failures' => $failures,
         'recentErrors' => array_slice(array_reverse($recentErrors), 0, 5),
-        'settings' => ['thinkingLevel' => $cfg['thinking'], 'timeout' => $cfg['timeout'], 'maxFiles' => $cfg['maxFiles'], 'log' => $cfg['log']],
+        'settings' => ['thinkingLevel' => $cfg['thinking'], 'thinkingRecheck' => $cfg['recheck'], 'timeout' => $cfg['timeout'], 'maxFiles' => $cfg['maxFiles'], 'log' => $cfg['log']],
     ];
 }
 
@@ -1048,7 +1099,10 @@ foreach ($cfg['models'] as $m) {
     }
 }
 $order = array_merge($order, $later);
-$maxBytes = (count($files) > 1 || in_array('application/pdf', array_column($files, 'mimeType'), true)) ? MAX_ANSWER_BYTES_LARGE : MAX_ANSWER_BYTES;
+$isBatch = count($files) > 1;
+$maxBytes = ($isBatch || in_array('application/pdf', array_column($files, 'mimeType'), true)) ? MAX_ANSWER_BYTES_LARGE : MAX_ANSWER_BYTES;
+// 待ち時間は枚数に応じて延ばす（まとめ読みは考える量も出力も増えるため）
+$baseTimeout = min(MAX_TIMEOUT, $cfg['timeout'] + BATCH_EXTRA_TIMEOUT * (count($files) - 1));
 
 $started = microtime(true);
 $remaining = fn(): float => $cfg['budget'] - (microtime(true) - $started);
@@ -1065,16 +1119,20 @@ foreach ($order as $model) {
     $compat = model_compat($mu);
     $persistCompat = false;
     $seed = PASS_SEEDS[$pass];
+    $shifted = false;          // 時間切れのあと、考える量を下げてやり直しているか
+    $unavailable = false;      // このモデルが「1日の上限」または「見つからない」と分かったか
     $retry = ['parse' => 0, 'timeout' => 0, 'transient' => 0, 'minute' => 0, 'bad' => 0];
     $r = null;
     while (true) {
-        // 残り時間が少ないときは待ち時間も短くする（15秒〜request_timeout）
-        $timeout = (int)min($cfg['timeout'], max(15, ceil($remaining())));
-        $r = gemini_stream($cfg, $model, build_payload($files, $seed, $compat, $cfg), $timeout, $maxBytes);
+        // 時間切れ後のやり直しは考える量を下げているので、待ち時間も短くする。残り時間が少ないときはさらに短く（15秒以上）
+        $callTimeout = $shifted ? min($baseTimeout, max(30, (int)round($baseTimeout * 0.65))) : $baseTimeout;
+        $timeout = (int)min($callTimeout, max(15, ceil($remaining())));
+        $thinking = thinking_for($cfg, $pass, $shifted);
+        $r = gemini_stream($cfg, $model, build_payload($files, $seed, $compat, $thinking, $cfg), $timeout, $maxBytes);
         usage_update($model, ['requests' => 1]);
-        $attempt = ['model' => $model, 'status' => $r['status'], 'ms' => $r['ms'], 'compat' => $compat,
+        $attempt = ['model' => $model, 'status' => $r['status'], 'ms' => $r['ms'], 'limit' => $timeout, 'compat' => $compat,
             'seed' => $compat === COMPAT_BASIC ? null : $seed,
-            'thinking' => $compat === COMPAT_FULL ? $cfg['thinking'] : null, 'ttft' => $r['ttft'] ?? null];
+            'thinking' => $compat === COMPAT_FULL ? $thinking : null, 'ttft' => $r['ttft'] ?? null];
 
         if ($r['status'] === 200) {
             [$list, $err] = $r['runaway']
@@ -1115,9 +1173,11 @@ foreach ($order as $model) {
         $attempts[] = $attempt;
 
         if ($r['timedOut']) {
-            // 考え込んで止まらなくなることがあるため、まず種を変えて同じモデルでやり直す
-            if ($retry['timeout']++ < 1 && $remaining() >= 20) {
+            // 考え込んで止まらなくなることがあるため、種を変え、考える量を下げて同じモデルでやり直す。
+            // まとめ読みは時間がかかるので、やり直さずに早めに諦める（画面側が1枚ずつに切り替える）
+            if (!$isBatch && $retry['timeout']++ < 1 && $remaining() >= 25) {
                 $seed += 100;
+                $shifted = true;
                 continue;
             }
             usage_update($model, ['slowUntil' => time() + SLOW_COOLDOWN, 'slowReason' => 'timeout']);
@@ -1125,6 +1185,7 @@ foreach ($order as $model) {
         }
         if ($r['status'] === 404) {
             usage_update($model, ['missing' => true]);
+            $unavailable = true;
             break;
         }
         if ($r['status'] === 429) {
@@ -1132,6 +1193,7 @@ foreach ($order as $model) {
                 // 1日の上限は待っても回復しないので、その日は使わない
                 usage_update($model, ['exhausted' => true, 'exhaustedAt' => jst_now(), 'exhaustedAfter' => (int)(usage_load()['models'][$model]['requests'] ?? 0),
                     'limit' => $q['limit'], 'freeTier' => $q['freeTier']]);
+                $unavailable = true;
                 break;
             }
             if ($q['kind'] === 'minute') {
@@ -1168,6 +1230,10 @@ foreach ($order as $model) {
     if (!in_array($r['status'], [200, 429, 404, 0, 500, 502, 503, 504], true)) {
         break;
     }
+    // まとめ読みは、モデルが使えない（上限・見つからない）ときだけ次のモデルを試す。それ以外は早めに諦める
+    if ($isBatch && !$unavailable) {
+        break;
+    }
 }
 
 if ($receipts === null) {
@@ -1181,11 +1247,13 @@ if ($receipts === null) {
     } else {
         $error = gemini_error_message($lastError);
         $code = $lastError['status'] === 429 ? (classify_quota_error($lastError)['kind'] === 'day' ? 'quota' : 'rate')
-            : ($lastError['timedOut'] ? 'timeout' : 'error');
+            : ($lastError['timedOut'] ? 'timeout' : (is_key_error($lastError) || in_array($lastError['status'], [401, 403], true) ? 'auth' : 'error'));
     }
+    $elapsed = (int)round((microtime(true) - $started) * 1000);
     log_request($cfg, ['pass' => $pass, 'files' => count($files), 'ok' => false, 'code' => $code, 'error' => $error,
-        'elapsedMs' => (int)round((microtime(true) - $started) * 1000), 'attempts' => $attempts]);
-    respond(502, ['ok' => false, 'code' => $code, 'error' => $error]);
+        'elapsedMs' => $elapsed, 'attempts' => $attempts]);
+    respond(502, ['ok' => false, 'code' => $code, 'error' => $error, 'batch' => $isBatch,
+        'detail' => array_map('attempt_text', $attempts), 'elapsedMs' => $elapsed]);
 }
 
 // ファイルごとに振り分ける。1枚だけならすべてその画像のもの。
