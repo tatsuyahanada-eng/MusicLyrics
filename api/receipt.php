@@ -43,7 +43,7 @@ header('Content-Type: application/json; charset=utf-8');
 header('Cache-Control: no-store');
 header('X-Content-Type-Options: nosniff');
 
-const APP_VERSION = '2.1';   // index.html の APP_VERSION と揃えて上げる
+const APP_VERSION = '2.2';   // index.html の APP_VERSION と揃えて上げる
 const DEFAULT_MODEL = 'gemini-3.8-flash';
 // 主モデルが上限に達したときに自動で使う予備モデル（無料枠の上限はモデルごとに別枠）。config.php の fallback_models で変更・無効化できる。
 // 精度を揃えるため、既定では Flash 系だけにしている（Flash-Lite 系は精度が下がりやすいので、使う場合は config.php で追加する）。
@@ -59,11 +59,14 @@ const USAGE_FILE = DATA_DIR . '/usage.json';
 const LOG_FILE = DATA_DIR . '/log.jsonl';
 const LOG_KEEP_LINES = 300;                      // 記録は直近この件数だけ残す
 const PASS_SEEDS = [1 => 1101, 2 => 2203, 3 => 3307];   // 何回目の読み取りかごとの乱数の種
-const DEFAULT_TIMEOUT = 70;                      // 画像1枚の呼び出しで応答を待つ上限（秒）。config.php の request_timeout で変更
+const DEFAULT_TIMEOUT = 60;                      // 画像1枚の呼び出しで応答を待つ上限（秒）。config.php の request_timeout で変更
+const DEFAULT_HEDGE_AFTER = 12;                  // 主モデルから12秒たっても答えが返らないとき、別のモデルでも同時に読み始める（秒）。config.php の hedge_after で変更
+const COOLDOWNS = [60, 240, 720];                // 応答なし・混雑が続くモデルを後回しにする時間（秒）。1回目・2回目・3回目以降
+const SLOW_RACE_COOLDOWN = 90;                   // 他のモデルに先を越されたモデルを、念のため後回しにする時間（秒）
+const DEFAULT_MIN_INTERVAL = 12;                 // 画面側が、AI呼び出しの開始を空ける間隔（秒）。無料枠は1分に5回までのモデルが多いため。config.php の min_call_interval で変更
 const BATCH_EXTRA_TIMEOUT = 25;                  // まとめ読みで、2枚目以降の1枚ごとに増やす待ち時間（秒）
 const MAX_TIMEOUT = 240;                         // 待ち時間の最大（秒）
-const TIME_BUDGET = 200;                         // 1回の読み取りで、再試行・予備モデルへの切替を新しく始めてよい時間（秒）
-const SLOW_COOLDOWN = 300;                       // 時間切れが続いたモデルを後回しにする時間（秒）
+const TIME_BUDGET = 150;                         // 1回の読み取りで、再試行・別のモデルの起動を新しく始めてよい時間（秒）
 const RATE_COOLDOWN = 600;                       // 種類の分からない 429（混雑など）のモデルを後回しにする時間（秒）
 const DEFAULT_THINKING_LEVEL = 'low';            // AIの考える量・1回目（minimal / low / medium / high。'' でGeminiの既定＝high）
 const DEFAULT_THINKING_RECHECK = 'medium';       // ダブルチェック（2回目以降）の考える量。1回目より低くはしない。'' なら1回目と同じ
@@ -192,6 +195,10 @@ function load_config(): array
         // 再試行・予備モデルへの切替を始めてよい時間（秒）。通常は変更不要（動作確認用に短くできる）
         'budget' => max(5, min(600, (int)($config['time_budget'] ?? TIME_BUDGET))),
         'maxTokens' => max(2048, min(65536, (int)($config['max_output_tokens'] ?? MAX_OUTPUT_TOKENS))),
+        'hedge' => max(3, min(60, (int)($config['hedge_after'] ?? DEFAULT_HEDGE_AFTER))),
+        'minInterval' => max(0, min(60, (int)($config['min_call_interval'] ?? DEFAULT_MIN_INTERVAL))),
+        'lite' => !array_key_exists('lite_fallback', $config) || (bool)$config['lite_fallback'],
+        'modelsFixed' => isset($config['models']) && is_array($config['models']),
     ];
 }
 
@@ -428,61 +435,75 @@ function sse_consume(array &$st, string $event, float $started): void
 }
 
 /**
- * 読み取りの呼び出し（ストリーミング）。答えを少しずつ受け取り、同じ文字の繰り返し・長すぎる答えを検知したらその場で打ち切る。
- * 戻り値は gemini_request と同じ形（正常時の json は通常の応答と同じ形に組み立て直す）。runaway … 暴走を検知して打ち切った
+ * 読み取りの呼び出し（ストリーミング）を1つ用意する。複数のモデルを同時に走らせて、先に終わった方を使うために、
+ * curl_multi に登録できる形（stdClass）で返す。答えを少しずつ受け取り、同じ文字の繰り返し・長すぎる答えを検知したらその場で打ち切る。
+ * $meta … 記録用の付属情報（seed・compat・thinking など）
  */
-function gemini_stream(array $cfg, string $model, array $body, int $timeout, int $maxBytes): array
+function attempt_start(array $cfg, string $model, array $body, int $timeout, int $maxBytes, array $meta = []): stdClass
 {
-    $ch = curl_init($cfg['endpoint'] . '/models/' . rawurlencode($model) . ':streamGenerateContent?alt=sse');
-    $st = ['buf' => '', 'raw' => '', 'text' => '', 'finish' => null, 'usage' => null, 'blocked' => null,
+    $a = new stdClass();
+    foreach ($meta as $k => $v) {
+        $a->$k = $v;
+    }
+    $a->model = $model;
+    $a->timeout = $timeout;
+    $a->started = microtime(true);
+    $a->st = ['buf' => '', 'raw' => '', 'text' => '', 'finish' => null, 'usage' => null, 'blocked' => null,
         'ttft' => null, 'runaway' => false, 'streamError' => null, 'badEvents' => 0];
-    $started = microtime(true);
-    curl_setopt_array($ch, [
+    $a->ch = curl_init($cfg['endpoint'] . '/models/' . rawurlencode($model) . ':streamGenerateContent?alt=sse');
+    curl_setopt_array($a->ch, [
         CURLOPT_POST => true,
         CURLOPT_POSTFIELDS => json_encode($body, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES),
         CURLOPT_HTTPHEADER => ['x-goog-api-key: ' . $cfg['key'], 'Content-Type: application/json', 'Accept: text/event-stream'],
         CURLOPT_CONNECTTIMEOUT => 10,
         CURLOPT_TIMEOUT => $timeout,
-        CURLOPT_WRITEFUNCTION => function ($ch, string $chunk) use (&$st, $started, $maxBytes): int {
+        CURLOPT_WRITEFUNCTION => function ($ch, string $chunk) use ($a, $maxBytes): int {
             if ((int)curl_getinfo($ch, CURLINFO_RESPONSE_CODE) !== 200) {
-                if (strlen($st['raw']) < 1000000) {
-                    $st['raw'] .= $chunk;
+                if (strlen($a->st['raw']) < 1000000) {
+                    $a->st['raw'] .= $chunk;
                 }
                 return strlen($chunk);
             }
-            $st['buf'] .= $chunk;
-            while (preg_match('/\r?\n\r?\n/', $st['buf'], $m, PREG_OFFSET_CAPTURE)) {
+            $a->st['buf'] .= $chunk;
+            while (preg_match('/\r?\n\r?\n/', $a->st['buf'], $m, PREG_OFFSET_CAPTURE)) {
                 $pos = $m[0][1];
-                sse_consume($st, substr($st['buf'], 0, $pos), $started);
-                $st['buf'] = substr($st['buf'], $pos + strlen($m[0][0]));
+                sse_consume($a->st, substr($a->st['buf'], 0, $pos), $a->started);
+                $a->st['buf'] = substr($a->st['buf'], $pos + strlen($m[0][0]));
             }
-            if (answer_runaway($st['text'], $maxBytes)) {
-                $st['runaway'] = true;
+            if (answer_runaway($a->st['text'], $maxBytes)) {
+                $a->st['runaway'] = true;
                 return 0;   // 受け取りを中止（curl はここで打ち切る）
             }
             return strlen($chunk);
         },
     ]);
-    $ok = curl_exec($ch);
-    $status = (int)curl_getinfo($ch, CURLINFO_RESPONSE_CODE);
-    $errno = curl_errno($ch);
-    $error = curl_error($ch);
-    if (trim($st['buf']) !== '' && !$st['runaway']) {
-        sse_consume($st, $st['buf'], $started);
+    return $a;
+}
+
+/**
+ * 終わった呼び出しの結果を、gemini_request と同じ形にまとめる（正常時の json は通常の応答と同じ形に組み立て直す）。
+ * runaway … 暴走を検知して打ち切った
+ */
+function attempt_result(stdClass $a, int $errno, string $error): array
+{
+    $st = $a->st;
+    $status = (int)curl_getinfo($a->ch, CURLINFO_RESPONSE_CODE);
+    if (trim($st['buf']) !== '' && !$st['runaway'] && $status === 200) {
+        sse_consume($st, $st['buf'], $a->started);
     }
     $r = [
-        'status' => $status, 'json' => null, 'error' => $error, 'timedOut' => false, 'timeout' => $timeout,
+        'status' => $status, 'json' => null, 'error' => $error, 'timedOut' => false, 'timeout' => $a->timeout,
         'runaway' => $st['runaway'], 'ttft' => $st['ttft'], 'text' => $st['text'],
-        'ms' => (int)round((microtime(true) - $started) * 1000),
+        'ms' => (int)round((microtime(true) - $a->started) * 1000),
     ];
     if ($st['runaway']) {
         $r['status'] = 200;
         $r['json'] = ['usageMetadata' => $st['usage']];
         return $r;
     }
-    if ($ok === false) {
+    if ($errno !== 0) {
         $r['status'] = 0;
-        $r['timedOut'] = $errno === 28;
+        $r['timedOut'] = $errno === 28;   // CURLE_OPERATION_TIMEDOUT
         return $r;
     }
     if ($status !== 200) {
@@ -504,6 +525,95 @@ function gemini_stream(array $cfg, string $model, array $body, int $timeout, int
         'usageMetadata' => $st['usage'],
     ] + ($st['blocked'] !== null ? ['promptFeedback' => ['blockReason' => $st['blocked']]] : []);
     return $r;
+}
+
+/** curl のハンドルを、配列のキーに使える数にする（PHP 7 はリソース・PHP 8 はオブジェクト） */
+function curl_key($ch): int
+{
+    return is_object($ch) ? spl_object_id($ch) : (int)$ch;
+}
+
+/**
+ * モデルの「健康状態」を記録する。応答が返らない・混雑（503）が続くモデルは、続くほど長く後回しにして、
+ * 混雑しているモデルに毎回何度も当てて、時間と1日の回数（無料枠）を無駄にしないようにする。
+ *   $why … 'timeout'（応答なし）／'overload'（503 などの混雑）／'rate'（理由のはっきりしない 429）／'slow'（他のモデルに先を越された）
+ */
+function health_fail(string $model, string $why): void
+{
+    $m = usage_load()['models'][$model] ?? [];
+    if ($why === 'slow') {
+        // 先を越されただけ（失敗ではない）。短く後回しにするが、失敗の回数は増やさない
+        $cool = SLOW_RACE_COOLDOWN;
+        $fails = (int)($m['fails'] ?? 0);
+    } else {
+        $fails = (int)($m['fails'] ?? 0) + 1;
+        $cool = $why === 'rate' ? RATE_COOLDOWN : COOLDOWNS[min($fails, count(COOLDOWNS)) - 1];
+    }
+    $until = max((int)($m['slowUntil'] ?? 0), time() + $cool);
+    usage_update($model, ['fails' => $fails, 'slowUntil' => $until, 'slowReason' => $why]);
+}
+
+/** 成功したモデルの状態を元に戻す */
+function health_ok(string $model): void
+{
+    usage_update($model, ['fails' => null, 'slowUntil' => null, 'slowReason' => null, 'lastOkAt' => jst_now()]);
+}
+
+/**
+ * Gemini のモデル一覧から、最新の Flash-Lite 系モデル（gemini-数字-flash-lite）の名前を探す（12時間ごとに確認して記録）。
+ * Flash 系が混雑・上限のときの「最後の予備」として使う。見つからない・取得できないときは null
+ */
+function discover_lite(array $cfg): ?string
+{
+    $file = DATA_DIR . '/models.json';
+    $c = is_file($file) ? json_decode((string)@file_get_contents($file), true) : null;
+    if (is_array($c) && ($c['endpoint'] ?? '') === $cfg['endpoint']
+        && (int)($c['at'] ?? 0) > time() - (!empty($c['ok']) ? 43200 : 3600)) {
+        return isset($c['lite']) && is_string($c['lite']) ? $c['lite'] : null;
+    }
+    $found = [];
+    $token = '';
+    $ok = true;
+    for ($page = 0; $page < 3; $page++) {
+        $r = gemini_request($cfg, 'GET', '/models?pageSize=200' . ($token !== '' ? '&pageToken=' . rawurlencode($token) : ''), null, 8);
+        if ($r['status'] !== 200 || !is_array($r['json'])) {
+            $ok = false;
+            break;
+        }
+        foreach ((array)($r['json']['models'] ?? []) as $m) {
+            $methods = (array)($m['supportedGenerationMethods'] ?? []);
+            if (preg_match('#^models/(gemini-(\d+(?:\.\d+)?)-flash-lite)$#', (string)($m['name'] ?? ''), $mm)
+                && (!$methods || in_array('generateContent', $methods, true))) {
+                $found[$mm[2]] = $mm[1];
+            }
+        }
+        $token = (string)($r['json']['nextPageToken'] ?? '');
+        if ($token === '') {
+            break;
+        }
+    }
+    $lite = null;
+    if ($ok && $found) {
+        uksort($found, fn($a, $b) => version_compare((string)$b, (string)$a));
+        $lite = reset($found);
+    }
+    if (is_dir(DATA_DIR) || @mkdir(DATA_DIR, 0755, true)) {
+        @file_put_contents($file, json_encode(['at' => time(), 'ok' => $ok, 'endpoint' => $cfg['endpoint'], 'lite' => $lite], JSON_UNESCAPED_UNICODE));
+    }
+    return $lite;
+}
+
+/** 実際に使うモデルの一覧。設定したモデルの後ろに、最新の Flash-Lite 系を「最後の予備」として足す（config.php の lite_fallback で無効化。models を直接指定したときは足さない） */
+function effective_models(array $cfg): array
+{
+    $models = $cfg['models'];
+    if ($cfg['lite'] && !$cfg['modelsFixed']) {
+        $lite = discover_lite($cfg);
+        if ($lite !== null && !in_array($lite, $models, true)) {
+            $models[] = $lite;
+        }
+    }
+    return $models;
 }
 
 /**
@@ -611,7 +721,9 @@ function attempt_text(array $a): string
 {
     $err = (string)($a['error'] ?? '');
     $sec = round(((int)($a['ms'] ?? 0)) / 1000, 1);
-    if (!empty($a['runaway'])) {
+    if (!empty($a['aborted'])) {
+        $why = '他のモデルが先に読み終えたため中止（' . $sec . '秒）';
+    } elseif (!empty($a['runaway'])) {
         $why = '答えが崩れた（同じ文字の繰り返し）';
     } elseif ((int)($a['status'] ?? 0) === 0 && strncmp($err, 'timeout', 7) === 0) {
         $why = '応答なし（' . $sec . '秒で時間切れ）';
@@ -620,7 +732,7 @@ function attempt_text(array $a): string
     } else {
         $why = 'HTTP ' . (int)($a['status'] ?? 0) . ($err !== '' ? ' ' . cut_text($err, 0, 80) : '') . '（' . $sec . '秒）';
     }
-    return (string)$a['model'] . (!empty($a['thinking']) ? '（考える量 ' . $a['thinking'] . '）' : '') . '：' . $why;
+    return (string)$a['model'] . (!empty($a['thinking']) ? '（考える量 ' . $a['thinking'] . '）' : '') . (!empty($a['hedge']) ? '【同時に開始】' : '') . '：' . $why;
 }
 
 /** $multi … 複数枚をまとめて送るときだけ、どの画像の領収書かを表す image を求める（1枚のときは不要な数字の項目を減らす） */
@@ -814,7 +926,9 @@ function diagnose(array $cfg): array
         $mu = $usage['models'][$name] ?? [];
         $slowUntil = (int)($mu['slowUntil'] ?? 0);
         $models[] = [
-            'name' => $name, 'primary' => $i === 0,
+            'name' => $name, 'primary' => $i === 0, 'auto' => !in_array($name, $cfg['modelsConfigured'] ?? $cfg['models'], true),
+            'fails' => (int)($mu['fails'] ?? 0), 'lastOkAt' => $mu['lastOkAt'] ?? null,
+            'stat' => ['ok' => 0, 'timeouts' => 0, 'overload' => 0, 'quota' => 0, 'aborted' => 0],
             'requests' => (int)($mu['requests'] ?? 0),
             'exhausted' => !empty($mu['exhausted']),
             'exhaustedAt' => $mu['exhaustedAt'] ?? null,
@@ -872,9 +986,28 @@ function diagnose(array $cfg): array
             $recentErrors[] = ['time' => $e['time'] ?? '', 'error' => (string)($e['error'] ?? '')];
         }
         foreach ((array)($e['attempts'] ?? []) as $a) {
-            $st['attempts']++;
             $s = (int)($a['status'] ?? 0);
             $err = (string)($a['error'] ?? '');
+            $mi = array_search((string)($a['model'] ?? ''), array_column($models, 'name'), true);
+            if (!empty($a['aborted'])) {
+                $st['aborted'] = ($st['aborted'] ?? 0) + 1;
+                if ($mi !== false) {
+                    $models[$mi]['stat']['aborted']++;
+                }
+                continue;   // 他のモデルが先に読み終えたための中止は、失敗として数えない
+            }
+            $st['attempts']++;
+            if ($mi !== false) {
+                if ($s === 200 && $err === '') {
+                    $models[$mi]['stat']['ok']++;
+                } elseif ($s === 0 && strncmp($err, 'timeout', 7) === 0) {
+                    $models[$mi]['stat']['timeouts']++;
+                } elseif ($s >= 500 || $s === 0) {
+                    $models[$mi]['stat']['overload']++;
+                } elseif ($s === 429) {
+                    $models[$mi]['stat']['quota']++;
+                }
+            }
             if (!empty($a['runaway'])) {
                 $st['runaways']++;
             } elseif ($s === 0 && strncmp($err, 'timeout', 7) === 0) {
@@ -919,15 +1052,34 @@ function diagnose(array $cfg): array
         $add('bad', '主モデル ' . $p['name'] . ' が見つかりません（モデル名の変更・提供終了の可能性）。api/config.php の model を確認してください。');
     }
     if ($p['slow'] && !$p['exhausted']) {
-        $add('warn', '主モデルの応答' . ($p['slowReason'] === 'rate' ? 'が混み合っている' : 'が返らないことが続いた') . 'ため、' . $p['slowUntil'] . ' まで予備のモデルを先に使っています。');
+        $reason = ['rate' => '混み合っている（429）', 'timeout' => 'が返らない', 'overload' => '混雑している（503）', 'slow' => '遅かった'][(string)$p['slowReason']] ?? '不調';
+        $add('warn', '主モデルの応答が' . $reason . 'ため、' . $p['slowUntil'] . ' まで予備のモデルを先に使っています。');
+    }
+    // Google 側の混雑：本日、成功が無く、応答なし・混雑ばかりのモデル
+    $congested = false;
+    foreach ($models as $m) {
+        $x = $m['stat'];
+        if ($x['ok'] === 0 && $x['timeouts'] + $x['overload'] >= 3) {
+            $congested = true;
+            $add('warn', $m['name'] . ' は本日、成功 0 回・応答なし ' . $x['timeouts'] . ' 回・混雑（503 など）' . $x['overload'] . ' 回です。Google 側の混雑が原因と思われます'
+                . '（Google の開発者フォーラムでも、無料枠の新しい Flash 系モデルで同様の報告があります）。こちらでは直せないため、自動で他のモデルに切り替えて読み取ります。');
+        } elseif ($x['ok'] > 0 && $x['timeouts'] + $x['overload'] >= 3 && ($x['timeouts'] + $x['overload']) >= $x['ok']) {
+            $congested = true;
+            $add('info', $m['name'] . ' は本日、成功 ' . $x['ok'] . ' 回に対し、応答なし ' . $x['timeouts'] . ' 回・混雑 ' . $x['overload'] . ' 回と不安定です（Google 側の混雑）。');
+        }
     }
     foreach (array_slice($models, 1) as $m) {
         if ($m['exhausted'] && $m['limit']) {
             $add('info', '予備のモデル ' . $m['name'] . ' も ' . ($m['exhaustedAt'] ?? '本日') . ' に上限に達しました' . $limitText($m) . '。');
         }
     }
-    if ($st['timeouts'] >= 2 && $st['timeouts'] * 4 >= $st['attempts']) {
-        $add('warn', 'Gemini の応答が返らない（時間切れ）ことが多いです（呼び出し ' . $st['attempts'] . ' 回中 ' . $st['timeouts'] . ' 回）。上限ではなく、Gemini 側の混雑か、AIが考え込んで止まらなくなる不具合です。自動で種を変えてやり直しています。');
+    $trouble = $st['timeouts'] + $st['serverErrors'];
+    if ($trouble >= 3 && $trouble * 3 >= $st['attempts'] * 1 && $st['ok'] * 2 <= $trouble) {
+        $congested = true;
+        $add('warn', 'Gemini の応答が返らない・混雑（503 など）が多いです（呼び出し ' . $st['attempts'] . ' 回中、応答なし ' . $st['timeouts'] . ' 回・混雑 ' . $st['serverErrors'] . ' 回）。'
+            . '上限ではなく、Google 側の混雑です。混雑しているモデルは自動で後回しにして、他のモデルで読み取ります。');
+    } elseif ($st['timeouts'] >= 2 && $st['timeouts'] * 4 >= $st['attempts']) {
+        $add('warn', 'Gemini の応答が返らない（時間切れ）ことが多いです（呼び出し ' . $st['attempts'] . ' 回中 ' . $st['timeouts'] . ' 回）。上限ではなく、Gemini 側の混雑か、AIが考え込んで止まらなくなる不具合です。');
     }
     if ($st['runaways'] >= 2) {
         $add('warn', 'AIの応答が崩れる（同じ文字の繰り返し）ことが ' . $st['runaways'] . ' 回ありました。検知してすぐ打ち切り、やり直しています。上限ではなく Gemini 側の不具合です。');
@@ -960,7 +1112,7 @@ function diagnose(array $cfg): array
         $add('ok', '本日の記録では、上限や応答の問題は見つかりませんでした。');
     }
     $headline = $quotaCause ? '今日の上限が原因です'
-        : ($hasProblem ? '上限ではありません（Gemini 側の応答の問題です）' : ($st['reads'] > 0 ? '上限には達していません' : '本日の記録はまだありません'));
+        : ($congested ? '上限ではありません（Gemini 側の混雑です）' : ($hasProblem ? '上限ではありません（Gemini 側の応答の問題です）' : ($st['reads'] > 0 ? '上限には達していません' : '本日の記録はまだありません')));
 
     return [
         'ok' => true, 'version' => APP_VERSION, 'day' => $day, 'resetAt' => reset_time_jst(), 'headline' => $headline,
@@ -985,15 +1137,20 @@ if ($method === 'GET' && $action === 'status') {
     }
     $usage = usage_load();
     $models = [];
-    foreach ($cfg['models'] as $m) {
+    $listed = effective_models($cfg);
+    foreach ($listed as $m) {
         $mu = $usage['models'][$m] ?? [];
+        $slowUntil = (int)($mu['slowUntil'] ?? 0);
         $models[] = [
             'name' => $m,
             'requests' => (int)($mu['requests'] ?? 0),
             'exhausted' => !empty($mu['exhausted']),
             'limit' => isset($mu['limit']) ? (int)$mu['limit'] : null,
             'missing' => !empty($mu['missing']),
-            'slow' => (int)($mu['slowUntil'] ?? 0) > time(),
+            'slow' => $slowUntil > time(),
+            'slowUntil' => $slowUntil > time() ? (new DateTimeImmutable('@' . $slowUntil))->setTimezone(new DateTimeZone('Asia/Tokyo'))->format('H:i') : null,
+            'slowReason' => $slowUntil > time() ? ($mu['slowReason'] ?? null) : null,
+            'auto' => !in_array($m, $cfg['models'], true),
         ];
     }
     respond(200, [
@@ -1001,19 +1158,23 @@ if ($method === 'GET' && $action === 'status') {
         'maxFiles' => $cfg['maxFiles'], 'usageDay' => $usage['day'], 'resetAt' => reset_time_jst(), 'models' => $models,
         'usageWritable' => is_dir(DATA_DIR) ? is_writable(DATA_DIR) : is_writable(__DIR__),
         'logEnabled' => $cfg['log'], 'thinkingLevel' => $cfg['thinking'], 'timeout' => $cfg['timeout'],
+        'minInterval' => $cfg['minInterval'],
     ]);
 }
 
 // ---- 診断（APIは呼び出さない。サーバーの記録だけを集計する） ----
 if ($method === 'GET' && $action === 'diagnose') {
-    respond(200, diagnose(load_config()));
+    $cfg = load_config();
+    $cfg['modelsConfigured'] = $cfg['models'];
+    $cfg['models'] = effective_models($cfg);
+    respond(200, diagnose($cfg));
 }
 
 // ---- モデルの状態の印を消す（回数の記録は残す） ----
 if ($method === 'POST' && $action === 'reset') {
     usage_update(null, [], function (array $u): array {
         foreach ($u['models'] as $name => $m) {
-            foreach (['exhausted', 'exhaustedAt', 'exhaustedAfter', 'limit', 'freeTier', 'missing', 'basic', 'compat', 'slowUntil', 'slowReason'] as $k) {
+            foreach (['exhausted', 'exhaustedAt', 'exhaustedAfter', 'limit', 'freeTier', 'missing', 'basic', 'compat', 'slowUntil', 'slowReason', 'fails'] as $k) {
                 unset($m[$k]);
             }
             $u['models'][$name] = $m;
@@ -1033,6 +1194,8 @@ if ($cfg['key'] === '') {
 }
 
 @set_time_limit(600);
+$cfg['models'] = effective_models($cfg);   // 設定したモデル + 最後の予備（最新の Flash-Lite 系）
+$models = $cfg['models'];
 
 // ---- 入力チェック（複数枚・旧形式の1枚送信のどちらも受け付ける） ----
 $raw = file_get_contents('php://input');
@@ -1073,66 +1236,149 @@ if ($total > MAX_REQUEST_BYTES) {
     respond(413, ['ok' => false, 'error' => '一度に送る画像の合計が大きすぎます。枚数を減らしてください。']);
 }
 
-// ---- モデルを順に試す ----
-//   1つのモデルの中では、一時的なエラーを自動で再試行する
-//     応答の崩れ（同じ文字の繰り返し・JSONが壊れている・結果が空）… 乱数の種を変えて1回
-//     時間切れ（考え込んで止まらない）… 乱数の種を変えて1回。2回続いたらそのモデルを5分間後回しにして次へ
-//     混雑（0/500/502/503/504）… 2秒待って1回
-//     1日の上限（429）… その日は使わない（Google の応答にある上限回数を記録）
-//     1分あたりの上限（429）… 指示された秒数（60秒まで）待って最大2回
-//     種類の分からない 429 … そのモデルを10分間後回しにして次へ（1日使えなくはしない）
-//     受け付けられない（400）… 考える量 → 追加設定すべて の順に外して最大2回
-//   再試行・予備モデルへの切替は、読み取り開始から time_budget 秒までに始めるものに限る
+// ---- 読み取り：複数のモデルを、必要に応じて同時に走らせ、先に正しく読めたものを使う ----
+//   Gemini の新しいモデルは、混雑（503）や、応答が返らない状態になることがある（特に無料枠）。
+//   そのため、混雑しているモデルを何度も待たずに、次のモデルへ移る。
+//     ・主モデルから hedge_after 秒（既定12秒）たっても答えが返らなければ、次のモデルでも同時に読み始める（さらに12秒ごとに次のモデルを追加）
+//       → 先に正しく読めた方を使い、残りは打ち切る
+//     ・503・応答なし（時間切れ）・理由のはっきりしない 429 は、そのモデルを後回しにして（続くほど長く）、すぐ次のモデルへ
+//     ・応答の崩れ（同じ文字の繰り返し・JSONが壊れている・結果が空）… 乱数の種を変えて、同じモデルでもう1回
+//     ・1日の上限（429）… その日は使わない（Google の応答にある上限回数を記録）
+//     ・1分あたりの上限（429）… 他のモデルがあれば次へ。他に無ければ、指示された秒数（60秒まで）待って最大2回
+//     ・受け付けられない（400）… 考える量 → 追加設定すべて の順に外して最大2回
+//     ・まとめ読み（2枚以上）は、並行して走らせず、失敗したら早めに諦める（画面側が1枚ずつに切り替える）
+//   新しい呼び出し・再試行は、読み取り開始から time_budget 秒までに始めるものに限る
 $usage = usage_load();
 $now = time();
 $order = [];
 $later = [];
 $skipped = [];
-foreach ($cfg['models'] as $m) {
+foreach ($models as $m) {
     $mu = $usage['models'][$m] ?? [];
     if (!empty($mu['exhausted']) || !empty($mu['missing'])) {
         $skipped[] = $m;
     } elseif ((int)($mu['slowUntil'] ?? 0) > $now) {
-        $later[] = $m;
+        $later[$m] = (int)$mu['slowUntil'];
     } else {
         $order[] = $m;
     }
 }
-$order = array_merge($order, $later);
+asort($later);   // 後回し中のモデルは、期限が近い順
+$candidates = array_merge($order, array_keys($later));
+
 $isBatch = count($files) > 1;
 $maxBytes = ($isBatch || in_array('application/pdf', array_column($files, 'mimeType'), true)) ? MAX_ANSWER_BYTES_LARGE : MAX_ANSWER_BYTES;
 // 待ち時間は枚数に応じて延ばす（まとめ読みは考える量も出力も増えるため）
 $baseTimeout = min(MAX_TIMEOUT, $cfg['timeout'] + BATCH_EXTRA_TIMEOUT * (count($files) - 1));
+$hedgeAfter = $isBatch ? 1e9 : (float)$cfg['hedge'];
+$maxParallel = $isBatch ? 1 : 3;
 
 $started = microtime(true);
-$remaining = fn(): float => $cfg['budget'] - (microtime(true) - $started);
+$elapsed = fn(): float => microtime(true) - $started;
 $receipts = null;
 $usedModel = null;
-$lastError = null;
+$attempts = [];        // 画面・記録に返す、各呼び出しの結果
+$failures = [];        // 失敗した呼び出しの結果（最後の失敗が、エラーメッセージの元になる）
 $lastParseError = null;
-$attempts = [];
-foreach ($order as $model) {
-    if ($lastError !== null && $remaining() < 10) {
-        break;
+$running = [];         // 実行中の呼び出し（curl のハンドル番号 => stdClass）
+$retryQueue = [];      // 同じモデルでの再試行の予約 [['model' =>, 'at' =>]]
+$next = 0;             // 次に起動する候補の番号
+$lastLaunch = 0.0;
+$anyTimeout = false;   // この読み取りで、応答なし（時間切れ）があったか（あれば、その後の呼び出しは考える量を下げる）
+$fatal = false;        // キー不正など、モデルを変えても直らない失敗
+$state = [];           // モデルごとの再試行の状態
+$mh = curl_multi_init();
+
+$launch = function (string $model, bool $hedge) use (&$state, &$running, &$lastLaunch, &$anyTimeout, $mh, $cfg, $files, $pass, $maxBytes, $baseTimeout, $usage, $elapsed): void {
+    if (!isset($state[$model])) {
+        $state[$model] = ['compat' => model_compat($usage['models'][$model] ?? []), 'persist' => false, 'seed' => PASS_SEEDS[$pass],
+            'parse' => 0, 'bad' => 0, 'minute' => 0, 'transient' => 0];
     }
-    $mu = $usage['models'][$model] ?? [];
-    $compat = model_compat($mu);
-    $persistCompat = false;
-    $seed = PASS_SEEDS[$pass];
-    $shifted = false;          // 時間切れのあと、考える量を下げてやり直しているか
-    $unavailable = false;      // このモデルが「1日の上限」または「見つからない」と分かったか
-    $retry = ['parse' => 0, 'timeout' => 0, 'transient' => 0, 'minute' => 0, 'bad' => 0];
-    $r = null;
-    while (true) {
-        // 時間切れ後のやり直しは考える量を下げているので、待ち時間も短くする。残り時間が少ないときはさらに短く（15秒以上）
-        $callTimeout = $shifted ? min($baseTimeout, max(30, (int)round($baseTimeout * 0.65))) : $baseTimeout;
-        $timeout = (int)min($callTimeout, max(15, ceil($remaining())));
-        $thinking = thinking_for($cfg, $pass, $shifted);
-        $r = gemini_stream($cfg, $model, build_payload($files, $seed, $compat, $thinking, $cfg), $timeout, $maxBytes);
-        usage_update($model, ['requests' => 1]);
-        $attempt = ['model' => $model, 'status' => $r['status'], 'ms' => $r['ms'], 'limit' => $timeout, 'compat' => $compat,
-            'seed' => $compat === COMPAT_BASIC ? null : $seed,
-            'thinking' => $compat === COMPAT_FULL ? $thinking : null, 'ttft' => $r['ttft'] ?? null];
+    $ms = &$state[$model];
+    $left = $cfg['budget'] - $elapsed();
+    $timeout = (int)min($baseTimeout, max(15, ceil($left + 20)));
+    $thinking = thinking_for($cfg, $pass, $anyTimeout);
+    $a = attempt_start($cfg, $model, build_payload($files, $ms['seed'], $ms['compat'], $thinking, $cfg), $timeout, $maxBytes, [
+        'seed' => $ms['compat'] === COMPAT_BASIC ? null : $ms['seed'],
+        'compat' => $ms['compat'],
+        'thinking' => $ms['compat'] === COMPAT_FULL ? $thinking : null,
+        'at' => (int)round($elapsed() * 1000),
+        'hedge' => $hedge,
+    ]);
+    curl_multi_add_handle($mh, $a->ch);
+    $running[curl_key($a->ch)] = $a;
+    $lastLaunch = microtime(true);
+    usage_update($model, ['requests' => 1]);
+};
+
+/** 実行中の呼び出しをすべて打ち切る（先に読めたものがあるとき・続けられない失敗のとき） */
+$abortAll = function (?string $winner, ?float $winnerStarted = null) use (&$running, &$attempts, $mh, $started): void {
+    foreach ($running as $key => $a) {
+        curl_multi_remove_handle($mh, $a->ch);
+        curl_close($a->ch);
+        $ms = (int)round((microtime(true) - $a->started) * 1000);
+        $attempts[] = ['model' => $a->model, 'status' => 0, 'ms' => $ms, 'limit' => $a->timeout, 'at' => $a->at, 'hedge' => $a->hedge,
+            'compat' => $a->compat, 'seed' => $a->seed, 'thinking' => $a->thinking, 'aborted' => true,
+            'error' => $winner !== null ? 'aborted: ' . $winner . ' が先に完了' : 'aborted'];
+        // 先に始めたのに、後から始めた方に先を越されたモデルは、念のため少しの間は後回しにする（次の読み取りを、速い方から始められるように）
+        if ($winner !== null && $a->model !== $winner && $winnerStarted !== null && $a->started < $winnerStarted) {
+            health_fail($a->model, 'slow');
+        }
+    }
+    $running = [];
+};
+
+while (true) {
+    if ($fatal) {
+        break;   // キー不正など、続けても直らない
+    }
+    $now = microtime(true);
+    $canLaunch = $next === 0 || $elapsed() < $cfg['budget'] - 10;   // 最初の1回は必ず起動する
+
+    // 1) 起動：予約済みの再試行 → 動いているものが無ければ次の候補 → hedge 時間を過ぎたら次の候補を追加
+    if ($canLaunch) {
+        foreach ($retryQueue as $i => $q) {
+            if ($q['at'] <= $now) {
+                unset($retryQueue[$i]);
+                $launch($q['model'], false);
+            }
+        }
+        $retryQueue = array_values($retryQueue);
+        $wantNext = (!$running && !$retryQueue)
+            || ($running && count($running) < $maxParallel && $now - $lastLaunch >= $hedgeAfter);
+        if ($wantNext && $next < count($candidates)) {
+            $launch($candidates[$next], (bool)$running);
+            $next++;
+        }
+    }
+    if (!$running && (!$retryQueue || !$canLaunch) && ($next >= count($candidates) || !$canLaunch)) {
+        break;   // もう起動できるものが無く、動いているものも無い
+    }
+
+    // 2) 進める。終わったものを順に処理する
+    do {
+        $code = curl_multi_exec($mh, $active);
+    } while ($code === CURLM_CALL_MULTI_PERFORM);
+    if (curl_multi_select($mh, 0.2) === -1) {
+        usleep(100000);
+    }
+
+    while ($info = curl_multi_info_read($mh)) {
+        $key = curl_key($info['handle']);
+        if (!isset($running[$key])) {
+            continue;
+        }
+        $a = $running[$key];
+        unset($running[$key]);
+        $model = $a->model;
+        $ms = &$state[$model];
+        $r = attempt_result($a, (int)$info['result'], curl_error($a->ch));
+        curl_multi_remove_handle($mh, $a->ch);
+        curl_close($a->ch);
+
+        $attempt = ['model' => $model, 'status' => $r['status'], 'ms' => $r['ms'], 'limit' => $a->timeout, 'at' => $a->at, 'hedge' => $a->hedge,
+            'compat' => $a->compat, 'seed' => $a->seed, 'thinking' => $a->thinking, 'ttft' => $r['ttft'] ?? null];
+        $retryAt = $now + 0.0;
 
         if ($r['status'] === 200) {
             [$list, $err] = $r['runaway']
@@ -1145,115 +1391,125 @@ foreach ($order as $model) {
             }
             if ($list !== null) {
                 $attempts[] = $attempt;
-                if ($persistCompat) {
-                    usage_update($model, ['compat' => $compat, 'basic' => null]);
+                if ($ms['persist']) {
+                    usage_update($model, ['compat' => $ms['compat'], 'basic' => null]);
                 }
+                health_ok($model);
                 $receipts = $list;
                 $usedModel = $model;
+                $abortAll($model, $a->started);
                 break 2;
             }
             $attempt['error'] = $err;
             if (($r['text'] ?? '') !== '') {
                 $attempt['sample'] = cut_text((string)$r['text'], -60);   // 崩れ方の確認用（答えの末尾だけ）
             }
-            $attempts[] = $attempt;
             $lastParseError = $err;
-            // 同じ種だと同じ崩れ方をしやすいので、種を変えてやり直す
-            if ($retry['parse']++ < 1 && $remaining() >= 10) {
-                $seed += 100;
-                continue;
+            // 同じ種だと同じ崩れ方をしやすいので、種を変えて同じモデルでもう1回
+            if ($ms['parse']++ < 1 && $elapsed() < $cfg['budget'] - 10) {
+                $ms['seed'] += 100;
+                $retryQueue[] = ['model' => $model, 'at' => $retryAt];
             }
-            break;
-        }
-        $attempt['error'] = $r['timedOut'] ? 'timeout ' . $r['timeout'] . 's' : cut_text((string)($r['json']['error']['message'] ?? $r['error']), 0, 300);
-        if ($r['status'] === 429) {
-            $q = classify_quota_error($r);
-            $attempt['quota'] = $q['kind'];
+        } else {
+            $attempt['error'] = $r['timedOut'] ? 'timeout ' . $r['timeout'] . 's' : cut_text((string)($r['json']['error']['message'] ?? $r['error']), 0, 300);
+            $q = null;
+            if ($r['status'] === 429) {
+                $q = classify_quota_error($r);
+                $attempt['quota'] = $q['kind'];
+            }
+            $moreCandidates = $next < count($candidates) || $running || $retryQueue;
+
+            if ($r['timedOut'] || in_array($r['status'], [0, 500, 502, 503, 504], true)) {
+                // 応答なし・混雑：そのモデルを後回しにして、次のモデルへ。他に無ければ、考える量を下げて1回だけやり直す
+                $anyTimeout = $anyTimeout || $r['timedOut'];
+                health_fail($model, $r['timedOut'] ? 'timeout' : 'overload');
+                if (count($candidates) === 1 && $ms['transient']++ < 1 && $elapsed() < $cfg['budget'] - 25) {   // 使えるモデルが1つだけのときだけ、同じモデルでやり直す
+                    $retryQueue[] = ['model' => $model, 'at' => $now + 2];
+                }
+            } elseif ($r['status'] === 404) {
+                usage_update($model, ['missing' => true]);
+            } elseif ($r['status'] === 429) {
+                if ($q['kind'] === 'day') {
+                    // 1日の上限は待っても回復しないので、その日は使わない
+                    usage_update($model, ['exhausted' => true, 'exhaustedAt' => jst_now(), 'exhaustedAfter' => (int)(usage_load()['models'][$model]['requests'] ?? 0),
+                        'limit' => $q['limit'], 'freeTier' => $q['freeTier']]);
+                } elseif ($q['kind'] === 'minute') {
+                    $wait = max(2, (int)($q['retryAfter'] ?? 10));
+                    if (!$moreCandidates && $ms['minute']++ < 2 && $wait <= 60 && $elapsed() < $cfg['budget'] - $wait - 15) {
+                        $retryQueue[] = ['model' => $model, 'at' => $now + $wait];   // 他に使えるモデルが無いときだけ、待って同じモデルでやり直す
+                    } else {
+                        usage_update($model, ['slowUntil' => time() + 60, 'slowReason' => 'rate']);
+                    }
+                } else {
+                    // 種類が分からない 429（混雑など）は、しばらく後回しにするだけで、その日の利用は止めない
+                    health_fail($model, 'rate');
+                }
+            } elseif ($r['status'] === 400 && !is_key_error($r) && $ms['bad']++ < 2) {
+                // 追加設定を受け付けない（または原因不明の一時的な 400）。考える量 → すべて の順に外してやり直す
+                if ($ms['compat'] < COMPAT_BASIC) {
+                    $msg = (string)($r['json']['error']['message'] ?? '');
+                    $ms['compat'] = ($ms['compat'] === COMPAT_FULL && (stripos($msg, 'thinking') !== false || !is_compat_error($r))) ? COMPAT_NO_THINKING : COMPAT_BASIC;
+                    $ms['persist'] = $ms['persist'] || is_compat_error($r);
+                }
+                $retryQueue[] = ['model' => $model, 'at' => $retryAt];
+            } else {
+                // キー不正・受け付けられない画像など、モデルを変えても直らない失敗
+                $fatal = true;
+            }
         }
         $attempts[] = $attempt;
-
-        if ($r['timedOut']) {
-            // 考え込んで止まらなくなることがあるため、種を変え、考える量を下げて同じモデルでやり直す。
-            // まとめ読みは時間がかかるので、やり直さずに早めに諦める（画面側が1枚ずつに切り替える）
-            if (!$isBatch && $retry['timeout']++ < 1 && $remaining() >= 25) {
-                $seed += 100;
-                $shifted = true;
-                continue;
-            }
-            usage_update($model, ['slowUntil' => time() + SLOW_COOLDOWN, 'slowReason' => 'timeout']);
-            break;
+        $failures[] = $r + ['model' => $model];
+        unset($ms);
+        // まとめ読みは、モデルが使えない（上限・見つからない）とき以外は、他のモデルを試さずに早めに諦める
+        if ($isBatch && !$retryQueue && !in_array($r['status'], [404], true) && !($r['status'] === 429 && ($q['kind'] ?? '') === 'day')) {
+            $next = count($candidates);
         }
-        if ($r['status'] === 404) {
-            usage_update($model, ['missing' => true]);
-            $unavailable = true;
-            break;
-        }
-        if ($r['status'] === 429) {
-            if ($q['kind'] === 'day') {
-                // 1日の上限は待っても回復しないので、その日は使わない
-                usage_update($model, ['exhausted' => true, 'exhaustedAt' => jst_now(), 'exhaustedAfter' => (int)(usage_load()['models'][$model]['requests'] ?? 0),
-                    'limit' => $q['limit'], 'freeTier' => $q['freeTier']]);
-                $unavailable = true;
-                break;
-            }
-            if ($q['kind'] === 'minute') {
-                $wait = max(2, (int)($q['retryAfter'] ?? 10));
-                if ($retry['minute']++ < 2 && $wait <= 60 && $remaining() >= $wait + 15) {
-                    sleep($wait);
-                    continue;
-                }
-                usage_update($model, ['slowUntil' => time() + 60, 'slowReason' => 'rate']);
-                break;
-            }
-            // 種類が分からない 429（混雑など）は、しばらく後回しにするだけで、その日の利用は止めない
-            usage_update($model, ['slowUntil' => time() + RATE_COOLDOWN, 'slowReason' => 'rate']);
-            break;
-        }
-        if ($r['status'] === 400 && !is_key_error($r) && $retry['bad']++ < 2) {
-            // 追加設定を受け付けない（または原因不明の一時的な 400）。考える量 → すべて の順に外してやり直す
-            if ($compat < COMPAT_BASIC) {
-                $msg = (string)($r['json']['error']['message'] ?? '');
-                $compat = ($compat === COMPAT_FULL && (stripos($msg, 'thinking') !== false || !is_compat_error($r))) ? COMPAT_NO_THINKING : COMPAT_BASIC;
-                $persistCompat = $persistCompat || is_compat_error($r);
-            }
-            continue;
-        }
-        if (in_array($r['status'], [0, 500, 502, 503, 504], true) && $retry['transient']++ < 1 && $remaining() >= 10) {
-            sleep(2);
-            continue;
-        }
-        break;
-    }
-    $lastError = $r;
-    // 上限（429）・モデルが無い（404）・時間切れや混雑（0/5xx）・応答の崩れ（200）なら次のモデルを試す。
-    // キー不正・受け付けられない画像など他の理由は、モデルを変えても改善しないので打ち切る
-    if (!in_array($r['status'], [200, 429, 404, 0, 500, 502, 503, 504], true)) {
-        break;
-    }
-    // まとめ読みは、モデルが使えない（上限・見つからない）ときだけ次のモデルを試す。それ以外は早めに諦める
-    if ($isBatch && !$unavailable) {
-        break;
+        unset($q);
     }
 }
+$abortAll(null);
+curl_multi_close($mh);
 
 if ($receipts === null) {
+    $lastError = $failures ? $failures[count($failures) - 1] : null;
+    $code = 'error';
     if ($lastError === null) {
         $error = '本日は使えるモデルがすべて1日の上限に達しています（または見つかりません：' . implode('、', $skipped) . '）。'
             . reset_time_jst() . ' に回数がリセットされます。回数を増やすには有料枠にしてください。「🩺 診断」で詳しい状況を確認できます。';
         $code = 'quota_day';
-    } elseif ($lastError['status'] === 200) {
-        $error = $lastParseError . '。「もう一度読み取る」を押してください。';
-        $code = 'parse';
     } else {
-        $error = gemini_error_message($lastError);
-        $code = $lastError['status'] === 429 ? (classify_quota_error($lastError)['kind'] === 'day' ? 'quota' : 'rate')
-            : ($lastError['timedOut'] ? 'timeout' : (is_key_error($lastError) || in_array($lastError['status'], [401, 403], true) ? 'auth' : 'error'));
+        // 失敗の内訳。すべて「応答なし・混雑」なら、Gemini 側の混雑として知らせる
+        $overload = 0;
+        $keyErr = null;
+        foreach ($failures as $f) {
+            if ($f['timedOut'] || in_array($f['status'], [0, 500, 502, 503, 504], true)) {
+                $overload++;
+            }
+            if (is_key_error($f) || in_array($f['status'], [401, 403], true)) {
+                $keyErr = $f;
+            }
+        }
+        if ($keyErr !== null) {
+            $error = gemini_error_message($keyErr);
+            $code = 'auth';
+        } elseif ($overload === count($failures)) {
+            $tried = array_values(array_unique(array_map(fn($f) => $f['model'], $failures)));
+            $error = 'Gemini（Google）側が混雑していて、' . implode('・', $tried) . ' から答えが返りませんでした。上限ではありません。数分おいてから「もう一度読み取る」を押してください（モデルの状態は「🩺 診断」で確認できます）。';
+            $code = 'overload';
+        } elseif ($lastError['status'] === 200) {
+            $error = $lastParseError . '。「もう一度読み取る」を押してください。';
+            $code = 'parse';
+        } else {
+            $error = gemini_error_message($lastError);
+            $code = $lastError['status'] === 429 ? (classify_quota_error($lastError)['kind'] === 'day' ? 'quota' : 'rate')
+                : ($lastError['timedOut'] ? 'timeout' : 'error');
+        }
     }
-    $elapsed = (int)round((microtime(true) - $started) * 1000);
+    $elapsedMs = (int)round($elapsed() * 1000);
     log_request($cfg, ['pass' => $pass, 'files' => count($files), 'ok' => false, 'code' => $code, 'error' => $error,
-        'elapsedMs' => $elapsed, 'attempts' => $attempts]);
+        'elapsedMs' => $elapsedMs, 'attempts' => $attempts]);
     respond(502, ['ok' => false, 'code' => $code, 'error' => $error, 'batch' => $isBatch,
-        'detail' => array_map('attempt_text', $attempts), 'elapsedMs' => $elapsed]);
+        'detail' => array_map('attempt_text', $attempts), 'elapsedMs' => $elapsedMs]);
 }
 
 // ファイルごとに振り分ける。1枚だけならすべてその画像のもの。
@@ -1277,7 +1533,7 @@ log_request($cfg, [
     'result' => array_map($summary, $byFile), 'unassigned' => $summary($unassigned),
 ]);
 respond(200, [
-    'ok' => true, 'pass' => $pass, 'model' => $usedModel, 'fallback' => $usedModel !== $cfg['models'][0],
+    'ok' => true, 'pass' => $pass, 'model' => $usedModel, 'fallback' => $usedModel !== $models[0],
     'files' => array_map(fn($list) => ['receipts' => $list], $byFile),
     'unassigned' => $unassigned,
 ]);
