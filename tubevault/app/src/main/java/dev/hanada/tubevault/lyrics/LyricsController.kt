@@ -49,16 +49,17 @@ class LyricsController(
     private val _offsetMs = MutableStateFlow(0L)
     val offsetMs: StateFlow<Long> = _offsetMs.asStateFlow()
 
-    private val _floatingVisible = MutableStateFlow(true)
-    val floatingVisible: StateFlow<Boolean> = _floatingVisible.asStateFlow()
+    /** Whether fullscreen shows the lyrics card beside the video, or the video alone. */
+    private val _fullscreenLyricsVisible = MutableStateFlow(true)
+    val fullscreenLyricsVisible: StateFlow<Boolean> = _fullscreenLyricsVisible.asStateFlow()
 
     /** How far this recording's clock sits from the lyrics' own, set by tapping the line being sung. */
     fun setOffset(ms: Long) {
         _offsetMs.value = ms
     }
 
-    fun toggleFloating() {
-        _floatingVisible.value = !_floatingVisible.value
+    fun toggleFullscreenLyrics() {
+        _fullscreenLyricsVisible.value = !_fullscreenLyricsVisible.value
     }
 
     private var fetchJob: Job? = null
