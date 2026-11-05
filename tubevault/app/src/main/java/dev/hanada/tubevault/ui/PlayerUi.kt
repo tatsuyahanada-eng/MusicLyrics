@@ -541,33 +541,48 @@ private fun ImmersivePlayer(
                 indication = null,
             ) { controlsVisible = !controlsVisible },
     ) {
-        // Split screen: the lyrics get their own card down the left — sized
-        // like a navigation map's picture-in-picture card — and the video
-        // fits the rest, so neither ever sits on top of the other. Hiding the
-        // lyrics collapses the card and hands the video the full width.
-        val synced = lyricsState as? LyricsUiState.Synced
+        // Split screen: a card down the left — sized like a navigation map's
+        // picture-in-picture card — and the video fits the rest, so neither
+        // ever sits on top of the other. The card follows only the show/hide
+        // button, not whether lyrics were found: an empty card still keeps
+        // that space free, e.g. for a map app floating over it, and it is
+        // already in place when lyrics do turn up. Hiding it hands the video
+        // the full width.
         Row(modifier = Modifier.fillMaxSize()) {
             AnimatedVisibility(
-                visible = lyricsVisible && synced != null,
+                visible = lyricsVisible,
                 enter = expandHorizontally() + fadeIn(),
                 exit = shrinkHorizontally() + fadeOut(),
             ) {
-                if (synced != null) {
-                    Surface(
-                        shape = RoundedCornerShape(20.dp),
-                        color = MaterialTheme.colorScheme.surfaceContainerHigh,
-                        modifier = Modifier
-                            .fillMaxWidth(FULLSCREEN_LYRICS_WIDTH_FRACTION)
-                            .fillMaxHeight()
-                            .padding(start = 16.dp, top = 24.dp, bottom = 24.dp, end = 8.dp),
-                    ) {
-                        SyncedLyrics(
-                            lines = synced.lines,
+                Surface(
+                    shape = RoundedCornerShape(20.dp),
+                    color = MaterialTheme.colorScheme.surfaceContainerHigh,
+                    modifier = Modifier
+                        .fillMaxWidth(FULLSCREEN_LYRICS_WIDTH_FRACTION)
+                        .fillMaxHeight()
+                        .padding(start = 16.dp, top = 24.dp, bottom = 24.dp, end = 8.dp),
+                ) {
+                    when (val state = lyricsState) {
+                        is LyricsUiState.Synced -> SyncedLyrics(
+                            lines = state.lines,
                             positionMs = positionMs,
                             offsetMs = lyricsOffsetMs,
                             onSetOffset = lyrics::setOffset,
                             compact = true,
                         )
+                        // Found but untimed: shown whole, since there is no
+                        // current line to follow.
+                        is LyricsUiState.PlainOnly -> Text(
+                            text = state.text,
+                            style = MaterialTheme.typography.bodyLarge,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            textAlign = TextAlign.Center,
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .verticalScroll(rememberScrollState())
+                                .padding(horizontal = 12.dp, vertical = 24.dp),
+                        )
+                        else -> Unit
                     }
                 }
             }
