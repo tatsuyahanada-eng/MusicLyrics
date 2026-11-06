@@ -7,6 +7,8 @@ import android.content.pm.ActivityInfo
 import android.content.res.Configuration
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.tween
 import androidx.compose.animation.expandHorizontally
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -19,6 +21,7 @@ import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -44,6 +47,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.FastForward
 import androidx.compose.material.icons.filled.FastRewind
@@ -77,23 +81,40 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
+import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Rect
+import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Shadow
+import androidx.compose.ui.graphics.StrokeJoin
+import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalView
+import androidx.compose.ui.text.AnnotatedString
+import androidx.compose.ui.text.TextMeasurer
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Constraints
+import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
@@ -110,8 +131,14 @@ import dev.hanada.tubevault.lyrics.LyricsController
 import dev.hanada.tubevault.lyrics.LyricsUiState
 import dev.hanada.tubevault.lyrics.currentLyricLineIndex
 import dev.hanada.tubevault.playback.PlaybackController
-import kotlinx.coroutines.delay
 import java.io.File
+import kotlin.math.PI
+import kotlin.math.abs
+import kotlin.math.cos
+import kotlin.math.roundToInt
+import kotlin.math.sin
+import kotlin.random.Random
+import kotlinx.coroutines.delay
 
 /** Persistent bar that sits above the bottom navigation while something plays. */
 @Composable
@@ -519,6 +546,7 @@ private fun ImmersivePlayer(
     val lyricsState by lyrics.state.collectAsStateWithLifecycle()
     val lyricsOffsetMs by lyrics.offsetMs.collectAsStateWithLifecycle()
     val lyricsVisible by lyrics.fullscreenLyricsVisible.collectAsStateWithLifecycle()
+    val scatterVisible by lyrics.fullscreenScatterVisible.collectAsStateWithLifecycle()
 
     var controlsVisible by remember { mutableStateOf(true) }
     var showLyricsDialog by remember { mutableStateOf(false) }
@@ -582,7 +610,8 @@ private fun ImmersivePlayer(
                                 .verticalScroll(rememberScrollState())
                                 .padding(horizontal = 12.dp, vertical = 24.dp),
                         )
-                        else -> Unit
+                        LyricsUiState.Loading -> Unit
+                        else -> NoLyrics()
                     }
                 }
             }
@@ -599,6 +628,16 @@ private fun ImmersivePlayer(
                         model = current.thumbPath?.let { File(it) },
                         durationSec = 0,
                         modifier = Modifier.align(Alignment.Center).fillMaxHeight(0.7f).aspectRatio(1f),
+                    )
+                }
+                // Drawn over the video only, never the card, and only when the
+                // lines are timed — untimed text has no "current" line to drop in.
+                val synced = lyricsState as? LyricsUiState.Synced
+                if (scatterVisible && synced != null) {
+                    FloatingLyrics(
+                        lines = synced.lines,
+                        positionMs = positionMs - lyricsOffsetMs,
+                        modifier = Modifier.fillMaxSize(),
                     )
                 }
             }
@@ -627,6 +666,20 @@ private fun ImmersivePlayer(
                         .padding(horizontal = 24.dp, vertical = 16.dp),
                 )
                 Row(modifier = Modifier.align(Alignment.TopEnd).padding(4.dp)) {
+                    IconButton(
+                        onClick = lyrics::toggleFullscreenScatter,
+                        modifier = if (scatterVisible) {
+                            Modifier.background(Color.White.copy(alpha = 0.25f), CircleShape)
+                        } else {
+                            Modifier
+                        },
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.AutoAwesome,
+                            contentDescription = if (scatterVisible) "歌詞ランダム表示をOFF" else "歌詞ランダム表示をON",
+                            tint = if (scatterVisible) Color.White else Color.White.copy(alpha = 0.5f),
+                        )
+                    }
                     IconButton(onClick = lyrics::toggleFullscreenLyrics) {
                         Icon(
                             imageVector = if (lyricsVisible) {
@@ -910,13 +963,15 @@ private fun LyricsPanel(
     val state by lyrics.state.collectAsStateWithLifecycle()
     val offsetMs by lyrics.offsetMs.collectAsStateWithLifecycle()
     Box(modifier = modifier, contentAlignment = Alignment.Center) {
-        (state as? LyricsUiState.Synced)?.let {
-            SyncedLyrics(
-                lines = it.lines,
+        when (val s = state) {
+            is LyricsUiState.Synced -> SyncedLyrics(
+                lines = s.lines,
                 positionMs = positionMs,
                 offsetMs = offsetMs,
                 onSetOffset = lyrics::setOffset,
             )
+            LyricsUiState.NotFound -> NoLyrics()
+            else -> Unit
         }
     }
 }
@@ -1100,6 +1155,236 @@ private const val CONTROLS_TIMEOUT_MS = 3_500L
 
 /** About the share of a landscape screen a navigation map's floating card takes. */
 private const val FULLSCREEN_LYRICS_WIDTH_FRACTION = 0.28f
+
+/** Placeholder for a lyrics area with nothing to show. */
+@Composable
+private fun NoLyrics() {
+    Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+        Text(
+            text = "No Lyrics",
+            style = MaterialTheme.typography.titleMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+    }
+}
 private const val SKIP_GESTURE_MS = 15_000L
 private const val SKIP_FEEDBACK_MS = 600L
 private const val SWIPE_THRESHOLD_DP = 56
+
+private enum class FloatStyle { HORIZONTAL, VERTICAL, DIAGONAL }
+
+/**
+ * One scattered line, already measured and placed. [center] is where its
+ * middle sits in the frame, and [bounds] is the area it covers once rotated
+ * and padded by [FLOAT_GAP] — what later lines are kept clear of.
+ */
+private class FloatingLine(
+    val id: Long,
+    val shaped: String,
+    val style: FloatStyle,
+    val rotation: Float,
+    val sizeSp: Float,
+    val widthPx: Int,
+    val heightPx: Int,
+    val center: Offset,
+    val bounds: Rect,
+)
+
+/**
+ * Fullscreen's take on lyrics: each line drifts in at a random spot — set
+ * horizontally, stacked vertically, or tilted — then fades away, the way the
+ * Music Lyrics PWA scatters them. Kept deliberately faint, since in fullscreen
+ * the video is the point and the lyrics are only ever an accent over it.
+ * Draws no pointer input of its own, so taps and swipes fall straight through
+ * to the video underneath.
+ *
+ * Every line is measured before it is placed, so it is shrunk until its
+ * rotated footprint fits the frame and then positioned only where it clears
+ * the lines already on screen — nothing runs off an edge or lands on top of
+ * the previous line.
+ */
+@Composable
+private fun FloatingLyrics(
+    lines: List<LyricLine>,
+    positionMs: Long,
+    modifier: Modifier = Modifier,
+) {
+    val active = remember(lines, positionMs) { currentLyricLineIndex(lines, positionMs) }
+    val shown = remember(lines) { mutableStateListOf<FloatingLine>() }
+    var nextId by remember { mutableStateOf(0L) }
+    val measurer = rememberTextMeasurer()
+    val density = LocalDensity.current
+
+    BoxWithConstraints(modifier = modifier) {
+        val frame = Size(constraints.maxWidth.toFloat(), constraints.maxHeight.toFloat())
+
+        LaunchedEffect(lines, active) {
+            val text = lines.getOrNull(active)?.text?.trim().orEmpty()
+            if (text.isEmpty()) return@LaunchedEffect
+            while (shown.size >= FLOAT_MAX_VISIBLE) shown.removeAt(0)
+            var placed = placeFloatingLine(nextId, text, frame, density, measurer, shown.map { it.bounds })
+            // Nowhere clear left: let the oldest line go early rather than
+            // overlap it or drop the new one.
+            while (placed == null && shown.isNotEmpty()) {
+                shown.removeAt(0)
+                placed = placeFloatingLine(nextId, text, frame, density, measurer, shown.map { it.bounds })
+            }
+            placed?.let {
+                nextId++
+                shown += it
+            }
+        }
+
+        shown.forEach { line ->
+            key(line.id) {
+                FloatingLineText(line = line, onExpired = { shown.remove(line) })
+            }
+        }
+    }
+}
+
+@Composable
+private fun FloatingLineText(line: FloatingLine, onExpired: () -> Unit) {
+    val fade = remember { Animatable(0f) }
+    LaunchedEffect(line.id) {
+        fade.animateTo(FLOAT_ALPHA, tween(durationMillis = 800))
+        delay(FLOAT_HOLD_MS)
+        fade.animateTo(0f, tween(durationMillis = 1_200))
+        onExpired()
+    }
+
+    val density = LocalDensity.current
+    val strokePx = with(density) { FLOAT_OUTLINE_WIDTH.toPx() }
+    val base = floatingTextStyle(line.sizeSp, line.style)
+
+    // The outline is the same text drawn twice — a black stroke underneath,
+    // the white fill on top — so the edge holds against any frame, light
+    // or dark. The stroke layer also casts its own black shadow, which
+    // softens that edge into a blur instead of a hard cut-out line.
+    Box(
+        modifier = Modifier
+            .offset {
+                IntOffset(
+                    (line.center.x - line.widthPx / 2f).roundToInt(),
+                    (line.center.y - line.heightPx / 2f).roundToInt(),
+                )
+            }
+            .width(with(density) { line.widthPx.toDp() })
+            .graphicsLayer {
+                alpha = fade.value
+                rotationZ = line.rotation
+            },
+    ) {
+        Text(
+            text = line.shaped,
+            color = Color.Black,
+            style = base.copy(
+                drawStyle = Stroke(width = strokePx, join = StrokeJoin.Round),
+                shadow = Shadow(color = Color.Black, blurRadius = FLOAT_OUTLINE_BLUR),
+            ),
+        )
+        Text(text = line.shaped, color = Color.White, style = base)
+    }
+}
+
+private fun floatingTextStyle(sizeSp: Float, style: FloatStyle) = TextStyle(
+    fontSize = sizeSp.sp,
+    lineHeight = (sizeSp * if (style == FloatStyle.VERTICAL) 1.05f else 1.25f).sp,
+    fontWeight = FontWeight.ExtraBold,
+    textAlign = TextAlign.Center,
+)
+
+/**
+ * Finds a spot for [text], or null when the frame has no clear room for it.
+ *
+ * Each attempt picks a style, then shrinks the font until the line's rotated
+ * footprint fits the frame (a long line stacked upright would otherwise be
+ * taller than the screen), then tries a random centre inside the margin. A
+ * spot is rejected if it touches a line in [occupied] or — for the first
+ * attempts — the middle of the frame, where a video's subject usually sits.
+ */
+private fun placeFloatingLine(
+    id: Long,
+    text: String,
+    frame: Size,
+    density: Density,
+    measurer: TextMeasurer,
+    occupied: List<Rect>,
+): FloatingLine? {
+    val gap = with(density) { FLOAT_GAP.toPx() }
+    val maxLineWidth = minOf(frame.width * 0.7f, with(density) { FLOAT_MAX_LINE_WIDTH.toPx() })
+    val centreZone = Rect(frame.width * 0.3f, frame.height * 0.3f, frame.width * 0.7f, frame.height * 0.7f)
+
+    repeat(FLOAT_PLACE_ATTEMPTS) { attempt ->
+        val style = when {
+            // Stacked one character per row, a long line is taller than any screen.
+            text.length > FLOAT_VERTICAL_MAX_CHARS -> listOf(FloatStyle.HORIZONTAL, FloatStyle.DIAGONAL).random()
+            else -> FloatStyle.entries.random()
+        }
+        val shaped = if (style == FloatStyle.VERTICAL) {
+            text.filterNot { it.isWhitespace() }.toList().joinToString("\n")
+        } else {
+            text
+        }
+        val rotation = when (style) {
+            FloatStyle.DIAGONAL -> (Random.nextFloat() * 14f + 10f) * if (Random.nextBoolean()) 1f else -1f
+            else -> 0f
+        }
+        val radians = rotation * PI.toFloat() / 180f
+        val cosA = abs(cos(radians))
+        val sinA = abs(sin(radians))
+
+        var sizeSp = Random.nextInt(26, 43).toFloat()
+        while (sizeSp >= FLOAT_MIN_SP) {
+            val constraints = if (style == FloatStyle.VERTICAL) {
+                Constraints()
+            } else {
+                Constraints(maxWidth = maxLineWidth.toInt())
+            }
+            val size = measurer.measure(
+                text = AnnotatedString(shaped),
+                style = floatingTextStyle(sizeSp, style),
+                constraints = constraints,
+            ).size
+            val width = size.width + 2
+            val height = size.height
+            val boundsW = width * cosA + height * sinA + 2 * gap
+            val boundsH = width * sinA + height * cosA + 2 * gap
+            if (boundsW <= frame.width && boundsH <= frame.height) {
+                val cx = Random.nextFloat() * (frame.width - boundsW) + boundsW / 2f
+                val cy = Random.nextFloat() * (frame.height - boundsH) + boundsH / 2f
+                val bounds = Rect(cx - boundsW / 2f, cy - boundsH / 2f, cx + boundsW / 2f, cy + boundsH / 2f)
+                val clear = occupied.none { it.overlaps(bounds) } &&
+                    (attempt >= FLOAT_CENTRE_AVOID_ATTEMPTS || !centreZone.overlaps(bounds))
+                if (clear) {
+                    return FloatingLine(
+                        id = id,
+                        shaped = shaped,
+                        style = style,
+                        rotation = rotation,
+                        sizeSp = sizeSp,
+                        widthPx = width,
+                        heightPx = height,
+                        center = Offset(cx, cy),
+                        bounds = bounds,
+                    )
+                }
+                return@repeat
+            }
+            sizeSp *= 0.9f
+        }
+    }
+    return null
+}
+
+private const val FLOAT_MAX_VISIBLE = 3
+private const val FLOAT_ALPHA = 0.6f
+private val FLOAT_OUTLINE_WIDTH = 4.dp
+private const val FLOAT_OUTLINE_BLUR = 28f
+private const val FLOAT_HOLD_MS = 4_500L
+private const val FLOAT_VERTICAL_MAX_CHARS = 14
+private const val FLOAT_MIN_SP = 16f
+private const val FLOAT_PLACE_ATTEMPTS = 40
+private const val FLOAT_CENTRE_AVOID_ATTEMPTS = 25
+private val FLOAT_GAP = 16.dp
+private val FLOAT_MAX_LINE_WIDTH = 420.dp

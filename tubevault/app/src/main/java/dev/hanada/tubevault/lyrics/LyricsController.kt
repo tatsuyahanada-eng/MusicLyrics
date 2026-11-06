@@ -53,6 +53,10 @@ class LyricsController(
     private val _fullscreenLyricsVisible = MutableStateFlow(true)
     val fullscreenLyricsVisible: StateFlow<Boolean> = _fullscreenLyricsVisible.asStateFlow()
 
+    /** Whether fullscreen also scatters each line faintly over the video. Off unless asked for. */
+    private val _fullscreenScatterVisible = MutableStateFlow(false)
+    val fullscreenScatterVisible: StateFlow<Boolean> = _fullscreenScatterVisible.asStateFlow()
+
     /** How far this recording's clock sits from the lyrics' own, set by tapping the line being sung. */
     fun setOffset(ms: Long) {
         _offsetMs.value = ms
@@ -60,6 +64,10 @@ class LyricsController(
 
     fun toggleFullscreenLyrics() {
         _fullscreenLyricsVisible.value = !_fullscreenLyricsVisible.value
+    }
+
+    fun toggleFullscreenScatter() {
+        _fullscreenScatterVisible.value = !_fullscreenScatterVisible.value
     }
 
     private var fetchJob: Job? = null
