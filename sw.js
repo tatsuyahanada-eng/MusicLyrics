@@ -4,12 +4,12 @@
    予定データの同期（sync.php）は常に通信を行い、キャッシュしない。
    ============================================================ */
 
-const CACHE = 'task-scheduler-v52';
+const CACHE = 'task-scheduler-v53';
 
 const ASSETS = [
   './schedule.html',
-  './schedule.css?v=52',
-  './schedule.js?v=52',
+  './schedule.css?v=53',
+  './schedule.js?v=53',
   './manifest.webmanifest',
   './icons/icon-192.png',
   './icons/icon-512.png',
@@ -44,8 +44,8 @@ self.addEventListener('fetch', (event) => {
   const url = new URL(req.url);
   if (url.origin !== self.location.origin) return;
 
-  // 同期の通信は必ずサーバへ（古い内容を返さない）
-  if (url.pathname.endsWith('/sync.php')) return;
+  // ログインと同期の通信は必ずサーバへ（古い内容を返さない）
+  if (url.pathname.endsWith('/sync.php') || url.pathname.endsWith('/api.php')) return;
 
   // 表示に使うファイルは、まず通信を試し、失敗したら保存済みを使う
   event.respondWith(

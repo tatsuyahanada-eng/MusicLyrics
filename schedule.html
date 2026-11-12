@@ -13,7 +13,7 @@
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="default">
   <meta name="apple-mobile-web-app-title" content="VertiCale">
-  <link rel="stylesheet" href="schedule.css?v=52">
+  <link rel="stylesheet" href="schedule.css?v=53">
 </head>
 <body class="sc-body">
 
@@ -248,52 +248,32 @@
       <p class="sc-note">データの共有・Googleカレンダーへの移行・案件名の管理など、この画面ですべて設定できます。</p>
 
       <details class="sc-settings-block" id="syncBlock">
-        <summary>🔄 データ共有（端末間で同期）</summary>
+        <summary>👤 アカウントとデータ共有（データベースに保存）</summary>
 
-      <p class="sc-settings-note"><span id="syncStatus" class="sc-sync-status">未設定</span></p>
+        <p class="sc-settings-note"><span id="syncStatus" class="sc-sync-status">確認中…</span></p>
 
-      <div class="sc-export-opts">
-        <label class="sc-field">
-          <span class="sc-field-label">保存先のURL（sync.php の場所）</span>
-          <input id="syncUrl" class="sc-input sc-input-sm" type="text" placeholder="sync.php" autocomplete="off">
-        </label>
-        <label class="sc-field">
-          <span class="sc-field-label">合言葉（PC・スマホで同じもの）</span>
-          <input id="syncKey" class="sc-input sc-input-sm" type="text" placeholder="12文字以上" autocomplete="off" spellcheck="false">
-        </label>
-        <button id="genKey" class="sc-btn sc-btn-sm sc-btn-outline" type="button">合言葉を作る</button>
-        <label class="sc-check">
-          <input id="syncAuto" type="checkbox" checked>
-          <span>自動で同期する</span>
-        </label>
-      </div>
+        <!-- ログイン中のアカウント・同期・パスワード変更・ユーザー管理（schedule.js が状況に合わせて描く） -->
+        <div id="accountBox"></div>
 
-      <div class="sc-export-actions">
-        <button id="syncNowBtn" class="sc-btn">🔄 今すぐ同期</button>
-        <button id="syncTest" class="sc-btn sc-btn-outline">接続テスト</button>
-      </div>
-      <p class="sc-note">
-        同期は「送る」「取り込む」ではなく、両方の内容を突き合わせて<strong>1件ずつ新しいほうを残します</strong>。
-        PCとスマホで別々に登録しても、どちらの予定も消えません。削除した予定は他の端末からも消えます。
-      </p>
-
-      <details class="sc-help">
-        <summary>設定のしかた</summary>
-        <ol class="sc-help-list">
-          <li><strong>sync.php をアップロード</strong>：schedule.html と同じフォルダに置きます。
-            データを入れるフォルダは初回に自動で作られます。</li>
-          <li><strong>合言葉を決める</strong>：PCでこの画面を開き、「合言葉を作る」を押します。
-            自動で作られた文字列をメモしてください。</li>
-          <li><strong>スマホでも同じ合言葉を入れる</strong>：スマホで同じページを開き、
-            同じ合言葉を入力して「⬇️ 保存されている内容を取り込む」を押します。</li>
-          <li>以降は、変更するたびに自動で保存され、ページを開いたときに自動で取り込まれます。</li>
-        </ol>
         <p class="sc-note">
-          合言葉を知っている人だけがデータを読み書きできます。長い合言葉のままお使いください。
-          さらに厳重にする場合は、フォルダごと Basic 認証（.htaccess）で保護してください。設定例は下の
-          「アクセス制限」に記載しています。
+          予定はサーバの<strong>データベース</strong>に保存され、同じアカウントでログインしたPC・スマホに自動で反映されます。
+          同期は両方の内容を突き合わせて<strong>1件ずつ新しいほうを残す</strong>ので、別々の端末で登録しても、どちらの予定も消えません。
+          通信できないときはこの端末に保存しておき、つながったときに自動で反映します。
         </p>
-      </details>
+
+        <details class="sc-help">
+          <summary>しくみと、他の人に渡すとき</summary>
+          <ol class="sc-help-list">
+            <li><strong>ログイン</strong>：この画面を開くと、ログインIDとパスワードを入力する画面が出ます。
+              以前のBasic認証（.htaccess / .htpasswd）は不要になったので、サーバから削除してかまいません。</li>
+            <li><strong>保存先</strong>：はじめて開いたときの「初期設定」で、かんたん（SQLite：設定不要）か
+              MySQL / MariaDB を選びます。接続先は同じフォルダの <code>config.php</code> に保存されます。</li>
+            <li><strong>別のサーバへ移す・人に譲る</strong>：ファイル一式をアップロードして開くと、新しい「初期設定」から始まります。
+              MySQLの接続先をあらかじめ決めておく場合は <code>config.sample.php</code> を <code>config.php</code> にコピーして書き換えます。
+              予定のデータを渡す場合は「バックアップ保存」で保存したファイルを、新しい環境の「バックアップ読込」で読み込みます。</li>
+            <li><strong>複数人で使う</strong>：管理者は下の「ユーザーの管理」からアカウントを追加できます。予定はアカウントごとに別々です。</li>
+          </ol>
+        </details>
       </details>
 
       <details class="sc-settings-block" id="gcalBlock">
@@ -467,29 +447,8 @@
           <button id="resetAll" class="sc-btn sc-btn-sm sc-btn-outline sc-btn-danger">🗑 全データ削除</button>
         </div>
         <p class="sc-note">
-          データはこのブラウザ内に保存されます。上の「データ共有」を設定すると、サーバ経由で
-          他の端末にも反映されます。設定していない場合は端末ごとに別々のデータになるため、
-          バックアップ保存をおすすめします。
-        </p>
-      </details>
-
-      <details class="sc-help">
-        <summary>他の人に見られないようにする（Basic認証の設定例）</summary>
-        <p class="sc-note">
-          このツールを置いたフォルダに <code>.htaccess</code> と <code>.htpasswd</code> を作ると、
-          開くときにIDとパスワードを求められるようになります。多くのレンタルサーバでは、
-          管理画面に「アクセス制限」「Basic認証」といった設定項目が用意されているので、
-          そちらを使うのが簡単です。手動で設定する場合は次のようにします。
-        </p>
-        <p class="sc-note"><strong>.htaccess</strong>（ツールと同じフォルダに置く）</p>
-        <pre class="sc-code">AuthType Basic
-AuthName "VertiCale"
-AuthUserFile /home/ユーザー名/www/schedule/.htpasswd
-Require valid-user</pre>
-        <p class="sc-note">
-          <code>AuthUserFile</code> には <code>.htpasswd</code> の<strong>サーバ上の絶対パス</strong>を書きます
-          （パスはご利用のサーバの管理画面で確認できます）。
-          <code>.htpasswd</code> はサーバの管理画面や「.htpasswd 作成」で検索できる生成ツールで作れます。
+          予定はログイン中のアカウントのデータとしてデータベースに保存され、この端末にも控えを持っています。
+          「バックアップ保存」は、いまの内容を1つのファイルに書き出します（別の環境へ移すときにも使えます）。
         </p>
       </details>
 
@@ -515,6 +474,83 @@ Require valid-user</pre>
 
   <div id="toast" class="sc-toast" role="status" aria-live="polite" hidden></div>
 
+  <!-- ログイン・初期設定の画面（ログインするまで、予定の画面は見せない） -->
+  <div id="authOverlay" class="sc-auth-overlay" hidden>
+    <div class="sc-auth-box" role="dialog" aria-modal="true" aria-labelledby="authTitle">
+      <div class="sc-auth-brand">
+        <img src="icons/icon-192.png" width="56" height="56" alt="">
+        <strong>VertiCale</strong>
+      </div>
+      <h2 id="authTitle" class="sc-auth-title">ログイン</h2>
+      <p id="authLead" class="sc-auth-lead"></p>
+
+      <form id="loginForm" class="sc-form" autocomplete="on" hidden>
+        <label class="sc-field">
+          <span class="sc-field-label">ログインID</span>
+          <input id="authLogin" name="username" class="sc-input" type="text" autocomplete="username" autocapitalize="none" spellcheck="false" required>
+        </label>
+        <label class="sc-field">
+          <span class="sc-field-label">パスワード</span>
+          <input id="authPassword" name="password" class="sc-input" type="password" autocomplete="current-password" required>
+        </label>
+        <label class="sc-check">
+          <input id="authRemember" type="checkbox" checked>
+          <span>この端末ではログインしたままにする</span>
+        </label>
+        <button type="submit" id="authLoginBtn" class="sc-btn sc-btn-block">ログイン</button>
+      </form>
+
+      <form id="setupForm" class="sc-form" autocomplete="off" hidden>
+        <div id="setupDbBox">
+          <p class="sc-field-label">予定の保存先（データベース）</p>
+          <label class="sc-auth-choice">
+            <input type="radio" name="setupDriver" value="sqlite" checked>
+            <span><strong>かんたん（おすすめ）</strong><small>設定は不要です。サーバのこのフォルダの中にデータベースを作ります。</small></span>
+          </label>
+          <label class="sc-auth-choice">
+            <input type="radio" name="setupDriver" value="mysql">
+            <span><strong>MySQL / MariaDB</strong><small>レンタルサーバなどで用意したデータベースを使います。</small></span>
+          </label>
+          <div id="setupMysql" class="sc-auth-mysql" hidden>
+            <div class="sc-form-row">
+              <label class="sc-field"><span class="sc-field-label">ホスト名</span>
+                <input id="setupDbHost" class="sc-input" type="text" value="localhost" autocapitalize="none" spellcheck="false"></label>
+              <label class="sc-field"><span class="sc-field-label">ポート（空欄でよい）</span>
+                <input id="setupDbPort" class="sc-input" type="text" inputmode="numeric" placeholder="3306"></label>
+            </div>
+            <label class="sc-field"><span class="sc-field-label">データベース名</span>
+              <input id="setupDbName" class="sc-input" type="text" autocapitalize="none" spellcheck="false"></label>
+            <div class="sc-form-row">
+              <label class="sc-field"><span class="sc-field-label">ユーザー名</span>
+                <input id="setupDbUser" class="sc-input" type="text" autocapitalize="none" spellcheck="false"></label>
+              <label class="sc-field"><span class="sc-field-label">パスワード</span>
+                <input id="setupDbPass" class="sc-input" type="password" autocomplete="off"></label>
+            </div>
+          </div>
+        </div>
+        <p class="sc-field-label" style="margin-top:6px">管理者のアカウント（これからログインに使います）</p>
+        <label class="sc-field">
+          <span class="sc-field-label">ログインID（半角英数字 3文字以上）</span>
+          <input id="setupLogin" class="sc-input" type="text" autocomplete="username" autocapitalize="none" spellcheck="false" required>
+        </label>
+        <label class="sc-field">
+          <span class="sc-field-label">お名前（画面に表示）</span>
+          <input id="setupName" class="sc-input" type="text" autocomplete="name">
+        </label>
+        <div class="sc-form-row">
+          <label class="sc-field"><span class="sc-field-label">パスワード（8文字以上）</span>
+            <input id="setupPassword" class="sc-input" type="password" autocomplete="new-password" required></label>
+          <label class="sc-field"><span class="sc-field-label">もう一度</span>
+            <input id="setupPassword2" class="sc-input" type="password" autocomplete="new-password" required></label>
+        </div>
+        <button type="submit" id="setupBtn" class="sc-btn sc-btn-block">この内容で始める</button>
+      </form>
+
+      <p id="authError" class="sc-auth-error" role="alert" hidden></p>
+      <button type="button" id="authRetry" class="sc-btn sc-btn-outline sc-btn-block" hidden>もう一度確認する</button>
+    </div>
+  </div>
+
   <!-- 端末やPWAの状態によってはブラウザ標準のconfirm()が出ないことがあるため、
        休み希望・稼働可などの1タップ確定には自前の確認ダイアログを使う -->
   <div id="confirmOverlay" class="sc-confirm-overlay" hidden>
@@ -527,6 +563,6 @@ Require valid-user</pre>
     </div>
   </div>
 
-  <script src="schedule.js?v=52"></script>
+  <script src="schedule.js?v=53"></script>
 </body>
 </html>

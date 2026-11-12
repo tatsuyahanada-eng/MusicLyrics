@@ -1794,18 +1794,30 @@ function buildJobsText() {
 }
 
 /* ------------------------------------------------------------
-   端末間の同期（サーバの sync.php に保存）
+   ログインと、データベースへの保存（サーバの api.php）
+   予定はこの端末（localStorage）にも控えを持ち、ログイン中はデータベースと突き合わせて同期する。
    ------------------------------------------------------------ */
 
 const SYNC_KEY_STORE = 'ms-schedule-sync-v1';
+const API_URL = 'api.php';
+const AUTH_STORE = 'ms-schedule-auth-v1';       // この端末で最後に確認できたログイン状態（オフラインでも使えるように）
+const OWNER_STORE = 'ms-schedule-owner-v1';     // この端末のデータが、どのアカウントのものか
+const BACKUP_STORE = 'ms-schedule-backup-before-db';   // データベース方式へ切り替える直前の控え
+const STASH_PREFIX = 'ms-schedule-stash:';      // 同期できないままログアウトしたときの控え（次のログインで戻す）
 
-/** 同期の設定は端末ごとの設定なので、予定データとは別に保存する */
-let sync = { url: 'sync.php', key: '', auto: true, rev: 0, lastAt: null };
+/**
+ * 同期の設定は端末ごとの設定なので、予定データとは別に保存する。
+ * url / key は以前の「合言葉」方式の名残で、旧データの取り込みにだけ使う。
+ */
+let sync = { url: 'sync.php', key: '', auto: true, rev: 0, lastAt: null, legacyDone: false };
 let installPrompt = null;   // 「アプリとして追加」用
 let syncTimer = null;
 let syncPoll = null;
 let syncBusy = false;
 let syncPending = false;
+
+/** mode: unknown=確認中 / server=データベースに保存 / local=この端末だけ（api.php が無い場所で開いたとき） */
+const auth = { mode: 'unknown', user: null, site: null, offline: false, users: null, drivers: {}, hasConfig: false };
 
 function loadSyncConfig() {
   try {
@@ -1820,8 +1832,27 @@ function saveSyncConfig() {
   } catch (err) { /* 保存できなくても動作は続ける */ }
 }
 
+function lsGet(key) {
+  try { return localStorage.getItem(key); } catch (err) { return null; }
+}
+function lsSet(key, value) {
+  try { localStorage.setItem(key, value); return true; } catch (err) { return false; }
+}
+function lsDel(key) {
+  try { localStorage.removeItem(key); } catch (err) { /* 何もしない */ }
+}
+
+/** データベースと同期できる状態か（ログイン済み） */
 function syncConfigured() {
-  return !!(sync.url && sync.key && sync.key.trim().length >= 12);
+  return auth.mode === 'server' && !!auth.user;
+}
+
+function legacyKeyConfigured() {
+  return !!(sync.url && sync.key && String(sync.key).trim().length >= 12);
+}
+
+function ownerKey() {
+  return auth.user ? `${auth.site || 'site'}:${auth.user.id}` : '';
 }
 
 function setSyncStatus(text, kind) {
@@ -1834,7 +1865,8 @@ function setSyncStatus(text, kind) {
   // メニューバーには短い状態だけ出す
   const badge = $('syncBadge');
   if (badge) {
-    const label = !syncConfigured() ? '同期オフ'
+    const label = auth.mode === 'local' ? '端末のみ'
+      : !syncConfigured() ? '未ログイン'
       : kind === 'ok' ? '同期済み ' + syncTimeLabel(sync.lastAt)
       : kind === 'busy' ? '同期中…'
       : kind === 'error' ? '同期エラー'
@@ -1896,9 +1928,8 @@ function syncFingerprint(data) {
   return stableStringify({ wishes, jobs, todos, settings: (data && data.settings) || {} });
 }
 
-function applySyncedData(data) {
-  if (!data || typeof data !== 'object') return false;
-  state = normalizeState(data);
+/** いまの state を画面全体に反映し直す（取り込み・ログイン・ログアウトのあと） */
+function refreshAfterStateChange() {
   view.editingId = null;
   view.confirming = false;
   view.form = blankForm();
@@ -1906,23 +1937,60 @@ function applySyncedData(data) {
   syncSettingsInputs();
   refreshWorkTypeOptions();
   refreshProjectFilterOptions();
+  ensureNotifyChecker();
   renderAll();
+}
+
+function applySyncedData(data) {
+  if (!data || typeof data !== 'object') return false;
+  state = normalizeState(data);
+  refreshAfterStateChange();
   return true;
 }
 
-function syncEndpoint(params) {
-  const base = sync.url.trim();
-  const sep = base.indexOf('?') >= 0 ? '&' : '?';
-  return base + sep + params;
+function stateCounts(s) {
+  const src = s || state;
+  return {
+    jobs: (src.jobs || []).length,
+    wishes: Object.keys(src.wishes || {}).length,
+    todos: (src.todos || []).length,
+  };
+}
+
+function stateHasData(s) {
+  const c = stateCounts(s);
+  return c.jobs + c.wishes + c.todos > 0;
 }
 
 /**
- * サーバの内容とこの端末の内容を突き合わせて、両方を残した状態にそろえる。
+ * api.php と通信する。返り値は { status, json }。
+ * 通信そのものができない（オフライン）ときは例外を投げ、JSONでない応答（api.php が無い）は json を null にする。
+ */
+async function apiFetch(action, opts) {
+  const o = opts || {};
+  const init = {
+    method: o.method || 'GET',
+    cache: 'no-store',
+    credentials: 'same-origin',
+    headers: { 'X-Requested-With': 'VertiCale' },
+  };
+  if (o.body !== undefined) {
+    init.headers['Content-Type'] = 'application/json';
+    init.body = JSON.stringify(o.body);
+  }
+  const res = await fetch(API_URL + '?action=' + encodeURIComponent(action), init);
+  let json = null;
+  try { json = await res.json(); } catch (err) { json = null; }
+  return { status: res.status, json: json };
+}
+
+/**
+ * データベースの内容とこの端末の内容を突き合わせて、両方を残した状態にそろえる。
  * 1件ずつ新しいほうを採用するので、確認を挟まなくても入力が消えない。
  */
 async function syncNow(silent, attempt) {
   if (!syncConfigured()) {
-    if (!silent) toast('URLと合言葉（12文字以上）を入力してください', true);
+    if (!silent) toast(auth.mode === 'local' ? 'この場所ではデータベースを使えません（api.php がありません）' : 'ログインすると同期できます', true);
     return false;
   }
   if (syncBusy) { syncPending = true; return false; }
@@ -1931,9 +1999,10 @@ async function syncNow(silent, attempt) {
   if (!silent || tries === 1) setSyncStatus('同期中…', 'busy');
 
   try {
-    const res = await fetch(syncEndpoint('key=' + encodeURIComponent(sync.key)), { cache: 'no-store' });
-    const got = await res.json();
-    if (!res.ok || !got.ok) throw new Error(got.error || ('通信エラー（' + res.status + '）'));
+    const res = await apiFetch('state');
+    if (res.status === 401) { handleSessionLost(); return false; }
+    const got = res.json;
+    if (!got || !got.ok) throw new Error((got && got.error) || ('通信エラー（' + res.status + '）'));
 
     const before = syncFingerprint(syncPayload());
     const serverData = got.data || null;
@@ -1950,33 +2019,22 @@ async function syncNow(silent, attempt) {
     const localChanged = syncFingerprint(mergedPayload) !== before;
     if (localChanged) {
       state = normalizeState(mergedPayload);
-      view.editingId = null;
-      view.confirming = false;
-      view.form = blankForm();
-      saveState(true);
-      syncSettingsInputs();
-      refreshWorkTypeOptions();
-      refreshProjectFilterOptions();
-      ensureNotifyChecker();
-      renderAll();
+      refreshAfterStateChange();
     }
 
-    // サーバに足りない分があれば送る
+    // データベースに足りない分があれば送る
     const serverChanged = !serverData || syncFingerprint(mergedPayload) !== syncFingerprint(serverData);
     if (serverChanged) {
-      const put = await fetch(sync.url.trim(), {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ key: sync.key, baseRev: got.rev, data: mergedPayload }),
-      });
+      const put = await apiFetch('state', { method: 'POST', body: { baseRev: got.rev, data: mergedPayload } });
+      if (put.status === 401) { handleSessionLost(); return false; }
       if (put.status === 409) {
         // 送っている間に他の端末が保存した。取り直してもう一度突き合わせる
         syncBusy = false;
         if (tries < 4) return syncNow(silent, tries + 1);
         throw new Error('他の端末の更新と重なりました。もう一度お試しください');
       }
-      const saved = await put.json();
-      if (!put.ok || !saved.ok) throw new Error(saved.error || ('通信エラー（' + put.status + '）'));
+      const saved = put.json;
+      if (!saved || !saved.ok) throw new Error((saved && saved.error) || ('通信エラー（' + put.status + '）'));
       sync.rev = saved.rev;
     } else {
       sync.rev = got.rev;
@@ -1984,6 +2042,7 @@ async function syncNow(silent, attempt) {
 
     sync.lastAt = nowIso();
     saveSyncConfig();
+    auth.offline = false;
 
     const label = localChanged
       ? '同期しました（' + syncTimeLabel(sync.lastAt) + '）'
@@ -1994,8 +2053,10 @@ async function syncNow(silent, attempt) {
     if (syncPending) { syncPending = false; syncBusy = false; return syncNow(true, 1); }
     return true;
   } catch (err) {
-    setSyncStatus('同期できません：' + err.message, 'error');
-    if (!silent) toast('同期できません：' + err.message, true);
+    const offline = err instanceof TypeError;   // fetch 自体の失敗＝通信できない
+    const msg = offline ? '通信できません（つながったときに自動で同期します）' : err.message;
+    setSyncStatus('同期できません：' + msg, 'error');
+    if (!silent) toast('同期できません：' + msg, true);
     return false;
   } finally {
     syncBusy = false;
@@ -2019,43 +2080,502 @@ function startSyncPolling() {
   }, 45000);
 }
 
-async function syncTest() {
-  if (!syncConfigured()) { toast('URLと合言葉（12文字以上）を入力してください', true); return; }
-  setSyncStatus('確認中…', 'busy');
+/* ---- ログイン画面・初期設定 ---- */
+
+function saveAuthCache() {
+  lsSet(AUTH_STORE, JSON.stringify({
+    installed: auth.mode === 'server',
+    site: auth.site,
+    user: auth.user,
+  }));
+}
+
+function loadAuthCache() {
+  try { return JSON.parse(lsGet(AUTH_STORE) || 'null'); } catch (err) { return null; }
+}
+
+/** ログイン／初期設定／通信待ちの画面を出す（予定の画面は隠す） */
+function showAuth(kind, message) {
+  const ov = $('authOverlay');
+  if (!ov) return;
+  ov.hidden = false;
+  document.body.classList.add('sc-auth-locked');
+  $('loginForm').hidden = kind !== 'login';
+  $('setupForm').hidden = kind !== 'setup';
+  $('authRetry').hidden = kind !== 'offline';
+  $('authTitle').textContent = kind === 'setup' ? '初期設定' : kind === 'offline' ? '通信できません' : 'ログイン';
+  $('authLead').textContent = message || (kind === 'setup'
+    ? 'はじめに、予定の保存先と、ログインに使うアカウントを決めます。'
+    : kind === 'offline'
+      ? 'サーバに接続できないため、ログインの確認ができません。通信できる場所でもう一度お試しください。'
+      : 'ログインIDとパスワードを入力してください。');
+  setAuthError('');
+  if (kind === 'setup') {
+    $('setupDbBox').hidden = !!auth.hasConfig;
+    const my = document.querySelector('input[name="setupDriver"][value="mysql"]');
+    const lite = document.querySelector('input[name="setupDriver"][value="sqlite"]');
+    if (my && lite) {
+      my.disabled = auth.drivers.mysql === false;
+      lite.disabled = auth.drivers.sqlite === false;
+      if (lite.disabled && !my.disabled) my.checked = true;
+      $('setupMysql').hidden = !my.checked;
+    }
+  }
+  const first = kind === 'login' ? $('authLogin') : kind === 'setup' ? $('setupLogin') : null;
+  if (first && !isNarrow()) { try { first.focus(); } catch (err) { /* 何もしない */ } }
+}
+
+function hideAuth() {
+  const ov = $('authOverlay');
+  if (ov) ov.hidden = true;
+  document.body.classList.remove('sc-auth-locked');
+  const pw = $('authPassword');
+  if (pw) pw.value = '';
+}
+
+function setAuthError(msg) {
+  const el = $('authError');
+  if (!el) return;
+  el.textContent = msg || '';
+  el.hidden = !msg;
+}
+
+/**
+ * 起動時に、ログインの状態を確かめる。
+ *   api.php が無い場所（ファイルを直接開いた場合など） … これまでどおり、この端末だけで動かす
+ *   通信できない … 前にログインした端末なら、そのまま使える（つながったら同期）
+ */
+async function authInit() {
+  const cache = loadAuthCache();
+  // 前回ログアウトした端末では、確認が終わる前に予定が見えてしまわないよう先に画面を隠す
+  if (cache && cache.installed && !cache.user) showAuth('login');
+
+  let res;
   try {
-    const res = await fetch(syncEndpoint('action=ping&key=' + encodeURIComponent(sync.key)), { cache: 'no-store' });
-    const json = await res.json();
-    if (!res.ok || !json.ok) throw new Error(json.error || ('通信エラー（' + res.status + '）'));
-    const label = json.rev === 0
-      ? 'つながりました（サーバにはまだデータがありません）'
-      : 'つながりました（予定' + json.jobs + '件・最終保存 ' + (syncTimeLabel(json.updatedAt) || '不明') + '）';
-    setSyncStatus(label, 'ok');
-    toast(label);
+    res = await apiFetch('status');
   } catch (err) {
-    setSyncStatus('つながりません：' + err.message, 'error');
-    toast('つながりません：' + err.message, true);
+    // 通信できない
+    if (cache && cache.installed && cache.user) {
+      auth.mode = 'server';
+      auth.user = cache.user;
+      auth.site = cache.site;
+      auth.offline = true;
+      hideAuth();
+      renderAccount();
+      setSyncStatus('通信できません（つながったときに自動で同期します）', 'error');
+    } else if (cache && cache.installed) {
+      showAuth('offline');
+    } else {
+      auth.mode = 'local';
+      renderAccount();
+      setSyncStatus('この端末のみに保存しています', '');
+    }
+    return;
+  }
+
+  const st = res.json;
+  if (!st || st.app !== 'verticale') {
+    // api.php が無い（またはPHPが動かない）場所では、この端末だけで動かす
+    auth.mode = 'local';
+    auth.user = null;
+    hideAuth();
+    renderAccount();
+    setSyncStatus('この端末のみに保存しています（サーバに api.php がありません）', '');
+    return;
+  }
+
+  auth.drivers = st.drivers || {};
+  auth.hasConfig = !!st.hasConfig;
+  if (!st.installed) {
+    auth.mode = 'server';
+    auth.user = null;
+    showAuth('setup');
+    return;
+  }
+  auth.mode = 'server';
+  auth.site = st.site;
+  if (st.loggedIn && st.user) {
+    await onLoggedIn(st.user, st.site);
+  } else {
+    auth.user = null;
+    saveAuthCache();
+    renderAccount();
+    showAuth('login');
   }
 }
 
-function generateSyncKey() {
-  const chars = 'abcdefghijkmnpqrstuvwxyz23456789';
-  const buf = new Uint8Array(16);
-  (window.crypto || window.msCrypto).getRandomValues(buf);
-  let out = '';
-  for (let i = 0; i < buf.length; i++) {
-    if (i > 0 && i % 4 === 0) out += '-';
-    out += chars[buf[i] % chars.length];
-  }
-  return out;
+/** ログインできたあと：この端末のデータの扱いを決めてから、同期を始める */
+async function onLoggedIn(user, site) {
+  auth.mode = 'server';
+  auth.user = user;
+  auth.site = site || auth.site;
+  auth.offline = false;
+  auth.users = null;
+  saveAuthCache();
+  hideAuth();
+  await adoptLocalData();
+  renderAccount();
+  startSyncPolling();
+  await syncNow(true);
+  renderAccount();
 }
 
-function syncSyncInputs() {
-  $('syncUrl').value = sync.url || '';
-  $('syncKey').value = sync.key || '';
-  $('syncAuto').checked = !!sync.auto;
-  if (!syncConfigured()) setSyncStatus('未設定', '');
-  else if (sync.lastAt) setSyncStatus('前回の同期 ' + syncTimeLabel(sync.lastAt), '');
-  else setSyncStatus('設定済み（未同期）', '');
+/**
+ * この端末に残っているデータと、ログインしたアカウントの関係を整理する。
+ *   同じアカウントのデータ … そのまま同期（突き合わせ）
+ *   まだ誰のものでもないデータ（ログイン方式にする前から使っていた内容） … 確認してから引き継ぐ
+ *   別のアカウントのデータ … 使わない（そのアカウントのデータはデータベース側にある）
+ */
+async function adoptLocalData() {
+  const key = ownerKey();
+  const owner = lsGet(OWNER_STORE);
+
+  if (owner && owner !== key) {
+    // 別のアカウントで使っていた端末。同期できていなかった分は、そのアカウントの控えとして残す
+    if (stateHasData()) lsSet(STASH_PREFIX + owner, JSON.stringify(state));
+    state = defaultState();
+    refreshAfterStateChange();
+  } else if (!owner && stateHasData()) {
+    // ログイン方式にする前からこの端末にあった内容。念のため、切り替える前の姿を控えておく
+    if (!lsGet(BACKUP_STORE)) lsSet(BACKUP_STORE, JSON.stringify({ savedAt: nowIso(), state: state }));
+    const c = stateCounts();
+    const ok = await customConfirm(
+      `この端末には、これまでに登録した内容が保存されています。\n（予定 ${c.jobs}件・希望 ${c.wishes}日・ToDo ${c.todos}件）\n\n`
+      + `「${auth.user.name || auth.user.login}」のデータとして引き継ぎますか？\n\n`
+      + '・引き継ぐ … 内容はそのまま、データベースに保存します\n'
+      + '・引き継がない … この端末の内容は使わず、データベースの内容を表示します（控えは端末に残ります）',
+      { okLabel: '引き継ぐ', cancelLabel: '引き継がない' });
+    if (ok) {
+      // 以前の「合言葉」方式でサーバに保存していた内容も、あれば一緒に取り込む
+      if (legacyKeyConfigured() && !sync.legacyDone) await importLegacyData(true);
+    } else {
+      state = defaultState();
+      refreshAfterStateChange();
+    }
+  }
+
+  // 同期できないままログアウトしていた分があれば、戻してから同期する
+  const stashed = lsGet(STASH_PREFIX + key);
+  if (stashed) {
+    try {
+      state = mergeStates(state, JSON.parse(stashed));
+      refreshAfterStateChange();
+    } catch (err) { /* 壊れた控えは使わない */ }
+    lsDel(STASH_PREFIX + key);
+  }
+
+  lsSet(OWNER_STORE, key);
+}
+
+/** 以前の「合言葉」方式（sync.php）で保存していた内容を取り込む。消すものはなく、突き合わせて足すだけ */
+async function importLegacyData(silent) {
+  if (!legacyKeyConfigured()) {
+    if (!silent) toast('以前の合言葉が、この端末に残っていません', true);
+    return false;
+  }
+  try {
+    const base = String(sync.url || 'sync.php').trim();
+    const res = await fetch(base + (base.indexOf('?') >= 0 ? '&' : '?') + 'key=' + encodeURIComponent(sync.key), { cache: 'no-store' });
+    const got = await res.json();
+    if (!res.ok || !got.ok) throw new Error(got.error || ('通信エラー（' + res.status + '）'));
+    if (got.data) {
+      state = mergeStates(syncPayload(), got.data);
+      refreshAfterStateChange();
+    }
+    sync.legacyDone = true;
+    saveSyncConfig();
+    if (!silent) {
+      toast(got.data ? '以前の方式で保存していた内容を取り込みました' : '以前の方式のデータは、サーバにありませんでした');
+      renderAccount();
+      scheduleSyncPush();
+    }
+    return true;
+  } catch (err) {
+    if (!silent) toast('取り込めませんでした：' + err.message, true);
+    return false;
+  }
+}
+
+/** 同期の途中でログインが切れていた（期限切れ・他の端末でパスワード変更） */
+function handleSessionLost() {
+  auth.user = null;
+  saveAuthCache();
+  clearInterval(syncPoll);
+  setSyncStatus('ログインし直してください', 'error');
+  renderAccount();
+  showAuth('login', 'ログインの有効期限が切れました。もう一度ログインしてください（この端末の内容はそのまま残っています）。');
+}
+
+async function submitLogin(ev) {
+  ev.preventDefault();
+  const btn = $('authLoginBtn');
+  setAuthError('');
+  btn.disabled = true;
+  try {
+    const res = await apiFetch('login', { method: 'POST', body: {
+      login: $('authLogin').value.trim(), password: $('authPassword').value, remember: $('authRemember').checked,
+    } });
+    if (!res.json || !res.json.ok) {
+      setAuthError((res.json && res.json.error) || 'ログインできませんでした（' + res.status + '）');
+      return;
+    }
+    await onLoggedIn(res.json.user, res.json.site);
+    toast(`${res.json.user.name || res.json.user.login} さんでログインしました`);
+  } catch (err) {
+    setAuthError('通信できませんでした。電波の状態を確認して、もう一度お試しください。');
+  } finally {
+    btn.disabled = false;
+  }
+}
+
+async function submitSetup(ev) {
+  ev.preventDefault();
+  setAuthError('');
+  const pw = $('setupPassword').value;
+  if (pw !== $('setupPassword2').value) { setAuthError('パスワードが2つの欄で一致していません。'); return; }
+  const body = { login: $('setupLogin').value.trim(), name: $('setupName').value.trim(), password: pw };
+  if (!auth.hasConfig) {
+    const driver = (document.querySelector('input[name="setupDriver"]:checked') || {}).value || 'sqlite';
+    body.db = driver === 'mysql'
+      ? { driver: 'mysql', host: $('setupDbHost').value.trim() || 'localhost', port: $('setupDbPort').value.trim(),
+          name: $('setupDbName').value.trim(), user: $('setupDbUser').value.trim(), pass: $('setupDbPass').value }
+      : { driver: 'sqlite' };
+  }
+  const btn = $('setupBtn');
+  btn.disabled = true;
+  try {
+    const res = await apiFetch('setup', { method: 'POST', body: body });
+    if (!res.json || !res.json.ok) {
+      setAuthError((res.json && res.json.error) || '初期設定に失敗しました（' + res.status + '）');
+      return;
+    }
+    $('setupPassword').value = '';
+    $('setupPassword2').value = '';
+    $('setupDbPass').value = '';
+    await onLoggedIn(res.json.user, res.json.site);
+    toast('初期設定が完了しました');
+  } catch (err) {
+    setAuthError('通信できませんでした。もう一度お試しください。');
+  } finally {
+    btn.disabled = false;
+  }
+}
+
+async function logout() {
+  if (!(await customConfirm('ログアウトします。\n\nこの端末に表示している予定は画面から消えますが、データベースには残っているので、次にログインすると元どおり表示されます。',
+    { okLabel: 'ログアウト' }))) return;
+  clearTimeout(syncTimer);
+  const key = ownerKey();
+  const synced = await syncNow(true);
+  let res;
+  try {
+    res = await apiFetch('logout', { method: 'POST', body: {} });
+  } catch (err) {
+    toast('通信できないため、ログアウトできませんでした', true);
+    return;
+  }
+  if (!res.json || !res.json.ok) { toast('ログアウトできませんでした', true); return; }
+  // 同期できなかった変更があれば、次のログインで戻せるよう控えておく
+  if (!synced && stateHasData()) lsSet(STASH_PREFIX + key, JSON.stringify(state));
+  clearInterval(syncPoll);
+  auth.user = null;
+  auth.users = null;
+  saveAuthCache();
+  lsDel(OWNER_STORE);
+  state = defaultState();
+  view.selected = null;
+  refreshAfterStateChange();
+  renderAccount();
+  setSyncStatus('ログアウトしました', '');
+  showAuth('login');
+}
+
+/* ---- 設定画面の「アカウントとデータ共有」 ---- */
+
+function renderAccount() {
+  const box = $('accountBox');
+  if (!box) return;
+
+  if (auth.mode !== 'server') {
+    box.innerHTML = auth.mode === 'local'
+      ? '<p class="sc-note">この場所にはデータベース用のプログラム（api.php）が無いため、予定はこの端末の中だけに保存しています。サーバに一式をアップロードして開くと、ログインして端末間で共有できます。</p>'
+      : '';
+    if (auth.mode === 'local') setSyncStatus('この端末のみに保存しています', '');
+    return;
+  }
+  if (!auth.user) {
+    box.innerHTML = '<p class="sc-note">ログインしていません。</p>';
+    return;
+  }
+
+  const u = auth.user;
+  const isAdmin = u.role === 'admin';
+  const hasBackup = !!lsGet(BACKUP_STORE);
+  const usersHtml = !isAdmin ? '' : `
+    <details class="sc-help" id="usersBlock">
+      <summary>ユーザーの管理（管理者）</summary>
+      <div id="usersList" class="sc-users-list">${auth.users ? auth.users.map((x) => `
+        <div class="sc-user-row">
+          <span class="sc-user-name">${escapeHtml(x.name || x.login)}<small>${escapeHtml(x.login)}${x.role === 'admin' ? '・管理者' : ''}・予定${x.jobs}件</small></span>
+          <button type="button" class="sc-btn sc-btn-sm sc-btn-outline" data-user-reset="${x.id}">パスワード再設定</button>
+          ${x.id === u.id ? '' : `<button type="button" class="sc-btn sc-btn-sm sc-btn-outline sc-btn-danger" data-user-del="${x.id}" data-user-label="${escapeHtml(x.name || x.login)}">削除</button>`}
+        </div>`).join('') : '<p class="sc-note">開くと一覧を読み込みます。</p>'}</div>
+      <form id="userAddForm" class="sc-form sc-account-form" autocomplete="off">
+        <p class="sc-field-label">ユーザーを追加</p>
+        <div class="sc-form-row">
+          <label class="sc-field"><span class="sc-field-label">ログインID</span>
+            <input id="uaLogin" class="sc-input sc-input-sm" type="text" autocapitalize="none" spellcheck="false" autocomplete="off"></label>
+          <label class="sc-field"><span class="sc-field-label">お名前</span>
+            <input id="uaName" class="sc-input sc-input-sm" type="text" autocomplete="off"></label>
+        </div>
+        <div class="sc-form-row">
+          <label class="sc-field"><span class="sc-field-label">最初のパスワード（8文字以上）</span>
+            <input id="uaPassword" class="sc-input sc-input-sm" type="text" autocomplete="off" spellcheck="false"></label>
+          <label class="sc-field"><span class="sc-field-label">権限</span>
+            <select id="uaRole" class="sc-input sc-input-sm"><option value="user">ふつうのユーザー</option><option value="admin">管理者</option></select></label>
+        </div>
+        <button type="submit" class="sc-btn sc-btn-sm">追加する</button>
+        <p class="sc-note">予定のデータはユーザーごとに別々です。追加した人には、ログインIDと最初のパスワードを伝えてください。</p>
+      </form>
+    </details>`;
+
+  box.innerHTML = `
+    <div class="sc-account-row">
+      <span class="sc-account-who">👤 <strong>${escapeHtml(u.name || u.login)}</strong>
+        <small>ログインID：${escapeHtml(u.login)}${isAdmin ? '（管理者）' : ''}</small></span>
+      <button type="button" id="logoutBtn" class="sc-btn sc-btn-sm sc-btn-outline">ログアウト</button>
+    </div>
+    <div class="sc-export-actions">
+      <button type="button" id="syncNowBtn" class="sc-btn">🔄 今すぐ同期</button>
+      <label class="sc-check">
+        <input id="syncAuto" type="checkbox" ${sync.auto ? 'checked' : ''}>
+        <span>自動で同期する</span>
+      </label>
+    </div>
+    <details class="sc-help">
+      <summary>パスワードを変更する</summary>
+      <form id="pwForm" class="sc-form sc-account-form" autocomplete="off">
+        <label class="sc-field"><span class="sc-field-label">現在のパスワード</span>
+          <input id="pwCurrent" class="sc-input sc-input-sm" type="password" autocomplete="current-password"></label>
+        <div class="sc-form-row">
+          <label class="sc-field"><span class="sc-field-label">新しいパスワード（8文字以上）</span>
+            <input id="pwNext" class="sc-input sc-input-sm" type="password" autocomplete="new-password"></label>
+          <label class="sc-field"><span class="sc-field-label">もう一度</span>
+            <input id="pwNext2" class="sc-input sc-input-sm" type="password" autocomplete="new-password"></label>
+        </div>
+        <button type="submit" class="sc-btn sc-btn-sm">変更する</button>
+        <p class="sc-note">変更すると、ほかの端末はログアウトされます（新しいパスワードでログインし直してください）。</p>
+      </form>
+    </details>
+    ${usersHtml}
+    ${(legacyKeyConfigured() || hasBackup) ? `<details class="sc-help">
+      <summary>以前の方式（合言葉）からの引き継ぎ</summary>
+      ${legacyKeyConfigured() ? `<p class="sc-note">この端末には、以前の「合言葉」方式の設定が残っています${sync.legacyDone ? '（取り込み済み）' : ''}。
+        以前の方式でサーバに保存していた内容を、いまのデータに足すことができます（消えるものはありません）。</p>
+        <button type="button" id="legacyImportBtn" class="sc-btn sc-btn-sm sc-btn-outline">以前の方式のデータを取り込む</button>` : ''}
+      ${hasBackup ? `<p class="sc-note">データベース方式に切り替える直前の内容を、この端末に控えてあります。</p>
+        <button type="button" id="backupRestoreBtn" class="sc-btn sc-btn-sm sc-btn-outline">切り替え前の控えを取り込む</button>
+        <button type="button" id="backupDropBtn" class="sc-btn sc-btn-sm sc-btn-outline">控えを消す</button>` : ''}
+    </details>` : ''}
+  `;
+
+  if (auth.offline) setSyncStatus('通信できません（つながったときに自動で同期します）', 'error');
+  else if (sync.lastAt) setSyncStatus('前回の同期 ' + syncTimeLabel(sync.lastAt), 'ok');
+  else setSyncStatus('ログイン済み（未同期）', '');
+}
+
+async function loadUsers() {
+  try {
+    const res = await apiFetch('users');
+    if (res.json && res.json.ok) {
+      auth.users = res.json.users;
+      const open = $('usersBlock') && $('usersBlock').open;
+      renderAccount();
+      if (open && $('usersBlock')) $('usersBlock').open = true;
+    }
+  } catch (err) { /* 通信できないときは一覧を出さない */ }
+}
+
+function bindAccount() {
+  $('loginForm').addEventListener('submit', submitLogin);
+  $('setupForm').addEventListener('submit', submitSetup);
+  $('authRetry').addEventListener('click', () => { authInit(); });
+  document.querySelectorAll('input[name="setupDriver"]').forEach((r) => {
+    r.addEventListener('change', () => { $('setupMysql').hidden = !document.querySelector('input[name="setupDriver"][value="mysql"]').checked; });
+  });
+
+  const box = $('accountBox');
+  box.addEventListener('click', async (ev) => {
+    const t = ev.target;
+    if (t.id === 'logoutBtn') { logout(); return; }
+    if (t.id === 'syncNowBtn') { syncNow(false); return; }
+    if (t.id === 'legacyImportBtn') { importLegacyData(false); return; }
+    if (t.id === 'backupRestoreBtn') {
+      try {
+        const saved = JSON.parse(lsGet(BACKUP_STORE) || 'null');
+        if (!saved || !saved.state) throw new Error('控えがありません');
+        if (!(await customConfirm('切り替え前の控えを、いまのデータに足します（同じ予定は新しいほうを残し、消えるものはありません）。よろしいですか？'))) return;
+        state = mergeStates(syncPayload(), saved.state);
+        refreshAfterStateChange();
+        scheduleSyncPush();
+        toast('切り替え前の控えを取り込みました');
+      } catch (err) { toast('取り込めませんでした：' + err.message, true); }
+      return;
+    }
+    if (t.id === 'backupDropBtn') {
+      if (!(await customConfirm('切り替え前の控えを、この端末から消します。よろしいですか？（データベースの内容は変わりません）'))) return;
+      lsDel(BACKUP_STORE);
+      renderAccount();
+      return;
+    }
+    const reset = t.closest('[data-user-reset]');
+    if (reset) {
+      const pw = prompt('新しいパスワード（8文字以上）を入力してください');
+      if (!pw) return;
+      const res = await apiFetch('users', { method: 'POST', body: { op: 'reset', id: Number(reset.dataset.userReset), password: pw } }).catch(() => null);
+      toast(res && res.json && res.json.ok ? 'パスワードを再設定しました' : ((res && res.json && res.json.error) || '再設定できませんでした'), !(res && res.json && res.json.ok));
+      return;
+    }
+    const del = t.closest('[data-user-del]');
+    if (del) {
+      if (!(await customConfirm(`「${del.dataset.userLabel}」のアカウントと、その人の予定データをすべて削除します。元に戻せません。よろしいですか？`, { okLabel: '削除する' }))) return;
+      const res = await apiFetch('users', { method: 'POST', body: { op: 'delete', id: Number(del.dataset.userDel) } }).catch(() => null);
+      toast(res && res.json && res.json.ok ? 'ユーザーを削除しました' : ((res && res.json && res.json.error) || '削除できませんでした'), !(res && res.json && res.json.ok));
+      loadUsers();
+    }
+  });
+
+  box.addEventListener('change', (ev) => {
+    if (ev.target.id !== 'syncAuto') return;
+    sync.auto = ev.target.checked;
+    saveSyncConfig();
+    startSyncPolling();
+  });
+
+  // ユーザーの一覧は、開いたときに読み込む
+  box.addEventListener('toggle', (ev) => {
+    if (ev.target.id === 'usersBlock' && ev.target.open && !auth.users) loadUsers();
+  }, true);
+
+  box.addEventListener('submit', async (ev) => {
+    ev.preventDefault();
+    if (ev.target.id === 'pwForm') {
+      const next = $('pwNext').value;
+      if (next !== $('pwNext2').value) { toast('新しいパスワードが2つの欄で一致していません', true); return; }
+      const res = await apiFetch('password', { method: 'POST', body: { current: $('pwCurrent').value, next: next } }).catch(() => null);
+      if (res && res.json && res.json.ok) { toast('パスワードを変更しました'); ev.target.reset(); }
+      else toast((res && res.json && res.json.error) || '変更できませんでした', true);
+      return;
+    }
+    if (ev.target.id === 'userAddForm') {
+      const res = await apiFetch('users', { method: 'POST', body: {
+        op: 'add', login: $('uaLogin').value.trim(), name: $('uaName').value.trim(),
+        password: $('uaPassword').value, role: $('uaRole').value,
+      } }).catch(() => null);
+      if (res && res.json && res.json.ok) { toast('ユーザーを追加しました'); await loadUsers(); }
+      else toast((res && res.json && res.json.error) || '追加できませんでした', true);
+    }
+  });
 }
 
 /* ------------------------------------------------------------
@@ -3265,9 +3785,11 @@ function toast(msg, isError) {
  * そのまま先に進んでしまう）ことがあるため、休み希望などの1タップ確定には必ずこちらを使う。
  */
 let confirmResolve = null;
-function customConfirm(message) {
+function customConfirm(message, opts) {
   return new Promise((resolve) => {
     confirmResolve = resolve;
+    elConfirmOk.textContent = (opts && opts.okLabel) || 'OK';
+    elConfirmCancel.textContent = (opts && opts.cancelLabel) || 'キャンセル';
     elConfirmMsg.textContent = message;
     elConfirmOverlay.hidden = false;
     confirmOpenedAt = Date.now();
@@ -5078,51 +5600,18 @@ function bindEvents() {
   });
   $('notifyPermBtn').addEventListener('click', requestNotifyPermission);
 
-  // 端末間の同期
-  // 入力し終えたら、そのまま同期を始める（設定直後に待たされないように）
-  let syncSetupTimer = null;
-  const syncAfterSetup = () => {
-    clearTimeout(syncSetupTimer);
-    startSyncPolling();
-    if (!sync.auto || !syncConfigured()) return;
-    syncSetupTimer = setTimeout(() => syncNow(true), 800);
-  };
-
-  $('syncUrl').addEventListener('input', () => {
-    sync.url = $('syncUrl').value.trim();
-    saveSyncConfig();
-    syncSyncInputs();
-    syncAfterSetup();
-  });
-  $('syncKey').addEventListener('input', () => {
-    sync.key = $('syncKey').value.trim();
-    sync.rev = 0;            // 合言葉を変えたら別の保存先になる
-    saveSyncConfig();
-    syncSyncInputs();
-    syncAfterSetup();
-  });
-  $('syncAuto').addEventListener('change', () => {
-    sync.auto = $('syncAuto').checked;
-    saveSyncConfig();
-    startSyncPolling();
-  });
-  $('genKey').addEventListener('click', () => {
-    if (sync.key && !confirm('新しい合言葉を作ると、いまの合言葉で保存した内容とはつながらなくなります。よろしいですか？')) return;
-    sync.key = generateSyncKey();
-    sync.rev = 0;
-    saveSyncConfig();
-    syncSyncInputs();
-    toast('合言葉を作りました。他の端末にも同じものを入力してください');
-  });
-  $('syncTest').addEventListener('click', syncTest);
-  $('syncNowBtn').addEventListener('click', () => syncNow(false));
+  // ログイン・アカウント・同期
+  bindAccount();
 
   // 別の端末で変更されている可能性があるので、画面に戻ってきたら同期する
   document.addEventListener('visibilitychange', () => {
-    if (document.visibilityState === 'visible' && sync.auto && syncConfigured()) syncNow(true);
+    if (document.visibilityState !== 'visible') return;
+    if (sync.auto && syncConfigured()) syncNow(true);
   });
   window.addEventListener('online', () => {
-    if (sync.auto && syncConfigured()) syncNow(true);
+    // 通信できずにログインの確認が済んでいなかった場合は、ここで確かめ直す
+    if (auth.mode === 'unknown' || auth.offline || !$('authOverlay').hidden) authInit();
+    else if (sync.auto && syncConfigured()) syncNow(true);
   });
 
   $('exportJson').addEventListener('click', exportJson);
@@ -5138,9 +5627,9 @@ function bindEvents() {
     // 同期している場合、黙って空を送ると他の端末の予定まで消えてしまう
     let alsoServer = false;
     if (syncConfigured()) {
-      alsoServer = confirm('共有しているサーバのデータも削除しますか？\n\n'
-        + 'OK　　　：サーバのデータも削除する（他の端末からも消えます）\n'
-        + 'キャンセル：この端末だけ削除する（サーバのデータは残す）');
+      alsoServer = confirm('データベースに保存しているデータも削除しますか？\n\n'
+        + 'OK　　　：データベースのデータも削除する（他の端末からも消えます）\n'
+        + 'キャンセル：この端末だけ削除する（データベースには残り、次の同期でまた表示されます）');
     }
 
     state = defaultState();
@@ -5157,15 +5646,16 @@ function bindEvents() {
 
     if (alsoServer) {
       try {
-        await fetch(syncEndpoint('key=' + encodeURIComponent(sync.key)), { method: 'DELETE' });
+        const del = await apiFetch('state', { method: 'DELETE' });
+        if (!del.json || !del.json.ok) throw new Error((del.json && del.json.error) || '通信エラー');
         sync.rev = 0;
         saveSyncConfig();
-        setSyncStatus('サーバのデータも削除しました', 'warn');
+        setSyncStatus('データベースのデータも削除しました', 'warn');
       } catch (err) {
         toast('サーバのデータを削除できませんでした：' + err.message, true);
       }
     } else if (syncConfigured()) {
-      setSyncStatus('この端末のみ削除しました（サーバは変更していません）', 'warn');
+      setSyncStatus('この端末のみ削除しました（データベースは変更していません）', 'warn');
     }
     toast('この端末のデータを削除しました');
   });
@@ -5265,6 +5755,7 @@ function bindEvents() {
     if (ev.key === 'Escape' && voice.open) { closeVoice(); return; }
     if (ev.key === 'Escape' && (elSideAside.classList.contains('sc-side-modal-open') || (view.formOpen && !view.editingId))) { closeForm(); return; }
     if (ev.target.matches('input, textarea, select')) return;
+    if (document.body.classList.contains('sc-auth-locked')) return;   // ログイン画面の裏では動かさない
     if (ev.key === 'ArrowLeft') moveMonth(-1);
     if (ev.key === 'ArrowRight') moveMonth(1);
   });
@@ -5303,7 +5794,6 @@ function init() {
   loadState();
   loadSyncConfig();
   syncSettingsInputs();
-  syncSyncInputs();
   refreshWorkTypeOptions();
   refreshProjectFilterOptions();
   view.form = blankForm();
@@ -5313,9 +5803,9 @@ function init() {
   // スマホで開いたときは、今日の行がすぐ見えるようにする
   if (isNarrow()) requestAnimationFrame(() => { measureSticky(); scrollToTodayIfNeeded(false); });
 
-  // 起動時に、他の端末で更新されていないか確認する
-  if (sync.auto && syncConfigured()) syncNow(true);
-  startSyncPolling();
+  // 起動時に、ログインの状態を確かめてから、他の端末で更新されていないか確認する
+  renderAccount();
+  authInit();
   ensureNotifyChecker();
 
   // アプリとして追加できるようにする（file:// で開いた場合は動かないので黙って見送る）

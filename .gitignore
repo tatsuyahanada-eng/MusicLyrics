@@ -3,3 +3,7 @@ MusicLyrics/
 
 # 同期データの保存先（サーバ上で自動生成される）
 schedule-data/
+
+# データベース（初期設定で自動生成される）
+config.php
+data/

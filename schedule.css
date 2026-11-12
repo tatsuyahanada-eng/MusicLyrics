@@ -1258,6 +1258,97 @@ textarea.sc-input { resize: vertical; line-height: 1.5; min-height: 2.6em; }
 .sc-confirm-actions { display: flex; gap: 8px; }
 .sc-confirm-actions .sc-btn { flex: 1; }
 
+/* ---- ログイン・初期設定の画面 ---- */
+.sc-auth-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 400;
+  background: linear-gradient(160deg, #17233d 0%, #1e3a8a 100%);
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding: max(24px, env(safe-area-inset-top)) 16px 24px;
+  overflow-y: auto;
+}
+.sc-auth-overlay[hidden] { display: none; }
+/* ログインするまでは、裏の予定を見せない・触らせない */
+body.sc-auth-locked { overflow: hidden; }
+body.sc-auth-locked > *:not(.sc-auth-overlay):not(.sc-confirm-overlay):not(.sc-toast) { visibility: hidden; }
+.sc-auth-box {
+  width: 100%;
+  max-width: 420px;
+  margin: auto 0;
+  background: var(--sc-surface);
+  border-radius: 16px;
+  padding: 22px 20px 20px;
+  box-shadow: 0 18px 48px rgba(0, 0, 0, 0.35);
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.sc-auth-brand { display: flex; align-items: center; gap: 10px; font-size: 1.35rem; }
+.sc-auth-brand img { border-radius: 12px; }
+.sc-auth-title { font-size: 1.1rem; margin: 4px 0 0; }
+.sc-auth-lead { font-size: 0.84rem; color: var(--sc-muted); margin: 0; line-height: 1.6; }
+.sc-auth-box .sc-input { font-size: 16px; min-height: 44px; }
+.sc-auth-box .sc-btn-block { min-height: 48px; font-size: 1rem; margin-top: 4px; }
+.sc-auth-error {
+  margin: 0;
+  padding: 9px 12px;
+  border-radius: 10px;
+  background: #fef2f2;
+  border: 1px solid #fecaca;
+  color: #b91c1c;
+  font-size: 0.84rem;
+  font-weight: 600;
+  line-height: 1.5;
+  word-break: break-word;
+}
+.sc-auth-choice {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 9px 10px;
+  border: 1px solid var(--sc-border);
+  border-radius: 10px;
+  margin-top: 6px;
+  cursor: pointer;
+  font-size: 0.86rem;
+}
+.sc-auth-choice input { margin-top: 3px; }
+.sc-auth-choice small { display: block; color: var(--sc-muted); font-size: 0.74rem; line-height: 1.5; }
+.sc-auth-mysql { display: flex; flex-direction: column; gap: 6px; margin-top: 8px; padding: 10px; border-radius: 10px; background: var(--sc-surface-2); }
+.sc-auth-mysql[hidden] { display: none; }
+
+/* 設定画面のアカウント欄 */
+.sc-account-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  flex-wrap: wrap;
+  padding: 10px 12px;
+  border: 1px solid var(--sc-border);
+  border-radius: 10px;
+  background: var(--sc-surface);
+  margin-bottom: 8px;
+}
+.sc-account-who small { display: block; color: var(--sc-muted); font-size: 0.74rem; }
+.sc-account-form { max-width: 520px; margin-top: 8px; }
+.sc-users-list { display: flex; flex-direction: column; gap: 6px; margin: 8px 0; }
+.sc-user-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  padding: 8px 10px;
+  border: 1px solid var(--sc-border);
+  border-radius: 8px;
+  background: var(--sc-surface);
+}
+.sc-user-name { flex: 1 1 160px; font-weight: 700; font-size: 0.86rem; }
+.sc-user-name small { display: block; font-weight: 500; color: var(--sc-muted); font-size: 0.72rem; }
+
 /* ---- 音声（・文章）で予定を登録する画面 ---- */
 .sc-voice-overlay {
   position: fixed;
@@ -1706,7 +1797,7 @@ textarea.sc-input { resize: vertical; line-height: 1.5; min-height: 2.6em; }
 }
 
 @media print {
-  .sc-multibar, .sc-fab, .sc-voice-overlay { display: none !important; }
+  .sc-multibar, .sc-fab, .sc-voice-overlay, .sc-auth-overlay { display: none !important; }
   * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
 
   html { height: auto; }
