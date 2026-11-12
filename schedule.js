@@ -891,7 +891,7 @@ function jobBarHtml(j, dateKey, slotId, conflicts, style) {
   const timeLabel = j.allDay ? '終日' : `${shortTime(j.start)}〜${shortTime(j.end)}`;
   const tip = [formatDate(j.date), j.allDay ? '終日' : j.start + '〜' + j.end,
     j.subject, j.title, j.workType, j.client, j.storeName, j.place, j.address].filter(Boolean).join(' / ');
-  return `<div class="${cls.join(' ')}" data-date="${dateKey}" data-slot="${slotId}"`
+  return `<div class="${cls.join(' ')}" data-job="${escapeHtml(j.id)}" data-date="${dateKey}" data-slot="${slotId}"`
     + ` style="${style}${colorStyle}" title="${escapeHtml(tip)}">`
     + `<span class="sc-vbar-title">${tag}${escapeHtml(jobHeading(j))}</span>`
     + (jobSubLabel(j) ? `<span class="sc-vbar-proj">${escapeHtml(jobSubLabel(j))}</span>` : '')
@@ -1322,7 +1322,7 @@ function renderSidePanel() {
     <div class="sc-side-block">
       <button type="button" id="openForm" class="sc-btn sc-btn-block">＋ ${slot ? 'この枠' : 'この日'}に予定を登録</button>
       <p class="sc-hint" style="margin-top:6px">
-        空いている枠をタップすると、すぐに登録画面が開きます。枠を長押し（パソコンはShift＋クリック）すると、複数の枠をまとめて登録・変更できます。
+        空いている枠をタップすると、すぐに登録画面が開きます。予定のある枠を長押し（パソコンはドラッグ）してずらすと、日付や時間帯を移せます。枠を長押しして離す（パソコンはShift＋クリック）と、複数の枠をまとめて登録・変更できます。
       </p>
     </div>`;
     // 枠を選んだときは予定の内容を先に、日付を選んだときは希望の設定を先に出す
@@ -3187,6 +3187,7 @@ function submitMultiJobs() {
     return;
   }
 
+  const undoSnap = takeUndoSnapshot();
   const at = nowIso();
   const plan = multiPlan();
   plan.forEach((item) => {
@@ -3204,7 +3205,7 @@ function submitMultiJobs() {
   refreshWorkTypeOptions();
   refreshProjectFilterOptions();
   finishMultiAction();
-  toast(`${plan.length}件の予定を登録しました`);
+  offerUndo(undoSnap, `${plan.length}件の予定を登録しました`);
 }
 
 /**
@@ -3306,6 +3307,7 @@ async function applyBulkEdit() {
   msg += '\n\nよろしいですか？';
   if (!(await customConfirm(msg))) return;
 
+  const undoSnap = takeUndoSnapshot();
   state.jobs = state.jobs.map((j) => updatedById[j.id] || j);
   // 確定にした日は、休み希望を外して稼働扱いにそろえる（単日の登録と同じ扱い）
   Object.keys(updatedById).forEach((id) => {
@@ -3316,7 +3318,7 @@ async function applyBulkEdit() {
   refreshWorkTypeOptions();
   refreshProjectFilterOptions();
   finishMultiAction();
-  toast(`${targets.length}件の予定を変更しました`);
+  offerUndo(undoSnap, `${targets.length}件の予定を変更しました`);
 }
 
 /** 選んだ予定のうち、仮出勤をまとめて確定にする */
@@ -3335,6 +3337,7 @@ async function bulkConfirmTentatives() {
   const lines = tentative.map((j) => `・${formatDate(j.date)} ${j.allDay ? '終日' : j.start + '〜' + j.end} ${jobHeading(j)}`).join('\n');
   if (!(await customConfirm(`仮出勤 ${tentative.length}件 を確定にします。\n\n${lines}\n\nよろしいですか？`))) return;
 
+  const undoSnap = takeUndoSnapshot();
   const at = nowIso();
   const ids = new Set(tentative.map((j) => j.id));
   state.jobs = state.jobs.map((j) => {
@@ -3347,7 +3350,7 @@ async function bulkConfirmTentatives() {
   saveState();
   refreshWorkTypeOptions();
   finishMultiAction();
-  toast(`${tentative.length}件を確定にしました`);
+  offerUndo(undoSnap, `${tentative.length}件を確定にしました`);
 }
 
 /** 選んだ予定をまとめて削除する */
@@ -3357,11 +3360,12 @@ async function bulkDeleteSelected() {
   const lines = targets.slice(0, 12).map((j) => `・${formatDate(j.date)} ${j.allDay ? '終日' : j.start + '〜' + j.end} ${jobHeading(j)}`).join('\n')
     + (targets.length > 12 ? `\n…ほか${targets.length - 12}件` : '');
   if (!(await customConfirm(`選んだ ${targets.length}件 の予定を削除します。\n\n${lines}\n\n元に戻せません。よろしいですか？`))) return;
+  const undoSnap = takeUndoSnapshot();
   removeJobs(new Set(targets.map((j) => j.id)));
   saveState();
   refreshProjectFilterOptions();
   finishMultiAction();
-  toast(`${targets.length}件の予定を削除しました`);
+  offerUndo(undoSnap, `${targets.length}件の予定を削除しました`);
 }
 
 function submitJob(ev) {
@@ -3539,6 +3543,7 @@ async function deleteJob(id) {
   const job = state.jobs.find((j) => j.id === id);
   if (!job) return;
   if (!(await customConfirm(`「${jobHeading(job)}」（${formatDate(job.date, 'long')}）を削除します。よろしいですか？`))) return;
+  const undoSnap = takeUndoSnapshot();
   removeJobs(new Set([id]));
   if (view.editingId === id) {
     view.editingId = null;
@@ -3550,7 +3555,7 @@ async function deleteJob(id) {
   if (isNarrow()) view.popup = false;
   saveState();
   renderAll();
-  toast('予定を削除しました');
+  offerUndo(undoSnap, '予定を削除しました');
 }
 
 /* ------------------------------------------------------------
@@ -3771,12 +3776,78 @@ async function confirmSingleDayPaint(dateKey) {
    ------------------------------------------------------------ */
 
 let toastTimer = null;
-function toast(msg, isError) {
+/** 画面下の短いお知らせ。action = { label, fn } を渡すと、押せるボタン付きで少し長く出す */
+function toast(msg, isError, action) {
   elToast.textContent = msg;
-  elToast.className = 'sc-toast' + (isError ? ' sc-toast-error' : '');
+  elToast.className = 'sc-toast' + (isError ? ' sc-toast-error' : '') + (action ? ' sc-toast-action' : '');
+  if (action) {
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'sc-toast-btn';
+    btn.textContent = action.label;
+    btn.addEventListener('click', () => { elToast.hidden = true; action.fn(); });
+    elToast.appendChild(btn);
+  }
   elToast.hidden = false;
   clearTimeout(toastTimer);
-  toastTimer = setTimeout(() => { elToast.hidden = true; }, 2600);
+  toastTimer = setTimeout(() => { elToast.hidden = true; }, action ? 8000 : 2600);
+}
+
+/* ---- 元に戻す（移動・削除・まとめて操作の直後に、1回ぶん戻せる） ---- */
+
+let undoEntry = null;
+
+/** 操作の前に呼んで、いまの予定と希望を控える */
+function takeUndoSnapshot() {
+  return {
+    jobs: new Map(state.jobs.map((j) => [j.id, JSON.stringify(j)])),
+    wishes: Object.assign({}, state.wishes),
+  };
+}
+
+/** 操作のあとに呼ぶ。控えと比べて変わった分だけを覚えておき、「元に戻す」付きでお知らせを出す */
+function offerUndo(snap, message) {
+  const now = new Map(state.jobs.map((j) => [j.id, JSON.stringify(j)]));
+  const jobs = new Map();   // id → 操作前の内容（操作で新しく作られた予定は null）
+  snap.jobs.forEach((json, id) => { if (now.get(id) !== json) jobs.set(id, json); });
+  now.forEach((json, id) => { if (!snap.jobs.has(id)) jobs.set(id, null); });
+  const wishes = {};
+  Array.from(new Set(Object.keys(snap.wishes).concat(Object.keys(state.wishes)))).forEach((d) => {
+    if ((snap.wishes[d] || null) !== (state.wishes[d] || null)) wishes[d] = snap.wishes[d] || null;
+  });
+  undoEntry = (jobs.size || Object.keys(wishes).length) ? { jobs: jobs, wishes: wishes } : null;
+  toast(message, false, undoEntry ? { label: '元に戻す', fn: runUndo } : null);
+}
+
+function runUndo() {
+  const u = undoEntry;
+  if (!u) return;
+  undoEntry = null;
+  const at = nowIso();
+  const removeIds = new Set();
+  u.jobs.forEach((json, id) => {
+    const cur = state.jobs.find((j) => j.id === id);
+    if (json === null) { if (cur) removeIds.add(id); return; }
+    const prev = JSON.parse(json);
+    // 戻した内容が他の端末にも伝わるよう、更新時刻は「いま」にする（削除の記録より新しくなるので復活する）
+    const restored = Object.assign({}, prev, {
+      updatedAt: at, rev: Math.max(Number(prev.rev) || 0, cur ? Number(cur.rev) || 0 : 0) + 1,
+    });
+    if (cur) state.jobs = state.jobs.map((j) => (j.id === id ? restored : j));
+    else {
+      state.jobs.push(restored);
+      state.tombstones = state.tombstones.filter((t) => t.id !== id);
+    }
+  });
+  if (removeIds.size) removeJobs(removeIds);
+  Object.keys(u.wishes).forEach((d) => setWish(d, u.wishes[d], true));
+  view.editingId = null;
+  view.confirming = false;
+  saveState();
+  refreshWorkTypeOptions();
+  refreshProjectFilterOptions();
+  renderAll();
+  toast('元に戻しました');
 }
 
 /**
@@ -3998,7 +4069,7 @@ function moveMonth(delta) {
 }
 
 const PAINT_HINTS = {
-  none: '枠をタップすると、空いている枠はすぐに登録画面、予定がある枠はその内容（編集・確定・削除）が開きます。日付をタップすると、その日の内容と希望の設定が開きます。枠を長押し（パソコンはShift＋クリックかドラッグ）すると、複数の枠をまとめて登録・変更できます。◯稼働可・✕休み希望は、左端の日付をタップ（ドラッグ）して設定します。スマホでは右下の「＋」からも追加でき、カレンダーを左右にスワイプすると月を切り替えられます。開いた画面は、下に引っぱるか「戻る」で閉じられます。',
+  none: '枠をタップすると、空いている枠はすぐに登録画面、予定がある枠はその内容（編集・確定・削除）が開きます。日付をタップすると、その日の内容と希望の設定が開きます。枠を長押し（パソコンはShift＋クリックかドラッグ）すると、複数の枠をまとめて登録・変更できます。予定のある枠を長押し（パソコンはドラッグ）して別の枠までずらすと、その予定の日付や時間帯を移せます（直後なら「元に戻す」で戻せます）。◯稼働可・✕休み希望は、左端の日付をタップ（ドラッグ）して設定します。スマホでは右下の「＋」からも追加でき、カレンダーを左右にスワイプすると月を切り替えられます。開いた画面は、下に引っぱるか「戻る」で閉じられます。',
   multi: 'まとめて操作中です。枠をタップで追加・解除できます（パソコンはドラッグ、スマホは長押ししたまま指でなぞると連続で選べます）。日付をタップすると、その日の枠をまとめて選べます。選んだら「登録」か「変更」を押してください。',
   paint: 'まとめて入力中です。日付を1日だけタップすると確認してから登録します。日付の列をドラッグすると、複数日を確認なしで一括設定できます。終わったら「選択のみ」に戻してください。',
 };
@@ -4897,6 +4968,149 @@ function bindMonthSwipe() {
   }, { passive: true });
 }
 
+/* ---- 予定をつかんで、別の日・別の時間帯へ移す ---- */
+
+let moveDrag = null;   // { origin, date, slotId, jobIds, started, target, touch }
+
+/**
+ * 予定を「つかんだ枠 → 置いた枠」の分だけずらした内容を返す。
+ * 時間帯をまたぐときは、枠の標準の開始時刻の差だけ開始・終了を動かす（長さと、枠の中での位置は保つ）。
+ * 動かせない（日付をまたいでしまう）ときは null。
+ */
+function computeMove(job, fromSlotId, toDate, toSlotId) {
+  if (job.allDay) return { date: toDate };
+  const from = slotById(fromSlotId);
+  const to = slotById(toSlotId);
+  const s0 = toMinutes(job.start);
+  let e0 = toMinutes(job.end);
+  if (!from || !to || s0 === null || e0 === null) return { date: toDate };
+  if (e0 <= s0) e0 += 1440;   // 日をまたぐ勤務
+  const delta = toMinutes(to.start) - toMinutes(from.start);
+  const s = s0 + delta;
+  const e = e0 + delta;
+  if (s < 0 || s >= 1440) return null;
+  return { date: toDate, start: fromMinutes(s), end: fromMinutes(e) };
+}
+
+function moveLabel(job, change) {
+  const time = job.allDay ? '終日' : `${shortTime(change.start || job.start)}〜${shortTime(change.end || job.end)}`;
+  return `${formatDate(change.date)} ${time}`;
+}
+
+/** つかんでいる間の見た目（予定バーを薄くし、指・マウスのそばに行き先を出す） */
+function moveDragVisual(on) {
+  const cal = document.querySelector('.sc-calendar');
+  if (cal) cal.classList.toggle('sc-calendar-moving', on);
+  elCalendar.querySelectorAll('.sc-vbar-lift').forEach((el) => el.classList.remove('sc-vbar-lift'));
+  elCalendar.querySelectorAll('.sc-vcell-drop, .sc-vcell-drop-bad').forEach((el) => el.classList.remove('sc-vcell-drop', 'sc-vcell-drop-bad'));
+  let ghost = $('dragGhost');
+  if (!on) { if (ghost) ghost.hidden = true; return; }
+  if (!ghost) {
+    ghost = document.createElement('div');
+    ghost.id = 'dragGhost';
+    ghost.className = 'sc-drag-ghost';
+    document.body.appendChild(ghost);
+  }
+  moveDrag.jobIds.forEach((id) => {
+    elCalendar.querySelectorAll('.sc-vbar').forEach((bar) => { if (bar.dataset.job === id) bar.classList.add('sc-vbar-lift'); });
+  });
+}
+
+function startMoveDrag(originPick, touch, x, y) {
+  const [date, slotId] = originPick.split('|');
+  const jobs = jobsInSlot(date, slotId);
+  if (!jobs.length) return false;
+  moveDrag = { origin: originPick, date: date, slotId: slotId, jobIds: jobs.map((j) => j.id), started: false, target: null, touch: !!touch };
+  moveDragVisual(true);
+  updateMoveDrag(x, y);
+  return true;
+}
+
+/** 指・マウスの位置から、行き先の枠を決めて表示を更新する */
+function updateMoveDrag(x, y) {
+  if (!moveDrag) return;
+  const el = document.elementFromPoint(x, y);
+  const cell = el && el.closest ? el.closest('[data-pick]') : null;
+  const dateBtn = (!cell && el && el.closest) ? el.closest('[data-role="date"]') : null;
+  // 日付の列に置いたときは、時間帯はそのままで日付だけ移す
+  const target = cell ? cell.dataset.pick : dateBtn ? `${dateBtn.dataset.date}|${moveDrag.slotId}` : null;
+  if (target && target !== moveDrag.origin) moveDrag.started = true;
+  moveDrag.target = target;
+
+  elCalendar.querySelectorAll('.sc-vcell-drop, .sc-vcell-drop-bad').forEach((c) => c.classList.remove('sc-vcell-drop', 'sc-vcell-drop-bad'));
+  const jobs = state.jobs.filter((j) => moveDrag.jobIds.includes(j.id));
+  let text = '';
+  let bad = false;
+  if (target && target !== moveDrag.origin && jobs.length) {
+    const [td, ts] = target.split('|');
+    const change = computeMove(jobs[0], moveDrag.slotId, td, ts);
+    bad = jobs.some((j) => !computeMove(j, moveDrag.slotId, td, ts));
+    text = bad ? 'ここには移せません' : `→ ${moveLabel(jobs[0], change)}`;
+    const tc = elCalendar.querySelector(`[data-pick="${target}"]`);
+    if (tc) tc.classList.add(bad ? 'sc-vcell-drop-bad' : 'sc-vcell-drop');
+  } else {
+    text = moveDrag.touch ? 'そのまま移したい枠までずらす' : '移したい枠まで動かす';
+  }
+  const ghost = $('dragGhost');
+  if (ghost) {
+    const title = jobs.length > 1 ? `${jobs.length}件の予定` : jobHeading(jobs[0] || {});
+    ghost.innerHTML = `<strong>${escapeHtml(title)}</strong><span>${escapeHtml(text)}</span>`;
+    ghost.classList.toggle('sc-drag-ghost-bad', bad);
+    ghost.hidden = false;
+    const w = ghost.offsetWidth || 160;
+    const left = Math.max(6, Math.min(window.innerWidth - w - 6, x - w / 2));
+    const top = Math.max(6, y - (moveDrag.touch ? 78 : 54));   // 指に隠れないよう、少し上に出す
+    ghost.style.transform = `translate(${Math.round(left)}px, ${Math.round(top)}px)`;
+  }
+}
+
+/**
+ * つかんでいた予定を離す。commit=false なら何もせずにやめる。
+ * 戻り値：'moved'＝移した / 'cancelled'＝動かしたが元の場所や枠の外で離した / 'untouched'＝一度も動かさなかった
+ */
+function finishMoveDrag(commit) {
+  const md = moveDrag;
+  if (!md) return 'cancelled';
+  moveDrag = null;
+  moveDragVisual(false);
+  if (!md.started) return 'untouched';
+  if (!commit || !md.target || md.target === md.origin) return 'cancelled';
+  const [td, ts] = md.target.split('|');
+  applyMove(md.jobIds, md.slotId, td, ts);
+  return 'moved';
+}
+
+/** 予定を移す。すぐ反映して、「元に戻す」を出す */
+function applyMove(jobIds, fromSlotId, toDate, toSlotId) {
+  const jobs = state.jobs.filter((j) => jobIds.includes(j.id));
+  if (!jobs.length) return;
+  const changes = {};
+  for (let i = 0; i < jobs.length; i++) {
+    const c = computeMove(jobs[i], fromSlotId, toDate, toSlotId);
+    if (!c) { toast('その時間帯には移せません（日付をまたいでしまいます）', true); return; }
+    changes[jobs[i].id] = c;
+  }
+  const undoSnap = takeUndoSnapshot();
+  const at = nowIso();
+  state.jobs = state.jobs.map((j) => (changes[j.id] ? applyJobChanges(j, changes[j.id], at) : j));
+  // 予定を入れた日は「休み希望」を外して稼働扱いにそろえる（登録のときと同じ）
+  if (state.wishes[toDate] === WISH_OFF) setWish(toDate, null, true);
+
+  const moved = state.jobs.filter((j) => changes[j.id]);
+  const overlap = moved.some((j) => findConflicts(j, j.id).some((c) => c.type === 'overlap' && !changes[c.job.id]));
+  view.selected = toDate;
+  view.slot = toSlotId;
+  view.formOpen = false;
+  view.popup = false;
+  view.editingId = null;
+  view.confirming = false;
+  view.form = blankForm();
+  saveState();
+  renderAll();
+  const name = moved.length > 1 ? `${moved.length}件の予定` : `「${jobHeading(moved[0])}」`;
+  offerUndo(undoSnap, `${name}を ${moveLabel(moved[0], changes[moved[0].id])} に移しました${overlap ? '（⚠ ほかの予定と時間が重なっています）' : ''}`);
+}
+
 function clearLongPress() {
   clearTimeout(longPressTimer);
   longPressTimer = null;
@@ -5018,12 +5232,14 @@ function bindEvents() {
         longPressTimer = null;
         if (!painting) return;
         longPressActive = true;
+        if (navigator.vibrate) { try { navigator.vibrate(15); } catch (err) { /* 振動できなくてもよい */ } }
+        // 予定のある枠を長押し → その予定をつかむ（そのままずらすと移動、動かさずに離すと複数選択）
+        if (!view.paint && startMoveDrag(pick, true, paintStartX, paintStartY)) return;
         // 指を置いたままの枠の要素を作り直すと、そのあとのなぞり操作が届かなくなるため、
         // カレンダー全体は描き直さずに、その枠の見た目とパネルだけを更新する
         if (view.paint !== 'multi') switchToMulti();
         setMultiPick(pick, true);
         paintAdd = true;
-        if (navigator.vibrate) { try { navigator.vibrate(15); } catch (err) { /* 振動できなくてもよい */ } }
       }, LONG_PRESS_MS);
     }
   });
@@ -5044,8 +5260,15 @@ function bindEvents() {
       return;
     }
 
+    if (moveDrag) return;   // つかんでいる間の行き先は pointermove 側で追う
     const cell = ev.target.closest('[data-pick]');
     if (!cell || paintTouched.has(cell.dataset.pick)) return;
+
+    // 選択のみで、予定のある枠からドラッグを始めたときは、その予定を移す
+    if (!view.paint && paintTouched.size === 1) {
+      const origin = Array.from(paintTouched)[0];
+      if (startMoveDrag(origin, false, ev.clientX, ev.clientY)) return;
+    }
     paintTouched.add(cell.dataset.pick);
 
     if (view.paint === 'multi') {
@@ -5076,17 +5299,20 @@ function bindEvents() {
     // 見出し行の分を含めた上端、操作バーを除いた下端の、ごく端に指が来たときだけ動かす
     const topEdge = stick + 40 + 28;
     const bottomEdge = bottomLimit - 28;
-    if (dragPoint.y > bottomEdge) return Math.min(12, 2 + (dragPoint.y - bottomEdge) / 3);
-    if (dragPoint.y < topEdge) return -Math.min(12, 2 + (topEdge - dragPoint.y) / 3);
+    // カレンダーの端まで見えたら、それ以上は進めない（行き過ぎて枠の外に出ないように）
+    const calBox = elCalendar.getBoundingClientRect();
+    if (dragPoint.y > bottomEdge) return calBox.bottom > bottomLimit - 8 ? Math.min(12, 2 + (dragPoint.y - bottomEdge) / 3) : 0;
+    if (dragPoint.y < topEdge) return calBox.top < stick ? -Math.min(12, 2 + (topEdge - dragPoint.y) / 3) : 0;
     return 0;
   };
   const dragScrollLoop = () => {
     dragScrollFrame = 0;
-    if (!longPressActive || !painting || !dragPoint) return;
+    if (!(longPressActive || moveDrag) || !painting || !dragPoint) return;
     const v = dragScrollSpeed();
     if (!v) return;
     window.scrollBy(0, v);
-    pickAt(dragPoint.x, dragPoint.y);
+    if (moveDrag) updateMoveDrag(dragPoint.x, dragPoint.y);
+    else pickAt(dragPoint.x, dragPoint.y);
     dragScrollFrame = requestAnimationFrame(dragScrollLoop);
   };
   elCalendar.addEventListener('touchmove', (ev) => {
@@ -5095,7 +5321,8 @@ function bindEvents() {
     const t = ev.touches[0];
     if (!t) return;
     dragPoint = { x: t.clientX, y: t.clientY };
-    pickAt(t.clientX, t.clientY);
+    if (moveDrag) updateMoveDrag(t.clientX, t.clientY);
+    else pickAt(t.clientX, t.clientY);
     if (!dragScrollFrame && dragScrollSpeed()) dragScrollFrame = requestAnimationFrame(dragScrollLoop);
   }, { passive: false });
 
@@ -5114,6 +5341,19 @@ function bindEvents() {
     // 指を離したこの瞬間にシートや確認を開くと、ブラウザがこのあと出すクリックが
     // 開いたシートの中のボタン（削除など）に当たってしまう。指の操作ではそのクリックを捨てる
     if (paintIsTouch && !isCancel) swallowTouchEnd = true;
+
+    if (moveDrag) {
+      const origin = moveDrag.origin;
+      const wasTouch = moveDrag.touch;
+      const result = finishMoveDrag(!isCancel);
+      // 長押ししたまま動かさずに離したときは、これまでどおり複数選択を始める
+      if (result === 'untouched' && wasTouch && !isCancel) {
+        switchToMulti();
+        setMultiPick(origin, true);
+      }
+      paintTouched.clear();
+      return;
+    }
 
     if (view.paint === 'multi') {
       // 指で1枠だけタップした（長押し・なぞりではない）ときは、ここで選択を切り替える
@@ -5162,6 +5402,12 @@ function bindEvents() {
   // 「1枠だけ押した」ことになり、そのままその枠が選ばれてしまう。
   // 一定以上指が動いたらスクロール操作とみなし、選択操作を中止する（長押しが成立したあとは除く）。
   window.addEventListener('pointermove', (ev) => {
+    if (moveDrag && !moveDrag.touch && painting) {
+      dragPoint = { x: ev.clientX, y: ev.clientY };
+      updateMoveDrag(ev.clientX, ev.clientY);
+      if (!dragScrollFrame && dragScrollSpeed()) dragScrollFrame = requestAnimationFrame(dragScrollLoop);
+      return;
+    }
     if (!painting || !paintIsTouch || longPressActive || ev.pointerId !== paintPointerId) return;
     const dx = ev.clientX - paintStartX;
     const dy = ev.clientY - paintStartY;
@@ -5174,7 +5420,7 @@ function bindEvents() {
 
   // 念のため、画面が実際にスクロールされたときも同様に選択操作を中止する
   window.addEventListener('scroll', () => {
-    if (!painting || longPressActive) return;
+    if (!painting || longPressActive || moveDrag) return;
     painting = false;
     clearLongPress();
     paintTouched.clear();
@@ -5753,6 +5999,13 @@ function bindEvents() {
   document.addEventListener('keydown', (ev) => {
     if (ev.key === 'Escape' && !elConfirmOverlay.hidden) { closeCustomConfirm(false); return; }
     if (ev.key === 'Escape' && voice.open) { closeVoice(); return; }
+    if (ev.key === 'Escape' && moveDrag) { finishMoveDrag(false); painting = false; paintTouched.clear(); return; }
+    // Ctrl+Z（⌘Z）で、直前の移動・削除・まとめて操作を元に戻す
+    if ((ev.ctrlKey || ev.metaKey) && !ev.shiftKey && ev.key.toLowerCase() === 'z' && undoEntry && !ev.target.matches('input, textarea, select')) {
+      ev.preventDefault();
+      runUndo();
+      return;
+    }
     if (ev.key === 'Escape' && (elSideAside.classList.contains('sc-side-modal-open') || (view.formOpen && !view.editingId))) { closeForm(); return; }
     if (ev.target.matches('input, textarea, select')) return;
     if (document.body.classList.contains('sc-auth-locked')) return;   // ログイン画面の裏では動かさない

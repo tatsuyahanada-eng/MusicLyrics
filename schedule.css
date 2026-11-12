@@ -1508,6 +1508,70 @@ body.sc-auth-locked > *:not(.sc-auth-overlay):not(.sc-confirm-overlay):not(.sc-t
 .sc-vcell-check { z-index: 3; }
 .sc-vcell:active { background: rgba(30, 64, 175, 0.12); }
 
+/* ---- 予定をつかんで移す ---- */
+.sc-calendar-moving, .sc-calendar-moving .sc-vcell, .sc-calendar-moving .sc-vdate { cursor: grabbing; }
+.sc-vbar-lift { opacity: 0.4; outline: 2px dashed var(--sc-primary); outline-offset: -2px; }
+.sc-vcell-drop::after,
+.sc-vcell-drop-bad::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  pointer-events: none;
+  box-shadow: inset 0 0 0 3px #16a34a;
+  background: rgba(22, 163, 74, 0.2);
+}
+.sc-vcell-drop-bad::after { box-shadow: inset 0 0 0 3px #dc2626; background: rgba(220, 38, 38, 0.16); }
+.sc-drag-ghost {
+  position: fixed;
+  left: 0;
+  top: 0;
+  z-index: 260;
+  pointer-events: none;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  max-width: 240px;
+  padding: 6px 12px;
+  border-radius: 10px;
+  background: #1e293b;
+  color: #fff;
+  font-size: 0.78rem;
+  line-height: 1.35;
+  box-shadow: 0 8px 22px rgba(15, 23, 42, 0.35);
+  will-change: transform;
+}
+.sc-drag-ghost[hidden] { display: none; }
+.sc-drag-ghost strong { font-size: 0.82rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.sc-drag-ghost span { color: #bbf7d0; font-weight: 700; white-space: nowrap; }
+.sc-drag-ghost-bad span { color: #fecaca; }
+
+/* 「元に戻す」付きのお知らせは押せるようにする */
+.sc-toast.sc-toast-action {
+  pointer-events: auto;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  border-radius: 14px;
+  text-align: left;
+  padding: 8px 8px 8px 16px;
+  width: max-content;
+  max-width: min(94vw, 520px);
+}
+.sc-toast-btn {
+  flex: 0 0 auto;
+  border: 0;
+  border-radius: 999px;
+  background: #fff;
+  color: #1e293b;
+  font: inherit;
+  font-size: 0.82rem;
+  font-weight: 800;
+  padding: 8px 14px;
+  min-height: 38px;
+  cursor: pointer;
+}
+
 /* ---- まとめて操作：新規登録／予定を変更 ---- */
 .sc-multi-tabs {
   display: flex;
