@@ -188,6 +188,106 @@ function jobBarPlacementStyle(job, primaryId, col) {
     + ` margin-left:${marginLeftPct.toFixed(2)}%; margin-right:${marginRightPct.toFixed(2)}%;`;
 }
 
+/* ---- 同じ時間帯に予定が重なって見えるときの、時刻に合わせた横並び ---- */
+
+/**
+ * 時刻（分）を、時間帯の列の上の横位置（0＝早朝の左端 〜 5＝夜間の右端）に直す。
+ * 各列の中は、その枠の標準の時間（AMなら9:00〜12:00）で等分する。
+ * 枠と枠のあいだの時間（8:00〜9:00）は、手前の列の右端の1/4に割り当てる
+ * （8:00開始の予定が、AMの少し手前から始まって見えるように）。
+ */
+function timeAxisPoints() {
+  const pts = [[0, 0]];
+  SLOTS.forEach((slot, i) => {
+    const st = toMinutes(slot.start);
+    const en = toMinutes(slot.end);
+    const next = SLOTS[i + 1] ? toMinutes(SLOTS[i + 1].start) : en;
+    pts.push([st, i]);
+    pts.push([en, next > en ? i + 0.75 : i + 1]);
+  });
+  pts.push([1440, SLOTS.length]);
+  return pts;
+}
+
+function timeToAxis(min) {
+  const pts = timeAxisPoints();
+  if (min <= pts[0][0]) return pts[0][1];
+  for (let i = 1; i < pts.length; i++) {
+    if (min <= pts[i][0]) {
+      const [m0, x0] = pts[i - 1];
+      const [m1, x1] = pts[i];
+      return m1 === m0 ? x1 : x0 + (x1 - x0) * (min - m0) / (m1 - m0);
+    }
+  }
+  return SLOTS.length;
+}
+
+/** いまの「枠ごとの棒」として描いたときに、その予定が占める横の範囲（重なって見えるかの判定用） */
+function jobSlotRange(job) {
+  const pid = job.allDay ? SLOTS[0].id : primarySlotId(job);
+  if (!pid) return null;
+  if (job.allDay) return { pid: pid, x0: 0, x1: SLOTS.length };
+  const idx = SLOTS.findIndex((s2) => s2.id === pid);
+  const span = jobBarSpan(job, pid);
+  return { pid: pid, x0: idx - jobBarLeadBleed(job, pid), x1: idx + span + jobBarTailSpill(job, pid, span) };
+}
+
+const BAR_MIN_WIDTH = 0.3;   // 短い予定でも、これだけの幅（列の3割）は確保する
+
+/** 時刻どおりに描いたときに、その予定が占める横の範囲 */
+function jobTimeRange(job, fallback) {
+  if (job.allDay) return { x0: 0, x1: SLOTS.length };
+  const st = toMinutes(job.start);
+  let en = toMinutes(job.end);
+  if (st === null || en === null) return { x0: fallback.x0, x1: fallback.x1 };
+  if (en <= st) en = 1440;   // 日をまたぐ予定は、その日の終わりまで
+  let x0 = timeToAxis(st);
+  let x1 = timeToAxis(en);
+  if (x1 - x0 < BAR_MIN_WIDTH) x1 = Math.min(SLOTS.length, x0 + BAR_MIN_WIDTH);
+  if (x1 - x0 < BAR_MIN_WIDTH) x0 = Math.max(0, x1 - BAR_MIN_WIDTH);
+  return { x0: x0, x1: x1 };
+}
+
+/**
+ * その日の予定を、棒の並べ方ごとにまとめる。
+ *   single … ほかの予定と重なって見えない予定。これまでどおり、掛かる枠いっぱいの棒で描く
+ *   lanes  … 重なって見える予定の集まり。時刻に合わせて横に並べ、時間が本当に重なるものだけ段を分ける
+ */
+function layoutDayBars(dayJobs) {
+  const items = [];
+  dayJobs.forEach((j) => {
+    const r = jobSlotRange(j);
+    if (r) items.push({ job: j, pid: r.pid, x0: r.x0, x1: r.x1 });
+  });
+
+  // 見た目が重なるものどうしを、ひとまとまりにする
+  const groups = [];
+  items.slice().sort((a, b) => a.x0 - b.x0).forEach((it) => {
+    const hit = groups.filter((g) => g.some((o) => it.x0 < o.x1 - 1e-6 && o.x0 < it.x1 - 1e-6));
+    if (!hit.length) { groups.push([it]); return; }
+    hit[0].push(it);
+    for (let i = 1; i < hit.length; i++) {
+      hit[i].forEach((o) => hit[0].push(o));
+      groups.splice(groups.indexOf(hit[i]), 1);
+    }
+  });
+
+  return groups.map((g) => {
+    if (g.length === 1) return { type: 'single', item: g[0] };
+    const bars = g.map((it) => Object.assign({ job: it.job, pid: it.pid }, jobTimeRange(it.job, it)))
+      .sort((a, b) => (a.x0 - b.x0) || (b.x1 - a.x1));
+    // 時間が重ならないものは同じ段に横並び。重なるものだけ次の段へ
+    const laneEnds = [];
+    bars.forEach((b) => {
+      let lane = laneEnds.findIndex((end) => end <= b.x0 + 1e-6);
+      if (lane < 0) { lane = laneEnds.length; laneEnds.push(0); }
+      laneEnds[lane] = b.x1;
+      b.lane = lane + 1;
+    });
+    return { type: 'lanes', bars: bars, lanes: laneEnds.length };
+  });
+}
+
 /* ------------------------------------------------------------
    日付ユーティリティ
    ------------------------------------------------------------ */
@@ -814,26 +914,24 @@ function renderCalendar() {
         + `</button>`;
     }).join('');
 
-    // 予定バー：案件が掛かる枠をひとつながりの棒で表す（枠ごとに案件名を繰り返さない）
-    const barGroups = {};
-    dayJobs.forEach((j) => {
-      const pid = j.allDay ? SLOTS[0].id : primarySlotId(j);
-      if (!pid) return;
-      (barGroups[pid] = barGroups[pid] || []).push(j);
-    });
-    const bars = Object.keys(barGroups).map((pid) => {
-      const idx = SLOTS.findIndex((s2) => s2.id === pid);
-      if (idx < 0) return '';
-      const col = idx + 2;   // 1列目は日付列
-      const jobsHere = barGroups[pid];
-      if (jobsHere.length === 1) {
-        const style = jobBarPlacementStyle(jobsHere[0], pid, col);
-        return jobBarHtml(jobsHere[0], key, pid, conflicts, style);
+    // 予定バー：案件が掛かる枠をひとつながりの棒で表す（枠ごとに案件名を繰り返さない）。
+    // 同じ時間帯に複数の予定が重なって見えるときは、時刻に合わせて横に並べる
+    const total5 = SLOTS.length;
+    const bars = layoutDayBars(dayJobs).map((g) => {
+      if (g.type === 'single') {
+        const idx = SLOTS.findIndex((s2) => s2.id === g.item.pid);
+        if (idx < 0) return '';
+        const col = idx + 2;   // 1列目は日付列
+        return jobBarHtml(g.item.job, key, g.item.pid, conflicts, jobBarPlacementStyle(g.item.job, g.item.pid, col));
       }
-      // 重複を承知で同じ枠に重ねた予定は、その枠の中にまとめて縦に並べる
-      const inner = jobsHere.map((j) => jobBarHtml(j, key, pid, conflicts, '')).join('');
-      return `<div class="sc-vbar-stack" data-date="${key}" data-slot="${pid}"`
-        + ` style="grid-column:${col} / span 1;">${inner}</div>`;
+      const inner = g.bars.map((b) => {
+        const left = (b.x0 / total5 * 100).toFixed(3);
+        const right = ((total5 - b.x1) / total5 * 100).toFixed(3);
+        const style = `grid-row:${b.lane};grid-column:1;margin-left:calc(${left}% + 1px);margin-right:calc(${right}% + 1px);`;
+        return jobBarHtml(b.job, key, b.pid, conflicts, style, (b.x1 - b.x0) < 0.6 ? 'sc-vbar-narrow' : '');
+      }).join('');
+      return `<div class="sc-vbar-lanes${g.lanes > 1 ? ' sc-vbar-lanes-multi' : ''}" data-date="${key}"`
+        + ` style="grid-template-rows:repeat(${g.lanes}, minmax(0, 1fr));--sc-lanes:${g.lanes};">${inner}</div>`;
     }).join('');
 
     const rcls = ['sc-vrow'];
@@ -869,8 +967,9 @@ function tintWithWhite(rgb, ratio) {
 }
 
 /** 予定バー（縦型カレンダー）のHTML。案件名の下に実際の時間帯を小さく添える */
-function jobBarHtml(j, dateKey, slotId, conflicts, style) {
+function jobBarHtml(j, dateKey, slotId, conflicts, style, extraCls) {
   const cls = ['sc-vbar'];
+  if (extraCls) cls.push(extraCls);
   cls.push(j.status === 'tentative' ? 'sc-vbar-tentative' : 'sc-vbar-confirmed');
   if (conflicts.has(j.id)) cls.push('sc-vbar-conflict');
 
@@ -5016,10 +5115,22 @@ function moveDragVisual(on) {
   });
 }
 
-function startMoveDrag(originPick, touch, x, y) {
+function startMoveDrag(originPick, touch, x, y, pressX, pressY) {
   const [date, slotId] = originPick.split('|');
-  const jobs = jobsInSlot(date, slotId);
+  let jobs = jobsInSlot(date, slotId);
   if (!jobs.length) return false;
+  // 同じ枠に予定が横に並んでいるときは、押した位置にある予定だけをつかむ
+  if (jobs.length > 1) {
+    const px = pressX === undefined ? x : pressX;
+    const py = pressY === undefined ? y : pressY;
+    const under = jobs.filter((j) => {
+      const bar = Array.from(elCalendar.querySelectorAll('.sc-vbar')).find((el) => el.dataset.job === j.id);
+      if (!bar) return false;
+      const b = bar.getBoundingClientRect();
+      return px >= b.left && px <= b.right && py >= b.top && py <= b.bottom;
+    });
+    if (under.length) jobs = [under[0]];
+  }
   moveDrag = { origin: originPick, date: date, slotId: slotId, jobIds: jobs.map((j) => j.id), started: false, target: null, touch: !!touch };
   moveDragVisual(true);
   updateMoveDrag(x, y);
@@ -5267,7 +5378,7 @@ function bindEvents() {
     // 選択のみで、予定のある枠からドラッグを始めたときは、その予定を移す
     if (!view.paint && paintTouched.size === 1) {
       const origin = Array.from(paintTouched)[0];
-      if (startMoveDrag(origin, false, ev.clientX, ev.clientY)) return;
+      if (startMoveDrag(origin, false, ev.clientX, ev.clientY, paintStartX, paintStartY)) return;
     }
     paintTouched.add(cell.dataset.pick);
 

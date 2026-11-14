@@ -577,6 +577,28 @@ textarea.sc-input { resize: vertical; line-height: 1.5; min-height: 2.6em; }
   vertical-align: middle;
 }
 
+/* 重なって見える予定は、行の時間帯ぜんぶを1つの土台にして、時刻に合わせて横に並べる。
+   時間が本当に重なる予定だけ、段を分けて上下に並べる（段の数だけ行を高くして読めるようにする） */
+.sc-vbar-lanes {
+  grid-row: 1;
+  grid-column: 2 / span 5;
+  z-index: 1;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  align-self: stretch;
+  pointer-events: none;
+  min-width: 0;
+}
+.sc-vbar-lanes-multi { min-height: calc(var(--sc-lanes, 2) * 32px); }
+.sc-vbar-lanes .sc-vbar { min-width: 0; padding-left: 3px; padding-right: 3px; }
+.sc-vbar-lanes-multi .sc-vbar-title { -webkit-line-clamp: 1; line-clamp: 1; }
+.sc-vbar-lanes-multi .sc-vbar-proj { display: none; }
+/* 1時間ほどの細い棒は、時間の行を省いて、案件名をできるだけ見せる */
+.sc-vbar-narrow { padding-left: 1px !important; padding-right: 1px !important; }
+.sc-vbar-narrow .sc-vbar-time, .sc-vbar-narrow .sc-vbar-proj { display: none; }
+.sc-vbar-narrow .sc-vbar-title { font-size: 0.62rem; -webkit-line-clamp: 3; line-clamp: 3; }
+.sc-vbar-narrow .sc-vbar-mark { margin-right: 1px; }
+
 /* 重複を承知で同じ枠に重ねた予定は、枠の中にまとめて縦に並べる */
 .sc-vbar-stack {
   position: relative;
@@ -1844,6 +1866,8 @@ body.sc-auth-locked > *:not(.sc-auth-overlay):not(.sc-confirm-overlay):not(.sc-t
   .sc-vbar-time { font-size: 0.5rem; }
   .sc-vbar-stack .sc-vbar-title { font-size: 0.54rem; }
   .sc-vbar-stack .sc-vbar-time { font-size: 0.46rem; }
+  .sc-vbar-lanes-multi { min-height: calc(var(--sc-lanes, 2) * 28px); }
+  .sc-vbar-narrow .sc-vbar-title { font-size: 0.52rem; }
   .sc-vdate-head, .sc-vslot-head { font-size: 0.66rem; padding: 5px 2px; }
   .sc-vslot-time { font-size: 0.5rem; }
   .sc-form-row { gap: 6px; }
@@ -1909,6 +1933,9 @@ body.sc-auth-locked > *:not(.sc-auth-overlay):not(.sc-confirm-overlay):not(.sc-t
   .sc-vbar-proj { display: none; }
   .sc-vbar-time { font-size: 6px; }
   .sc-vbar-mark { font-size: 6px; padding: 0 1px; }
+  .sc-vbar-lanes-multi { min-height: calc(var(--sc-lanes, 2) * 13px); }
+  .sc-vbar-lanes .sc-vbar { padding: 0 1px; }
+  .sc-vbar-narrow .sc-vbar-title { font-size: 6px; -webkit-line-clamp: 2; line-clamp: 2; }
   .sc-vbar-stack { gap: 0.5px; padding: 0.5px; }
   .sc-vbar-stack .sc-vbar-title { font-size: 6px; }
   .sc-vbar-stack .sc-vbar-proj { display: none; }
