@@ -553,7 +553,18 @@ function normalizeState(parsed) {
   const routines = (Array.isArray(parsed.routines) ? parsed.routines : []).filter(isValidRoutine).map((r) => {
     const rt = Object.assign({}, r);
     if (!rt.updatedAt) rt.updatedAt = rt.createdAt || EPOCH0;
-    if (!ROUTINE_KINDS[rt.kind]) rt.kind = 'daily';
+    // 前の版の「案件の予定がある日」は、「毎日」＋案件の指定＋予定がある日だけ、に置き換える
+    if (rt.kind === 'project') {
+      rt.kind = 'daily';
+      rt.projects = rt.project ? [rt.project] : [];
+      rt.onlyJobDays = true;
+      delete rt.project;
+    }
+    if (rt.kind !== 'job' && !ROUTINE_KINDS[rt.kind]) rt.kind = 'daily';
+    rt.projects = (Array.isArray(rt.projects) ? rt.projects : (rt.project ? [rt.project] : [])).filter((x) => typeof x === 'string' && x);
+    if (typeof rt.onlyJobDays !== 'boolean') rt.onlyJobDays = rt.projects.length > 0;
+    rt.dates = (Array.isArray(rt.dates) ? rt.dates : []).filter((d) => typeof d === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(d));
+    if (rt.kind === 'job' && typeof rt.jobId !== 'string') rt.kind = 'daily';
     rt.times = (Array.isArray(rt.times) ? rt.times : []).filter((t) => typeof t === 'string' && /^\d{1,2}:\d{2}$/.test(t));
     rt.days = (Array.isArray(rt.days) ? rt.days : []).map(Number).filter((d) => d >= 0 && d <= 6);
     if (typeof rt.note !== 'string') rt.note = '';
@@ -1433,6 +1444,7 @@ function renderSidePanel() {
       ${visitLines}
       ${j.note ? `<p class="sc-job-meta sc-job-note">📝 ${escapeHtml(j.note)}</p>` : ''}
       ${warn}
+      ${jobRoutinesHtml(j)}
       <div class="sc-job-actions">
         ${tentative ? `<button type="button" class="sc-btn sc-btn-sm sc-btn-confirm" data-confirm="${j.id}">✓ 確定にする</button>` : ''}
         ${gcalUrl ? `<a class="sc-btn sc-btn-sm sc-btn-outline" href="${escapeHtml(gcalUrl)}" target="_blank" rel="noopener">📆 追加</a>` : ''}
@@ -3904,8 +3916,9 @@ const ROUTINE_KINDS = {
   weekdays: '平日（土日祝を除く）',
   weekly: '毎週（曜日を選ぶ）',
   monthly: '毎月',
-  project: '案件の予定がある日',
+  dates: '日にちを指定（その日だけ・複数可）',
 };
+// このほか kind: 'job' … 予定に付けた作業（その予定の日に出る。予定を動かすと一緒に動く）
 const ROUTINE_LOG_DAYS = 120;    // 完了の記録を残す期間
 const ROUTINE_BACKLOG_DAYS = 7;  // やり残しとして知らせる期間（これより前は出さない）
 const ROUTINE_COLLAPSE_STORE = 'ms-schedule-routine-collapsed';
@@ -3939,34 +3952,87 @@ function monthlyRoutineDate(r, year, month /* 0-11 */) {
 }
 
 /** そのルーチンが、その日に必要か */
-function routineOccursOn(r, dateKey) {
+/** 予定に付けた作業のときは、その予定 */
+function routineJob(r) {
+  return r.kind === 'job' ? state.jobs.find((j) => j.id === r.jobId) || null : null;
+}
+
+/** 指定した案件の予定が、その日にあるか */
+function routineProjectMatch(r, dateKey) {
+  const projects = r.projects || [];
+  return jobsOn(dateKey).some((j) => projects.includes(j.title) && (r.includeTentative !== false || j.status !== 'tentative'));
+}
+
+/**
+ * そのルーチンが、その日に必要か。
+ * 「いつ」（毎日・曜日・毎月・指定の日）で日を決め、案件を指定していれば、
+ * 「予定がある日だけ」のときはその案件の予定がある日に絞る。
+ */
+function routineOccursOn(rIn, dateKey) {
+  let r = rIn;
+  // 前の版の形式（案件の予定がある日）がそのまま来ても、同じ意味で扱う
+  if (r.kind === 'project') r = Object.assign({}, r, { kind: 'daily', projects: r.project ? [r.project] : [], onlyJobDays: true });
   if (r.paused) return false;
-  if (r.startDate && dateKey < r.startDate) return false;
-  const dow = fromKey(dateKey).getDay();
-  switch (r.kind) {
-    case 'weekdays': return !isOffDay(dateKey);
-    case 'weekly': return Array.isArray(r.days) && r.days.includes(dow);
-    case 'monthly': {
-      const d = fromKey(dateKey);
-      return monthlyRoutineDate(r, d.getFullYear(), d.getMonth()) === dateKey;
-    }
-    case 'project':
-      return !!r.project && jobsOn(dateKey).some((j) => j.title === r.project
-        && (r.includeTentative !== false || j.status !== 'tentative'));
-    default: return true;
+  if (r.kind === 'job') {
+    const j = routineJob(r);
+    return !!j && j.date === dateKey;
   }
+  if (r.kind === 'dates') {
+    if (!(r.dates || []).includes(dateKey)) return false;
+  } else {
+    if (r.startDate && dateKey < r.startDate) return false;
+    const dow = fromKey(dateKey).getDay();
+    if (r.kind === 'weekdays' && isOffDay(dateKey)) return false;
+    if (r.kind === 'weekly' && !(Array.isArray(r.days) && r.days.includes(dow))) return false;
+    if (r.kind === 'monthly') {
+      const d = fromKey(dateKey);
+      if (monthlyRoutineDate(r, d.getFullYear(), d.getMonth()) !== dateKey) return false;
+    }
+  }
+  if ((r.projects || []).length && r.onlyJobDays !== false) return routineProjectMatch(r, dateKey);
+  return true;
+}
+
+/** 「いつ」の部分の説明 */
+function routineWhenLabel(r) {
+  if (r.kind === 'job') {
+    const j = routineJob(r);
+    return j ? `${formatDate(j.date)}の予定「${jobHeading(j)}」` : '（付けていた予定は削除されています）';
+  }
+  if (r.kind === 'dates') {
+    const ds = (r.dates || []).slice().sort();
+    if (!ds.length) return '（日付なし）';
+    return ds.slice(0, 6).map((d) => formatDate(d)).join('・') + (ds.length > 6 ? ` ほか${ds.length - 6}日` : '');
+  }
+  if (r.kind === 'weekly') return '毎週 ' + ((r.days || []).slice().sort((a, b) => ((a + 6) % 7) - ((b + 6) % 7)).map((d) => WD[d]).join('・') || '（曜日なし）');
+  if (r.kind === 'monthly') return `毎月 ${r.monthDay === 'last' ? '月末' : (Number(r.monthDay) || 1) + '日'}${r.shiftBusiness ? '（土日祝は前の平日）' : ''}`;
+  if (r.kind === 'weekdays') return '平日';
+  return '毎日';
 }
 
 /** ルーチンの繰り返しを、ひとことで表す */
 function routineRuleLabel(r) {
   const times = (r.times || []).filter(Boolean);
-  let rule;
-  if (r.kind === 'weekly') rule = '毎週 ' + ((r.days || []).slice().sort((a, b) => ((a + 6) % 7) - ((b + 6) % 7)).map((d) => WD[d]).join('・') || '（曜日なし）');
-  else if (r.kind === 'monthly') rule = `毎月 ${r.monthDay === 'last' ? '月末' : (Number(r.monthDay) || 1) + '日'}${r.shiftBusiness ? '（土日祝は前の平日）' : ''}`;
-  else if (r.kind === 'project') rule = `「${r.project || '?'}」の予定がある日${r.includeTentative === false ? '（確定のみ）' : ''}`;
-  else if (r.kind === 'weekdays') rule = '平日';
-  else rule = '毎日';
+  let rule = routineWhenLabel(r);
+  const projects = r.kind === 'job' ? [] : (r.projects || []);
+  if (projects.length) {
+    const p = projects.join('・');
+    if (r.onlyJobDays !== false) {
+      rule = (r.kind === 'daily' ? '' : rule + ' のうち ') + `「${p}」の予定がある日` + (r.includeTentative === false ? '（確定のみ）' : '');
+    } else {
+      rule += `（${p}）`;
+    }
+  }
   return rule + (times.length ? ' ' + times.join('・') : '');
+}
+
+/** チェックリストに添える案件名（予定に付けた作業は、その予定の見出し） */
+function routineTag(r) {
+  if (r.kind === 'job') {
+    const j = routineJob(r);
+    return j ? jobHeading(j) : '';
+  }
+  return (r.projects || []).join('・');
 }
 
 function routineItemKey(dateKey, rid, time) {
@@ -3998,7 +4064,8 @@ function routineBacklog(todayKeyArg) {
     routineItemsOn(d).forEach((it) => {
       // ルーチンを登録する前の日の分は数えない
       const created = (it.routine.createdAt || '').slice(0, 10);
-      if (created && d < created) return;
+      const oneOff = it.routine.kind === 'dates' || it.routine.kind === 'job';
+      if (created && d < created && !oneOff) return;
       if (!it.status) out.push(it);
     });
   }
@@ -4044,7 +4111,7 @@ function routineItemHtml(it, opts) {
     <label class="sc-rt-check">
       <input type="checkbox" data-rt-toggle="${escapeHtml(it.key)}" ${it.status === 'done' ? 'checked' : ''} aria-label="完了にする">
       <span class="sc-rt-time">${o.showDate ? `<b>${formatDate(it.date)}</b> ` : ''}${escapeHtml(o.showDate && !it.time ? '' : when)}</span>
-      <span class="sc-rt-title">${escapeHtml(r.title)}${r.kind === 'project' && r.project ? `<small>${escapeHtml(r.project)}</small>` : ''}</span>
+      <span class="sc-rt-title">${escapeHtml(r.title)}${!o.noTag && routineTag(r) ? `<small>${escapeHtml(routineTag(r))}</small>` : ''}</span>
     </label>
     ${it.status === 'skip'
       ? `<button type="button" class="sc-rt-mini" data-rt-unskip="${escapeHtml(it.key)}">戻す</button>`
@@ -4129,7 +4196,7 @@ function renderRoutineSheet() {
 
 /** 日付を選んだときのパネルに出す、その日のルーチン */
 function routineDayBlockHtml(dateKey) {
-  const items = routineItemsOn(dateKey);
+  const items = routineItemsOn(dateKey).filter((it) => it.routine.kind !== 'job');
   if (!items.length) return '';
   const doneN = items.filter((it) => it.status).length;
   return `<div class="sc-side-block sc-rt-dayblock">
@@ -4145,7 +4212,7 @@ function routineDateMarks(dateKey, today) {
   if (!items.length) return '';
   const monthly = items.filter((it) => it.routine.kind === 'monthly');
   const undone = dateKey < today && dateKey >= toKey(addDays(fromKey(today), -ROUTINE_BACKLOG_DAYS))
-    && items.some((it) => !it.status && !((it.routine.createdAt || '').slice(0, 10) > dateKey));
+    && items.some((it) => !it.status && (it.routine.kind === 'dates' || it.routine.kind === 'job' || !((it.routine.createdAt || '').slice(0, 10) > dateKey)));
   let html = '';
   if (monthly.length) html += `<span class="sc-mark-routine" title="${escapeHtml(monthly.map((it) => it.routine.title).join('、'))}">🔁</span>`;
   if (undone) html += '<span class="sc-mark-routine-warn" title="ルーチンのやり残しがあります">!</span>';
@@ -4155,19 +4222,37 @@ function routineDateMarks(dateKey, today) {
 /* ---- 登録・編集 ---- */
 
 function blankRoutine() {
-  return { title: '', note: '', kind: 'daily', days: [1, 2, 3, 4, 5], monthDay: 25, shiftBusiness: true, project: '', includeTentative: true, times: [''], paused: false };
+  return { title: '', note: '', kind: 'daily', days: [1, 2, 3, 4, 5], monthDay: 25, shiftBusiness: true, dates: [],
+    projects: [], onlyJobDays: true, includeTentative: true, times: [''], paused: false };
 }
 
 function routineFormHtml(r) {
   const f = Object.assign(blankRoutine(), r || {});
   const editing = !!(r && r.id);
+  const isJob = f.kind === 'job';
   const times = (f.times && f.times.length ? f.times : ['']);
   const dayOrder = [1, 2, 3, 4, 5, 6, 0];
+  const projects = f.projects || [];
+  // 削除済みの案件名でも、指定済みなら選択肢に残す
+  const projectChoices = Array.from(new Set(state.settings.projects.concat(projects)));
+  const job = isJob ? routineJob(f) : null;
+  const dates = (f.dates || []).slice().sort();
   return `<form id="routineForm" class="sc-form sc-todo-form">
     <label class="sc-field">
       <span class="sc-field-label">作業の名前 <span aria-hidden="true">*</span></span>
       <input id="rtTitle" class="sc-input" type="text" value="${escapeHtml(f.title)}" placeholder="例）作業報告メールを送る／請求の確認" autocomplete="off">
     </label>
+    ${isJob ? `<p class="sc-rt-jobnote">🔁 ${job ? `${escapeHtml(formatDate(job.date, 'long'))} の予定「${escapeHtml(jobHeading(job))}」に付けた作業です（予定を動かすと一緒に動きます）。` : '付けていた予定は削除されています。'}</p>` : `
+    <div class="sc-field">
+      <span class="sc-field-label">どの案件のときか（任意・複数選べる）</span>
+      <div class="sc-rt-days sc-rt-projects">${projectChoices.map((p) => `<label class="sc-rt-day"><input type="checkbox" name="rtProj" value="${escapeHtml(p)}" ${projects.includes(p) ? 'checked' : ''}><span>${escapeHtml(p)}</span></label>`).join('')}</div>
+      <p class="sc-hint">選ばなければ、案件に関係なく下の「いつ」の日に出ます。</p>
+    </div>
+    <div class="sc-rt-opt" id="rtProjOpts" ${projects.length ? '' : 'hidden'}>
+      <label class="sc-check"><input id="rtOnlyJob" type="checkbox" ${f.onlyJobDays !== false ? 'checked' : ''}><span>選んだ案件の予定がある日だけ出す</span></label>
+      <label class="sc-check"><input id="rtTentative" type="checkbox" ${f.includeTentative !== false ? 'checked' : ''}><span>仮出勤の日も対象にする</span></label>
+      <p class="sc-hint">「予定がある日だけ」を外すと、予定が無い日でも「いつ」の日に出ます（毎月の請求確認を案件ごとに分けて管理する場合など）。</p>
+    </div>
     <label class="sc-field">
       <span class="sc-field-label">いつ</span>
       <select id="rtKind" class="sc-input">
@@ -4188,16 +4273,14 @@ function routineFormHtml(r) {
       </label>
       <label class="sc-check"><input id="rtShift" type="checkbox" ${f.shiftBusiness ? 'checked' : ''}><span>土日祝にあたるときは、前の平日にする</span></label>
     </div>
-    <div class="sc-rt-opt" data-rt-for="project" ${f.kind === 'project' ? '' : 'hidden'}>
-      <label class="sc-field">
-        <span class="sc-field-label">案件</span>
-        <select id="rtProject" class="sc-input">
-          <option value="">選択してください</option>
-          ${state.settings.projects.map((p) => `<option value="${escapeHtml(p)}" ${f.project === p ? 'selected' : ''}>${escapeHtml(p)}</option>`).join('')}
-        </select>
-      </label>
-      <label class="sc-check"><input id="rtTentative" type="checkbox" ${f.includeTentative !== false ? 'checked' : ''}><span>仮出勤の日も対象にする</span></label>
-    </div>
+    <div class="sc-rt-opt" data-rt-for="dates" ${f.kind === 'dates' ? '' : 'hidden'}>
+      <span class="sc-field-label">日にち（いくつでも追加できます）</span>
+      <div class="sc-rt-dateadd">
+        <input id="rtDateNew" class="sc-input" type="date" value="${escapeHtml(view.selected || todayKey())}">
+        <button type="button" id="rtDateAdd" class="sc-btn sc-btn-sm sc-btn-outline">追加</button>
+      </div>
+      <div class="sc-chip-row">${dates.length ? dates.map((d) => `<button type="button" class="sc-date-chip" data-rt-date-del="${d}" title="外す">${formatDate(d)} <span aria-hidden="true">×</span><input type="hidden" name="rtDate" value="${d}"></button>`).join('') : '<span class="sc-hint">まだ日にちがありません。</span>'}</div>
+    </div>`}
     <div class="sc-field">
       <span class="sc-field-label">時刻（任意・複数可。例：朝 8:30 と 夜 18:00）</span>
       <div id="rtTimes" class="sc-rt-times">
@@ -4218,20 +4301,27 @@ function routineFormHtml(r) {
   </form>`;
 }
 
+/** フォームの内容を読む（予定に付けた作業のときは、日付まわりの欄は無い） */
 function readRoutineForm() {
   const times = Array.from(document.querySelectorAll('#routineForm input[name="rtTime"]')).map((el) => el.value).filter(Boolean);
-  return {
+  const base = view.routineDraft || (view.routineEditingId ? state.routines.find((r) => r.id === view.routineEditingId) : null) || {};
+  const common = {
     title: $('rtTitle').value.trim(),
     note: $('rtNote').value.trim(),
-    kind: $('rtKind').value,
-    days: Array.from(document.querySelectorAll('#routineForm input[name="rtDay"]:checked')).map((el) => Number(el.value)),
-    monthDay: $('rtMonthDay').value === 'last' ? 'last' : Number($('rtMonthDay').value),
-    shiftBusiness: $('rtShift').checked,
-    project: $('rtProject').value,
-    includeTentative: $('rtTentative').checked,
     times: Array.from(new Set(times)).sort(),
     paused: $('rtPaused') ? $('rtPaused').checked : false,
   };
+  if (!$('rtKind')) return Object.assign(common, { kind: 'job', jobId: base.jobId, projects: [] });
+  return Object.assign(common, {
+    kind: $('rtKind').value,
+    projects: Array.from(document.querySelectorAll('#routineForm input[name="rtProj"]:checked')).map((el) => el.value),
+    onlyJobDays: $('rtOnlyJob').checked,
+    includeTentative: $('rtTentative').checked,
+    days: Array.from(document.querySelectorAll('#routineForm input[name="rtDay"]:checked')).map((el) => Number(el.value)),
+    monthDay: $('rtMonthDay').value === 'last' ? 'last' : Number($('rtMonthDay').value),
+    shiftBusiness: $('rtShift').checked,
+    dates: Array.from(new Set(Array.from(document.querySelectorAll('#routineForm input[name="rtDate"]')).map((el) => el.value))).sort(),
+  });
 }
 
 function renderRoutineForm() {
@@ -4243,6 +4333,20 @@ function renderRoutineForm() {
   wrap.innerHTML = routineFormHtml(view.routineDraft || editing);
 }
 
+/** 一覧のまとまり（案件ごと）。予定に付けた作業は、その予定の案件のまとまりに入れる */
+function routineGroupName(r) {
+  if (r.kind === 'job') {
+    const j = routineJob(r);
+    return j ? (j.title || '') : '';
+  }
+  return (r.projects || []).join('・');
+}
+
+function routineBadge(r) {
+  if (r.paused) return '停止中';
+  return { daily: '毎日', weekdays: '平日', weekly: '毎週', monthly: '毎月', dates: '日付指定', job: '予定' }[r.kind] || '毎日';
+}
+
 function renderRoutines() {
   renderRoutineToday();
   renderRoutineSheet();
@@ -4251,24 +4355,38 @@ function renderRoutines() {
   if (count) count.textContent = state.routines.length ? `${state.routines.length}件` : '';
   if (!list) return;
   if (!state.routines.length) {
-    list.innerHTML = '<p class="sc-empty-note">まだ登録されていません。毎日・毎週・毎月の作業や、特定の案件の日にやる作業を登録すると、その日のチェックリストに出ます。</p>';
+    list.innerHTML = '<p class="sc-empty-note">まだ登録されていません。毎日・毎週・毎月の作業や、特定の案件の日・特定の日にやる作業を登録すると、その日のチェックリストに出ます。</p>';
     return;
   }
-  const order = { daily: 0, weekdays: 1, weekly: 2, project: 3, monthly: 4 };
-  list.innerHTML = state.routines.slice()
+  const order = { daily: 0, weekdays: 1, weekly: 2, monthly: 3, dates: 4, job: 5 };
+  const groups = new Map();
+  state.routines.slice()
     .sort((a, b) => (order[a.kind] - order[b.kind]) || a.title.localeCompare(b.title, 'ja'))
-    .map((r) => `<div class="sc-todo-row${r.paused ? ' sc-todo-row-done' : ''}">
-      <div class="sc-todo-body">
-        <div class="sc-todo-top">
-          <span class="sc-todo-badge sc-rt-kind-${r.kind}">${r.paused ? '停止中' : (r.kind === 'monthly' ? '毎月' : r.kind === 'project' ? '案件' : r.kind === 'weekly' ? '毎週' : r.kind === 'weekdays' ? '平日' : '毎日')}</span>
-          <span class="sc-todo-title">${escapeHtml(r.title)}</span>
+    .forEach((r) => {
+      const g = routineGroupName(r);
+      if (!groups.has(g)) groups.set(g, []);
+      groups.get(g).push(r);
+    });
+  // 共通（案件の指定なし）を先に、あとは案件名の順
+  const names = Array.from(groups.keys()).sort((a, b) => (a === '' ? -1 : b === '' ? 1 : a.localeCompare(b, 'ja')));
+  list.innerHTML = names.map((g) => `<div class="sc-rt-listgroup">
+      <div class="sc-rt-listhead">
+        <span>${g ? `📁 ${escapeHtml(g)}` : '🔁 共通（案件に関係なく）'}</span>
+        ${g && !g.includes('・') ? `<button type="button" class="sc-rt-mini" data-rt-add-project="${escapeHtml(g)}">＋ この案件に追加</button>` : ''}
+      </div>
+      ${groups.get(g).map((r) => `<div class="sc-todo-row${r.paused || (r.kind === 'job' && !routineJob(r)) ? ' sc-todo-row-done' : ''}">
+        <div class="sc-todo-body">
+          <div class="sc-todo-top">
+            <span class="sc-todo-badge sc-rt-kind-${r.kind}">${routineBadge(r)}</span>
+            <span class="sc-todo-title">${escapeHtml(r.title)}</span>
+          </div>
+          <p class="sc-todo-note">${escapeHtml(routineRuleLabel(r))}${r.note ? '　／　' + escapeHtml(r.note) : ''}</p>
         </div>
-        <p class="sc-todo-note">${escapeHtml(routineRuleLabel(r))}${r.note ? '　／　' + escapeHtml(r.note) : ''}</p>
-      </div>
-      <div class="sc-todo-actions">
-        <button type="button" class="sc-btn sc-btn-sm sc-btn-outline" data-rt-edit="${r.id}">編集</button>
-        <button type="button" class="sc-btn sc-btn-sm sc-btn-outline sc-btn-danger" data-rt-del="${r.id}">削除</button>
-      </div>
+        <div class="sc-todo-actions">
+          <button type="button" class="sc-btn sc-btn-sm sc-btn-outline" data-rt-edit="${r.id}">編集</button>
+          <button type="button" class="sc-btn sc-btn-sm sc-btn-outline sc-btn-danger" data-rt-del="${r.id}">削除</button>
+        </div>
+      </div>`).join('')}
     </div>`).join('');
 }
 
@@ -4276,11 +4394,12 @@ function saveRoutineFromForm() {
   const d = readRoutineForm();
   if (!d.title) { toast('作業の名前を入力してください', true); $('rtTitle').focus(); return false; }
   if (d.kind === 'weekly' && !d.days.length) { toast('曜日を選んでください', true); return false; }
-  if (d.kind === 'project' && !d.project) { toast('案件を選んでください', true); $('rtProject').focus(); return false; }
+  if (d.kind === 'dates' && !d.dates.length) { toast('日にちを追加してください（「追加」を押します）', true); return false; }
   // 選んだ「いつ」に関係のない設定は保存しない
   if (d.kind !== 'weekly') d.days = [];
   if (d.kind !== 'monthly') { d.monthDay = null; d.shiftBusiness = false; }
-  if (d.kind !== 'project') { d.project = ''; d.includeTentative = true; }
+  if (d.kind !== 'dates') d.dates = [];
+  if (!d.projects.length) { d.onlyJobDays = false; d.includeTentative = true; }
   const at = nowIso();
   if (view.routineEditingId) {
     const r = state.routines.find((x) => x.id === view.routineEditingId);
@@ -4293,6 +4412,40 @@ function saveRoutineFromForm() {
   }
   saveState();
   return true;
+}
+
+/** 予定カードに出す「この予定の作業」（その予定に付けたチェック項目と、追加の入力欄） */
+function jobRoutinesHtml(j) {
+  const items = routineItemsOn(j.date).filter((it) => it.routine.kind === 'job' && it.routine.jobId === j.id);
+  const open = items.length > 0;
+  return `<div class="sc-job-rt">
+    ${open ? `<p class="sc-job-rt-title">🔁 この予定の作業（${items.filter((it) => it.status).length}/${items.length}）</p>${items.map((it) => routineItemHtml(it, { noTag: true })).join('')}` : ''}
+    <button type="button" class="sc-rt-mini sc-job-rt-open" data-rt-job-open="${j.id}" ${open ? 'hidden' : ''}>🔁 この予定の作業を追加</button>
+    <div class="sc-job-rt-add" data-rt-job-row="${j.id}" ${open ? '' : 'hidden'}>
+      <input class="sc-input sc-input-sm" type="text" data-rt-job-title="${j.id}" placeholder="例）前日に資材を確認／完了報告" autocomplete="off" enterkeyhint="done">
+      <input class="sc-input sc-input-sm" type="time" data-rt-job-time="${j.id}" aria-label="時刻（任意）">
+      <button type="button" class="sc-btn sc-btn-sm" data-rt-job-add="${j.id}">追加</button>
+    </div>
+  </div>`;
+}
+
+function addJobRoutine(jobId) {
+  const titleEl = elSidePanel.querySelector(`[data-rt-job-title="${jobId}"]`);
+  const timeEl = elSidePanel.querySelector(`[data-rt-job-time="${jobId}"]`);
+  const title = titleEl ? titleEl.value.trim() : '';
+  if (!title) { toast('作業の名前を入力してください', true); if (titleEl) titleEl.focus(); return; }
+  const at = nowIso();
+  state.routines.push({
+    id: 'r' + newId().slice(1), title: title, note: '', kind: 'job', jobId: jobId, projects: [],
+    times: timeEl && timeEl.value ? [timeEl.value] : [], paused: false, createdAt: at, updatedAt: at,
+  });
+  saveState();
+  renderSidePanel();
+  renderRoutines();
+  renderStats();
+  const again = elSidePanel.querySelector(`[data-rt-job-title="${jobId}"]`);
+  if (again && !isNarrow()) again.focus();
+  toast('この予定の作業に追加しました');
 }
 
 async function deleteRoutine(id) {
@@ -4313,6 +4466,17 @@ async function deleteRoutine(id) {
 /** チェック・「今回なし」・折りたたみの操作（今日の欄・シート・日付のパネルで共通） */
 function handleRoutineClick(ev) {
   const t = ev.target;
+  const jobOpen = t.closest('[data-rt-job-open]');
+  if (jobOpen) {
+    const row = elSidePanel.querySelector(`[data-rt-job-row="${jobOpen.dataset.rtJobOpen}"]`);
+    if (row) row.hidden = false;
+    jobOpen.hidden = true;
+    const input = elSidePanel.querySelector(`[data-rt-job-title="${jobOpen.dataset.rtJobOpen}"]`);
+    if (input) input.focus();
+    return true;
+  }
+  const jobAdd = t.closest('[data-rt-job-add]');
+  if (jobAdd) { addJobRoutine(jobAdd.dataset.rtJobAdd); return true; }
   if (t.closest('[data-rt-collapse]')) {
     let collapsed = false;
     try { collapsed = localStorage.getItem(ROUTINE_COLLAPSE_STORE) === '1'; } catch (err) { /* 既定は開く */ }
@@ -4353,7 +4517,8 @@ function handleRoutineChange(ev) {
 function afterRoutineChange() {
   renderRoutines();
   renderStats();
-  if (!view.slot && view.selected && view.paint !== 'multi') renderSidePanel();
+  // 予定カードの「この予定の作業」や、日付のパネルの件数も更新する（入力中のフォームは view.form から描き直される）
+  if (view.selected && view.paint !== 'multi') renderSidePanel();
   renderCalendar();
 }
 
@@ -4375,7 +4540,25 @@ function bindRoutines() {
     const el = $('rtTitle');
     if (el && !isNarrow()) el.focus();
   });
+  // 予定カードの作業名の欄で Enter を押したら追加する
+  elSidePanel.addEventListener('keydown', (ev) => {
+    const input = ev.target.closest('[data-rt-job-title]');
+    if (!input || ev.key !== 'Enter' || ev.isComposing) return;
+    ev.preventDefault();
+    addJobRoutine(input.dataset.rtJobTitle);
+  });
   $('routineList').addEventListener('click', (ev) => {
+    const addP = ev.target.closest('[data-rt-add-project]');
+    if (addP) {
+      view.routineEditingId = null;
+      view.routineDraft = Object.assign(blankRoutine(), { projects: [addP.dataset.rtAddProject], onlyJobDays: true });
+      view.routineFormOpen = true;
+      renderRoutineForm();
+      $('routineFormWrap').scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+      const el = $('rtTitle');
+      if (el && !isNarrow()) el.focus();
+      return;
+    }
     const edit = ev.target.closest('[data-rt-edit]');
     if (edit) {
       view.routineEditingId = edit.dataset.rtEdit;
@@ -4390,14 +4573,37 @@ function bindRoutines() {
   });
   const wrap = $('routineFormWrap');
   wrap.addEventListener('change', (ev) => {
+    if (ev.target.name === 'rtProj') {
+      const any = !!wrap.querySelector('input[name="rtProj"]:checked');
+      $('rtProjOpts').hidden = !any;
+      return;
+    }
     if (ev.target.id !== 'rtKind') return;
     wrap.querySelectorAll('[data-rt-for]').forEach((el) => { el.hidden = el.dataset.rtFor !== ev.target.value; });
+    // 毎日・曜日なら「予定がある日だけ」、毎月・日付指定なら予定に関係なく出すのを、はじめの選択にする
+    const only = $('rtOnlyJob');
+    if (only) only.checked = ['daily', 'weekdays', 'weekly'].includes(ev.target.value);
   });
   wrap.addEventListener('click', (ev) => {
     if (ev.target.id === 'rtCancel') {
       view.routineFormOpen = false;
       view.routineEditingId = null;
       view.routineDraft = null;
+      renderRoutineForm();
+      return;
+    }
+    if (ev.target.id === 'rtDateAdd' || ev.target.closest('[data-rt-date-del]')) {
+      const d = readRoutineForm();
+      if (ev.target.id === 'rtDateAdd') {
+        const v = $('rtDateNew').value;
+        if (!v) { toast('日付を選んでください', true); return; }
+        d.dates = Array.from(new Set(d.dates.concat([v]))).sort();
+      } else {
+        const del = ev.target.closest('[data-rt-date-del]').dataset.rtDateDel;
+        d.dates = d.dates.filter((x) => x !== del);
+      }
+      const all = Array.from(document.querySelectorAll('#routineForm input[name="rtTime"]')).map((el) => el.value);
+      view.routineDraft = Object.assign({}, d, { id: view.routineEditingId || undefined, times: all.length ? all : [''] });
       renderRoutineForm();
       return;
     }

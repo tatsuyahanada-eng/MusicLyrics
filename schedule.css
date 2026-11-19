@@ -1635,6 +1635,25 @@ body.sc-auth-locked > *:not(.sc-auth-overlay):not(.sc-confirm-overlay):not(.sc-t
 .sc-rt-kind-project { background: #fef3c7; color: #92400e; }
 .sc-rt-kind-weekly, .sc-rt-kind-weekdays { background: #e0f2fe; color: #075985; }
 .sc-rt-kind-daily { background: #ccfbf1; color: #115e59; }
+.sc-rt-kind-dates { background: #fce7f3; color: #9d174d; }
+.sc-rt-kind-job { background: #fef3c7; color: #92400e; }
+.sc-rt-projects .sc-rt-day input:checked + span { font-weight: 800; color: var(--sc-primary); }
+.sc-rt-day:has(input:checked) { border-color: var(--sc-primary); background: #eef2ff; }
+.sc-rt-dateadd { display: flex; gap: 6px; align-items: center; }
+.sc-rt-dateadd .sc-input { max-width: 190px; }
+.sc-rt-jobnote { margin: 0; padding: 8px 10px; border-radius: 8px; background: #fffbeb; border: 1px solid #fde68a; font-size: 0.82rem; }
+/* 一覧：案件ごとのまとまり */
+.sc-rt-listgroup { display: flex; flex-direction: column; gap: 6px; }
+.sc-rt-listgroup + .sc-rt-listgroup { margin-top: 10px; }
+.sc-rt-listhead { display: flex; align-items: center; justify-content: space-between; gap: 8px; font-size: 0.82rem; font-weight: 800; color: var(--sc-muted); padding: 2px 2px 0; }
+/* 予定カードの「この予定の作業」 */
+.sc-job-rt { display: flex; flex-direction: column; gap: 4px; margin-top: 6px; padding-top: 6px; border-top: 1px dashed var(--sc-border); }
+.sc-job-rt-title { margin: 0; font-size: 0.74rem; font-weight: 800; color: #0f766e; }
+.sc-job-rt-open { align-self: flex-start; }
+.sc-job-rt-add { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
+.sc-job-rt-add[hidden] { display: none; }
+.sc-job-rt-add input[type="text"] { flex: 1 1 160px; min-width: 0; }
+.sc-job-rt-add input[type="time"] { flex: 0 0 auto; width: auto; }
 /* スマホ：残りの件数（左下） */
 .sc-rt-pill { display: none; }
 @media (max-width: 900px) {
