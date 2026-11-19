@@ -13,7 +13,7 @@
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="default">
   <meta name="apple-mobile-web-app-title" content="VertiCale">
-  <link rel="stylesheet" href="schedule.css?v=54">
+  <link rel="stylesheet" href="schedule.css?v=55">
 </head>
 <body class="sc-body">
 
@@ -63,6 +63,9 @@
 
       <!-- 印刷／PDF出力のときだけ表示する見出し -->
       <div id="printHeader" class="sc-print-header"></div>
+
+      <!-- 今日のルーチン（繰り返しの作業のチェックリスト） -->
+      <div id="routineToday" class="sc-rt-today" hidden></div>
 
       <div id="calendar" class="sc-calendar" role="grid" aria-label="カレンダー"></div>
 
@@ -118,6 +121,18 @@
       </div>
     </aside>
   </main>
+
+  <!-- スマホ：今日のルーチンの残り（押すとチェックリスト） -->
+  <button id="routinePill" class="sc-rt-pill" type="button" hidden></button>
+  <div id="routineOverlay" class="sc-voice-overlay" hidden>
+    <div class="sc-voice-sheet" role="dialog" aria-modal="true" aria-label="今日のルーチン">
+      <div class="sc-voice-head">
+        <strong>🔁 今日のルーチン</strong>
+        <button id="routineSheetClose" class="sc-voice-close" type="button" aria-label="閉じる">✕</button>
+      </div>
+      <div id="routineSheetBody" class="sc-rt-sheet-body"></div>
+    </div>
+  </div>
 
   <!-- スマホ：予定を追加する「＋」ボタンと、音声で登録する「マイク」ボタン -->
   <button id="fabVoice" class="sc-fab sc-fab-voice" type="button" aria-label="音声で予定を登録">🎤</button>
@@ -237,6 +252,23 @@
         <button id="addTodoBtn" class="sc-btn sc-btn-sm" type="button">＋ ToDoを追加</button>
       </div>
       <div id="todoFormWrap" hidden></div>
+    </div>
+  </section>
+
+  <!-- ルーチン（繰り返しの作業） -->
+  <section class="sc-section">
+    <div class="sc-section-inner">
+      <div class="sc-section-head">
+        <h3 class="sc-section-title" id="sec-routine">🔁 ルーチン（繰り返しの作業）</h3>
+        <span id="routineCount" class="sc-section-count"></span>
+      </div>
+      <p class="sc-note">毎日・毎週・毎月の作業や、「この案件の日は朝晩に報告メール」のような作業を登録しておくと、
+        その日のチェックリストとしてカレンダーの上に出ます。済んだらチェックを入れてください。やり残しは翌日以降も知らせます。</p>
+      <div id="routineList" class="sc-todolist"></div>
+      <div class="sc-export-actions">
+        <button id="addRoutineBtn" class="sc-btn sc-btn-sm" type="button">＋ ルーチンを追加</button>
+      </div>
+      <div id="routineFormWrap" hidden></div>
     </div>
   </section>
 
@@ -564,6 +596,6 @@
     </div>
   </div>
 
-  <script src="schedule.js?v=54"></script>
+  <script src="schedule.js?v=55"></script>
 </body>
 </html>

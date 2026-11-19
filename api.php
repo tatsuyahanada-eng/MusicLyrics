@@ -26,6 +26,7 @@ define('VC_MAX_BODY_BYTES', 6291456);          // 6MB
 define('VC_SESSION_LONG', 90 * 86400);         // 「ログインしたままにする」の期間
 define('VC_SESSION_SHORT', 12 * 3600);
 define('VC_EPOCH0', '1970-01-01T00:00:00.000Z');
+define('VC_SCHEMA', '2');                        // テーブル構成の版（増えたテーブルは自動で作る）
 
 /* ------------------------------------------------------------------
    共通
@@ -255,6 +256,28 @@ function vc_schema($pdo, $driver)
             user_id INT NOT NULL, id VARCHAR(64) NOT NULL, updated_at VARCHAR(40) NOT NULL,
             PRIMARY KEY (user_id, id)
         )$tail",
+        // ルーチン（繰り返しの作業）と、その日ごとのチェックの記録
+        "CREATE TABLE IF NOT EXISTS vc_routines (
+            user_id INT NOT NULL,
+            id VARCHAR(64) NOT NULL,
+            title VARCHAR(255) NOT NULL DEFAULT '',
+            kind VARCHAR(16) NOT NULL DEFAULT 'daily',
+            updated_at VARCHAR(40) NOT NULL,
+            data $txt NOT NULL,
+            PRIMARY KEY (user_id, id)
+        )$tail",
+        "CREATE TABLE IF NOT EXISTS vc_routine_tombstones (
+            user_id INT NOT NULL, id VARCHAR(64) NOT NULL, updated_at VARCHAR(40) NOT NULL,
+            PRIMARY KEY (user_id, id)
+        )$tail",
+        "CREATE TABLE IF NOT EXISTS vc_routine_log (
+            user_id INT NOT NULL,
+            item_key VARCHAR(100) NOT NULL,
+            log_date VARCHAR(10) NOT NULL,
+            status VARCHAR(8) NOT NULL DEFAULT '',
+            updated_at VARCHAR(40) NOT NULL,
+            PRIMARY KEY (user_id, item_key)
+        )$tail",
     );
     foreach ($ddl as $sql) {
         $pdo->exec($sql);
@@ -461,6 +484,31 @@ function vc_load_state($pdo, $userId)
         $todoTombs[] = array('id' => $row['id'], 'updatedAt' => $row['updated_at']);
     }
 
+    $routines = array();
+    $st = $pdo->prepare('SELECT data FROM vc_routines WHERE user_id = ? ORDER BY id');
+    $st->execute(array($userId));
+    foreach ($st as $row) {
+        $r = json_decode($row['data']);
+        if (is_object($r)) {
+            $routines[] = $r;
+        }
+    }
+
+    $routineTombs = array();
+    $st = $pdo->prepare('SELECT id, updated_at FROM vc_routine_tombstones WHERE user_id = ? ORDER BY id');
+    $st->execute(array($userId));
+    foreach ($st as $row) {
+        $routineTombs[] = array('id' => $row['id'], 'updatedAt' => $row['updated_at']);
+    }
+
+    $routineLog = new stdClass();
+    $st = $pdo->prepare('SELECT item_key, status, updated_at FROM vc_routine_log WHERE user_id = ? ORDER BY item_key');
+    $st->execute(array($userId));
+    foreach ($st as $row) {
+        $k = $row['item_key'];
+        $routineLog->$k = array('s' => $row['status'], 'at' => $row['updated_at']);
+    }
+
     $settings = $meta['settings'] !== null ? json_decode($meta['settings']) : null;
     $data = array(
         'version'        => 2,
@@ -472,6 +520,9 @@ function vc_load_state($pdo, $userId)
         'tombstones'     => $tombs,
         'todos'          => $todos,
         'todoTombstones' => $todoTombs,
+        'routines'       => $routines,
+        'routineTombstones' => $routineTombs,
+        'routineLog'     => $routineLog,
     );
     return array('rev' => $rev, 'updatedAt' => $meta['updated_at'], 'jobs' => count($jobs), 'data' => $data);
 }
@@ -532,7 +583,7 @@ function vc_rollback($pdo, $driver)
 /** そのユーザーの予定データをすべて消す（アカウントは残す） */
 function vc_delete_user_rows($pdo, $userId)
 {
-    foreach (array('vc_jobs', 'vc_job_tombstones', 'vc_wishes', 'vc_todos', 'vc_todo_tombstones') as $table) {
+    foreach (array('vc_jobs', 'vc_job_tombstones', 'vc_wishes', 'vc_todos', 'vc_todo_tombstones', 'vc_routines', 'vc_routine_tombstones', 'vc_routine_log') as $table) {
         $pdo->prepare("DELETE FROM $table WHERE user_id = ?")->execute(array($userId));
     }
 }
@@ -568,7 +619,16 @@ function vc_save_state($pdo, $driver, $userId, $body)
             vc_out(409, array_merge(array('ok' => false, 'error' => 'conflict'), $current));
         }
 
-        vc_delete_user_rows($pdo, $userId);
+        // ルーチンを知らない古い版の画面から届いたときは、ルーチンの記録は消さずに残す
+        $hasRoutines = property_exists($data, 'routines');
+        foreach (array('vc_jobs', 'vc_job_tombstones', 'vc_wishes', 'vc_todos', 'vc_todo_tombstones') as $table) {
+            $pdo->prepare("DELETE FROM $table WHERE user_id = ?")->execute(array($userId));
+        }
+        if ($hasRoutines) {
+            foreach (array('vc_routines', 'vc_routine_tombstones', 'vc_routine_log') as $table) {
+                $pdo->prepare("DELETE FROM $table WHERE user_id = ?")->execute(array($userId));
+            }
+        }
 
         $jobs = (isset($data->jobs) && is_array($data->jobs)) ? $data->jobs : array();
         $ins = $pdo->prepare('INSERT INTO vc_jobs (user_id, id, job_date, all_day, start_time, end_time, title, subject, work_type, status, updated_at, data)
@@ -634,6 +694,43 @@ function vc_save_state($pdo, $driver, $userId, $body)
             }
         }
 
+        if ($hasRoutines) {
+            $list = is_array($data->routines) ? $data->routines : array();
+            $ins = $pdo->prepare('INSERT INTO vc_routines (user_id, id, title, kind, updated_at, data) VALUES (?, ?, ?, ?, ?, ?)');
+            $seen = array();
+            foreach ($list as $r) {
+                if (!is_object($r) || !isset($r->id) || !vc_valid_id($r->id) || isset($seen[$r->id])) {
+                    continue;
+                }
+                $seen[$r->id] = true;
+                $ins->execute(array(
+                    $userId, $r->id, vc_cut(vc_str($r, 'title'), 255), vc_cut(vc_str($r, 'kind', 'daily'), 16),
+                    vc_stamp(isset($r->updatedAt) ? $r->updatedAt : null),
+                    json_encode($r, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES),
+                ));
+            }
+            $list = (isset($data->routineTombstones) && is_array($data->routineTombstones)) ? $data->routineTombstones : array();
+            $ins = $pdo->prepare('INSERT INTO vc_routine_tombstones (user_id, id, updated_at) VALUES (?, ?, ?)');
+            $seen = array();
+            foreach ($list as $t) {
+                if (!is_object($t) || !isset($t->id) || !vc_valid_id($t->id) || isset($seen[$t->id])) {
+                    continue;
+                }
+                $seen[$t->id] = true;
+                $ins->execute(array($userId, $t->id, vc_stamp(isset($t->updatedAt) ? $t->updatedAt : null)));
+            }
+            $log = (isset($data->routineLog) && is_object($data->routineLog)) ? get_object_vars($data->routineLog) : array();
+            $ins = $pdo->prepare('INSERT INTO vc_routine_log (user_id, item_key, log_date, status, updated_at) VALUES (?, ?, ?, ?, ?)');
+            foreach ($log as $k => $v) {
+                $k = (string) $k;
+                if (strlen($k) > 100 || !vc_valid_date(substr($k, 0, 10)) || !is_object($v)) {
+                    continue;
+                }
+                $s = vc_str($v, 's');
+                $ins->execute(array($userId, $k, substr($k, 0, 10), ($s === 'done' || $s === 'skip') ? $s : '', vc_stamp(isset($v->at) ? $v->at : null)));
+            }
+        }
+
         $settings = (isset($data->settings) && is_object($data->settings)) ? $data->settings : new stdClass();
         $now = vc_now_iso();
         $pdo->prepare('UPDATE vc_user_state SET rev = ?, updated_at = ?, settings = ?, settings_at = ? WHERE user_id = ?')
@@ -674,6 +771,11 @@ try {
         } catch (PDOException $e) {
             vc_schema($pdo, $driver);   // まだテーブルが無い（config.php を先に用意した場合など）
             $installed = vc_user_count($pdo) > 0;
+        }
+        // 前の版から更新したときは、新しく増えたテーブルを作る（既存のデータはそのまま）
+        if ($installed && vc_meta_get($pdo, 'schema') !== VC_SCHEMA) {
+            vc_schema($pdo, $driver);
+            vc_meta_set($pdo, 'schema', VC_SCHEMA);
         }
     }
 
@@ -746,7 +848,7 @@ try {
 
         $userId = vc_create_user($pdo, $login, $password, $name !== '' ? $name : $login, 'admin');
         vc_meta_set($pdo, 'site', bin2hex(random_bytes(8)));
-        vc_meta_set($pdo, 'schema', '1');
+        vc_meta_set($pdo, 'schema', VC_SCHEMA);
         vc_start_session($pdo, $userId, true);
         $st = $pdo->prepare('SELECT id, login, name, role FROM vc_users WHERE id = ?');
         $st->execute(array($userId));

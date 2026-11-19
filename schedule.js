@@ -446,6 +446,9 @@ function defaultState() {
     tombstones: [],  // [{ id, updatedAt }] 削除した予定の記録
     todos: [],       // { id, title, note, category: 'work'|'personal', dueDate, dueTime, done, createdAt, updatedAt }
     todoTombstones: [],  // [{ id, updatedAt }] 削除したToDoの記録
+    routines: [],        // { id, title, note, kind, days, monthDay, shiftBusiness, project, includeTentative, times, paused, startDate, createdAt, updatedAt }
+    routineTombstones: [],  // [{ id, updatedAt }] 削除したルーチンの記録
+    routineLog: {},      // 'YYYY-MM-DD|ルーチンID|時刻' → { s: 'done'|'skip'|'', at } その日のチェック
   };
 }
 
@@ -475,6 +478,9 @@ const view = {
   todoFilter: 'open',      // ToDoの絞り込み（open=未完了のみ / all=すべて）
   todoFormOpen: false,     // ToDoの追加・編集フォームを開いているか
   todoEditingId: null,     // 編集中のToDoのID（新規追加のときはnull）
+  routineFormOpen: false,  // ルーチンの登録・編集フォームを開いているか
+  routineEditingId: null,  // 編集中のルーチンのID
+  routineDraft: null,      // フォームの入力途中（時刻の追加・削除で描き直すとき用）
 };
 
 let painting = false;
@@ -544,6 +550,30 @@ function normalizeState(parsed) {
     .map((t) => ({ id: t.id, updatedAt: t.updatedAt || EPOCH0 }))
     .filter((t) => t.updatedAt >= limit);
 
+  const routines = (Array.isArray(parsed.routines) ? parsed.routines : []).filter(isValidRoutine).map((r) => {
+    const rt = Object.assign({}, r);
+    if (!rt.updatedAt) rt.updatedAt = rt.createdAt || EPOCH0;
+    if (!ROUTINE_KINDS[rt.kind]) rt.kind = 'daily';
+    rt.times = (Array.isArray(rt.times) ? rt.times : []).filter((t) => typeof t === 'string' && /^\d{1,2}:\d{2}$/.test(t));
+    rt.days = (Array.isArray(rt.days) ? rt.days : []).map(Number).filter((d) => d >= 0 && d <= 6);
+    if (typeof rt.note !== 'string') rt.note = '';
+    return rt;
+  });
+
+  const routineTombstones = (Array.isArray(parsed.routineTombstones) ? parsed.routineTombstones : [])
+    .filter((t) => t && typeof t.id === 'string')
+    .map((t) => ({ id: t.id, updatedAt: t.updatedAt || EPOCH0 }))
+    .filter((t) => t.updatedAt >= limit);
+
+  // チェックの記録は、一定期間より前のものは捨てる
+  const logLimit = toKey(addDays(new Date(), -ROUTINE_LOG_DAYS));
+  const routineLog = {};
+  Object.keys(plainMap(parsed.routineLog)).forEach((k) => {
+    const v = parsed.routineLog[k];
+    if (!v || typeof v !== 'object' || k.slice(0, 10) < logLimit) return;
+    routineLog[k] = { s: v.s === 'done' || v.s === 'skip' ? v.s : '', at: v.at || EPOCH0 };
+  });
+
   return {
     version: 2,
     settings: Object.assign(base.settings, plainMap(parsed.settings)),
@@ -554,6 +584,9 @@ function normalizeState(parsed) {
     tombstones: tombstones,
     todos: todos,
     todoTombstones: todoTombstones,
+    routines: routines,
+    routineTombstones: routineTombstones,
+    routineLog: routineLog,
   };
 }
 
@@ -650,6 +683,32 @@ function mergeStates(a, b) {
 
   out.todos = Array.from(todos.values());
   out.todoTombstones = Array.from(todoTombs.values());
+
+  /* ---- ルーチン（ToDoと同じく、同じIDは更新時刻が新しいほうを採用） ---- */
+  const rtTombs = new Map();
+  left.routineTombstones.concat(right.routineTombstones).forEach((t) => {
+    const cur = rtTombs.get(t.id);
+    if (!cur || t.updatedAt > cur.updatedAt) rtTombs.set(t.id, t);
+  });
+  const routines = new Map();
+  left.routines.concat(right.routines).forEach((r) => {
+    const cur = routines.get(r.id);
+    if (!cur || r.updatedAt > cur.updatedAt) routines.set(r.id, r);
+  });
+  rtTombs.forEach((t, id) => {
+    const r = routines.get(id);
+    if (r && r.updatedAt > t.updatedAt) rtTombs.delete(id);
+    else routines.delete(id);
+  });
+  out.routines = Array.from(routines.values());
+  out.routineTombstones = Array.from(rtTombs.values());
+
+  // その日のチェックは、項目ごとに新しく操作したほうを残す（チェックを外した記録も含む）
+  out.routineLog = Object.assign({}, left.routineLog);
+  Object.keys(right.routineLog).forEach((k) => {
+    const cur = out.routineLog[k];
+    if (!cur || right.routineLog[k].at > cur.at) out.routineLog[k] = right.routineLog[k];
+  });
 
   /* ---- 希望（未定に戻した記録も含めて突き合わせる） ---- */
   const dates = new Set(Object.keys(left.wishMeta).concat(Object.keys(right.wishMeta)));
@@ -819,6 +878,7 @@ function renderAll() {
   renderJobList();
   renderIcsPreview();
   renderTodos();
+  renderRoutines();
 }
 
 function renderMonthNav() {
@@ -879,6 +939,8 @@ function renderCalendar() {
     if (wish === WISH_AVAILABLE) marks.push('<span class="sc-mark-available">◯</span>');
     if (wish === WISH_OFF) marks.push('<span class="sc-mark-off">✕</span>');
     if (isEmpty) marks.push('<span class="sc-mark-empty">未定</span>');
+    const rtMarks = routineDateMarks(key, today);
+    if (rtMarks) marks.push(rtMarks);
 
     const dateCell = `<button type="button" class="${dcls.join(' ')}" data-date="${key}" data-role="date"`
       + ` aria-label="${escapeHtml(`${view.month + 1}月${d}日 ${WD[dow]}曜日`)}">`
@@ -1425,7 +1487,7 @@ function renderSidePanel() {
       </p>
     </div>`;
     // 枠を選んだときは予定の内容を先に、日付を選んだときは希望の設定を先に出す
-    elSidePanel.innerHTML = header + (slot ? jobsBlock + addBlock + wishBlock : wishBlock + jobsBlock + addBlock);
+    elSidePanel.innerHTML = header + (slot ? jobsBlock + addBlock + wishBlock : wishBlock + jobsBlock + routineDayBlockHtml(key) + addBlock);
   }
 
   updateFormAlert();
@@ -1456,6 +1518,7 @@ function renderStats() {
     stat('確定', confirmed, '件', 'sc-stat-confirmed') +
     stat('仮出勤', tentative, '件', 'sc-stat-tentative') +
     stat('ToDo', todoOpen, '件', 'sc-stat-todo') +
+    (state.routines.length ? stat('今日のルーチン 残り', routineItemsOn(today).filter((it) => !it.status).length, '件', 'sc-stat-routine') : '') +
     stat('確定の稼働日', confirmedDays, '日') +
     stat('稼働可能', avail, '日') +
     stat('休み希望', off, '日') +
@@ -2005,6 +2068,9 @@ function syncPayload() {
     tombstones: state.tombstones,
     todos: state.todos,
     todoTombstones: state.todoTombstones,
+    routines: state.routines,
+    routineTombstones: state.routineTombstones,
+    routineLog: state.routineLog,
   };
 }
 
@@ -2024,7 +2090,10 @@ function syncFingerprint(data) {
     .sort((a, b) => String(a && a.id).localeCompare(String(b && b.id)));
   const todos = (Array.isArray(data && data.todos) ? data.todos : []).slice()
     .sort((a, b) => String(a && a.id).localeCompare(String(b && b.id)));
-  return stableStringify({ wishes, jobs, todos, settings: (data && data.settings) || {} });
+  const routines = (Array.isArray(data && data.routines) ? data.routines : []).slice()
+    .sort((a, b) => String(a && a.id).localeCompare(String(b && b.id)));
+  const routineLog = (data && data.routineLog && !Array.isArray(data.routineLog)) ? data.routineLog : {};
+  return stableStringify({ wishes, jobs, todos, routines, routineLog, settings: (data && data.settings) || {} });
 }
 
 /** いまの state を画面全体に反映し直す（取り込み・ログイン・ログアウトのあと） */
@@ -2053,12 +2122,13 @@ function stateCounts(s) {
     jobs: (src.jobs || []).length,
     wishes: Object.keys(src.wishes || {}).length,
     todos: (src.todos || []).length,
+    routines: (src.routines || []).length,
   };
 }
 
 function stateHasData(s) {
   const c = stateCounts(s);
-  return c.jobs + c.wishes + c.todos > 0;
+  return c.jobs + c.wishes + c.todos + c.routines > 0;
 }
 
 /**
@@ -2112,6 +2182,7 @@ async function syncNow(silent, attempt) {
       wishes: merged.wishes, wishMeta: merged.wishMeta,
       jobs: merged.jobs, tombstones: merged.tombstones,
       todos: merged.todos, todoTombstones: merged.todoTombstones,
+      routines: merged.routines, routineTombstones: merged.routineTombstones, routineLog: merged.routineLog,
     };
 
     // この端末に足りない分があれば取り込む（確認は不要。消えるものはない）
@@ -3823,6 +3894,546 @@ function renderTodos() {
 }
 
 /* ------------------------------------------------------------
+   ルーチン（繰り返しの作業）
+   「毎日 朝晩にメールを送る」「毎月25日に請求を確認する」「OES入替の日は 8:30 に報告する」のように
+   繰り返しの作業を登録しておき、その日のチェックリストとして出す（やり残しも翌日以降に残して知らせる）。
+   ------------------------------------------------------------ */
+
+const ROUTINE_KINDS = {
+  daily: '毎日',
+  weekdays: '平日（土日祝を除く）',
+  weekly: '毎週（曜日を選ぶ）',
+  monthly: '毎月',
+  project: '案件の予定がある日',
+};
+const ROUTINE_LOG_DAYS = 120;    // 完了の記録を残す期間
+const ROUTINE_BACKLOG_DAYS = 7;  // やり残しとして知らせる期間（これより前は出さない）
+const ROUTINE_COLLAPSE_STORE = 'ms-schedule-routine-collapsed';
+
+function isValidRoutine(r) {
+  return r && typeof r === 'object' && typeof r.id === 'string' && typeof r.title === 'string';
+}
+
+/** 土日・祝日か */
+function isOffDay(dateKey) {
+  const dow = fromKey(dateKey).getDay();
+  return dow === 0 || dow === 6 || !!holidayName(dateKey);
+}
+
+/** 毎月のルーチンが、その月の何日に来るか（月末・土日祝のずらしを含む） */
+function monthlyRoutineDate(r, year, month /* 0-11 */) {
+  const last = daysInMonth(year, month);
+  const day = r.monthDay === 'last' ? last : Math.min(Math.max(1, Number(r.monthDay) || 1), last);
+  let d = new Date(year, month, day);
+  if (r.shiftBusiness) {
+    // 土日祝のときは前の平日へ（月をまたいでしまう場合は、その月の最初の平日へ）
+    let guard = 0;
+    while (isOffDay(toKey(d)) && guard++ < 10) d = addDays(d, -1);
+    if (d.getMonth() !== month) {
+      d = new Date(year, month, day);
+      guard = 0;
+      while (isOffDay(toKey(d)) && guard++ < 10) d = addDays(d, 1);
+    }
+  }
+  return toKey(d);
+}
+
+/** そのルーチンが、その日に必要か */
+function routineOccursOn(r, dateKey) {
+  if (r.paused) return false;
+  if (r.startDate && dateKey < r.startDate) return false;
+  const dow = fromKey(dateKey).getDay();
+  switch (r.kind) {
+    case 'weekdays': return !isOffDay(dateKey);
+    case 'weekly': return Array.isArray(r.days) && r.days.includes(dow);
+    case 'monthly': {
+      const d = fromKey(dateKey);
+      return monthlyRoutineDate(r, d.getFullYear(), d.getMonth()) === dateKey;
+    }
+    case 'project':
+      return !!r.project && jobsOn(dateKey).some((j) => j.title === r.project
+        && (r.includeTentative !== false || j.status !== 'tentative'));
+    default: return true;
+  }
+}
+
+/** ルーチンの繰り返しを、ひとことで表す */
+function routineRuleLabel(r) {
+  const times = (r.times || []).filter(Boolean);
+  let rule;
+  if (r.kind === 'weekly') rule = '毎週 ' + ((r.days || []).slice().sort((a, b) => ((a + 6) % 7) - ((b + 6) % 7)).map((d) => WD[d]).join('・') || '（曜日なし）');
+  else if (r.kind === 'monthly') rule = `毎月 ${r.monthDay === 'last' ? '月末' : (Number(r.monthDay) || 1) + '日'}${r.shiftBusiness ? '（土日祝は前の平日）' : ''}`;
+  else if (r.kind === 'project') rule = `「${r.project || '?'}」の予定がある日${r.includeTentative === false ? '（確定のみ）' : ''}`;
+  else if (r.kind === 'weekdays') rule = '平日';
+  else rule = '毎日';
+  return rule + (times.length ? ' ' + times.join('・') : '');
+}
+
+function routineItemKey(dateKey, rid, time) {
+  return `${dateKey}|${rid}|${time || '*'}`;
+}
+
+/** その日のチェック項目（時刻ごとに1つ。時刻なしは「その日のうち」） */
+function routineItemsOn(dateKey) {
+  const items = [];
+  state.routines.forEach((r) => {
+    if (!routineOccursOn(r, dateKey)) return;
+    const times = (r.times || []).filter(Boolean).sort();
+    (times.length ? times : ['']).forEach((t) => {
+      const key = routineItemKey(dateKey, r.id, t);
+      const log = state.routineLog[key];
+      items.push({ key: key, date: dateKey, routine: r, time: t, status: log ? log.s : '' });
+    });
+  });
+  // 時刻のあるものを時刻順に、時刻なし（その日のうち）は最後
+  return items.sort((a, b) => (a.time || '99:99').localeCompare(b.time || '99:99') || a.routine.title.localeCompare(b.routine.title, 'ja'));
+}
+
+/** やり残し（前日までの、まだ終わっていない項目） */
+function routineBacklog(todayKeyArg) {
+  const today = todayKeyArg || todayKey();
+  const out = [];
+  for (let i = ROUTINE_BACKLOG_DAYS; i >= 1; i--) {
+    const d = toKey(addDays(fromKey(today), -i));
+    routineItemsOn(d).forEach((it) => {
+      // ルーチンを登録する前の日の分は数えない
+      const created = (it.routine.createdAt || '').slice(0, 10);
+      if (created && d < created) return;
+      if (!it.status) out.push(it);
+    });
+  }
+  return out;
+}
+
+/** その時刻を過ぎているか（今日の項目だけ） */
+function routineItemLate(it, now) {
+  if (it.status || !it.time) return false;
+  const n = now || new Date();
+  if (it.date !== toKey(n)) return it.date < toKey(n);
+  return toMinutes(it.time) <= n.getHours() * 60 + n.getMinutes();
+}
+
+function setRoutineStatus(key, status) {
+  state.routineLog[key] = { s: status || '', at: nowIso() };
+  saveState();
+}
+
+const ROUTINE_BACKLOG_SHOW = 5;   // やり残しは新しいものからこの件数だけ出し、残りは件数で示す
+
+function routineBacklogHtml(backlog) {
+  if (!backlog.length) return '';
+  const shown = backlog.slice(-ROUTINE_BACKLOG_SHOW).reverse();   // 新しい日から
+  const more = backlog.length - shown.length;
+  return `<div class="sc-rt-group sc-rt-backlog"><p class="sc-rt-group-title">⚠ やり残し ${backlog.length}件（${ROUTINE_BACKLOG_DAYS}日以内）<button type="button" class="sc-rt-mini" data-rt-clear-backlog>まとめて「今回なし」にする</button></p>`
+    + shown.map((it) => routineItemHtml(it, { showDate: true })).join('')
+    + (more ? `<p class="sc-rt-more">ほかに ${more}件（さらに前の日の分）</p>` : '')
+    + '</div>';
+}
+
+/** チェックリストの1行 */
+function routineItemHtml(it, opts) {
+  const o = opts || {};
+  const late = routineItemLate(it);
+  const cls = ['sc-rt-item'];
+  if (it.status === 'done') cls.push('sc-rt-done');
+  if (it.status === 'skip') cls.push('sc-rt-skip');
+  if (late) cls.push('sc-rt-late');
+  const r = it.routine;
+  const when = it.time ? it.time : '今日中';
+  return `<div class="${cls.join(' ')}">
+    <label class="sc-rt-check">
+      <input type="checkbox" data-rt-toggle="${escapeHtml(it.key)}" ${it.status === 'done' ? 'checked' : ''} aria-label="完了にする">
+      <span class="sc-rt-time">${o.showDate ? `<b>${formatDate(it.date)}</b> ` : ''}${escapeHtml(o.showDate && !it.time ? '' : when)}</span>
+      <span class="sc-rt-title">${escapeHtml(r.title)}${r.kind === 'project' && r.project ? `<small>${escapeHtml(r.project)}</small>` : ''}</span>
+    </label>
+    ${it.status === 'skip'
+      ? `<button type="button" class="sc-rt-mini" data-rt-unskip="${escapeHtml(it.key)}">戻す</button>`
+      : it.status ? '' : `<button type="button" class="sc-rt-mini" data-rt-skip="${escapeHtml(it.key)}" title="今回はやらない">今回なし</button>`}
+    ${r.note ? `<p class="sc-rt-note">${escapeHtml(r.note)}</p>` : ''}
+  </div>`;
+}
+
+/** 今日のチェックリスト（カレンダーの上） */
+function renderRoutineToday() {
+  const box = $('routineToday');
+  if (!box) return;
+  const today = todayKey();
+  const items = routineItemsOn(today);
+  const backlog = routineBacklog(today);
+  updateRoutinePill(items, backlog);
+  if (!state.routines.length) { box.hidden = true; box.innerHTML = ''; return; }
+  box.hidden = false;
+
+  const doneN = items.filter((it) => it.status).length;
+  const lateN = items.filter((it) => routineItemLate(it)).length;
+  let collapsed = false;
+  try { collapsed = localStorage.getItem(ROUTINE_COLLAPSE_STORE) === '1'; } catch (err) { /* 既定は開く */ }
+  const next = items.find((it) => !it.status);
+  const summary = !items.length ? '今日のルーチンはありません'
+    : doneN === items.length ? 'すべて完了しました'
+      : `次：${next.time || '今日中'} ${next.routine.title}`;
+
+  box.innerHTML = `
+    <button type="button" class="sc-rt-head" data-rt-collapse aria-expanded="${!collapsed}">
+      <span class="sc-rt-head-title">🔁 今日のルーチン</span>
+      <span class="sc-rt-count${lateN || backlog.length ? ' sc-rt-count-warn' : doneN === items.length && items.length ? ' sc-rt-count-ok' : ''}">${doneN}/${items.length}</span>
+      <span class="sc-rt-summary">${escapeHtml(summary)}${backlog.length ? `　<b class="sc-rt-warn">やり残し ${backlog.length}件</b>` : ''}</span>
+      <span class="sc-rt-caret" aria-hidden="true">${collapsed ? '▾' : '▴'}</span>
+    </button>
+    ${collapsed ? '' : `<div class="sc-rt-body">
+      ${items.length ? `<div class="sc-rt-group">${items.map((it) => routineItemHtml(it)).join('')}</div>` : '<p class="sc-empty-note">今日のルーチンはありません。</p>'}
+      ${routineBacklogHtml(backlog)}
+    </div>`}`;
+}
+
+/** スマホ：画面の下に、残りの件数を出す（押すとチェックリストを開く） */
+function updateRoutinePill(items, backlog) {
+  const pill = $('routinePill');
+  if (!pill) return;
+  const remain = items.filter((it) => !it.status).length + backlog.length;
+  pill.hidden = !remain;
+  if (!remain) return;
+  const late = items.some((it) => routineItemLate(it)) || backlog.length > 0;
+  pill.classList.toggle('sc-rt-pill-warn', late);
+  pill.innerHTML = `🔁 <b>${remain}</b><span>件</span>`;
+  pill.setAttribute('aria-label', `今日のルーチン 残り${remain}件`);
+}
+
+/** スマホ：今日のルーチンを下からのシートで出す */
+let routineSheetOpen = false;
+function openRoutineSheet() {
+  routineSheetOpen = true;
+  $('routineOverlay').hidden = false;
+  document.body.classList.add('sc-modal-open-body');
+  renderRoutineSheet();
+  syncHistoryLayers();
+}
+function closeRoutineSheet(skipHistory) {
+  if (!routineSheetOpen) return;
+  routineSheetOpen = false;
+  $('routineOverlay').hidden = true;
+  const sheet = elSideAside && elSideAside.classList.contains('sc-side-modal-open');
+  if (!sheet && !voice.open) document.body.classList.remove('sc-modal-open-body');
+  if (!skipHistory) syncHistoryLayers();
+}
+function renderRoutineSheet() {
+  if (!routineSheetOpen) return;
+  const today = todayKey();
+  const items = routineItemsOn(today);
+  const backlog = routineBacklog(today);
+  $('routineSheetBody').innerHTML = `
+    <div class="sc-rt-group"><p class="sc-rt-group-title">${formatDate(today, 'long')}</p>
+      ${items.length ? items.map((it) => routineItemHtml(it)).join('') : '<p class="sc-empty-note">今日のルーチンはありません。</p>'}</div>
+    ${routineBacklogHtml(backlog)}`;
+}
+
+/** 日付を選んだときのパネルに出す、その日のルーチン */
+function routineDayBlockHtml(dateKey) {
+  const items = routineItemsOn(dateKey);
+  if (!items.length) return '';
+  const doneN = items.filter((it) => it.status).length;
+  return `<div class="sc-side-block sc-rt-dayblock">
+    <p class="sc-side-block-title">🔁 この日のルーチン（${doneN}/${items.length}）</p>
+    ${items.map((it) => routineItemHtml(it)).join('')}
+  </div>`;
+}
+
+/** カレンダーの日付に付ける印（毎月のルーチンがある日・やり残しがある日） */
+function routineDateMarks(dateKey, today) {
+  if (!state.routines.length) return '';
+  const items = routineItemsOn(dateKey);
+  if (!items.length) return '';
+  const monthly = items.filter((it) => it.routine.kind === 'monthly');
+  const undone = dateKey < today && dateKey >= toKey(addDays(fromKey(today), -ROUTINE_BACKLOG_DAYS))
+    && items.some((it) => !it.status && !((it.routine.createdAt || '').slice(0, 10) > dateKey));
+  let html = '';
+  if (monthly.length) html += `<span class="sc-mark-routine" title="${escapeHtml(monthly.map((it) => it.routine.title).join('、'))}">🔁</span>`;
+  if (undone) html += '<span class="sc-mark-routine-warn" title="ルーチンのやり残しがあります">!</span>';
+  return html;
+}
+
+/* ---- 登録・編集 ---- */
+
+function blankRoutine() {
+  return { title: '', note: '', kind: 'daily', days: [1, 2, 3, 4, 5], monthDay: 25, shiftBusiness: true, project: '', includeTentative: true, times: [''], paused: false };
+}
+
+function routineFormHtml(r) {
+  const f = Object.assign(blankRoutine(), r || {});
+  const editing = !!(r && r.id);
+  const times = (f.times && f.times.length ? f.times : ['']);
+  const dayOrder = [1, 2, 3, 4, 5, 6, 0];
+  return `<form id="routineForm" class="sc-form sc-todo-form">
+    <label class="sc-field">
+      <span class="sc-field-label">作業の名前 <span aria-hidden="true">*</span></span>
+      <input id="rtTitle" class="sc-input" type="text" value="${escapeHtml(f.title)}" placeholder="例）作業報告メールを送る／請求の確認" autocomplete="off">
+    </label>
+    <label class="sc-field">
+      <span class="sc-field-label">いつ</span>
+      <select id="rtKind" class="sc-input">
+        ${Object.keys(ROUTINE_KINDS).map((k) => `<option value="${k}" ${f.kind === k ? 'selected' : ''}>${ROUTINE_KINDS[k]}</option>`).join('')}
+      </select>
+    </label>
+    <div class="sc-rt-opt" data-rt-for="weekly" ${f.kind === 'weekly' ? '' : 'hidden'}>
+      <span class="sc-field-label">曜日</span>
+      <div class="sc-rt-days">${dayOrder.map((d) => `<label class="sc-rt-day"><input type="checkbox" name="rtDay" value="${d}" ${(f.days || []).includes(d) ? 'checked' : ''}><span>${WD[d]}</span></label>`).join('')}</div>
+    </div>
+    <div class="sc-rt-opt" data-rt-for="monthly" ${f.kind === 'monthly' ? '' : 'hidden'}>
+      <label class="sc-field">
+        <span class="sc-field-label">日にち</span>
+        <select id="rtMonthDay" class="sc-input">
+          ${Array.from({ length: 31 }, (_, i) => i + 1).map((d) => `<option value="${d}" ${String(f.monthDay) === String(d) ? 'selected' : ''}>${d}日</option>`).join('')}
+          <option value="last" ${f.monthDay === 'last' ? 'selected' : ''}>月末</option>
+        </select>
+      </label>
+      <label class="sc-check"><input id="rtShift" type="checkbox" ${f.shiftBusiness ? 'checked' : ''}><span>土日祝にあたるときは、前の平日にする</span></label>
+    </div>
+    <div class="sc-rt-opt" data-rt-for="project" ${f.kind === 'project' ? '' : 'hidden'}>
+      <label class="sc-field">
+        <span class="sc-field-label">案件</span>
+        <select id="rtProject" class="sc-input">
+          <option value="">選択してください</option>
+          ${state.settings.projects.map((p) => `<option value="${escapeHtml(p)}" ${f.project === p ? 'selected' : ''}>${escapeHtml(p)}</option>`).join('')}
+        </select>
+      </label>
+      <label class="sc-check"><input id="rtTentative" type="checkbox" ${f.includeTentative !== false ? 'checked' : ''}><span>仮出勤の日も対象にする</span></label>
+    </div>
+    <div class="sc-field">
+      <span class="sc-field-label">時刻（任意・複数可。例：朝 8:30 と 夜 18:00）</span>
+      <div id="rtTimes" class="sc-rt-times">
+        ${times.map((t, i) => `<div class="sc-rt-time-row"><input class="sc-input" type="time" name="rtTime" value="${escapeHtml(t)}">${i > 0 ? `<button type="button" class="sc-icon-btn sc-icon-btn-danger" data-rt-time-del="${i}" title="この時刻を消す">✕</button>` : ''}</div>`).join('')}
+      </div>
+      <button type="button" id="rtTimeAdd" class="sc-btn sc-btn-sm sc-btn-outline" style="margin-top:4px">＋ 時刻を追加</button>
+      <p class="sc-hint">時刻を入れないと「その日のうち」の作業になります。時刻ごとに別のチェック項目になります。</p>
+    </div>
+    <label class="sc-field">
+      <span class="sc-field-label">メモ（手順や宛先など）</span>
+      <textarea id="rtNote" class="sc-input" rows="2">${escapeHtml(f.note)}</textarea>
+    </label>
+    ${editing ? `<label class="sc-check"><input id="rtPaused" type="checkbox" ${f.paused ? 'checked' : ''}><span>一時的に止める（チェックリストに出さない）</span></label>` : ''}
+    <div class="sc-form-actions">
+      <button type="submit" class="sc-btn">${editing ? '更新する' : '登録する'}</button>
+      <button type="button" id="rtCancel" class="sc-btn sc-btn-outline">中止</button>
+    </div>
+  </form>`;
+}
+
+function readRoutineForm() {
+  const times = Array.from(document.querySelectorAll('#routineForm input[name="rtTime"]')).map((el) => el.value).filter(Boolean);
+  return {
+    title: $('rtTitle').value.trim(),
+    note: $('rtNote').value.trim(),
+    kind: $('rtKind').value,
+    days: Array.from(document.querySelectorAll('#routineForm input[name="rtDay"]:checked')).map((el) => Number(el.value)),
+    monthDay: $('rtMonthDay').value === 'last' ? 'last' : Number($('rtMonthDay').value),
+    shiftBusiness: $('rtShift').checked,
+    project: $('rtProject').value,
+    includeTentative: $('rtTentative').checked,
+    times: Array.from(new Set(times)).sort(),
+    paused: $('rtPaused') ? $('rtPaused').checked : false,
+  };
+}
+
+function renderRoutineForm() {
+  const wrap = $('routineFormWrap');
+  if (!wrap) return;
+  if (!view.routineFormOpen) { wrap.hidden = true; wrap.innerHTML = ''; return; }
+  const editing = view.routineEditingId ? state.routines.find((r) => r.id === view.routineEditingId) : null;
+  wrap.hidden = false;
+  wrap.innerHTML = routineFormHtml(view.routineDraft || editing);
+}
+
+function renderRoutines() {
+  renderRoutineToday();
+  renderRoutineSheet();
+  const list = $('routineList');
+  const count = $('routineCount');
+  if (count) count.textContent = state.routines.length ? `${state.routines.length}件` : '';
+  if (!list) return;
+  if (!state.routines.length) {
+    list.innerHTML = '<p class="sc-empty-note">まだ登録されていません。毎日・毎週・毎月の作業や、特定の案件の日にやる作業を登録すると、その日のチェックリストに出ます。</p>';
+    return;
+  }
+  const order = { daily: 0, weekdays: 1, weekly: 2, project: 3, monthly: 4 };
+  list.innerHTML = state.routines.slice()
+    .sort((a, b) => (order[a.kind] - order[b.kind]) || a.title.localeCompare(b.title, 'ja'))
+    .map((r) => `<div class="sc-todo-row${r.paused ? ' sc-todo-row-done' : ''}">
+      <div class="sc-todo-body">
+        <div class="sc-todo-top">
+          <span class="sc-todo-badge sc-rt-kind-${r.kind}">${r.paused ? '停止中' : (r.kind === 'monthly' ? '毎月' : r.kind === 'project' ? '案件' : r.kind === 'weekly' ? '毎週' : r.kind === 'weekdays' ? '平日' : '毎日')}</span>
+          <span class="sc-todo-title">${escapeHtml(r.title)}</span>
+        </div>
+        <p class="sc-todo-note">${escapeHtml(routineRuleLabel(r))}${r.note ? '　／　' + escapeHtml(r.note) : ''}</p>
+      </div>
+      <div class="sc-todo-actions">
+        <button type="button" class="sc-btn sc-btn-sm sc-btn-outline" data-rt-edit="${r.id}">編集</button>
+        <button type="button" class="sc-btn sc-btn-sm sc-btn-outline sc-btn-danger" data-rt-del="${r.id}">削除</button>
+      </div>
+    </div>`).join('');
+}
+
+function saveRoutineFromForm() {
+  const d = readRoutineForm();
+  if (!d.title) { toast('作業の名前を入力してください', true); $('rtTitle').focus(); return false; }
+  if (d.kind === 'weekly' && !d.days.length) { toast('曜日を選んでください', true); return false; }
+  if (d.kind === 'project' && !d.project) { toast('案件を選んでください', true); $('rtProject').focus(); return false; }
+  // 選んだ「いつ」に関係のない設定は保存しない
+  if (d.kind !== 'weekly') d.days = [];
+  if (d.kind !== 'monthly') { d.monthDay = null; d.shiftBusiness = false; }
+  if (d.kind !== 'project') { d.project = ''; d.includeTentative = true; }
+  const at = nowIso();
+  if (view.routineEditingId) {
+    const r = state.routines.find((x) => x.id === view.routineEditingId);
+    if (!r) return false;
+    Object.assign(r, d, { updatedAt: at });
+    toast('ルーチンを更新しました');
+  } else {
+    state.routines.push(Object.assign({ id: 'r' + newId().slice(1), createdAt: at, updatedAt: at, startDate: todayKey() }, d));
+    toast('ルーチンを登録しました');
+  }
+  saveState();
+  return true;
+}
+
+async function deleteRoutine(id) {
+  const r = state.routines.find((x) => x.id === id);
+  if (!r) return;
+  if (!(await customConfirm(`ルーチン「${r.title}」を削除します。よろしいですか？\n（一時的に止めたいだけなら、編集画面の「一時的に止める」が使えます）`, { okLabel: '削除する' }))) return;
+  const at = nowIso();
+  state.routines = state.routines.filter((x) => x.id !== id);
+  state.routineTombstones = state.routineTombstones.filter((x) => x.id !== id);
+  state.routineTombstones.push({ id: id, updatedAt: at });
+  if (view.routineEditingId === id) { view.routineFormOpen = false; view.routineEditingId = null; }
+  saveState();
+  renderAll();
+  renderRoutineForm();
+  toast('ルーチンを削除しました');
+}
+
+/** チェック・「今回なし」・折りたたみの操作（今日の欄・シート・日付のパネルで共通） */
+function handleRoutineClick(ev) {
+  const t = ev.target;
+  if (t.closest('[data-rt-collapse]')) {
+    let collapsed = false;
+    try { collapsed = localStorage.getItem(ROUTINE_COLLAPSE_STORE) === '1'; } catch (err) { /* 既定は開く */ }
+    try { localStorage.setItem(ROUTINE_COLLAPSE_STORE, collapsed ? '0' : '1'); } catch (err) { /* 保存できなくてもよい */ }
+    renderRoutineToday();
+    return true;
+  }
+  if (t.closest('[data-rt-clear-backlog]')) {
+    const list = routineBacklog();
+    if (!list.length) return true;
+    customConfirm(`やり残しの ${list.length}件 を、まとめて「今回なし」にします。よろしいですか？`, { okLabel: 'まとめて片付ける' }).then((ok) => {
+      if (!ok) return;
+      const at = nowIso();
+      list.forEach((it) => { state.routineLog[it.key] = { s: 'skip', at: at }; });
+      saveState();
+      afterRoutineChange();
+      toast(`${list.length}件を「今回なし」にしました`);
+    });
+    return true;
+  }
+  const skip = t.closest('[data-rt-skip]');
+  if (skip) { setRoutineStatus(skip.dataset.rtSkip, 'skip'); afterRoutineChange(); return true; }
+  const unskip = t.closest('[data-rt-unskip]');
+  if (unskip) { setRoutineStatus(unskip.dataset.rtUnskip, ''); afterRoutineChange(); return true; }
+  return false;
+}
+function handleRoutineChange(ev) {
+  const cb = ev.target.closest('[data-rt-toggle]');
+  if (!cb) return false;
+  setRoutineStatus(cb.dataset.rtToggle, cb.checked ? 'done' : '');
+  afterRoutineChange();
+  if (cb.checked) {
+    const left = routineItemsOn(todayKey()).filter((it) => !it.status).length + routineBacklog().length;
+    toast(left ? `完了にしました（残り${left}件）` : '今日のルーチンはすべて完了です');
+  }
+  return true;
+}
+function afterRoutineChange() {
+  renderRoutines();
+  renderStats();
+  if (!view.slot && view.selected && view.paint !== 'multi') renderSidePanel();
+  renderCalendar();
+}
+
+function bindRoutines() {
+  [$('routineToday'), $('routineSheetBody'), elSidePanel].forEach((el) => {
+    if (!el) return;
+    el.addEventListener('click', (ev) => { handleRoutineClick(ev); });
+    el.addEventListener('change', (ev) => { handleRoutineChange(ev); });
+  });
+  $('routinePill').addEventListener('click', openRoutineSheet);
+  $('routineSheetClose').addEventListener('click', () => closeRoutineSheet());
+  $('routineOverlay').addEventListener('click', (ev) => { if (ev.target === $('routineOverlay')) closeRoutineSheet(); });
+
+  $('addRoutineBtn').addEventListener('click', () => {
+    view.routineEditingId = null;
+    view.routineDraft = null;
+    view.routineFormOpen = true;
+    renderRoutineForm();
+    const el = $('rtTitle');
+    if (el && !isNarrow()) el.focus();
+  });
+  $('routineList').addEventListener('click', (ev) => {
+    const edit = ev.target.closest('[data-rt-edit]');
+    if (edit) {
+      view.routineEditingId = edit.dataset.rtEdit;
+      view.routineDraft = null;
+      view.routineFormOpen = true;
+      renderRoutineForm();
+      $('routineFormWrap').scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+      return;
+    }
+    const del = ev.target.closest('[data-rt-del]');
+    if (del) deleteRoutine(del.dataset.rtDel);
+  });
+  const wrap = $('routineFormWrap');
+  wrap.addEventListener('change', (ev) => {
+    if (ev.target.id !== 'rtKind') return;
+    wrap.querySelectorAll('[data-rt-for]').forEach((el) => { el.hidden = el.dataset.rtFor !== ev.target.value; });
+  });
+  wrap.addEventListener('click', (ev) => {
+    if (ev.target.id === 'rtCancel') {
+      view.routineFormOpen = false;
+      view.routineEditingId = null;
+      view.routineDraft = null;
+      renderRoutineForm();
+      return;
+    }
+    if (ev.target.id === 'rtTimeAdd' || ev.target.closest('[data-rt-time-del]')) {
+      const d = readRoutineForm();
+      const all = Array.from(document.querySelectorAll('#routineForm input[name="rtTime"]')).map((el) => el.value);
+      if (ev.target.id === 'rtTimeAdd') all.push('');
+      else all.splice(Number(ev.target.closest('[data-rt-time-del]').dataset.rtTimeDel), 1);
+      view.routineDraft = Object.assign({}, d, { id: view.routineEditingId || undefined, times: all.length ? all : [''] });
+      renderRoutineForm();
+      const inputs = document.querySelectorAll('#routineForm input[name="rtTime"]');
+      if (ev.target.id === 'rtTimeAdd' && inputs.length && !isNarrow()) inputs[inputs.length - 1].focus();
+    }
+  });
+  wrap.addEventListener('submit', (ev) => {
+    if (ev.target.id !== 'routineForm') return;
+    ev.preventDefault();
+    if (!saveRoutineFromForm()) return;
+    view.routineFormOpen = false;
+    view.routineEditingId = null;
+    view.routineDraft = null;
+    renderRoutineForm();
+    renderAll();
+  });
+
+  // 日付が変わったときや、時刻を過ぎたときに表示を更新する（画面を開いたままでも）
+  let lastDay = todayKey();
+  setInterval(() => {
+    if (document.visibilityState !== 'visible') return;
+    if (todayKey() !== lastDay) { lastDay = todayKey(); renderAll(); return; }
+    renderRoutineToday();
+    renderRoutineSheet();
+  }, 60000);
+}
+
+/* ------------------------------------------------------------
    希望日の設定
    ------------------------------------------------------------ */
 
@@ -4022,15 +4633,9 @@ function importJson(file) {
       const jobs = Array.isArray(parsed.jobs) ? parsed.jobs.filter(isValidJob) : [];
       const wishes = parsed.wishes && typeof parsed.wishes === 'object' ? parsed.wishes : {};
       const todos = Array.isArray(parsed.todos) ? parsed.todos.filter(isValidTodo) : [];
-      if (!confirm(`現在のデータを置き換えます。\n予定 ${jobs.length}件 / 希望 ${Object.keys(wishes).length}日 / ToDo ${todos.length}件\nよろしいですか？`)) return;
-      state = {
-        version: 1,
-        settings: Object.assign(defaultState().settings, parsed.settings || {}),
-        wishes,
-        jobs,
-        todos,
-        todoTombstones: [],
-      };
+      const routines = Array.isArray(parsed.routines) ? parsed.routines.filter(isValidRoutine) : [];
+      if (!confirm(`現在のデータを置き換えます。\n予定 ${jobs.length}件 / 希望 ${Object.keys(wishes).length}日 / ToDo ${todos.length}件 / ルーチン ${routines.length}件\nよろしいですか？`)) return;
+      state = normalizeState(parsed);
       view.editingId = null;
       view.confirming = false;
       view.form = blankForm();
@@ -4136,6 +4741,23 @@ function checkUpcomingNotifications(nowArg) {
       n.onclick = () => { window.focus(); n.close(); };
     } catch (err) { /* 通知が出せなくても動作には影響しない */ }
   });
+
+  // ルーチン：時刻のある項目を、その時刻に知らせる（済んだもの・今回なしにしたものは除く）
+  if (Array.isArray(state.routines) && state.routines.length) {
+    routineItemsOn(today).forEach((it) => {
+      if (!it.time || it.status) return;
+      const at = toMinutes(it.time) - lead;
+      if (nowMin < at || nowMin - at > 10) return;
+      const key = 'rt:' + it.key;
+      if (notified.has(key)) return;
+      notified.add(key);
+      changed = true;
+      try {
+        const n = new Notification(`🔁 ${it.routine.title}（${it.time}）`, { body: it.routine.note || 'ルーチンの時間です', tag: key });
+        n.onclick = () => { window.focus(); n.close(); };
+      } catch (err) { /* 通知が出せなくても動作には影響しない */ }
+    });
+  }
 
   if (changed) saveNotifiedSet(notified);
 }
@@ -4961,7 +5583,7 @@ let historyIgnorePops = 0;
 function syncHistoryLayers() {
   if (!window.history || !history.pushState) return;
   const sheetOpen = elSideAside && elSideAside.classList.contains('sc-side-modal-open');
-  const want = (view.paint === 'multi' && isNarrow() ? 1 : 0) + (sheetOpen ? 1 : 0) + (voice.open ? 1 : 0);
+  const want = (view.paint === 'multi' && isNarrow() ? 1 : 0) + (sheetOpen ? 1 : 0) + (voice.open ? 1 : 0) + (routineSheetOpen ? 1 : 0);
   while (historyPushed < want) {
     history.pushState({ vcLayer: historyPushed + 1 }, '');
     historyPushed++;
@@ -4983,6 +5605,7 @@ function onHistoryPop() {
     return;
   }
   if (voice.open) { closeVoice(true); return; }
+  if (routineSheetOpen) { closeRoutineSheet(true); return; }
   if (elSideAside.classList.contains('sc-side-modal-open')) { closeForm(); return; }
   if (view.paint === 'multi') { setPaintMode(null); return; }
 }
@@ -5242,6 +5865,7 @@ function bindEvents() {
   window.addEventListener('popstate', onHistoryPop);
   $('fabAdd').addEventListener('click', openQuickAdd);
   bindVoice();
+  bindRoutines();
   bindSheetSwipe();
   bindMonthSwipe();
   let resizeTimer = 0;
@@ -6110,6 +6734,7 @@ function bindEvents() {
   document.addEventListener('keydown', (ev) => {
     if (ev.key === 'Escape' && !elConfirmOverlay.hidden) { closeCustomConfirm(false); return; }
     if (ev.key === 'Escape' && voice.open) { closeVoice(); return; }
+    if (ev.key === 'Escape' && routineSheetOpen) { closeRoutineSheet(); return; }
     if (ev.key === 'Escape' && moveDrag) { finishMoveDrag(false); painting = false; paintTouched.clear(); return; }
     // Ctrl+Z（⌘Z）で、直前の移動・削除・まとめて操作を元に戻す
     if ((ev.ctrlKey || ev.metaKey) && !ev.shiftKey && ev.key.toLowerCase() === 'z' && undoEntry && !ev.target.matches('input, textarea, select')) {
